@@ -719,23 +719,112 @@ pub fn reference_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
     Ok(counts)
 }
 
-/// Every name with at least one reference that is not a function calling
-/// itself — what `find_dead_code` needs to tell "used" from "unused". A
-/// `calls` relation whose target name equals its caller's own name is
-/// recursion and does not count, unless another symbol shares that name:
-/// relations resolve by name, so `fn parse() { inner::parse() }` may be
-/// delegation and is kept. Every other relation kind counts as before (a
-/// Rust `#[test]` attribute is a `references` relation to its own function).
-pub fn referenced_names(conn: &Connection) -> Result<HashSet<String>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT DISTINCT r.to_name FROM relations r
+/// What `find_dead_code` counts as a reference, by how each relation
+/// resolved (the rule `query_relation_rows` applies, issue #322).
+#[derive(Debug, Default)]
+pub struct ReferencedSymbols {
+    /// Names reached by an ambiguous or unresolved relation: every symbol
+    /// with one of these names counts as referenced, because the relation
+    /// may reach any of them.
+    pub names: HashSet<String>,
+    /// `(relative_path, line, name)` of each symbol a relation resolved to.
+    /// That relation counts for this symbol only, never for a homonym.
+    pub symbols: HashSet<(String, u32, String)>,
+}
+
+impl ReferencedSymbols {
+    /// Whether anything in the index references the symbol at
+    /// `relative_path:line` named `name`.
+    pub fn contains(&self, relative_path: &str, line: u32, name: &str) -> bool {
+        self.names.contains(name)
+            || self
+                .symbols
+                .contains(&(relative_path.to_string(), line, name.to_string()))
+    }
+}
+
+/// Every reference that is not a function calling itself — what
+/// `find_dead_code` needs to tell "used" from "unused" for symbols of
+/// `kinds`.
+///
+/// - external: counts for no indexed symbol;
+/// - resolved to one symbol: counts for that symbol only, and not at all when
+///   it is a `calls` relation resolved to its own caller (recursion);
+/// - ambiguous or unresolved: counts for every symbol with the name. A
+///   `calls` relation whose target name equals its caller's own name is
+///   recursion and does not count, unless another symbol shares that name:
+///   `fn parse() { inner::parse() }` may be delegation and is kept.
+///
+/// Every other relation kind to the caller itself counts (a Rust `#[test]`
+/// attribute is a `references` relation to its own function).
+///
+/// The answer is exact for symbols of `kinds` only. Candidates are looked up
+/// just where they can change it, because evaluating `relation_candidates`
+/// for every relation of a large index takes seconds:
+/// - a name only one symbol has keeps that symbol alive whether a relation
+///   resolved to it or not, so it is counted by name;
+/// - a name with no symbol of `kinds` is never asked about, so it is counted
+///   by name too (module aliases resolve to `module` symbols only);
+/// - a name with homonyms is counted by name as soon as one relation to it
+///   is not resolved to a single symbol — that relation keeps every homonym
+///   alive — and per resolved target only when none is.
+pub fn referenced_symbols(conn: &Connection, kinds: &[&str]) -> Result<ReferencedSymbols> {
+    let kinds_sql = vec!["?"; kinds.len()].join(", ");
+    let sql = format!(
+        "WITH homonyms AS (
+             SELECT name FROM symbols GROUP BY name
+             HAVING COUNT(*) > 1 AND SUM(kind IN ({kinds_sql})) > 0
+         ),
+         resolved_names AS (
+             SELECT h.name FROM homonyms h
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM relations r
+                 WHERE r.to_name = h.name AND r.external = 0
+                   AND (r.member = 1
+                        OR (SELECT COUNT(*) FROM (SELECT 1 FROM relation_candidates c
+                                                  WHERE c.relation_id = r.id LIMIT 2)) <> 1))
+         )
+         SELECT DISTINCT r.to_name, NULL, NULL, NULL
+         FROM relations r
          JOIN symbols caller ON caller.id = r.from_symbol_id
-         WHERE r.kind <> 'calls'
-            OR r.to_name <> caller.name
-            OR (SELECT COUNT(*) FROM symbols s WHERE s.name = r.to_name) > 1",
-    )?;
-    let names = stmt.query_map([], |row| row.get::<_, String>(0))?;
-    Ok(names.collect::<rusqlite::Result<_>>()?)
+         WHERE r.external = 0
+           AND r.to_name NOT IN (SELECT name FROM resolved_names)
+           AND (r.kind <> 'calls'
+                OR r.to_name <> caller.name
+                OR (SELECT COUNT(*) FROM symbols s WHERE s.name = r.to_name) > 1)
+         UNION
+         SELECT r.to_name, f.relative_path, s.line, s.name
+         FROM relations r
+         JOIN relation_candidates c ON c.relation_id = r.id
+         JOIN symbols s ON s.id = c.symbol_id
+         JOIN files f ON f.id = s.file_id
+         WHERE r.external = 0
+           AND r.to_name IN (SELECT name FROM resolved_names)
+           AND NOT (r.kind = 'calls' AND s.id = r.from_symbol_id)"
+    );
+    // `sql` interpolates only `?` placeholders, one per kind; the kinds bind.
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(kinds), |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<i64>>(2)?,
+            row.get::<_, Option<String>>(3)?,
+        ))
+    })?;
+    let mut out = ReferencedSymbols::default();
+    for row in rows {
+        match row? {
+            (_, Some(path), Some(line), Some(name)) => {
+                let line = u32::try_from(line).unwrap_or(u32::MAX);
+                out.symbols.insert((path, line, name));
+            }
+            (to_name, ..) => {
+                out.names.insert(to_name);
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// `predicate` is a static SQL fragment chosen by the caller (never built from
