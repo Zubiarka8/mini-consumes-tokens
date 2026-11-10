@@ -229,6 +229,7 @@ fn is_promoted_property(class_parameter: Node) -> bool {
         .any(|c| c.kind() == "val" || c.kind() == "var")
 }
 
+mod details;
 mod receivers;
 
 #[derive(Default)]
@@ -245,6 +246,8 @@ struct Walker<'a> {
     /// The class `this` is, an index into `classes`; `None` inside a
     /// lambda, whose `this` may be its receiver (`apply { … }`).
     this_class: Option<usize>,
+    /// Declaration details of the symbols recorded so far (ADR-034).
+    details: Vec<mct_core::SymbolDetail>,
 }
 
 impl<'a> Walker<'a> {
@@ -315,6 +318,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
 
                 if let Some(delegations) = find_child(node, "delegation_specifiers") {
                     let mut cursor = delegations.walk();
@@ -386,12 +391,14 @@ impl<'a> Walker<'a> {
             "class_parameter" => {
                 if is_promoted_property(node) {
                     if let Some(name_node) = class_parameter_name(node) {
-                        self.push_symbol(
+                        let id = self.push_symbol(
                             text(name_node, self.source).to_string(),
                             SymbolKind::Field,
                             location(node),
                             type_name.map(str::to_string),
                         );
+                        self.details
+                            .push(details::property_detail(node, id, self.source));
                     }
                 }
                 // Default-value expressions (`= mutableListOf()`) may still
@@ -413,6 +420,8 @@ impl<'a> Walker<'a> {
                     SymbolKind::Function
                 };
                 let id = self.push_symbol(name, kind, location(node), parent);
+                self.details
+                    .push(details::function_detail(node, id, self.source));
                 let mut locals = self.locals.clone();
                 let mut cursor = node.walk();
                 for part in node.named_children(&mut cursor) {
@@ -439,12 +448,14 @@ impl<'a> Walker<'a> {
                 if type_name.is_some() {
                     if let Some(var_decl) = find_child(node, "variable_declaration") {
                         if let Some(name_node) = var_decl.named_child(0) {
-                            self.push_symbol(
+                            let id = self.push_symbol(
                                 text(name_node, self.source).to_string(),
                                 SymbolKind::Field,
                                 location(node),
                                 type_name.map(str::to_string),
                             );
+                            self.details
+                                .push(details::property_detail(node, id, self.source));
                         }
                     }
                 }
@@ -565,6 +576,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
