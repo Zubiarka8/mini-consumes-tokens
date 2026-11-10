@@ -1,5 +1,18 @@
 # Local validation
 
+## Mobile navigation — 2026-11-10
+
+The homepage header now uses a translated hamburger disclosure at 1100px and below. Verified opening by keyboard and pointer, Escape with focus restoration, section-link and outside-tap dismissal, desktop/mobile resizing, documentation navigation, and a usable navigation fallback without JavaScript. Light/dark portrait and short landscape screenshots were reviewed. Header links, buttons and selects meet the tested 44px minimum, with 48px styling.
+
+- `RUSTUP_TOOLCHAIN=1.96.0 scripts/unix/check.sh`: passed; 2265 tests passed, 0 failed, 32 ignored; formatting, CI Clippy and quality eval passed. The first sandboxed attempt could not bind local ports; the unrestricted rerun completed successfully.
+- Website type check, scoped formatting (including `editorial.css`), 249-key EN/ES resource parity, and production-prefix build passed.
+- Static export check passed: 32 HTML exports and 1430 local asset/link targets.
+- All 23 Playwright WebKit checks passed. Overflow was checked in both languages at 320, 375, 768, 1024, 1101, 1280 and 1440px; the menu was checked at 320–1100px and in both themes at 375x900 and 844x390.
+
+Interactive tests now wait for hydration before acting on prerendered controls. The reload/navigation test also lets static RSC prefetches finish before unloading, preserving its strict JavaScript-error assertion. Earlier runs caught and corrected CSS specificity and WebKit's undersized native selects. No Chrome/Chromium was used. No dependency, Rust source or documentation route changed.
+
+## Earlier validation
+
 Validated on 2026-10-10 with Node 24.12.0, Next.js 16.3.8 and Playwright WebKit 27.2. No Chrome/Chromium was launched. Work stays uncommitted on feat/official-landing-page, based on 1ad997242c5629df14d77acb1f5c36baec202140.
 
 ## Six-file atlas and full-screen exploration — 2026-10-10
