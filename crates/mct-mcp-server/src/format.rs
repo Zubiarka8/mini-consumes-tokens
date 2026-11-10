@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use mct_index::{
     DependencyGraph, FileTreeNode, IndexStatus, LiteralHit, ReindexReport, RelationHit, Resolution,
-    SymbolHit, SymbolListEntry,
+    ResolutionEvidence, SymbolHit, SymbolListEntry,
 };
 
 use crate::toon::encode_table;
@@ -678,11 +678,21 @@ fn depth_tag(depth: u32) -> String {
 /// Which definition(s) a relation reaches, after its target: ` -> path:line
 /// in Parent` when resolved, ` (ambiguous among N: path:line in P, …)` with
 /// the first candidates when ambiguous, ` (unresolved)`/` (external)`
-/// otherwise. Never a single picked target for an unproven relation.
+/// otherwise. Never a single picked target for an unproven relation. A
+/// target left only by a unique name, with no evidence from the parser,
+/// says so: ` -> path:line (by name)`.
 fn resolution_tag(hit: &RelationHit) -> String {
     match hit.resolution {
         Resolution::Resolved => match hit.candidates.first() {
-            Some(target) => format!(" -> {}", candidate_ref(hit, target)),
+            Some(target) => format!(
+                " -> {}{}",
+                candidate_ref(hit, target),
+                if hit.evidence == ResolutionEvidence::Name {
+                    " (by name)"
+                } else {
+                    ""
+                }
+            ),
             None => String::new(),
         },
         Resolution::Ambiguous => format!(
@@ -931,6 +941,7 @@ fn relation_hits_toon_impl(
                 "to",
                 "depth",
                 "resolution",
+                "evidence",
                 "candidates",
                 "targets",
             ],
@@ -950,6 +961,13 @@ fn relation_hit_row(hit: &RelationHit) -> Vec<String> {
         hit.to_name.clone(),
         hit.depth.to_string(),
         hit.resolution.as_str().to_string(),
+        // Only a resolved hit's evidence is not implied by its resolution:
+        // an empty cell keeps the column's cost on the other rows to a comma.
+        if hit.resolution == Resolution::Resolved {
+            hit.evidence.as_str().to_string()
+        } else {
+            String::new()
+        },
         hit.candidate_count.to_string(),
         candidate_list(hit),
     ]
@@ -1148,6 +1166,7 @@ fn impact_analysis_toon_impl(
         "to",
         "depth",
         "resolution",
+        "evidence",
         "candidates",
         "targets",
     ];
@@ -2852,28 +2871,38 @@ mod resolution_tests {
     }
 
     fn hits() -> Vec<RelationHit> {
+        let with = |hit: RelationHit, evidence| RelationHit { evidence, ..hit };
         vec![
-            hit(
-                "other_file",
-                Resolution::Resolved,
-                1,
-                vec![candidate("src/a.rs", 3, Some("A"))],
+            with(
+                hit(
+                    "other_file",
+                    Resolution::Resolved,
+                    1,
+                    vec![candidate("src/a.rs", 3, Some("A"))],
+                ),
+                ResolutionEvidence::Declared,
             ),
-            hit(
-                "same_file",
-                Resolution::Resolved,
-                1,
-                vec![candidate("src/main.rs", 9, None)],
+            with(
+                hit(
+                    "same_file",
+                    Resolution::Resolved,
+                    1,
+                    vec![candidate("src/main.rs", 9, None)],
+                ),
+                ResolutionEvidence::Name,
             ),
-            hit(
-                "guess",
-                Resolution::Ambiguous,
-                5,
-                vec![
-                    candidate("src/a.rs", 3, Some("A")),
-                    candidate("src/b.rs", 7, Some("B")),
-                    candidate("src/main.rs", 2, None),
-                ],
+            with(
+                hit(
+                    "guess",
+                    Resolution::Ambiguous,
+                    5,
+                    vec![
+                        candidate("src/a.rs", 3, Some("A")),
+                        candidate("src/b.rs", 7, Some("B")),
+                        candidate("src/main.rs", 2, None),
+                    ],
+                ),
+                ResolutionEvidence::Candidates,
             ),
             hit("unknown", Resolution::Unresolved, 0, Vec::new()),
         ]
@@ -2886,7 +2915,7 @@ mod resolution_tests {
             out,
             "4 caller(s) of this function:\n\
              src/main.rs:4:5 [rust] other_file --calls--> run -> src/a.rs:3 in A\n\
-             src/main.rs:4:5 [rust] same_file --calls--> run -> L9\n\
+             src/main.rs:4:5 [rust] same_file --calls--> run -> L9 (by name)\n\
              src/main.rs:4:5 [rust] guess --calls--> run (ambiguous among 5: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n\
              src/main.rs:4:5 [rust] unknown --calls--> run (unresolved)\n"
         );
@@ -2898,17 +2927,21 @@ mod resolution_tests {
         let out = relation_hits_toon("run", "caller(s) of this function", &hits, 0, 50);
         assert!(
             out.contains(
-                "{path,line,column,language,from,kind,to,depth,resolution,candidates,targets}:"
+                "{path,line,column,language,from,kind,to,depth,resolution,evidence,candidates,targets}:"
             ),
             "{out}"
         );
         assert!(
-            out.contains("other_file,calls,run,1,resolved,1,src/a.rs:3 in A"),
+            out.contains("other_file,calls,run,1,resolved,declared,1,src/a.rs:3 in A"),
+            "{out}"
+        );
+        assert!(
+            out.contains("same_file,calls,run,1,resolved,name,1,L9"),
             "{out}"
         );
         assert!(
             out.contains(
-                "guess,calls,run,1,ambiguous,5,\"src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more\""
+                "guess,calls,run,1,ambiguous,,5,\"src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more\""
             ),
             "{out}"
         );
@@ -2916,7 +2949,7 @@ mod resolution_tests {
         let tests: Vec<&RelationHit> = Vec::new();
         let impact = impact_analysis_toon("run", &hits, &hits, &tests, 0, 50);
         assert!(
-            impact.contains("callers[4]{path,line,column,language,from,kind,to,depth,resolution,candidates,targets}:"),
+            impact.contains("callers[4]{path,line,column,language,from,kind,to,depth,resolution,evidence,candidates,targets}:"),
             "{impact}"
         );
         let text = impact_analysis("run", &hits, &hits, &tests, 0, 50);
