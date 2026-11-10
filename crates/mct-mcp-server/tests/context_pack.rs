@@ -107,13 +107,14 @@ async fn packs_definition_doc_comment_and_every_related_symbol_once() {
     // Only the definition, never the rest of its file.
     assert!(!text.contains("fn cancel_order"), "{text}");
 
-    // Callees resolved to their definitions, with a signature.
+    // Callees resolved to their definitions, with their stored header
+    // (ADR-034): the declaration without its body.
     assert!(
         text.contains("callee validate_order  src/orders.rs:L52-L62 function"),
         "{text}"
     );
     assert!(
-        text.contains("| pub fn apply_discount(cents: u64, coupon: Option<&str>) -> u64 {"),
+        text.contains("| pub fn apply_discount(cents: u64, coupon: Option<&str>) -> u64\n"),
         "{text}"
     );
     // A type in the signature is a referenced symbol too.
@@ -385,9 +386,9 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
     assert_eq!(
         related,
         vec![
-            "  callee run  src/lib.rs:L3 method  | pub fn run() {}",
-            "  references B  src/lib.rs:L5 struct  | pub struct B;",
-            "  references A  src/lib.rs:L1 struct  | pub struct A;",
+            "  callee run  src/lib.rs:L3 method  | pub fn run()",
+            "  references B  src/lib.rs:L5 struct  | pub struct B",
+            "  references A  src/lib.rs:L1 struct  | pub struct A",
         ],
         "{text}"
     );
@@ -410,5 +411,39 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
     assert!(
         text.contains("Unresolved (no indexed definition, no external evidence): get, iter, map"),
         "{text}"
+    );
+}
+
+/// ADR-034: a signature is the declaration header the parser stored, so a
+/// header written over several lines is whole, not its first line; a symbol
+/// with no stored header (Markdown, CSS) keeps its first source line.
+#[tokio::test]
+async fn signatures_are_the_stored_declaration_headers() {
+    let root = std::env::temp_dir().join(format!("mct-stored-sig-pack-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "pub fn total(\n    prices: &[u64],\n    tax: u64,\n) -> u64 {\n    prices.len() as u64 + tax\n}\n\
+         pub fn checkout() -> u64 {\n    total(&[1], 2)\n}\n",
+    )
+    .unwrap();
+    let server = build_server(&root).await;
+    let text = pack(&server, json!({ "symbol": "checkout", "format": "text" })).await;
+    let summary = pack(
+        &server,
+        json!({ "symbol": "total", "format": "text", "detail": "summary" }),
+    )
+    .await;
+    let _ = std::fs::remove_dir_all(&root);
+    println!("{text}\n{summary}");
+
+    assert!(
+        text.contains("callee total  src/lib.rs:L1-L6 function  | pub fn total( prices: &[u64], tax: u64, ) -> u64\n"),
+        "{text}"
+    );
+    assert!(
+        summary.contains("pub fn total( prices: &[u64], tax: u64, ) -> u64"),
+        "{summary}"
     );
 }
