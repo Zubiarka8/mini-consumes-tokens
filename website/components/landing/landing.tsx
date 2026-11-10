@@ -7,11 +7,14 @@ import {
   Network,
   ScanLine,
   GitBranch,
+  Menu,
+  X,
+  ChevronDown,
 } from "lucide-react";
 import { MotionConfig, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "fumadocs-ui/provider/base";
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { basePath } from "@/lib/shared";
 import { localeKey } from "./locale";
 import { ContextDemo } from "./context-demo";
@@ -54,11 +57,35 @@ export function Landing() {
   const { t, i18n } = useTranslation();
   const reduced = useReducedMotion();
   const { theme, setTheme } = useTheme();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
   const mounted = useSyncExternalStore(
     subscribe,
     () => true,
     () => false,
   );
+  useEffect(() => {
+    if (!menuOpen) return;
+    const desktop = window.matchMedia("(min-width: 1101px)");
+    function closeOutside(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !headerRef.current?.contains(event.target)
+      ) {
+        setMenuOpen(false);
+      }
+    }
+    function closeOnDesktop(event: MediaQueryListEvent) {
+      if (event.matches) setMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      desktop.removeEventListener("change", closeOnDesktop);
+    };
+  }, [menuOpen]);
   function changeLanguage(language: string) {
     void i18n.changeLanguage(language);
     try {
@@ -70,8 +97,24 @@ export function Landing() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="landing v-editorial" id="top">
-        <header className="landing-header shell">
-          <Link href="/" className="brand" aria-label="mini-consumes-tokens">
+        <header
+          ref={headerRef}
+          className="landing-header shell"
+          data-menu-ready={mounted || undefined}
+          data-menu-open={menuOpen || undefined}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && menuOpen) {
+              setMenuOpen(false);
+              menuToggleRef.current?.focus();
+            }
+          }}
+        >
+          <Link
+            href="/"
+            className="brand"
+            aria-label="mini-consumes-tokens"
+            onClick={() => setMenuOpen(false)}
+          >
             <img
               src={`${basePath}/img/logo.png`}
               alt=""
@@ -80,7 +123,26 @@ export function Landing() {
             />
             <span>mini-consumes-tokens</span>
           </Link>
-          <nav aria-label={t("nav")}>
+          <button
+            ref={menuToggleRef}
+            type="button"
+            className="mobile-menu-toggle"
+            aria-label={t(menuOpen ? "navClose" : "navOpen")}
+            aria-expanded={menuOpen}
+            aria-controls="landing-navigation landing-actions"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? (
+              <X size={24} aria-hidden="true" />
+            ) : (
+              <Menu size={24} aria-hidden="true" />
+            )}
+          </button>
+          <nav
+            id="landing-navigation"
+            aria-label={t("nav")}
+            onClick={() => setMenuOpen(false)}
+          >
             <a href="#problem">{t("navWhy")}</a>
             <a href="#capabilities">{t("capabilities")}</a>
             <a href="#web">{t("navWeb")}</a>
@@ -88,7 +150,7 @@ export function Landing() {
             <a href="#start">{t("navStart")}</a>
             <a href="#faq">{t("navFaq")}</a>
           </nav>
-          <div className="header-actions">
+          <div id="landing-actions" className="header-actions">
             <label className="theme-control">
               <span className="sr-only">{t("theme")}</span>
               <select
@@ -100,6 +162,11 @@ export function Landing() {
                 <option value="light">{t("themeLight")}</option>
                 <option value="dark">{t("themeDark")}</option>
               </select>
+              <ChevronDown
+                className="header-control-chevron"
+                size={16}
+                aria-hidden="true"
+              />
             </label>
             <label className="locale-control">
               <span className="sr-only">{t("language")}</span>
@@ -115,6 +182,11 @@ export function Landing() {
                   Castellano
                 </option>
               </select>
+              <ChevronDown
+                className="header-control-chevron"
+                size={16}
+                aria-hidden="true"
+              />
             </label>
             <DocsLink className="header-docs">{t("docs")}</DocsLink>
           </div>
