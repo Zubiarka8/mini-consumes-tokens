@@ -229,6 +229,8 @@ fn is_promoted_property(class_parameter: Node) -> bool {
         .any(|c| c.kind() == "val" || c.kind() == "var")
 }
 
+mod receivers;
+
 #[derive(Default)]
 struct Walker<'a> {
     source: &'a str,
@@ -236,6 +238,13 @@ struct Walker<'a> {
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
+    /// Declared types of the enclosing functions' locals (see `receivers`).
+    locals: receivers::Types,
+    /// What each enclosing class or object body declares, innermost last.
+    classes: Vec<receivers::ClassScope>,
+    /// The class `this` is, an index into `classes`; `None` inside a
+    /// lambda, whose `this` may be its receiver (`apply { … }`).
+    this_class: Option<usize>,
 }
 
 impl<'a> Walker<'a> {
@@ -345,6 +354,10 @@ impl<'a> Walker<'a> {
                     }
                 }
 
+                self.classes
+                    .push(receivers::class_scope(&name, node, self.source));
+                let outer_this = self.this_class.replace(self.classes.len() - 1);
+                let outer_locals = std::mem::take(&mut self.locals);
                 if let Some(primary_ctor) = find_child(node, "primary_constructor") {
                     self.visit_children(primary_ctor, owner, Some(&name), depth + 1);
                 }
@@ -353,6 +366,9 @@ impl<'a> Walker<'a> {
                 {
                     self.visit_children(body, owner, Some(&name), depth + 1);
                 }
+                self.locals = outer_locals;
+                self.this_class = outer_this;
+                self.classes.pop();
             }
             // `NEW { override fun next() = … }`: a field of the enum; its
             // body overrides members of the enum, so they keep its name.
@@ -397,6 +413,12 @@ impl<'a> Walker<'a> {
                     SymbolKind::Function
                 };
                 let id = self.push_symbol(name, kind, location(node), parent);
+                let mut locals = self.locals.clone();
+                let mut cursor = node.walk();
+                for part in node.named_children(&mut cursor) {
+                    receivers::locals(part, self.source, &mut locals, depth + 1);
+                }
+                let outer_locals = std::mem::replace(&mut self.locals, locals);
                 // Inside the body no declaration is a member of the
                 // enclosing type: a local `val` is no field, a local `fun`
                 // no method.
@@ -406,6 +428,12 @@ impl<'a> Walker<'a> {
                 if let Some(body) = find_child(node, "function_body") {
                     self.visit_children(body, id, None, depth + 1);
                 }
+                self.locals = outer_locals;
+            }
+            "lambda_literal" | "anonymous_function" => {
+                let outer_this = self.this_class.take();
+                self.visit_children(node, owner, type_name, depth + 1);
+                self.this_class = outer_this;
             }
             "property_declaration" => {
                 if type_name.is_some() {
@@ -454,6 +482,13 @@ impl<'a> Walker<'a> {
             }
             "call_expression" => {
                 if let Some(name_node) = callee_identifier(node) {
+                    if let Some(receiver) = node
+                        .child(0)
+                        .filter(|c| c.kind() == "navigation_expression")
+                        .and_then(|c| c.named_child(0))
+                    {
+                        self.push_receiver(receiver, text(name_node, self.source));
+                    }
                     // location(name_node), not location(node): a chained call
                     // (`a.f(x).f(y)`) would otherwise collide two distinct
                     // calls into one indistinguishable row.
@@ -468,6 +503,61 @@ impl<'a> Walker<'a> {
             }
             _ => self.visit_children(node, owner, type_name, depth + 1),
         }
+    }
+
+    /// Evidence for `receiver.method(…)` about to be pushed: the
+    /// receiver's declared type; a capitalized name that is no local or
+    /// property (an `object`, a companion, a type); or a member call when
+    /// the receiver is a local, `it` or an expression of unproven type.
+    /// `this.m()` is qualified by the enclosing class only when its body
+    /// declares `m` (otherwise `m` may be inherited), and a lowercase name
+    /// that is no local or property is left as it was.
+    fn push_receiver(&mut self, receiver: Node, method: &str) {
+        let this_class = self.this_class.and_then(|i| self.classes.get(i));
+        let typed = |ty: Option<String>| {
+            let member = ty.is_none();
+            (ty, member)
+        };
+        let (qualifier, member) = match receiver.kind() {
+            "this_expression" => match this_class {
+                Some(class) if class.methods.contains(method) => (Some(class.name.clone()), false),
+                _ => return,
+            },
+            "super_expression" => return,
+            "identifier" => {
+                let name = text(receiver, self.source);
+                match self
+                    .locals
+                    .get(name)
+                    .or_else(|| this_class.and_then(|c| c.fields.get(name)))
+                {
+                    Some(ty) => typed(ty.clone()),
+                    None if name == "it" => (None, true),
+                    None if name.starts_with(char::is_uppercase) => (Some(name.to_string()), false),
+                    None => return,
+                }
+            }
+            "navigation_expression" => {
+                let on_this = receiver
+                    .named_child(0)
+                    .is_some_and(|o| o.kind() == "this_expression");
+                let field = last_identifier_child(receiver).map(|f| text(f, self.source));
+                match (on_this, field, this_class) {
+                    (true, Some(field), Some(class)) => {
+                        typed(class.fields.get(field).cloned().flatten())
+                    }
+                    _ => (None, true),
+                }
+            }
+            "call_expression" => typed(receivers::constructed(receiver, self.source)),
+            _ => (None, true),
+        };
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            qualifier,
+            member,
+            ..Default::default()
+        });
     }
 
     fn finish(self) -> ParsedFile {
