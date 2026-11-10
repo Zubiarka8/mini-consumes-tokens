@@ -313,6 +313,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `import a.b`, `from .x import y as z` | `import_statement`, `import_from_statement`, `aliased_import`, `relative_import` | `imports` for the module and each name |
 | `f()`, `obj.m()` | `call`, `attribute` | `calls` |
 | a bare builtin (`open()`, `len()`, `class E(Exception)`, `@property`) | `call`, `identifier` | marked `external` only when nothing in the file binds the name — no `def`, `class`, import, parameter, assignment, loop, `with`/`except`/walrus/`match` target, `global` or `type` of it — and the file has no `from m import *`, `globals()`, `exec`, `vars()` or `sys.modules`. The list is CPython 3.14's `builtins` without `site`'s names |
+| a call to an imported name (`from app.util import parse; parse()`, `import app.legacy as lg; lg.parse()`, `import app.util; app.util.parse()`) | `import_from_statement`, `import_statement`, `call` | carries the module as evidence (`util`, `legacy`): only a definition under a path component of that name can be the target, so a third-party module never resolves to a repo function. Not applied when anything else in the file binds the name, or the file is opaque (see the builtin row) |
 | a bare call to a `def`/`class` of the same file (`count()` → `def count`) | `call`, `identifier` | `calls`, kept to this file when only a `def`/`class` outside a class body binds the name |
 
 #### Why the gaps exist
@@ -353,6 +354,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `export default f({ … })` | `export_statement` value | the call and its arguments are walked like any expression |
 | object literal methods | `method_definition` under `object` | `function` |
 | an ECMAScript global (`Math.max()`, `JSON.parse()`, `parseInt()`, `new Map()`) | `call_expression`, `new_expression` | marked `external` only when nothing in the file binds the name — no declaration, import, parameter, pattern or assignment of it — and the file has no direct `eval` or `with`. Host globals (`window`, `document`, `process`, `console`) are not on the list |
+| a call to an imported name (`import { f } from "./fmt"; f()`, `import f from "m"`, `import * as m from "./m"; m.f()`, `new X()`) | `import_statement`, `call_expression`, `new_expression` | carries the module as evidence: the specifier's last segment without extension, or the directory of an `index` file (`fmt`, `legacy` for `./legacy/index.js`, `left-pad` for a package). Only a definition under a path component of that name can be the target, so a package never resolves to a repo function, and a re-export through a barrel file is unresolved rather than wrong. Not applied when anything else in the file binds the name, or under `eval`/`with` |
 
 #### Why the gaps exist
 
