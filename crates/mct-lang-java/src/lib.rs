@@ -422,6 +422,14 @@ impl<'a> Walker<'a> {
                                 self.source,
                             ));
                         }
+                        // The initializer runs like an initializer block:
+                        // its calls and anonymous classes are the type's.
+                        if let Some(value) = declarator.child_by_field_name("value") {
+                            let scanned = self.scan_locals(value);
+                            let outer_locals = std::mem::replace(&mut self.locals, scanned);
+                            self.visit(value, owner, type_name, depth + 1);
+                            self.locals = outer_locals;
+                        }
                     }
                 }
             }
