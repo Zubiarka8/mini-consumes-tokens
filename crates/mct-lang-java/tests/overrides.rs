@@ -88,23 +88,22 @@ fn an_override_names_every_direct_supertype_and_nothing_else() {
             "Pt.compareTo -> compareTo (Comparable)",
             "Pt.toString -> toString (Comparable)",
             "Pt.toString -> toString (Object, external)",
-            "Op.apply -> apply (Op)",
+            "ADD.apply -> apply (Op)",
             "Use.run -> run (Runnable)",
         ]
     );
 }
 
-/// `Op.apply` is left out: the method of an enum constant's body has the
-/// enum as its parent, so it is itself a candidate for `apply (Op)` and the
-/// relation is ambiguous between it and the abstract method. A known limit,
-/// recorded in the phase 2-3 tracker.
+/// The method of an enum constant's body has the constant as its parent, so
+/// `apply (Op)` has one candidate, the enum's abstract method, and never the
+/// overriding method itself.
 #[test]
 fn only_the_supertype_declaring_the_method_resolves() {
     let root = std::env::temp_dir().join(format!("mct-java-overrides-{}", std::process::id()));
     std::fs::create_dir_all(root.join("src")).unwrap();
     std::fs::write(root.join("src/Shapes.java"), SOURCE).unwrap();
     let index = mct_corpus::open_fixture_indexed(&root, Arc::new(JavaParser));
-    let mut hits: Vec<String> = ["area", "run", "equals", "toString"]
+    let mut hits: Vec<String> = ["area", "run", "equals", "toString", "apply"]
         .iter()
         .flat_map(|name| index.find_references(name).unwrap())
         .filter(|h| h.kind == "overrides" && h.resolution != mct_index::Resolution::Unresolved)
@@ -122,6 +121,7 @@ fn only_the_supertype_declaring_the_method_resolves() {
     assert_eq!(
         hits,
         [
+            "apply Resolved Op:19",
             "area Resolved Shape:2",
             "equals External ",
             "run Resolved Base:4",
