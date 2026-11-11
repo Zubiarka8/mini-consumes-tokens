@@ -387,6 +387,11 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] PowerShell: an assignment inside a `class` body (`$this.Radius = $r`,
+          a method's `$diff = …`) and a member or element assignment
+          (`$cfg.Name = …`, `$list[0] = …`) no longer add a script
+          `variable`. Corpus: symbols 87 → 82, all five removed ones inside
+          class methods; relations unchanged at 261.
     - [x] Java supertypes: `interface B extends A` gives an `extends`
           relation, and every supertype relation targets a type (`class` for
           a class's `extends`, `interface` otherwise), so a same-named

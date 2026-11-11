@@ -1,4 +1,4 @@
-# language=powershell files=5 symbols=87 relations=261 name_matched_across_files=62
+# language=powershell files=5 symbols=82 relations=261 name_matched_across_files=62
 
 == Deploy-Warehouse.ps1 (301 lines)
 S 1-301 module Deploy-Warehouse
@@ -311,11 +311,6 @@ R 288:1 calls Warehouse.Common -> Export-ModuleMember
 
 == Warehouse.Inventory.psm1 (302 lines)
 S 1-302 module Warehouse.Inventory
-S 34-34 variable Warehouse.Inventory::this
-S 35-35 variable Warehouse.Inventory::this
-S 36-36 variable Warehouse.Inventory::this
-S 65-65 variable Warehouse.Inventory::diff
-S 70-70 variable Warehouse.Inventory::diff
 S 81-112 function Warehouse.Inventory::Import-CycleCount
 S 114-134 function Warehouse.Inventory::Split-CycleCount
 S 136-155 function Warehouse.Inventory::Submit-CycleCount

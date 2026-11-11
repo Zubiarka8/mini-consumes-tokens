@@ -24,8 +24,10 @@
 //!   (`Import-Module (Join-Path $PSScriptRoot 'X.psm1')`,
 //!   `. "$PSScriptRoot/lib.ps1"`) is not evaluated and records no import.
 //! - Only *top-level* `$var = ...` assignments become `Variable` symbols —
-//!   one assigned inside a function body is almost always local scratch
-//!   state and would just add noise. A variable's scope prefix
+//!   one assigned inside a function or class body is almost always local
+//!   scratch state and would just add noise, and `$x.Name = ...` or
+//!   `$x[0] = ...` changes an existing value rather than declaring `x`.
+//!   A variable's scope prefix
 //!   (`$script:x`, `$global:x`, ...) is stripped from the recorded name.
 //! - PowerShell classes (`class Foo { ... }`), their methods and `enum`s are **not**
 //!   indexed — out of scope for what this plugin was asked to cover
@@ -190,6 +192,23 @@ fn find_descendant<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     None
 }
 
+/// Whether `var` sits under a `member_access` or `element_access` within the
+/// assignment target `lhs`: `$x.Name = …` and `$x[0] = …` change a value of
+/// `x` rather than assign `x` itself.
+fn is_member_or_element_target(lhs: Node, var: Node) -> bool {
+    let mut node = var.parent();
+    while let Some(current) = node {
+        if current.id() == lhs.id() {
+            return false;
+        }
+        if matches!(current.kind(), "member_access" | "element_access") {
+            return true;
+        }
+        node = current.parent();
+    }
+    false
+}
+
 /// `$Global:Foo` / `$script:Baz` / plain `$Foo` → `"Foo"`/`"Baz"`/`"Foo"` —
 /// strips the sigil and a recognized scope prefix so the same variable
 /// referenced with or without an explicit scope indexes under one name.
@@ -217,6 +236,11 @@ struct Walker<'a> {
     /// This file's repository-relative path, the base of relative sources.
     path: &'a str,
     next_id: SymbolId,
+    /// How many `class` bodies enclose the node being visited. Classes have
+    /// no symbol, so their methods' statements keep the file as owner, but
+    /// an assignment there is a method local or a property, never a script
+    /// variable.
+    class_depth: u32,
 }
 
 impl<'a> Walker<'a> {
@@ -304,10 +328,16 @@ impl<'a> Walker<'a> {
                     self.visit_children(block, id, &name, module_id, depth + 1);
                 }
             }
+            "class_statement" => {
+                self.class_depth += 1;
+                self.visit_children(node, owner, scope_name, module_id, depth + 1);
+                self.class_depth -= 1;
+            }
             "assignment_expression" => {
-                if owner == module_id {
+                if owner == module_id && self.class_depth == 0 {
                     if let Some((lhs, var_node)) = find_child(node, "left_assignment_expression")
                         .and_then(|lhs| Some((lhs, find_descendant(lhs, "variable")?)))
+                        .filter(|(lhs, var_node)| !is_member_or_element_target(*lhs, *var_node))
                     {
                         let name = clean_variable_name(text(var_node, self.source));
                         if !name.is_empty() {
