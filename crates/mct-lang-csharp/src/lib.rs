@@ -4,7 +4,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{find_child, first_error, location};
+use mct_tree_sitter::{find_child, first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
@@ -97,6 +97,9 @@ struct Walker<'a> {
     locals: receivers::Types,
     /// The enclosing types, innermost last: what `this` declares.
     classes: Vec<receivers::ClassScope>,
+    /// What an `override` member of each enclosing type can override,
+    /// innermost last (D8).
+    supertypes: Vec<Vec<Supertype>>,
 }
 
 impl<'a> Walker<'a> {
@@ -111,6 +114,7 @@ impl<'a> Walker<'a> {
             next_id: 0,
             locals: receivers::Types::new(),
             classes: Vec::new(),
+            supertypes: Vec::new(),
         }
     }
 
@@ -228,6 +232,20 @@ impl<'a> Walker<'a> {
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
                 self.details
                     .push(details::method_detail(node, id, self.source));
+                if node.kind() == "method_declaration" && has_override_modifier(node, self.source) {
+                    if let Some(name_node) = node.child_by_field_name("name") {
+                        let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                        mct_tree_sitter::push_overrides(
+                            &mut self.relations,
+                            &mut self.relation_targets,
+                            id,
+                            text(name_node, self.source),
+                            location(name_node),
+                            &supertypes,
+                            &OBJECT_METHODS,
+                        );
+                    }
+                }
                 self.visit_callable(node, id, type_name, depth);
             }
             // A local function (in a method body or among top-level
@@ -411,6 +429,8 @@ impl<'a> Walker<'a> {
         };
         self.classes
             .push(receivers::class_scope(&name, node, self.source));
+        self.supertypes
+            .push(override_supertypes(node, kind, self.source));
         let outer_locals = std::mem::take(&mut self.locals);
         if kind == SymbolKind::Enum {
             let mut cursor = body.walk();
@@ -430,6 +450,7 @@ impl<'a> Walker<'a> {
         }
         self.locals = outer_locals;
         self.classes.pop();
+        self.supertypes.pop();
     }
 
     /// `base_list` is unified in this grammar — C# doesn't syntactically
@@ -670,6 +691,60 @@ fn type_base_name(node: Node, source: &str) -> Option<String> {
 
 /// `IFoo`: an `I`, an upper-case letter, then a lower-case one — the .NET
 /// naming convention for interfaces (`IO` or `ID` alone don't match).
+/// The methods of `System.Object` a subclass can override.
+const OBJECT_METHODS: [&str; 3] = ["Equals", "GetHashCode", "ToString"];
+
+/// What an `override` method of `node` can override: the base class, which
+/// C# requires first in the base list. A struct has no base class, only
+/// the root `ValueType`; a class with no base list has `object`. When the
+/// first entry is named like an interface (`IShape`), the syntax can't
+/// tell whether it is the base class, so it and `object` are both
+/// candidates. An interface or enum overrides nothing.
+fn override_supertypes(node: Node, kind: SymbolKind, source: &str) -> Vec<Supertype> {
+    let root = |name: &str| Supertype {
+        name: name.to_string(),
+        external: true,
+    };
+    match kind {
+        SymbolKind::Interface | SymbolKind::Enum => return Vec::new(),
+        SymbolKind::Struct => return vec![root("ValueType")],
+        _ => {}
+    }
+    let first = find_child(node, "base_list").and_then(|list| {
+        let mut cursor = list.walk();
+        let entry = list.named_children(&mut cursor).next()?;
+        let type_node = if entry.kind() == "primary_constructor_base_type" {
+            entry.child_by_field_name("type")?
+        } else {
+            entry
+        };
+        type_base_name(type_node, source)
+    });
+    match first {
+        Some(base) if looks_like_interface(&base) => vec![
+            Supertype {
+                name: base,
+                external: false,
+            },
+            root("object"),
+        ],
+        Some(base) => vec![Supertype {
+            name: base,
+            external: false,
+        }],
+        None => vec![root("object")],
+    }
+}
+
+/// Whether `declaration`'s modifiers include `override`.
+fn has_override_modifier(declaration: Node, source: &str) -> bool {
+    let mut cursor = declaration.walk();
+    let found = declaration
+        .children(&mut cursor)
+        .any(|c| c.kind() == "modifier" && text(c, source) == "override");
+    found
+}
+
 fn looks_like_interface(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next() == Some('I')

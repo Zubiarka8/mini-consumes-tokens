@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=454 relations=634 name_matched_across_files=156
+# language=csharp files=6 symbols=454 relations=654 name_matched_across_files=156
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -117,6 +117,7 @@ R 70:29 calls WarehouseException::Describe -> List
 R 73:23 calls WarehouseException::Describe -> Add
 R 73:34 calls WarehouseException::Describe -> Format
 R 75:27 calls WarehouseException::Describe -> Join
+R 78:32 overrides WarehouseException::ToString -> ToString
 R 78:46 calls WarehouseException::ToString -> Describe
 R 81:6 references Warehouse.Errors::NotFoundException -> ErrorCodeAttribute
 R 82:45 extends Warehouse.Errors::NotFoundException -> WarehouseException
@@ -124,11 +125,13 @@ R 98:6 references Warehouse.Errors::ValidationException -> ErrorCodeAttribute
 R 99:40 extends Warehouse.Errors::ValidationException -> WarehouseException
 R 106:27 calls ValidationException::ValidationException -> List
 R 110:32 calls ValidationException::ValidationException -> FieldError
+R 118:32 overrides ValidationException::Describe -> Describe
 R 120:29 calls ValidationException::Describe -> Describe
 R 121:69 calls ValidationException::Describe -> Join
 R 125:47 extends Warehouse.Errors::OutOfStockException -> ValidationException
 R 130:25 calls OutOfStockException::OutOfStockException -> Max
 R 138:45 extends Warehouse.Errors::ConflictException -> WarehouseException
+R 157:32 overrides FieldError::ToString -> ToString
 R 182:33 calls Result::Map -> Ok
 R 182:36 calls Result::Map -> map
 R 182:65 calls Result::Map -> Fail
@@ -294,6 +297,7 @@ R 56:30 calls Sku::TryParse -> IsValid
 R 56:50 calls Sku::TryParse -> ToUpperInvariant
 R 56:43 calls Sku::TryParse -> Trim
 R 60:19 calls Sku::TryParse -> Sku
+R 64:28 overrides Sku::ToString -> ToString
 R 74:61 calls Price::Validated -> InRange (name-matched: Warehouse/Errors.cs)
 R 78:9 calls Price::operator + -> SameCurrency
 R 79:20 calls Price::operator + -> Price
@@ -302,10 +306,15 @@ R 86:56 calls Price::operator < -> Compare
 R 90:9 calls Price::Compare -> SameCurrency
 R 91:25 calls Price::Compare -> CompareTo
 R 98:23 calls Price::SameCurrency -> ValidationException (name-matched: Warehouse/Errors.cs)
+R 102:28 overrides Price::ToString -> ToString
 R 126:38 implements Warehouse.Models::Entity -> IEntity
 R 126:53 implements Warehouse.Models::Entity -> IAuditable
 R 146:28 calls Entity::Bump -> Touch
+R 149:26 overrides Entity::Equals -> Equals
+R 149:26 overrides Entity::Equals -> Equals
 R 150:69 calls Entity::Equals -> Equals
+R 152:25 overrides Entity::GetHashCode -> GetHashCode
+R 152:25 overrides Entity::GetHashCode -> GetHashCode
 R 152:45 calls Entity::GetHashCode -> GetHashCode
 R 156:31 extends Warehouse.Models::Product -> Entity
 R 163:22 calls Product::Product -> NotBlank (name-matched: Warehouse/Errors.cs)
@@ -329,6 +338,8 @@ R 219:32 calls Location::CompareTo -> CompareTo
 R 222:14 calls Location::Distance -> Abs
 R 222:51 calls Location::Distance -> Abs
 R 222:81 calls Location::Distance -> Abs
+R 224:28 overrides Location::ToString -> ToString
+R 224:28 overrides Location::ToString -> ToString
 R 228:70 extends Warehouse.Models::StockLine -> Entity
 R 242:27 calls StockLine::Receive -> Positive (name-matched: Warehouse/Errors.cs)
 R 243:9 calls StockLine::Receive -> Bump
@@ -474,6 +485,7 @@ R 152:61 calls Command::Metadata -> GetType
 R 156:61 calls Command::Say -> Notify (name-matched: Warehouse/Services.cs)
 R 159:6 references Warehouse.Cli::ReceiveCommand -> CommandAttribute
 R 160:42 extends Warehouse.Cli::ReceiveCommand -> Command
+R 167:41 overrides ReceiveCommand::RunAsync -> RunAsync
 R 169:47 calls ReceiveCommand::RunAsync -> ReceiveAsync (name-matched: Warehouse/Services.cs)
 R 170:25 calls ReceiveCommand::RunAsync -> Required
 R 171:25 calls ReceiveCommand::RunAsync -> Get
@@ -483,6 +495,7 @@ R 177:34 calls ReceiveCommand::RunAsync -> Explain (name-matched: Warehouse/Erro
 R 180:13 calls ReceiveCommand::RunAsync -> Say
 R 185:6 references Warehouse.Cli::OrderCommand -> CommandAttribute
 R 186:40 extends Warehouse.Cli::OrderCommand -> Command
+R 193:41 overrides OrderCommand::RunAsync -> RunAsync
 R 195:62 calls OrderCommand::RunAsync -> ToList
 R 195:44 calls OrderCommand::RunAsync -> Select
 R 196:50 calls OrderCommand::RunAsync -> DraftAsync (name-matched: Warehouse/Services.cs)
@@ -497,6 +510,7 @@ R 213:30 calls OrderCommand::ParseLine -> Split
 R 214:53 calls OrderCommand::ParseLine -> TryParse (name-matched: Warehouse/Models.cs)
 R 219:6 references Warehouse.Cli::CancelCommand -> CommandAttribute
 R 220:59 extends Warehouse.Cli::CancelCommand -> Command
+R 222:41 overrides CancelCommand::RunAsync -> RunAsync
 R 224:27 calls CancelCommand::RunAsync -> Parse
 R 224:41 calls CancelCommand::RunAsync -> Required
 R 225:54 calls CancelCommand::RunAsync -> CancelAsync (name-matched: Warehouse/Services.cs)
@@ -504,6 +518,7 @@ R 225:78 calls CancelCommand::RunAsync -> Get
 R 226:13 calls CancelCommand::RunAsync -> Say
 R 231:6 references Warehouse.Cli::ReportCommand -> CommandAttribute
 R 232:41 extends Warehouse.Cli::ReportCommand -> Command
+R 239:41 overrides ReportCommand::RunAsync -> RunAsync
 R 241:19 calls ReportCommand::RunAsync -> ThrowIfCancellationRequested
 R 242:34 calls ReportCommand::RunAsync -> Get
 R 243:44 calls ReportCommand::RunAsync -> FirstOrDefault
@@ -519,6 +534,7 @@ R 254:25 calls ReportCommand::RunAsync -> WriteLine
 R 254:61 calls ReportCommand::RunAsync -> Checksum (name-matched: Warehouse/Reports.cs)
 R 260:6 references Warehouse.Cli::TagsCommand -> CommandAttribute
 R 261:39 extends Warehouse.Cli::TagsCommand -> Command
+R 268:41 overrides TagsCommand::RunAsync -> RunAsync
 R 270:48 calls TagsCommand::RunAsync -> ByTagAsync (name-matched: Warehouse/Repository.cs)
 R 270:67 calls TagsCommand::RunAsync -> Required
 R 273:25 calls TagsCommand::RunAsync -> WriteLine
@@ -662,8 +678,10 @@ R 71:27 calls Report::RenderWith -> Rows
 R 71:48 calls Report::RenderWith -> Cells
 R 72:22 calls Report::RenderWith -> Render
 R 73:27 calls Report::RenderWith -> ToString
+R 76:32 overrides Report::ToString -> ToString
 R 76:46 calls Report::ToString -> RenderWith
 R 79:43 extends Warehouse.Reporting::InventoryReport -> Report
+R 93:54 overrides InventoryReport::Rows -> Rows
 R 95:47 calls InventoryReport::Rows -> OrderBy
 R 97:40 calls InventoryReport::Rows -> GetValueOrDefault
 R 98:34 calls InventoryReport::Rows -> InventoryRow
@@ -671,6 +689,7 @@ R 98:67 calls InventoryReport::Rows -> Describe (name-matched: Warehouse/Errors.
 R 102:45 calls InventoryReport::GrandTotal -> Aggregate
 R 102:38 calls InventoryReport::GrandTotal -> Rows
 R 105:41 extends Warehouse.Reporting::BacklogReport -> Report
+R 114:52 overrides BacklogReport::Rows -> Rows
 R 117:18 calls BacklogReport::Rows -> Select
 R 116:18 calls BacklogReport::Rows -> OrderByDescending
 R 117:34 calls BacklogReport::Rows -> BacklogRow
@@ -878,6 +897,7 @@ R 222:47 extends Specialized::StockRepository -> InMemoryRepository
 R 231:30 calls StockRepository::ForSkuAsync -> ListAsync
 R 236:35 calls StockRepository::AvailableAsync -> ForSkuAsync
 R 237:30 calls StockRepository::AvailableAsync -> TotalAvailable (name-matched: Warehouse/Models.cs)
+R 240:37 overrides StockRepository::OnChanged -> OnChanged
 R 242:22 calls StockRepository::OnChanged -> OnChanged
 R 250:47 extends Specialized::OrderRepository -> InMemoryRepository
 R 253:17 calls OrderRepository::OpenAsync -> ListAsync
