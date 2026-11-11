@@ -512,6 +512,45 @@
           "defect": "D9"
         }
       ]
+    },
+    {
+      "name": "stdlib: a JDK single-type import shadows a same-package type",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "add",
+              "path": "java/src/shop/Cart.java",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "of",
+              "path": "java/src/shop/Cart.java",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "java/src/shop/Cart.java:10",
+          "relation": "calls add",
+          "truth": "external",
+          "defect": "D9"
+        },
+        {
+          "at": "java/src/shop/Cart.java:11",
+          "relation": "calls of",
+          "truth": "external",
+          "defect": "D9"
+        }
+      ]
     }
   ]
 }

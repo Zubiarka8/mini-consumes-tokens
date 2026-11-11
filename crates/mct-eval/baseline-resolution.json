@@ -42,6 +42,11 @@
       "tokens": 230,
       "wrong": 0
     },
+    "stdlib: a JDK single-type import shadows a same-package type": {
+      "score": 1.0,
+      "tokens": 297,
+      "wrong": 0
+    },
     "stdlib: a standard global is the host's, never another file's alias": {
       "score": 1.0,
       "tokens": 281,

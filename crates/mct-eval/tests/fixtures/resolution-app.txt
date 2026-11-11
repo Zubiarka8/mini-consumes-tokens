@@ -46,6 +46,10 @@ checked by running the code, never read off the index:
 - **Standard globals (D9), Lua:** run with Lua 5.5. `order.lua` calls the
   host's `setmetatable` and `string.format` (replacing them is observed),
   never `money.lua`'s `local setmetatable` / `local format` aliases.
+- **Standard library (D9), Java:** compiled with `javac`. In `shop.Cart`,
+  `import java.util.List` shadows the same-package `shop.List`: the field's
+  type is `java.util.List`, and `javap` shows `add` and `of` as
+  `java/util/List` calls, never `shop.List`'s.
 
 The fixture is checked in as one `.txt` bundle, which no parser indexes, and
 unpacked into a temporary directory per eval run, so its clashing names never
@@ -78,6 +82,20 @@ package shapes;
 public interface Shape {
     double area();
 }
+==> java/src/shop/Cart.java <==
+package shop;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class Cart {
+    private final List<String> items = new ArrayList<>();
+
+    public int add(String item) {
+        items.add(item);
+        return List.of(item).size();
+    }
+}
 ==> java/src/shop/Ledger.java <==
 package shop;
 
@@ -87,6 +105,18 @@ public class Ledger {
     public int add(int amount) {
         total += amount;
         return total;
+    }
+}
+==> java/src/shop/List.java <==
+package shop;
+
+public class List {
+    public static List of(String s) {
+        return new List();
+    }
+
+    public boolean add(String s) {
+        return true;
     }
 }
 ==> java/src/shop/Report.java <==

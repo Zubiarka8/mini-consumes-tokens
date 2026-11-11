@@ -12,6 +12,7 @@ use mct_tree_sitter::{find_child, first_error, location, module_location, Supert
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod jdk;
 mod receivers;
 use receivers::Bindings;
 
@@ -58,6 +59,7 @@ impl LanguageParser for JavaParser {
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
+        walker.jdk = jdk::JdkImports::of(root, &file.contents);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
@@ -96,6 +98,8 @@ struct Walker<'a> {
     /// Direct supertypes of each enclosing type body, innermost last: what
     /// an `@Override` method there can override (D8).
     supertypes: Vec<Vec<Supertype>>,
+    /// Type names that a single-type JDK import binds in this file (D9).
+    jdk: jdk::JdkImports,
 }
 
 impl<'a> Walker<'a> {
@@ -441,11 +445,16 @@ impl<'a> Walker<'a> {
                     let (qualifier, member) = node
                         .child_by_field_name("object")
                         .map_or((None, false), |object| self.receiver(object));
+                    // A receiver typed by a JDK import can only be the JDK's
+                    // (D9): the single-type import shadows the package's own
+                    // types, so no repository method is the target.
+                    let external = qualifier.as_deref().is_some_and(|q| self.jdk.is_jdk(q));
                     self.relation_targets.push(RelationTarget {
                         relation: self.relations.len(),
                         kind: Some(SymbolKind::Method),
-                        qualifier,
-                        member,
+                        qualifier: if external { None } else { qualifier },
+                        member: member && !external,
+                        external,
                         ..Default::default()
                     });
                     // location(name_node), not location(node): a chained call
