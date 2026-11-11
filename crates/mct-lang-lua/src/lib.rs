@@ -12,6 +12,7 @@
 //! less standardized across tree-sitter-lua forks than Rust's or Python's.
 
 mod details;
+mod globals;
 mod libraries;
 mod tokens;
 
@@ -67,7 +68,7 @@ impl LanguageParser for LuaParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents);
+        let mut walker = Walker::new(&file.contents, root);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, 0);
@@ -137,11 +138,14 @@ struct Walker<'a> {
     scopes: Vec<HashMap<String, Binding>>,
     /// Globals already indexed: the first assignment declares one.
     globals: HashSet<String>,
+    /// Which Lua standard globals this file can only mean as the host's.
+    std_globals: globals::StdGlobals,
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str) -> Self {
+    fn new(source: &'a str, root: Node) -> Self {
         Self {
+            std_globals: globals::StdGlobals::of(root, source),
             source,
             symbols: Vec::new(),
             relations: Vec::new(),
@@ -307,7 +311,9 @@ impl<'a> Walker<'a> {
                         self.push_relation(owner, kind, path, location(node));
                     } else if name == "setmetatable" && callee.kind() == "identifier" {
                         self.visit_setmetatable(node);
+                        let relation = self.relations.len();
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
+                        self.push_std_evidence(relation, callee);
                     } else if name == "require" && callee.kind() == "identifier" {
                         if let Some(module) = require_argument(node, self.source) {
                             let merged = self.push_module_import(owner, &module, location(node));
@@ -333,6 +339,7 @@ impl<'a> Walker<'a> {
                         {
                             self.push_receiver_evidence(relation, callee);
                         }
+                        self.push_std_evidence(relation, callee);
                     }
                     // `money.gross(net):to_json()`: the call this one is
                     // chained on sits in the callee's table expression.
@@ -917,6 +924,29 @@ impl<'a> Walker<'a> {
 
     /// `self:m()` inside `function T:x()` is qualified by `T`; any other
     /// colon call's receiver has an unknown type, so it is a member call.
+    /// `print(…)` or `math.floor(…)` just pushed as `relation`, when the
+    /// called name (or the table it is read from) is a standard global this
+    /// file never binds: the call is the host's, outside the repository.
+    fn push_std_evidence(&mut self, relation: usize, callee: Node) {
+        if self.relations.len() <= relation {
+            return;
+        }
+        let global = match callee.kind() {
+            "identifier" => Some(callee),
+            "dot_index_expression" => callee
+                .child_by_field_name("table")
+                .filter(|t| t.kind() == "identifier"),
+            _ => None,
+        };
+        if global.is_some_and(|g| self.std_globals.is_std(text(g, self.source))) {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                external: true,
+                ..Default::default()
+            });
+        }
+    }
+
     fn push_receiver_evidence(&mut self, relation: usize, callee: Node) {
         let on_self = callee
             .child_by_field_name("table")
