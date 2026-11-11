@@ -414,7 +414,7 @@ impl<'a> Walker<'a> {
                             location(child),
                         );
                         let target = if accessor.kind() == "::" {
-                            self.token_path_evidence(accessor)
+                            self.token_path_evidence(accessor, text(child, self.source))
                         } else {
                             // `x.f(..)`: the receiver evidence a method call
                             // outside a macro gets (see `call_evidence`).
@@ -878,7 +878,9 @@ impl<'a> Walker<'a> {
             },
             "scoped_identifier" | "scoped_type_identifier" => {
                 match function.child_by_field_name("path") {
-                    Some(path) => self.path_target(text(path, self.source), path.start_byte()),
+                    Some(path) => {
+                        self.scoped_target(text(path, self.source), path.start_byte(), name)
+                    }
                     None => RelationTarget::default(),
                 }
             }
@@ -978,9 +980,22 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// [`Self::path_target`] for a path inside a macro's flat token stream,
+    /// What `path::name(..)` proves: [`Self::path_target`], and a member
+    /// call for `u64::from(x)`: core's blanket impls make every primitive a
+    /// `From`/`TryFrom` (and `Into`/`TryInto`) of its own, and a primitive
+    /// has no inherent method, so a repository impl is never the only
+    /// candidate.
+    fn scoped_target(&self, path: &str, at: usize, name: &str) -> RelationTarget {
+        let mut target = self.path_target(path, at);
+        if CONVERSIONS.contains(&name) && self.unshadowed_primitive(path, at) {
+            target.member = true;
+        }
+        target
+    }
+
+    /// [`Self::scoped_target`] for a path inside a macro's flat token stream,
     /// read backwards from the `::` before the item (`format :: f (..)`).
-    fn token_path_evidence(&self, accessor: Node) -> RelationTarget {
+    fn token_path_evidence(&self, accessor: Node, name: &str) -> RelationTarget {
         let mut segments = Vec::new();
         let mut separator = Some(accessor);
         while let Some(sep) = separator.filter(|s| s.kind() == "::") {
@@ -997,7 +1012,7 @@ impl<'a> Walker<'a> {
             return RelationTarget::default();
         }
         segments.reverse();
-        self.path_target(&segments.join("::"), accessor.start_byte())
+        self.scoped_target(&segments.join("::"), accessor.start_byte(), name)
     }
 
     /// Whether `name`, written bare in this file, can only be the standard
@@ -1029,6 +1044,26 @@ impl<'a> Walker<'a> {
         }
         PRELUDE.contains(&name)
             && !imported_here
+            && !self
+                .scope
+                .opaque_globs
+                .iter()
+                .any(|scope| scope.contains(&at))
+    }
+
+    /// Whether `path` is one primitive type name (`u64`, `str`) that no
+    /// item, `use` or glob import of this file can shadow where it is
+    /// written (`at`): a `mod u64` would be a path like any other.
+    fn unshadowed_primitive(&self, path: &str, at: usize) -> bool {
+        let name = path.trim();
+        PRIMITIVES.contains(&name)
+            && !self.scope.declared.contains(name)
+            && !self.scope.std_imports.contains(name)
+            && !self
+                .scope
+                .other_imports
+                .get(name)
+                .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
             && !self
                 .scope
                 .opaque_globs
@@ -1387,6 +1422,15 @@ fn is_std_path(path: &str) -> bool {
         .trim();
     matches!(root, "std" | "core" | "alloc")
 }
+
+/// The primitive types, which only core implements methods on.
+const PRIMITIVES: &[&str] = &[
+    "bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "str", "u128", "u16",
+    "u32", "u64", "u8", "usize",
+];
+
+/// The conversion methods core's blanket impls give every type.
+const CONVERSIONS: &[&str] = &["from", "into", "try_from", "try_into"];
 
 /// The names the Rust 2021 standard prelude puts in scope of every module
 /// (types, variants, traits, the `drop` function and the `Debug`/`Hash`
