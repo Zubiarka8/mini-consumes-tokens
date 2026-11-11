@@ -130,3 +130,25 @@ fn a_same_package_type_of_that_name_is_never_the_target() {
         ]
     );
 }
+
+const STOCK: &str = r#"package shop;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.*;
+
+public class Stock {
+    private final Map<String, Integer> levels = new HashMap<>();
+    private final Object seen = new HashSet<String>();
+    private final Object copy = new java.util.ArrayList<String>();
+    private final Cart cart = new Cart();
+}
+"#;
+
+#[test]
+fn a_constructor_of_a_single_type_jdk_import_is_external() {
+    assert_eq!(
+        calls(&parsed("shop/Stock.java", STOCK)),
+        ["HashMap external", "HashSet", "ArrayList", "Cart"]
+    );
+}

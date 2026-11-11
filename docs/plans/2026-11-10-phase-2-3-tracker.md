@@ -177,9 +177,12 @@ From `rules.md` and the two messages:
         without an import (`Math`, `String`). This repository: 180 calls
         become external; the only one with a target was wrong (`LOG.log` on
         a `java.util.logging.Logger` field → another fixture's `Logger.log`).
-        Not yet: `new HashMap<>()` under `import java.util.HashMap` (a
-        constructor call) stays unresolved; 15 such calls in this
-        repository.
+        A constructor call of such a type (`new HashMap<>()` under
+        `import java.util.HashMap`) is external too; a qualified
+        `new java.util.ArrayList<>()` is left to resolution. This
+        repository: 28 more calls become external, none had a target.
+        JDK supertypes (`implements Comparator<T>`) are not marked yet,
+        which leaves their `Overrides` to name resolution.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
