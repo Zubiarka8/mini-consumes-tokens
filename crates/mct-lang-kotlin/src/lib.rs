@@ -25,7 +25,7 @@ use mct_core::{
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{find_child, first_error, location, Supertype};
-use tree_sitter::{Node, ParseOptions, ParseState, Parser};
+use tree_sitter::{InputEdit, Node, ParseOptions, ParseState, Parser, Point, Tree};
 
 /// Parse work budget, in tree-sitter progress-callback calls (one per 100
 /// parser operations): this floor plus one call per this many input bytes.
@@ -33,6 +33,113 @@ const MIN_PARSE_PROGRESS_CHECKS: usize = 1_000;
 const BYTES_PER_PARSE_PROGRESS_CHECK: usize = 4;
 
 pub struct KotlinParser;
+
+/// Parses `source` under a work budget proportional to its length, reusing
+/// `old` (already edited to match `source`) when given; `None` when the
+/// budget runs out.
+fn parse_within_budget(parser: &mut Parser, source: &[u8], old: Option<&Tree>) -> Option<Tree> {
+    let budget = MIN_PARSE_PROGRESS_CHECKS + source.len() / BYTES_PER_PARSE_PROGRESS_CHECK;
+    let mut checks = 0usize;
+    let mut over_budget = |_: &ParseState| {
+        checks += 1;
+        checks > budget
+    };
+    parser.parse_with_options(
+        &mut |offset, _| source.get(offset..).unwrap_or_default(),
+        old,
+        Some(ParseOptions::new().progress_callback(&mut over_budget)),
+    )
+}
+
+/// Most reparses [`reparse_with_terminated_lines`] makes. Error recovery can
+/// drop the rest of the file after a missing terminator, so each pass only
+/// sees the `}` tokens up to the next one; a file of many one-line bodies
+/// needs a pass for each that recovery swallows.
+const MAX_TERMINATOR_PASSES: usize = 16;
+
+/// A clean tree for `source` read with each one-line body terminated (see
+/// [`terminate_closing_lines`]), or `None` when none is clean. Each pass
+/// keeps the earlier `;` and adds those the new tree's `}` tokens call for,
+/// and stops when it adds none.
+fn reparse_with_terminated_lines(parser: &mut Parser, tree: &Tree, source: &[u8]) -> Option<Tree> {
+    let mut current = tree.clone();
+    let mut patched = source.to_vec();
+    for _ in 0..MAX_TERMINATOR_PASSES {
+        let edits = terminate_closing_lines(current.root_node(), &mut patched);
+        if edits.is_empty() {
+            return None;
+        }
+        for edit in &edits {
+            current.edit(edit);
+        }
+        current = parse_within_budget(parser, &patched, Some(&current))?;
+        if !current.root_node().has_error() {
+            return Some(current);
+        }
+    }
+    None
+}
+
+/// Puts a `;` in `source` in place of the space or tab before each closing
+/// `}` token that ends a member or statement on its line, and returns one
+/// edit per byte changed, for an incremental reparse. Kotlin reads a body closed on the line its last member ends on
+/// (`interface Shape { fun area(): Double }`) as if that `;` were there, but
+/// the pinned grammar's automatic-semicolon scanner does not, and reports a
+/// missing terminator. The `;` changes nothing in Kotlin and keeps every
+/// byte offset, so the caller keeps the reparse only when it is clean.
+/// Only `}` tokens of the tree count, never one in a string or comment, and
+/// never a template's `${ … }`, where a `;` is not allowed.
+fn terminate_closing_lines(root: Node, source: &mut [u8]) -> Vec<InputEdit> {
+    let mut edits = Vec::new();
+    let mut cursor = root.walk();
+    let mut descend = true;
+    loop {
+        let node = cursor.node();
+        if descend && node.kind() == "}" && !node.is_named() && !node.is_missing() {
+            let inside_template = node.parent().is_some_and(|p| p.kind() == "interpolation");
+            let at = node.start_byte();
+            let before = source.get(..at).unwrap_or_default();
+            let blanks = before
+                .iter()
+                .rev()
+                .take_while(|b| matches!(b, b' ' | b'\t'))
+                .count();
+            let ends_member = before
+                .len()
+                .checked_sub(blanks + 1)
+                .and_then(|i| before.get(i))
+                .is_some_and(|b| !matches!(b, b'{' | b';' | b',' | b'\n' | b'\r'));
+            if !inside_template && blanks > 0 && ends_member {
+                if let Some(byte) = source.get_mut(at - 1) {
+                    *byte = b';';
+                    // The blank is on the `}`'s own row, one column left.
+                    let end = node.start_position();
+                    let start = Point::new(end.row, end.column.saturating_sub(1));
+                    edits.push(InputEdit {
+                        start_byte: at - 1,
+                        old_end_byte: at,
+                        new_end_byte: at,
+                        start_position: start,
+                        old_end_position: end,
+                        new_end_position: end,
+                    });
+                }
+            }
+        }
+        if descend && cursor.goto_first_child() {
+            continue;
+        }
+        if cursor.goto_next_sibling() {
+            descend = true;
+            continue;
+        }
+        if !cursor.goto_parent() {
+            break;
+        }
+        descend = false;
+    }
+    edits
+}
 
 impl LanguageParser for KotlinParser {
     fn language_id(&self) -> &'static str {
@@ -73,34 +180,29 @@ impl LanguageParser for KotlinParser {
             Cow::Owned(format!("{}\n", file.contents))
         };
         let source = parse_source.as_bytes();
-        let budget = MIN_PARSE_PROGRESS_CHECKS + source.len() / BYTES_PER_PARSE_PROGRESS_CHECK;
-        let mut checks = 0usize;
-        let mut over_budget = |_: &ParseState| {
-            checks += 1;
-            checks > budget
-        };
-        let tree = parser
-            .parse_with_options(
-                &mut |offset, _| source.get(offset..).unwrap_or_default(),
-                None,
-                Some(ParseOptions::new().progress_callback(&mut over_budget)),
-            )
-            .ok_or_else(|| ParseError::Syntax {
+        let mut tree =
+            parse_within_budget(&mut parser, source, None).ok_or_else(|| ParseError::Syntax {
                 path: file.relative_path.clone(),
                 line: 1,
                 message: "tree-sitter produced no parse tree (parse work budget exceeded)"
                     .to_string(),
             })?;
 
-        let root = tree.root_node();
-        if root.has_error() {
-            let error_node = first_error(root).unwrap_or(root);
-            return Err(ParseError::Syntax {
-                path: file.relative_path.clone(),
-                line: error_node.start_position().row as u32 + 1,
-                message: "syntax error".to_string(),
-            });
+        if tree.root_node().has_error() {
+            match reparse_with_terminated_lines(&mut parser, &tree, source) {
+                Some(patched) => tree = patched,
+                None => {
+                    let root = tree.root_node();
+                    let error_node = first_error(root).unwrap_or(root);
+                    return Err(ParseError::Syntax {
+                        path: file.relative_path.clone(),
+                        line: error_node.start_position().row as u32 + 1,
+                        message: "syntax error".to_string(),
+                    });
+                }
+            }
         }
+        let root = tree.root_node();
 
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents);
