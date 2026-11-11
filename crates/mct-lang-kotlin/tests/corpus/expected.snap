@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=483 relations=804 name_matched_across_files=113
+# language=kotlin files=5 symbols=483 relations=818 name_matched_across_files=113
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -938,12 +938,26 @@ R 48:20 calls State::next -> setOf
 R 49:32 calls State::next -> emptySet
 R 52:55 calls State::canMoveTo -> next
 R 62:129 extends OrderEvent::Placed -> OrderEvent
+R 62:36 overrides Placed::orderId -> orderId
+R 62:67 overrides Placed::at -> at
 R 63:118 extends OrderEvent::Reserved -> OrderEvent
+R 63:38 overrides Reserved::orderId -> orderId
+R 63:69 overrides Reserved::at -> at
 R 64:122 extends OrderEvent::Paid -> OrderEvent
+R 64:34 overrides Paid::orderId -> orderId
+R 64:65 overrides Paid::at -> at
 R 65:102 extends OrderEvent::Picked -> OrderEvent
+R 65:36 overrides Picked::orderId -> orderId
+R 65:67 overrides Picked::at -> at
 R 66:132 extends OrderEvent::Shipped -> OrderEvent
+R 66:37 overrides Shipped::orderId -> orderId
+R 66:68 overrides Shipped::at -> at
 R 67:111 extends OrderEvent::Invoiced -> OrderEvent
+R 67:38 overrides Invoiced::orderId -> orderId
+R 67:69 overrides Invoiced::at -> at
 R 68:105 extends OrderEvent::Cancelled -> OrderEvent
+R 68:39 overrides Cancelled::orderId -> orderId
+R 68:70 overrides Cancelled::at -> at
 R 73:5 extends IllegalTransitionException -> IllegalStateException
 R 86:26 calls Order -> mutableListOf
 R 87:27 calls Order -> mutableListOf
