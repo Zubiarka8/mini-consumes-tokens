@@ -167,12 +167,28 @@ From `rules.md` and the two messages:
         a package-level declaration in a sibling file can shadow them, which
         one file can't rule out. No eval case yet: there is no Go toolchain
         here to run its truth.
+  - [x] Java: a call whose receiver type is bound by a single-type
+        `java.`/`javax.` import (`import java.util.List;`: `List.of()`,
+        `items.add()` on a `List items` field or local) is external. A
+        single-type import shadows the package's own types (JLS §6.4.1),
+        so a same-package `List` is never the target. Not proven: a name
+        the file also declares as a type or type parameter, two imports of
+        one name, static and on-demand imports, and `java.lang` names used
+        without an import (`Math`, `String`). This repository: 180 calls
+        become external; the only one with a target was wrong (`LOG.log` on
+        a `java.util.logging.Logger` field → another fixture's `Logger.log`).
+        Found on the way, not fixed here: calls in a field initializer
+        (`private List<String> items = List.of();`) are not recorded as
+        calls at all.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
       same-named method in an unrelated class), all correct. D9 has 2 for
       Lua (`setmetatable`, `string.format` next to another file's local
       aliases), both correct; before the fix, 1 wrong and 1 ambiguous. D9
+      has 2 for Java (`items.add`, `List.of` under `import java.util.List`
+      next to a same-package `shop.List`, checked with `javac` and
+      `javap`), both correct; before the fix, 1 wrong and 1 missing. D9
       cases for the other languages wait on their fixes.
 
 ## Block 2: phase 2, SQLite and enriched model
