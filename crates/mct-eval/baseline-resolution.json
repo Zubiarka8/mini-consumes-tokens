@@ -12,6 +12,11 @@
       "tokens": 196,
       "wrong": 0
     },
+    "overrides: the supertype's method, never a same-named one elsewhere": {
+      "score": 1.0,
+      "tokens": 475,
+      "wrong": 0
+    },
     "python: builtins, imports, fixtures and nested scopes": {
       "score": 0.6,
       "tokens": 545,
