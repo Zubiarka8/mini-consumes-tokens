@@ -508,6 +508,72 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         ),
+        // A variable declared inside a function is reachable only from that
+        // function's file (issue #320 D4, ADR-035): a Lua `speed()` in
+        // `hud.lua` never resolves to a `local speed` of `physics.lua`. The
+        // parent must be proven a function or method of the same file — a
+        // same-named container there (a class, module, struct…) keeps the
+        // variable a candidate from anywhere; a variable, constant or field
+        // can't contain one. File-level variables and a global first
+        // assigned in a function (no parent) are unaffected. No reparse: the
+        // view reads only columns every index already has.
+        M::up(concat!(
+            r#"
+            DROP VIEW relation_candidates;
+            "#,
+            r#"CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                    UNION ALL
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                )
+                CROSS JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<')
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module')
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'variable'
+                       OR s.parent IS NULL
+                       OR NOT EXISTS (SELECT 1 FROM symbols p
+                                      WHERE p.file_id = s.file_id AND p.name = s.parent
+                                        AND p.kind IN ('function', 'method'))
+                       OR EXISTS (SELECT 1 FROM symbols p
+                                  WHERE p.file_id = s.file_id AND p.name = s.parent
+                                    AND p.kind NOT IN ('function', 'method', 'variable',
+                                                       'constant', 'field')))
+                  "#,
+            shadowed_module_predicate!(),
+            r#";
+            "#,
+        )),
     ])
 }
 
@@ -604,6 +670,66 @@ mod tests {
                  VALUES (1, 'calls', 'helper', 1, 1, 1);",
             0,
         )
+    }
+
+    /// Migration 15 (ADR-035): a variable declared inside a function is a
+    /// candidate only for a relation from its own file. A file-level
+    /// variable, a global first assigned in a function (no parent) and a
+    /// variable under a same-named container stay candidates from anywhere;
+    /// a same-named variable is no container. Applied to an index that already holds the data, with no
+    /// reparse: the view reads only columns the index already has.
+    #[test]
+    fn function_local_variable_migration_scopes_candidates_to_their_file(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, 14)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at) VALUES
+                 (1, 'lua/physics.lua', 'lua', 'h1', 0),
+                 (2, 'lua/hud.lua', 'lua', 'h2', 0);
+             INSERT INTO symbols (id, file_id, name, kind, parent, line, column, byte_len) VALUES
+                 (1, 1, 'step', 'function', NULL, 1, 1, 1),
+                 (2, 1, 'speed', 'variable', 'step', 2, 1, 1),
+                 (3, 1, 'gravity', 'variable', NULL, 3, 1, 1),
+                 (4, 1, 'Body', 'class', NULL, 4, 1, 1),
+                 (5, 1, 'Body', 'function', NULL, 5, 1, 1),
+                 (6, 1, 'mass', 'variable', 'Body', 6, 1, 1),
+                 (7, 2, 'draw', 'function', NULL, 1, 1, 1),
+                 (8, 1, 'remaining', 'function', NULL, 7, 1, 1),
+                 (9, 1, 'now', 'variable', 'remaining', 8, 1, 1),
+                 (10, 1, 'remaining', 'variable', 'step', 9, 1, 1);
+             INSERT INTO relations (id, from_symbol_id, kind, to_name, line, column, byte_len,
+                                    targets_parsed) VALUES
+                 (1, 7, 'calls', 'speed', 4, 1, 1, 1),
+                 (2, 1, 'references', 'speed', 3, 1, 1, 1),
+                 (3, 7, 'references', 'gravity', 5, 1, 1, 1),
+                 (4, 7, 'references', 'mass', 6, 1, 1, 1),
+                 (5, 7, 'calls', 'now', 7, 1, 1, 1);",
+        )?;
+        migrations().to_latest(&mut conn)?;
+        let candidates = |relation: i64| -> rusqlite::Result<i64> {
+            conn.query_row(
+                "SELECT COUNT(*) FROM relation_candidates WHERE relation_id = ?1",
+                [relation],
+                |r| r.get(0),
+            )
+        };
+        assert_eq!(candidates(1)?, 0, "another file's function-local `speed`");
+        assert_eq!(candidates(2)?, 1, "the same file's `speed`");
+        assert_eq!(candidates(3)?, 1, "a file-level variable");
+        assert_eq!(candidates(4)?, 1, "a parent that is not only a function");
+        assert_eq!(
+            candidates(5)?,
+            0,
+            "a same-named variable can't be the parent of `now`"
+        );
+        let hash: String =
+            conn.query_row("SELECT content_hash FROM files WHERE id = 1", [], |r| {
+                r.get(0)
+            })?;
+        assert_eq!(hash, "h1", "no reparse needed");
+        Ok(())
     }
 
     /// The note-graph migration keeps every existing relation's candidates

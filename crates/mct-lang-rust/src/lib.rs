@@ -386,10 +386,22 @@ impl<'a> Walker<'a> {
                             text(child, self.source).to_string(),
                             location(child),
                         );
-                        if accessor.kind() == "::" {
-                            let target = self.token_path_evidence(accessor);
-                            self.qualify(relation, target);
-                        }
+                        let target = if accessor.kind() == "::" {
+                            self.token_path_evidence(accessor)
+                        } else {
+                            // `x.f(..)`: the receiver evidence a method call
+                            // outside a macro gets (see `call_evidence`).
+                            let on_self = accessor
+                                .prev_sibling()
+                                .is_some_and(|r| text(r, self.source) == "self");
+                            let qualifier = on_self.then(|| self.self_type.clone()).flatten();
+                            RelationTarget {
+                                member: qualifier.is_none(),
+                                qualifier,
+                                ..Default::default()
+                            }
+                        };
+                        self.qualify(relation, target);
                     }
                     let name = text(child, self.source);
                     if accessor.is_none()
@@ -1057,7 +1069,7 @@ impl<'a> Walker<'a> {
         let terminal = name.child_by_field_name("name").unwrap_or(name);
         let attribute_name = text(terminal, self.source);
         if attribute_name != "derive" {
-            if !matches!(
+            if !(matches!(
                 attribute_name,
                 "allow"
                     | "warn"
@@ -1077,7 +1089,8 @@ impl<'a> Walker<'a> {
                     | "no_mangle"
                     | "path"
                     | "macro_export"
-            ) {
+            ) || name.kind() == "identifier" && is_bare_builtin_attribute(attribute_name))
+            {
                 self.push_relation(
                     owner,
                     RelationKind::References,
@@ -1571,6 +1584,48 @@ fn collect_identifiers(node: Node, source: &str, out: &mut HashSet<String>, dept
     for child in node.children(&mut cursor) {
         collect_identifiers(child, source, out, depth + 1);
     }
+}
+
+/// A built-in attribute of the Rust reference not already skipped above. A
+/// bare one can't be an imported attribute macro of the same name (that is
+/// an ambiguity error, E0659), so it never names a repo item.
+fn is_bare_builtin_attribute(name: &str) -> bool {
+    matches!(
+        name,
+        "ignore"
+            | "should_panic"
+            | "expect"
+            | "non_exhaustive"
+            | "track_caller"
+            | "automatically_derived"
+            | "macro_use"
+            | "proc_macro"
+            | "proc_macro_derive"
+            | "proc_macro_attribute"
+            | "link_name"
+            | "link_section"
+            | "link_ordinal"
+            | "no_link"
+            | "used"
+            | "target_feature"
+            | "instruction_set"
+            | "global_allocator"
+            | "panic_handler"
+            | "windows_subsystem"
+            | "no_std"
+            | "no_main"
+            | "no_builtins"
+            | "no_implicit_prelude"
+            | "recursion_limit"
+            | "type_length_limit"
+            | "crate_name"
+            | "crate_type"
+            | "feature"
+            | "debugger_visualizer"
+            | "collapse_debuginfo"
+            | "naked"
+            | "unsafe"
+    )
 }
 
 /// `#[test]`, `#[bench]`, `#[tokio::test]`/`#[async_std::test]` (any path

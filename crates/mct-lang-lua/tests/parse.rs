@@ -635,3 +635,41 @@ fn a_functional_index_delegating_to_a_table_is_a_reference_not_an_extension() {
     assert!(!parsed.relations.iter().any(|r| r.from == dynamic.id
         && matches!(r.kind, RelationKind::Extends | RelationKind::References)));
 }
+
+#[test]
+fn a_colon_call_carries_its_receiver_evidence() {
+    let parsed = parse(
+        "local Order = {}\nfunction Order:total() return 1 end\n\
+         function Order:report()\n  local inner = function() return self:total() end\n  return self:total(), inner()\nend\n\
+         function Order.free(self) return self:total() end\n\
+         local function sum(a) return a:total() end\n",
+    );
+    let calls: Vec<(usize, &str)> = parsed
+        .relations
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.kind == RelationKind::Calls && r.to_name == "total")
+        .map(|(i, r)| (i, symbol_name(&parsed, r.from)))
+        .collect();
+    assert_eq!(calls.len(), 4, "{calls:?}");
+    for (relation, from) in calls {
+        let target = target_for(&parsed, relation).expect("evidence");
+        if from == "report" || from == "inner" {
+            // `self` inside `function Order:report()`, also from its closure.
+            assert_eq!(target.qualifier.as_deref(), Some("Order"), "{from}");
+            assert!(!target.member, "{from}");
+        } else {
+            // An explicit `self` parameter or any other receiver: the type is unknown.
+            assert_eq!(target.qualifier, None, "{from}");
+            assert!(target.member, "{from}");
+        }
+    }
+}
+
+fn symbol_name(parsed: &mct_core::ParsedFile, id: mct_core::SymbolId) -> &str {
+    parsed
+        .symbols
+        .iter()
+        .find(|s| s.id == id)
+        .map_or("", |s| s.name.as_str())
+}

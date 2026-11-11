@@ -399,6 +399,45 @@ fn a_method_call_inside_a_macro_token_tree_leaves_a_relation() {
 }
 
 #[test]
+fn a_method_call_inside_a_macro_carries_the_receiver_evidence_of_one_outside() {
+    // `out.contains(..)` in `assert!` is a method call on a receiver whose
+    // type the parser can't prove, exactly like the same call outside a
+    // macro: a member call, so a lone same-named method never resolves it
+    // by name. `self.total()` is qualified by the impl type, as outside.
+    let parsed = parse(
+        r#"
+        struct S;
+        impl S {
+            fn total(&self) -> u32 { 1 }
+            fn check(&self, out: &str) {
+                assert!(out.contains("x"));
+                assert_eq!(self.total(), 1);
+            }
+        }
+        "#,
+    );
+    let target = |name: &str| {
+        let index = parsed
+            .relations
+            .iter()
+            .position(|r| r.to_name == name)
+            .unwrap_or_else(|| panic!("no `{name}`: {:?}", parsed.relations));
+        parsed
+            .relation_targets
+            .iter()
+            .find(|t| t.relation == index)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let contains = target("contains");
+    assert!(contains.member, "{contains:?}");
+    assert_eq!(contains.qualifier, None);
+    let total = target("total");
+    assert!(!total.member, "{total:?}");
+    assert_eq!(total.qualifier.as_deref(), Some("S"));
+}
+
+#[test]
 fn a_path_in_value_position_is_a_reference_qualified_by_its_module() {
     // The shape of `mct_languages::build_registry` (errors/REGISTRY.md
     // ERR-010). A value use gets the same `module` evidence as a call through
@@ -965,4 +1004,27 @@ fn loop_conditional_and_match_bindings_are_variables_of_their_function() {
     for name in ["Some", "LIMIT", "Blue", "Red"] {
         assert!(!variables.iter().any(|(n, _)| *n == name), "{name}");
     }
+}
+
+#[test]
+fn a_bare_builtin_attribute_is_not_a_reference() {
+    // `#[ignore = ".."]` and `#[should_panic]` are the compiler's: a bare
+    // built-in attribute name can't be an imported attribute macro (that is
+    // an ambiguity error, E0659), so it never names a repo item such as a
+    // method `Site::ignore`. A custom attribute still is one.
+    let parsed = parse(
+        r#"
+        #[test]
+        #[ignore = "slow"]
+        #[should_panic(expected = "boom")]
+        #[track_caller]
+        #[my_attr]
+        fn t() {}
+        "#,
+    );
+    let names = references(&parsed);
+    for builtin in ["ignore", "should_panic", "track_caller"] {
+        assert!(!names.contains(&builtin), "{builtin}: {names:?}");
+    }
+    assert!(names.contains(&"my_attr"), "{names:?}");
 }

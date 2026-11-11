@@ -273,13 +273,13 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `f()`, `a::f()`, `x.m()`, `f::<T>()` | `call_expression`, `scoped_identifier`, `field_expression`, `generic_function` | `calls` |
 | `impl Tr for T` | `impl_item` | `implements Tr`, owned by the file module; its associated types count as used |
 | `trait B: A` | `trait_item` | `extends A` |
-| `#[derive(Clone)]`, other non-compiler attributes | `attribute_item` | `references` to the item or derive named |
+| `#[derive(Clone)]`, other non-compiler attributes | `attribute_item` | `references` to the item or derive named; a bare built-in attribute of the Rust reference (`#[ignore]`, `#[should_panic]`, `#[track_caller]`, `#[non_exhaustive]`…) is none, since an imported macro can't share its name (E0659) |
 | a same-file free function used as a value, or inside a macro | `identifier`, `token_tree` | `references` |
 | a `let` closure used as a value later in the same function (`.filter(eligible)`) | `identifier` | `references` |
 | a type in a parameter, return type, field, `let`/`const`/`static` annotation, type alias, generic argument, cast or struct literal | `type_identifier`, `scoped_type_identifier` | `references`; the item's own type parameters and `Self` are skipped |
 | the type a path goes through (`Dimension::Kind`, `Assessor::new()`) | `scoped_identifier` | `references` to the capitalized qualifier, besides the last segment |
 | a same-file unit struct used as a value (`&Broken`) | `identifier` | `references` |
-| `m::f(..)` and `x.f(..)` inside a macro's arguments (`vec![format::hits(..)]`) | `token_tree` | `references`; a `m::` path keeps its module/qualifier evidence |
+| `m::f(..)` and `x.f(..)` inside a macro's arguments (`vec![format::hits(..)]`) | `token_tree` | `references`; a `m::` path keeps its module/qualifier evidence, and `x.f(..)` the receiver evidence of a method call outside a macro: `self.f(..)` is qualified by the impl type, any other receiver is a member call (never resolved by a unique name) |
 | a macro invoked through a path (`mct_corpus::standard_tests!`), or a same-file macro invoked inside another macro's arguments | `macro_invocation`, `token_tree` | `calls` |
 | harness attributes such as `#[test]` / `#[tokio::test]` | `attribute_item` | a self-`references` relation to the following function |
 | a bare call to an imported function inside a macro's arguments (`println!("{}", helper(x))`) | `token_tree` | `calls` |
@@ -562,6 +562,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `local M = {}` | `assignment_statement` + `table_constructor` | `module` |
 | `require("x")` | `function_call` | `imports` |
 | `f()`, `M.f()`, `o:m()` | `function_call` | `calls` |
+| `self:m()` in `function T:x()`, `o:m()` | `function_call` + `method_index_expression` | `calls` qualified by `T`; any other receiver is a member call (type unknown) |
 
 #### Why the gaps exist
 
