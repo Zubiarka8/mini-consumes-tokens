@@ -779,11 +779,11 @@ S 46-48 method Currency::symbol
 S 50-57 method Currency::parse
 S 61-82 enum Money::RoundingPolicy
 S 62-67 field RoundingPolicy::HALF_EVEN
-S 63-66 method RoundingPolicy::mode
+S 63-66 method HALF_EVEN::mode
 S 68-73 field RoundingPolicy::HALF_UP
-S 69-72 method RoundingPolicy::mode
+S 69-72 method HALF_UP::mode
 S 74-79 field RoundingPolicy::DOWN
-S 75-78 method RoundingPolicy::mode
+S 75-78 method DOWN::mode
 S 81-81 method RoundingPolicy::mode
 S 84-84 field Money::DEFAULT_ROUNDING
 S 86-86 field Money::amount
@@ -870,9 +870,9 @@ R 52:30 calls Currency::parse -> equalsIgnoreCase
 R 52:23 calls Currency::parse -> name
 R 52:52 calls Currency::parse -> trim
 R 56:23 calls Currency::parse -> IllegalArgumentException
-R 64:26 overrides RoundingPolicy::mode -> mode
-R 70:26 overrides RoundingPolicy::mode -> mode
-R 76:26 overrides RoundingPolicy::mode -> mode
+R 64:26 overrides HALF_EVEN::mode -> mode
+R 70:26 overrides HALF_UP::mode -> mode
+R 76:26 overrides DOWN::mode -> mode
 R 90:25 calls Money::Money -> requireNonNull
 R 91:56 calls Money::Money -> setScale
 R 91:23 calls Money::Money -> requireNonNull
@@ -996,21 +996,21 @@ S 48-50 method Line::subtotal
 S 52-54 method Line::withQuantity
 S 61-124 enum Order::State
 S 62-67 field State::NEW
-S 63-66 method State::next
+S 63-66 method NEW::next
 S 68-73 field State::RESERVED
-S 69-72 method State::next
+S 69-72 method RESERVED::next
 S 74-79 field State::PAID
-S 75-78 method State::next
+S 75-78 method PAID::next
 S 80-85 field State::PICKED
-S 81-84 method State::next
+S 81-84 method PICKED::next
 S 86-91 field State::SHIPPED
-S 87-90 method State::next
+S 87-90 method SHIPPED::next
 S 92-102 field State::INVOICED
-S 93-96 method State::next
-S 98-101 method State::isTerminal
+S 93-96 method INVOICED::next
+S 98-101 method INVOICED::isTerminal
 S 103-113 field State::CANCELLED
-S 104-107 method State::next
-S 109-112 method State::isTerminal
+S 104-107 method CANCELLED::next
+S 109-112 method CANCELLED::isTerminal
 S 115-115 method State::next
 S 117-119 method State::isTerminal
 S 121-123 method State::canMoveTo
@@ -1119,22 +1119,22 @@ R 43:27 calls Order -> IllegalArgumentException
 R 45:21 calls Order -> requireNonNull
 R 49:30 calls Line::subtotal -> times (name-matched: com/example/warehouse/money/Money.java)
 R 53:24 calls Line::withQuantity -> Line
-R 64:24 overrides State::next -> next
-R 65:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
-R 70:24 overrides State::next -> next
-R 71:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
-R 76:24 overrides State::next -> next
-R 77:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
-R 82:24 overrides State::next -> next
-R 83:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
-R 88:24 overrides State::next -> next
-R 89:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
-R 94:24 overrides State::next -> next
-R 95:32 calls State::next -> noneOf
-R 99:21 overrides State::isTerminal -> isTerminal
-R 105:24 overrides State::next -> next
-R 106:32 calls State::next -> noneOf
-R 110:21 overrides State::isTerminal -> isTerminal
+R 64:24 overrides NEW::next -> next
+R 65:32 calls NEW::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 70:24 overrides RESERVED::next -> next
+R 71:32 calls RESERVED::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 76:24 overrides PAID::next -> next
+R 77:32 calls PAID::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 82:24 overrides PICKED::next -> next
+R 83:32 calls PICKED::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 88:24 overrides SHIPPED::next -> next
+R 89:32 calls SHIPPED::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 94:24 overrides INVOICED::next -> next
+R 95:32 calls INVOICED::next -> noneOf
+R 99:21 overrides INVOICED::isTerminal -> isTerminal
+R 105:24 overrides CANCELLED::next -> next
+R 106:32 calls CANCELLED::next -> noneOf
+R 110:21 overrides CANCELLED::isTerminal -> isTerminal
 R 122:27 calls State::canMoveTo -> contains (name-matched: com/example/warehouse/money/Money.java)
 R 122:20 calls State::canMoveTo -> next
 R 133:31 calls OrderEvent::type -> getSimpleName

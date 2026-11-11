@@ -110,11 +110,14 @@ From `rules.md` and the two messages:
         to the declaring interface or class), 5 external, 15 unresolved (JDK
         interfaces such as `Runnable`, or a supertype that doesn't declare
         the method), 14 ambiguous. Dead code unchanged.
-    - Known limit: a method of an enum constant's body or of an anonymous
-      class has the enclosing type as its parent, so when it overrides a
-      method of that same type (`State.next`, `new Listener() { … }` inside
-      `Listener`) every such body is a candidate and the relation stays
-      ambiguous. All 14 ambiguous relations are this case.
+    - Known limit: a method of an anonymous class has the enclosing type
+      as its parent, so when it overrides a method of that same type
+      (`new Listener() { … }` inside `Listener`) every such body is a
+      candidate and the relation stays ambiguous. An enum constant's body
+      no longer has this limit: its methods have the constant as their
+      parent (see Block 3), and 12 of the 14 ambiguous relations are now
+      resolved, each to the enum's own method. The 2 left are anonymous
+      classes.
   - [x] Kotlin `override fun`: same rule, with the supertypes from the
         delegation specifiers (an enum entry's body: the enum; `object : T`:
         `T`) and the root `Any` (`Enum` for an enum class) for `equals`,
@@ -285,9 +288,21 @@ From `rules.md` and the two messages:
 - [ ] Updated symbol-coverage matrix, then work through the gaps by language
       group (3.1).
 - [ ] Inherited methods, using supertype data.
-- [ ] Members of an anonymous class or an enum constant's body are recorded
+- [~] Members of an anonymous class or an enum constant's body are recorded
       under the enclosing type (Java, Kotlin), which leaves their overrides
       ambiguous (see D8).
+  - [x] Enum constant bodies: a method of `NEW { … }` (Java) or of an enum
+        entry's body (Kotlin) has the constant as its parent, the way javac
+        compiles each body to its own subclass. The constant is a field of
+        the enum, and the enum stays the body's supertype. On this
+        repository: Java overrides 14 → 2 ambiguous and 14 → 26 resolved,
+        Kotlin 5 → 4 ambiguous and 28 → 29 resolved, each new resolution to
+        the enum's abstract or open method. Relation and symbol counts and
+        dead code are unchanged.
+  - [ ] Anonymous classes (`new Listener() { … }`, `object : T { … }`). They
+        have no name in the source, so a parent for their members is a
+        naming decision (javac's `Outer$1`, the enclosing method, or no
+        parent). Waiting for that decision.
 - [x] Kotlin: the grammar reports a syntax error for a one-line body whose
       last member has no terminator (`interface Shape { fun area(): Double }`,
       `ADD { override fun apply() = 1 };`). The parser now reparses

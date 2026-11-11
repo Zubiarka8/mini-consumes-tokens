@@ -104,23 +104,22 @@ fn an_override_names_every_direct_supertype_and_nothing_else() {
             "Pt.hashCode -> hashCode (Comparable)",
             "Pt.hashCode -> hashCode (Any, external)",
             "Del.area -> area (Shape)",
-            "Op.apply -> apply (Op)",
+            "ADD.apply -> apply (Op)",
             ".run -> run (Runnable)",
         ]
     );
 }
 
-/// `Op.apply` is left out: the function of an enum entry's body has the
-/// enum as its parent, so it is itself a candidate for `apply (Op)` and the
-/// relation is ambiguous between it and the abstract function. A known
-/// limit, recorded in the phase 2-3 tracker.
+/// The function of an enum entry's body has the entry as its parent, so
+/// `apply (Op)` has one candidate, the enum's abstract function, and never
+/// the overriding function itself.
 #[test]
 fn only_the_supertype_declaring_the_function_resolves() {
     let root = std::env::temp_dir().join(format!("mct-kotlin-overrides-{}", std::process::id()));
     std::fs::create_dir_all(root.join("src")).unwrap();
     std::fs::write(root.join("src/Shapes.kt"), SOURCE).unwrap();
     let index = mct_corpus::open_fixture_indexed(&root, Arc::new(KotlinParser));
-    let mut hits: Vec<String> = ["area", "run", "toString", "hashCode"]
+    let mut hits: Vec<String> = ["area", "run", "toString", "hashCode", "apply"]
         .iter()
         .flat_map(|name| index.find_references(name).unwrap())
         .filter(|h| h.kind == "overrides" && h.resolution != mct_index::Resolution::Unresolved)
@@ -138,6 +137,7 @@ fn only_the_supertype_declaring_the_function_resolves() {
     assert_eq!(
         hits,
         [
+            "apply Resolved Op:31",
             "area Resolved Shape:3",
             "area Resolved Shape:3",
             "hashCode External ",
