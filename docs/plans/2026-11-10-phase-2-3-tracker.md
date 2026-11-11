@@ -64,7 +64,7 @@ From `rules.md` and the two messages:
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
         ADR. Waiting for the maintainer.
-- [~] **D8, `Overrides`** (issue #349). Built from inheritance,
+- [x] **D8, `Overrides`** (issue #349). Built from inheritance,
       implementation and type evidence only, never from a shared name.
   - [x] Core `RelationKind::Overrides` and Rust (`impl Trait for T`): 258
         relations on this repository, 186 resolved (each to a same-named
@@ -132,8 +132,15 @@ From `rules.md` and the two messages:
         (`this`) and events, field-like ones too (corpus +7); TypeScript
         `override` fields, where an arrow-valued field is a method and so
         targets a method (corpus unchanged). Measurements in the PR.
-  - [ ] PHP 8.3 `#[\Override]` methods. PowerShell classes override by
-        name only, with no syntax to show it, so they get no relation.
+  - [x] PHP 8.3 `#[\Override]` methods: one candidate per parent class and
+        interface (an interface's: those it extends), resolved through the
+        namespace; no root. The attribute counts only when its name resolves
+        to the global `Override` (a bare `#[Override]` in a namespace needs
+        `use Override;`). A trait's method gets none (PHP checks it where
+        the trait is used). This repository and the corpus have no
+        `#[\Override]`: corpus, dead code and index size unchanged.
+        PowerShell classes override by name only, with no syntax to show it,
+        so they get no relation.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.

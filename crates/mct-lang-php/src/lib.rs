@@ -96,7 +96,7 @@ use mct_core::{
     SymbolAlias, SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
     MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{find_child, first_error, location, module_location};
+use mct_tree_sitter::{find_child, first_error, location, module_location, Supertype};
 use tree_sitter::{Node, Parser};
 
 use libraries::laravel;
@@ -226,6 +226,9 @@ struct Walker<'a> {
     route_controllers: Vec<ResolvedName>,
     /// Classes a framework may load by convention (see `libraries::laravel`).
     entry_points: Vec<mct_core::EntryPointHint>,
+    /// The supertypes a method of each enclosing class-like declaration can
+    /// override (D8), innermost last.
+    supertypes: Vec<Vec<Supertype>>,
 }
 
 /// What `self::`, `static::`, `parent::` and `$this->` mean at a call site.
@@ -258,6 +261,7 @@ impl<'a> Walker<'a> {
             classes: Vec::new(),
             route_controllers: Vec::new(),
             entry_points: Vec::new(),
+            supertypes: Vec::new(),
         }
     }
 
@@ -376,6 +380,56 @@ impl<'a> Walker<'a> {
             }
         }
         parent
+    }
+
+    /// D8: the parent class and the interfaces of a class-like declaration
+    /// (an interface's: those it extends), resolved through the namespace
+    /// in effect. PHP has no root class.
+    fn override_supertypes(&self, node: Node) -> Vec<Supertype> {
+        ["base_clause", "class_interface_clause"]
+            .into_iter()
+            .filter_map(|clause| find_child(node, clause))
+            .flat_map(named_children)
+            .filter(|name| last_segment(*name).is_some())
+            .filter_map(|name| {
+                let written = text(name, self.source).trim();
+                if is_reserved_type_name(written) {
+                    return None;
+                }
+                self.scope.resolve_class(written)
+            })
+            .map(|resolved| Supertype {
+                name: resolved.name,
+                external: false,
+            })
+            .collect()
+    }
+
+    /// Whether a method carries PHP 8.3's `#[\Override]`: an attribute
+    /// whose name resolves to the global `Override` (attribute names
+    /// resolve like class names; a bare `Override` in a namespace needs a
+    /// `use Override;`).
+    fn has_override_attribute(&self, method: Node) -> bool {
+        let Some(attributes) = method.child_by_field_name("attributes") else {
+            return false;
+        };
+        let mut found = false;
+        let mut stack = vec![attributes];
+        while let Some(node) = stack.pop() {
+            if node.kind() == "attribute" {
+                let name = named_children(node)
+                    .into_iter()
+                    .find(|c| last_segment(*c).is_some());
+                found |= name
+                    .and_then(|n| self.scope.resolve_class(text(n, self.source).trim()))
+                    .is_some_and(|r| {
+                        r.namespace.is_empty() && r.name.eq_ignore_ascii_case("Override")
+                    });
+                continue;
+            }
+            stack.extend(named_children(node));
+        }
+        found
     }
 
     fn declare_type(&mut self, name: &str) {
@@ -573,9 +627,18 @@ impl<'a> Walker<'a> {
                     parent,
                     is_trait: kind == SymbolKind::Trait,
                 });
+                // A trait's `#[\Override]` is checked in the class that
+                // uses it, so it has no supertype of its own.
+                let supertypes = if kind == SymbolKind::Trait {
+                    Vec::new()
+                } else {
+                    self.override_supertypes(node)
+                };
+                self.supertypes.push(supertypes);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, Some(&name), depth + 1);
                 }
+                self.supertypes.pop();
                 self.classes.pop();
             }
             "enum_declaration" => {
@@ -600,9 +663,11 @@ impl<'a> Walker<'a> {
                     parent: None,
                     is_trait: false,
                 });
+                self.supertypes.push(self.override_supertypes(node));
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, Some(&name), depth + 1);
                 }
+                self.supertypes.pop();
                 self.classes.pop();
             }
             "enum_case" => {
@@ -649,6 +714,20 @@ impl<'a> Walker<'a> {
                 let id = self.push_symbol(name, kind, location(node), parent);
                 self.details
                     .push(details::function_detail(node, id, self.source));
+                if kind == SymbolKind::Method && self.has_override_attribute(node) {
+                    if let Some(name_node) = node.child_by_field_name("name") {
+                        let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                        mct_tree_sitter::push_overrides(
+                            &mut self.relations,
+                            &mut self.relation_targets,
+                            id,
+                            text(name_node, self.source),
+                            location(name_node),
+                            &supertypes,
+                            &[],
+                        );
+                    }
+                }
                 self.visit_attributes(node, id, depth);
                 for field in ["parameters", "return_type", "body"] {
                     if let Some(part) = node.child_by_field_name(field) {
