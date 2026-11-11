@@ -5,7 +5,8 @@
 //! it moved here (finding F08).
 
 use mct_core::{
-    Location, RelationKind, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    Location, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
+    MAX_TRAVERSAL_DEPTH,
 };
 use std::ops::Range;
 use tree_sitter::Node;
@@ -165,6 +166,54 @@ pub fn push_relation(
         to_name,
         location,
     });
+}
+
+/// A direct supertype as a type's header names it (D8, issue #349).
+/// `external` marks the language's root type (`Object`, `Any`), which a
+/// type that extends no class inherits from the standard library.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Supertype {
+    pub name: String,
+    pub external: bool,
+}
+
+/// D8: the method `from`, named `name`, overrides a same-named method of
+/// one of `supertypes`. The syntax can't say which one declares it, so one
+/// `Overrides` relation per supertype, each qualified by it: only a
+/// supertype that declares a same-named method resolves. An external root
+/// counts only for the methods it lets a subclass override, `root_methods`,
+/// so a name is never claimed external just because nothing matched.
+pub fn push_overrides(
+    relations: &mut Vec<SymbolRelation>,
+    relation_targets: &mut Vec<RelationTarget>,
+    from: SymbolId,
+    name: &str,
+    location: Location,
+    supertypes: &[Supertype],
+    root_methods: &[&str],
+) {
+    if name.is_empty() {
+        return;
+    }
+    for supertype in supertypes {
+        if supertype.external && !root_methods.contains(&name) {
+            continue;
+        }
+        relation_targets.push(RelationTarget {
+            relation: relations.len(),
+            qualifier: Some(supertype.name.clone()),
+            kind: (!supertype.external).then_some(SymbolKind::Method),
+            external: supertype.external,
+            ..Default::default()
+        });
+        push_relation(
+            relations,
+            from,
+            RelationKind::Overrides,
+            name.to_string(),
+            location,
+        );
+    }
 }
 
 /// `contents` with every byte outside the `keep` byte ranges replaced by a
