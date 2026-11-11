@@ -406,6 +406,73 @@
           "defect": "D4"
         }
       ]
+    },
+    {
+      "name": "overrides: the supertype's method, never a same-named one elsewhere",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "area",
+              "path": "java/src/shapes",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "toString",
+              "path": "java/src/shapes",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "area",
+              "path": "py/app/shapes.py",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "area",
+              "path": "ts/src/shapes.ts",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "java/src/shapes/Circle.java:5",
+          "relation": "overrides area",
+          "truth": "java/src/shapes/Shape.java:4",
+          "defect": "D8"
+        },
+        {
+          "at": "java/src/shapes/Board.java:9",
+          "relation": "overrides toString",
+          "truth": "external",
+          "defect": "D8"
+        },
+        {
+          "at": "py/app/shapes.py:11",
+          "relation": "overrides area",
+          "truth": "py/app/shapes.py:5",
+          "defect": "D8"
+        },
+        {
+          "at": "ts/src/shapes.ts:8",
+          "relation": "overrides area",
+          "truth": "ts/src/shapes.ts:2",
+          "defect": "D8"
+        }
+      ]
     }
   ]
 }
