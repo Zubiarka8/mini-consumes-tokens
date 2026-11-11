@@ -127,6 +127,10 @@ struct Walker<'a> {
     next_id: SymbolId,
     /// Function bodies (named or anonymous) the walk is currently inside.
     function_depth: u32,
+    /// The table `T` of the innermost enclosing `function T:m()`, whose
+    /// implicit `self` a colon call's receiver is; `None` when `self` is
+    /// unknown or an explicit parameter.
+    self_table: Option<String>,
     /// Lexical scopes, innermost last; the first is the file's.
     scopes: Vec<HashMap<String, Binding>>,
     /// Globals already indexed: the first assignment declares one.
@@ -142,6 +146,7 @@ impl<'a> Walker<'a> {
             relation_targets: Vec::new(),
             next_id: 0,
             function_depth: 0,
+            self_table: None,
             scopes: vec![HashMap::new()],
             globals: HashSet::new(),
         }
@@ -310,7 +315,13 @@ impl<'a> Walker<'a> {
                         // function_call both start at `a`, which would make
                         // two same-named chained calls collide into one
                         // indistinguishable row.
+                        let relation = self.relations.len();
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
+                        if self.relations.len() > relation
+                            && callee.kind() == "method_index_expression"
+                        {
+                            self.push_receiver_evidence(relation, callee);
+                        }
                     }
                     // `money.gross(net):to_json()`: the call this one is
                     // chained on sits in the callee's table expression.
@@ -339,11 +350,13 @@ impl<'a> Walker<'a> {
             indexed: true,
             ..Binding::default()
         };
-        if function_node
+        let outer_self = self.self_table.clone();
+        if let Some(name) = function_node
             .child_by_field_name("name")
-            .is_some_and(|n| n.kind() == "method_index_expression")
+            .filter(|n| n.kind() == "method_index_expression")
         {
             self.declare("self", parameter.clone());
+            self.self_table = target_name(name, self.source).1;
         }
         if let Some(params) = function_node.child_by_field_name("parameters") {
             let mut cursor = params.walk();
@@ -353,12 +366,16 @@ impl<'a> Walker<'a> {
                 .map(|n| text(n, self.source).to_string())
                 .collect();
             for name in names {
+                if name == "self" {
+                    self.self_table = None;
+                }
                 self.declare(&name, parameter.clone());
             }
         }
         if let Some(body) = function_node.child_by_field_name("body") {
             self.visit_children(body, owner, depth + 1);
         }
+        self.self_table = outer_self;
         self.pop_scope();
         self.function_depth -= 1;
     }
@@ -865,6 +882,21 @@ impl<'a> Walker<'a> {
                 ..Default::default()
             });
         }
+    }
+
+    /// `self:m()` inside `function T:x()` is qualified by `T`; any other
+    /// colon call's receiver has an unknown type, so it is a member call.
+    fn push_receiver_evidence(&mut self, relation: usize, callee: Node) {
+        let on_self = callee
+            .child_by_field_name("table")
+            .is_some_and(|t| t.kind() == "identifier" && text(t, self.source) == "self");
+        let qualifier = on_self.then(|| self.self_table.clone()).flatten();
+        self.relation_targets.push(RelationTarget {
+            relation,
+            member: qualifier.is_none(),
+            qualifier,
+            ..Default::default()
+        });
     }
 
     fn push_extends(&mut self, from: SymbolId, base: Node) {
