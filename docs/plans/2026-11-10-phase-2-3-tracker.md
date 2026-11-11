@@ -117,8 +117,15 @@ From `rules.md` and the two messages:
         (`make_base()`) gets no relation and rules out the root. This
         repository and the corpus have no Python `override`: corpus, dead
         code and index size unchanged.
-  - [ ] C++ `override`; Kotlin `override val`, C# `override` properties and
-        TypeScript `override` fields.
+  - [x] C++ `override` member functions: one candidate per base of the
+        class (`Base<T>` and `ns::Base` are `Base`), no root. Only the class
+        body can write `override`, so an out-of-line definition gets no
+        relation; a destructor gets none either (it overrides `~Base`, a
+        different name). This repository (the C++ corpus): 11 relations, 10
+        resolved, 1 ambiguous (`Product::describe`: see Block 3). Dead code
+        unchanged; index size 26,132,480 → 26,128,384 B (page rounding).
+  - [ ] Kotlin `override val`, C# `override` properties and TypeScript
+        `override` fields.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.
@@ -186,6 +193,11 @@ From `rules.md` and the two messages:
 - [ ] Kotlin: the grammar reports a syntax error for a one-line body whose
       last member has no terminator (`interface Shape { fun area(): Double }`,
       `ADD { override fun apply() = 1 };`), so such a file is not indexed.
+- [ ] C++: a member declared in the class and defined out of line
+      (`Product::describe`) is two symbols, so a relation to it, an
+      `overrides` or a qualified call, has two candidates and stays
+      ambiguous. Merging the pair is a resolution change for every C++
+      relation (see D8).
 - [ ] Java: a field initializer is not walked, so calls and anonymous
       classes in `Runnable r = new Runnable() { … };` are not indexed.
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
