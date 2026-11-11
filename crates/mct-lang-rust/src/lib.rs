@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod receivers;
 mod tokens;
 
 pub use tokens::RustTokenSource;
@@ -128,6 +129,9 @@ struct Walker<'a> {
     /// Base name of the `impl`/`trait` type whose method body is being
     /// walked — what `self.f()` and `Self::f()` are qualified by.
     self_type: Option<String>,
+    /// Locals of the function being walked whose only binding states their
+    /// type: `x.f()` on one is qualified by it (see `receivers`).
+    receivers: HashMap<String, (String, Option<String>)>,
     /// Declaration details of the items recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
 }
@@ -150,6 +154,7 @@ impl<'a> Walker<'a> {
             generics: HashSet::new(),
             relation_targets: Vec::new(),
             self_type: None,
+            receivers: HashMap::new(),
             details: Vec::new(),
         }
     }
@@ -313,6 +318,16 @@ impl<'a> Walker<'a> {
                 let outer = std::mem::replace(&mut self.bound, locals);
                 let outer_fns = std::mem::take(&mut self.local_fns);
                 let outer_self = std::mem::replace(&mut self.self_type, impl_type.map(type_base));
+                let receivers = receivers::stated_receivers(
+                    node,
+                    self.source,
+                    self.self_type.as_deref(),
+                    |name, at| self.generics.contains(name) || self.std_name(name, at),
+                )
+                .into_iter()
+                .filter_map(|(local, ty)| Some((local, self.type_evidence(ty)?)))
+                .collect();
+                let outer_receivers = std::mem::replace(&mut self.receivers, receivers);
                 // A function body is not an impl/trait body: an `fn` or
                 // `const` nested inside a method belongs to the method, not
                 // to the enclosing type, so the impl type stops here.
@@ -328,6 +343,7 @@ impl<'a> Walker<'a> {
                 self.bound = outer;
                 self.local_fns = outer_fns;
                 self.self_type = outer_self;
+                self.receivers = outer_receivers;
             }
             // A bare identifier reaching here is in value position — a call's
             // callee, an item's own name and a `use` path are all handled by
@@ -402,15 +418,17 @@ impl<'a> Walker<'a> {
                         } else {
                             // `x.f(..)`: the receiver evidence a method call
                             // outside a macro gets (see `call_evidence`).
-                            let on_self = accessor
+                            // Only a name that starts the chain is the
+                            // receiver: in `a.b.f(..)` the `b` before the
+                            // call is a field, whatever local shares its name.
+                            let receiver = accessor
                                 .prev_sibling()
-                                .is_some_and(|r| text(r, self.source) == "self");
-                            let qualifier = on_self.then(|| self.self_type.clone()).flatten();
-                            RelationTarget {
-                                member: qualifier.is_none(),
-                                qualifier,
-                                ..Default::default()
-                            }
+                                .filter(|r| {
+                                    !r.prev_sibling()
+                                        .is_some_and(|p| matches!(p.kind(), "." | "::"))
+                                })
+                                .and_then(|r| self.receiver_type(r));
+                            method_target(receiver)
                         };
                         self.qualify(relation, target);
                     }
@@ -861,17 +879,51 @@ impl<'a> Walker<'a> {
                 }
             }
             "field_expression" => {
-                let on_self = function
+                let receiver = function
                     .child_by_field_name("value")
-                    .is_some_and(|v| v.kind() == "self");
-                let qualifier = on_self.then(|| self.self_type.clone()).flatten();
-                RelationTarget {
-                    member: qualifier.is_none(),
-                    qualifier,
-                    ..Default::default()
-                }
+                    .and_then(|v| self.receiver_type(v));
+                method_target(receiver)
             }
             _ => RelationTarget::default(),
+        }
+    }
+
+    /// The type a method call's receiver is proven to have, with the module
+    /// its import names it through: `self`'s `impl`/`trait` type, or the
+    /// stated type of a local in `receivers`.
+    fn receiver_type(&self, receiver: Node) -> Option<Receiver> {
+        match receiver.kind() {
+            "self" => self.self_type.clone().map(Receiver::SelfValue),
+            "identifier" => match text(receiver, self.source) {
+                "self" => self.self_type.clone().map(Receiver::SelfValue),
+                name => self
+                    .receivers
+                    .get(name)
+                    .map(|(ty, module)| Receiver::Local(ty.clone(), module.clone())),
+            },
+            _ => None,
+        }
+    }
+
+    /// A stated type as receiver evidence: the type, plus the crate its
+    /// `use` reaches it in as module evidence (`serde_json` for
+    /// `use serde_json::Value`, so a same-named type of this repository is
+    /// never the target). A path inside this crate adds none: its type may
+    /// sit in an inline `mod` of any file. A type this file both declares
+    /// and imports, imports from two crates, or imports under an alias (its
+    /// methods' parent has the real name) proves nothing.
+    fn type_evidence(&self, ty: String) -> Option<(String, Option<String>)> {
+        if self.scope.aliases.contains(&ty) {
+            return None;
+        }
+        match self.scope.import_crates.get(&ty).map(Vec::as_slice) {
+            None => Some((ty, None)),
+            Some(_) if self.scope.declared.contains(&ty) => None,
+            Some(modules) if modules.windows(2).all(|w| w[0] == w[1]) => {
+                let module = modules.first().cloned().flatten();
+                Some((ty, module))
+            }
+            Some(_) => None,
         }
     }
 
@@ -1299,6 +1351,38 @@ const PRELUDE: &[&str] = &[
     "drop",
 ];
 
+/// A method call's evidence, from what its receiver is proven to be.
+fn method_target(receiver: Option<Receiver>) -> RelationTarget {
+    match receiver {
+        // As before D5: `self.f()` is qualified by the impl/trait type only.
+        Some(Receiver::SelfValue(qualifier)) => RelationTarget {
+            qualifier: Some(qualifier),
+            ..Default::default()
+        },
+        // A method (`x.f()` never calls a field, which takes `(x.f)()`) of
+        // the local's stated type, through the module its `use` names.
+        Some(Receiver::Local(qualifier, module)) => RelationTarget {
+            qualifier: Some(qualifier),
+            module,
+            kind: Some(SymbolKind::Method),
+            ..Default::default()
+        },
+        None => RelationTarget {
+            member: true,
+            ..Default::default()
+        },
+    }
+}
+
+/// A method call's receiver whose type is proven.
+enum Receiver {
+    /// `self`, of the enclosing `impl`/`trait` type.
+    SelfValue(String),
+    /// A local whose only binding states its type, and the module that
+    /// type is imported through.
+    Local(String, Option<String>),
+}
+
 /// What one file declares and imports, collected before it is walked.
 #[derive(Default)]
 struct FileScope {
@@ -1315,6 +1399,12 @@ struct FileScope {
     /// blocks, modules or file its imports are written in: like a glob, an
     /// import reaches only its own block.
     other_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
+    /// The crate each of those imports reaches its item in (`serde_json` in
+    /// `use serde_json::Value`; none for a `crate::`/`self::`/`super::`
+    /// path), once per import of the name.
+    import_crates: HashMap<String, Vec<Option<String>>>,
+    /// Names a `use … as name` gives another crate's or module's item.
+    aliases: HashSet<String>,
     /// Byte ranges of the blocks, modules or file where a glob import
     /// (`use m::*`) could bring in names this file can't see: the glob
     /// reaches only the block it is written in. A `use super::*` in a module
@@ -1382,14 +1472,23 @@ fn collect_scope_at(
                 let reach = node.parent().map_or(0..source.len(), |block| {
                     block.start_byte()..block.end_byte()
                 });
-                let names = names.into_iter().map(|used| used.name);
                 if is_std_path(text(argument, source)) {
-                    scope.std_imports.extend(names);
+                    scope
+                        .std_imports
+                        .extend(names.into_iter().map(|used| used.name));
                 } else {
-                    for name in names {
+                    for used in names {
+                        if used.alias {
+                            scope.aliases.insert(used.name.clone());
+                        }
+                        scope
+                            .import_crates
+                            .entry(used.name.clone())
+                            .or_default()
+                            .push(used.root);
                         scope
                             .other_imports
-                            .entry(name)
+                            .entry(used.name)
                             .or_default()
                             .push(reach.clone());
                     }
@@ -1721,6 +1820,11 @@ struct UseName {
     qualifier: Option<String>,
     /// The module segment the path names it through (`m` in `use a::m::f`).
     module: Option<String>,
+    /// The crate the path starts at, when it is another crate (`a` in
+    /// `use a::m::f`); none for a `crate::`/`self::`/`super::` path.
+    root: Option<String>,
+    /// Whether `name` is an alias (`use a::T as U`), not the item's own name.
+    alias: bool,
 }
 
 /// Splits the segments leading to a `use` item into the type it lives in
@@ -1754,11 +1858,17 @@ fn collect_use_names_at_depth(
     }
     let mut push = |name_node: Node, prefix: &[String]| {
         let (qualifier, module) = use_scope(prefix);
+        let root = prefix
+            .first()
+            .filter(|r| !matches!(r.as_str(), "crate" | "self" | "super"))
+            .cloned();
         out.push(UseName {
             name: text(name_node, source).to_string(),
             loc: location(name_node),
             qualifier,
             module,
+            root,
+            alias: false,
         });
     };
     match node.kind() {
@@ -1781,6 +1891,8 @@ fn collect_use_names_at_depth(
                     loc: location(alias),
                     qualifier: None,
                     module: None,
+                    root: None,
+                    alias: true,
                 });
             } else if let Some(path) = node.child_by_field_name("path") {
                 collect_use_names_at_depth(path, source, prefix, out, depth + 1);

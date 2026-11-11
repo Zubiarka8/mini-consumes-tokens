@@ -57,7 +57,22 @@ From `rules.md` and the two messages:
 - [x] **D4, variable scopes.** A function's variable or a Lua file-level
       `local` is a candidate only in its own file (migration 15): #324.
 - [~] **D5, receiver types.** Java (#319), JS/TS #326, Kotlin #327, C#
-      #328, Go #329. Rust has no PR yet.
+      #328, Go #329.
+  - [x] Rust, proven receivers only: a local whose only binding in the
+        function states its type (a parameter `x: T`/`&T`/`&mut T`/`T<..>`,
+        `let x: T`, `let x = T { .. }`) qualifies `x.m()` by `T`, as a
+        method; a type the file imports from another crate also carries
+        that crate as module evidence (`use serde_json::Value`). A type
+        parameter, a `dyn`/`impl` type, a std type (`String`,
+        `Box<T>`), an aliased import, or a name imported from two crates
+        is not proof; `self.m()` is unchanged. This repository: 199 ambiguous
+        calls became resolved, each to the stated type (112 in the same
+        file, 87 through a `use`); 144 resolved calls became unresolved,
+        all wrong before (`tree_sitter::Node` `walk()`/`parent()` →
+        `Search.walk`/`Ctx.parent`); 43 ambiguous calls became unresolved
+        (std containers behind a `type` alias, `serde_json::Value`,
+        `tracing` types). No right resolution was lost; dead code
+        unchanged.
   - [x] Python, proven receivers only: `self.m()`/`cls.m()` when the class
         body defines `m`, a parameter annotated with a class, a local bound
         once to `T(…)` or `x: T = …`, and `T.m()` on a class the file
@@ -213,7 +228,9 @@ From `rules.md` and the two messages:
       cases for the other languages wait on their fixes. D5 has 2 for
       Python (`cat.find` on `cat: Catalogue` next to `Shelf.find`,
       `opts.get` on a `dict` next to `View.get`, run with CPython), both
-      correct; before the fix, 1 wrong and 1 ambiguous.
+      correct; before the fix, 1 wrong and 1 ambiguous. Rust's D5 label
+      (`stack.len()` on `stack: &Stack`, next to a free `fn len`) is now
+      correct; before, ambiguous.
 
 ## Block 2: phase 2, SQLite and enriched model
 
