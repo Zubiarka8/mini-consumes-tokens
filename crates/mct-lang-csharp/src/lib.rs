@@ -271,9 +271,23 @@ impl<'a> Walker<'a> {
                 } else {
                     self.field_text(node, "name")
                 };
-                let id = self.push_symbol(name, SymbolKind::Field, location(node), parent);
+                let name_location = node
+                    .child_by_field_name("name")
+                    .map_or_else(|| location(node), location);
+                let id = self.push_symbol(name.clone(), SymbolKind::Field, location(node), parent);
                 self.details
                     .push(details::member_detail(node, id, self.source));
+                if has_override_modifier(node, self.source) {
+                    let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                    mct_tree_sitter::push_property_overrides(
+                        &mut self.relations,
+                        &mut self.relation_targets,
+                        id,
+                        &name,
+                        name_location,
+                        &supertypes,
+                    );
+                }
                 self.visit_attributes(node, id, type_name, depth);
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
@@ -311,6 +325,21 @@ impl<'a> Walker<'a> {
                         );
                         self.details
                             .push(details::field_detail(node, declarator, id, self.source));
+                        // A field-like `override event` (a plain field
+                        // can't be `override`).
+                        if node.kind() == "event_field_declaration"
+                            && has_override_modifier(node, self.source)
+                        {
+                            let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                            mct_tree_sitter::push_property_overrides(
+                                &mut self.relations,
+                                &mut self.relation_targets,
+                                id,
+                                text(name_node, self.source),
+                                location(name_node),
+                                &supertypes,
+                            );
+                        }
                         self.visit_attributes(node, id, type_name, depth);
                         let mut cursor = declarator.walk();
                         for child in declarator.named_children(&mut cursor) {
