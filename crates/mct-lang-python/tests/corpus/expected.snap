@@ -1,4 +1,4 @@
-# language=python files=15 symbols=400 relations=1480 name_matched_across_files=374
+# language=python files=15 symbols=400 relations=1507 name_matched_across_files=383
 
 == library/cli.py (307 lines)
 S 1-307 module cli
@@ -330,12 +330,16 @@ R 129:28 calls wrapper -> fn
 R 134:25 calls wrapper -> warning
 R 136:30 calls wrapper -> sleep
 R 123:9 references wrapper -> wraps
+R 141:16 references decorator -> wrapper
+R 143:12 references retry -> decorator
 R 155:21 calls wrapper -> getattr
 R 156:23 calls wrapper -> str
 R 158:26 calls wrapper -> fn
 R 160:17 calls wrapper -> audit
 R 162:13 calls wrapper -> audit
 R 153:9 references wrapper -> wraps
+R 165:16 references decorator -> wrapper
+R 167:12 references audited -> decorator
 R 178:15 calls translate_errors -> StorageError
 R 170:1 references translate_errors -> contextmanager
 R 183:8 calls error_response -> isinstance
@@ -345,6 +349,8 @@ R 185:8 calls error_response -> isinstance
 R 185:24 references error_response -> ValidationError
 R 186:25 calls error_response -> to_dict
 R 187:8 calls error_response -> isinstance
+R 187:25 references error_response -> ConflictError
+R 187:40 references error_response -> LimitExceededError
 R 188:25 calls error_response -> to_dict
 R 189:8 calls error_response -> isinstance
 R 189:24 references error_response -> LibraryError
@@ -669,6 +675,7 @@ R 18:25 imports reports -> Catalogue (name-matched: library/repository.py)
 R 19:7 imports reports -> services (name-matched: library/services.py)
 R 19:23 imports reports -> LendingService (name-matched: library/services.py)
 R 30:19 calls register -> ValidationError (name-matched: library/errors.py)
+R 34:12 references renderer -> register
 R 38:16 calls fmt_name -> join
 R 38:31 calls fmt_name -> lower
 R 38:23 calls fmt_name -> strip
@@ -1138,6 +1145,7 @@ R 108:16 calls SmsNotifier::deliver -> bool
 R 115:54 calls EventBus::__init__ -> defaultdict
 R 115:66 references EventBus::__init__ -> list
 R 119:36 calls register -> append
+R 122:16 references EventBus::subscribe -> register
 R 128:17 calls EventBus::publish -> listener
 R 131:24 calls EventBus::publish -> exception
 R 139:46 calls HoldQueue::__init__ -> defaultdict
@@ -1162,6 +1170,7 @@ R 183:37 calls LendingService::__init__ -> EmailNotifier
 R 184:27 calls LendingService::__init__ -> EventBus
 R 185:22 calls LendingService::__init__ -> HoldQueue
 R 186:24 calls LendingService::__init__ -> RateLimiter (name-matched: library/errors.py)
+R 188:27 references LendingService::__init__ -> DEFAULT_LOAN_DAYS
 R 190:5 references LendingService::loan_days -> property
 R 197:19 calls LendingService::loan_days -> ValidationError (name-matched: library/errors.py)
 R 194:5 references LendingService::loan_days -> setter
@@ -1272,6 +1281,7 @@ R 373:44 calls first_available -> predicate
 R 377:12 calls book_pairs -> list
 R 377:27 calls book_pairs -> combinations
 R 377:40 calls book_pairs -> sorted
+R 393:23 references make_counter -> reset
 R 397:20 calls wire_default_listeners -> make_counter
 R 401:9 calls on_open -> increment
 R 402:16 calls on_open -> info
@@ -1279,6 +1289,8 @@ R 399:5 references on_open -> subscribe
 R 406:20 calls on_close -> get (name-matched: library/models.py)
 R 407:13 calls on_close -> audit (name-matched: library/errors.py)
 R 404:5 references on_close -> subscribe
+R 409:13 references wire_default_listeners -> on_open
+R 409:22 references wire_default_listeners -> on_close
 R 413:30 calls build_services -> Catalogue (name-matched: library/repository.py)
 R 414:11 calls build_services -> EventBus
 R 415:15 calls build_services -> LendingService
@@ -1307,7 +1319,9 @@ R 4:49 imports admin -> BookRecord (name-matched: web/django_site/lending/models
 R 4:61 imports admin -> CopyRecord (name-matched: web/django_site/lending/models.py)
 R 4:73 imports admin -> LoanRecord (name-matched: web/django_site/lending/models.py)
 R 7:18 extends CopyInline -> TabularInline
+R 8:13 references CopyInline -> CopyRecord (name-matched: web/django_site/lending/models.py)
 R 13:17 extends BookAdmin -> ModelAdmin
+R 17:16 references BookAdmin -> CopyInline
 R 22:27 calls BookAdmin::copy_count -> count (name-matched: library/reports.py)
 R 20:5 references BookAdmin::copy_count -> display
 R 26:64 calls BookAdmin::mark_lost -> update
@@ -1343,6 +1357,7 @@ R 3:43 imports forms -> normalize_isbn (name-matched: library/models.py)
 R 5:7 imports forms -> models (name-matched: library/models.py)
 R 5:21 imports forms -> BookRecord (name-matched: web/django_site/lending/models.py)
 R 8:16 extends BookForm -> ModelForm
+R 10:17 references BookForm::Meta -> BookRecord (name-matched: web/django_site/lending/models.py)
 R 15:16 calls BookForm::clean_isbn -> normalize_isbn (name-matched: library/models.py)
 R 16:16 calls BookForm::clean_isbn -> is_valid_isbn (name-matched: library/models.py)
 R 17:25 calls BookForm::clean_isbn -> ValidationError (name-matched: library/errors.py)
@@ -1583,6 +1598,7 @@ R 24:35 imports views -> BookRecord (name-matched: web/django_site/lending/model
 R 24:47 imports views -> CopyRecord (name-matched: web/django_site/lending/models.py)
 R 24:59 imports views -> LoanRecord (name-matched: web/django_site/lending/models.py)
 R 27:20 extends BookListView -> ListView
+R 28:13 references BookListView -> BookRecord (name-matched: web/django_site/lending/models.py)
 R 33:33 calls BookListView::get_queryset -> all
 R 34:38 calls BookListView::get_queryset -> get
 R 35:21 calls BookListView::get_queryset -> in_genre (name-matched: web/django_site/lending/models.py)
@@ -1592,11 +1608,16 @@ R 39:27 calls BookListView::get_context_data -> get_context_data
 R 39:19 calls BookListView::get_context_data -> super
 R 40:49 calls BookListView::get_context_data -> popular (name-matched: web/django_site/lending/models.py)
 R 44:22 extends BookDetailView -> DetailView
+R 45:13 references BookDetailView -> BookRecord (name-matched: web/django_site/lending/models.py)
 R 50:22 extends BookCreateView -> LoginRequiredMixin
 R 50:42 extends BookCreateView -> PermissionRequiredMixin
 R 50:67 extends BookCreateView -> CreateView
+R 51:13 references BookCreateView -> BookRecord (name-matched: web/django_site/lending/models.py)
+R 52:18 references BookCreateView -> BookForm (name-matched: web/django_site/lending/forms.py)
 R 56:22 extends BookUpdateView -> LoginRequiredMixin
 R 56:42 extends BookUpdateView -> UpdateView
+R 57:13 references BookUpdateView -> BookRecord (name-matched: web/django_site/lending/models.py)
+R 58:18 references BookUpdateView -> BookForm (name-matched: web/django_site/lending/forms.py)
 R 63:17 extends StatsView -> View
 R 70:14 calls StatsView::get -> order_by
 R 69:14 calls StatsView::get -> annotate
@@ -1738,10 +1759,13 @@ R 62:20 calls guarded -> redirect
 R 62:29 calls guarded -> url_for
 R 63:16 calls guarded -> view
 R 59:5 references guarded -> wraps
+R 65:12 references login_required -> guarded
 R 74:36 calls checked -> get
 R 75:17 calls checked -> abort
 R 76:20 calls checked -> view
 R 72:9 references checked -> wraps
+R 78:16 references decorate -> checked
+R 80:12 references staff_only -> decorate
 R 85:25 calls page_args -> get
 R 85:53 references page_args -> int
 R 86:25 calls page_args -> get
@@ -1823,6 +1847,7 @@ R 206:12 calls get_book -> jsonify
 R 206:20 calls get_book -> book_payload
 R 201:1 references get_book -> route
 R 209:15 extends LoanAPI -> MethodView
+R 213:19 references LoanAPI -> login_required
 R 219:32 calls LoanAPI::_service -> lending_service
 R 223:37 calls LoanAPI::get -> open_loans (name-matched: library/repository.py)
 R 223:26 calls LoanAPI::get -> _service
@@ -1889,6 +1914,8 @@ R 325:31 calls seed -> all
 R 326:17 calls seed -> info
 R 326:35 calls seed -> describe_book (name-matched: library/models.py)
 R 321:5 references seed -> command (name-matched: library/cli.py)
+R 330:36 references shell_context -> lending_service
+R 330:61 references shell_context -> Book (name-matched: library/models.py)
 R 328:5 references shell_context -> shell_context_processor
 R 340:7 calls flask_app -> create_app
 R 345:12 calls about -> render_template

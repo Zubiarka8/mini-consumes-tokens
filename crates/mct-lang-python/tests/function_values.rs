@@ -1,5 +1,6 @@
-//! A function passed as an argument (`safely(score, report)`,
-//! `sorted(rows, key=rank)`) is a use of it: a `references` relation, with
+//! A function or class used as a value (`safely(score, report)`,
+//! `sorted(rows, key=rank)`, `isinstance(x, (A, B))`, `handler = rank`,
+//! `{"k": rank}`, `return score`) is a use of it: a `references` relation, with
 //! the evidence a bare call to that name gets (this file's `def`, an import,
 //! a builtin). A name with no such evidence (a parameter, a local, an
 //! unbound name) records nothing, so it is never resolved by its name alone.
@@ -34,6 +35,14 @@ def run(report, rows, handler):
     map(str, rows)
     safely(handler, report)
     safely(unknown, report)
+    isinstance(report, (Score, list))
+    handler = rank
+    table = {"rank": rank, "keys": [score]}
+    return score
+
+
+class Score:
+    pass
 "#;
 
 /// Every `references` relation as `name` plus its evidence.
@@ -69,6 +78,12 @@ fn a_function_passed_as_an_argument_is_referenced_with_evidence() {
             "rank:18 path=app/run.py",
             "parse:19 module=util",
             "str:20 external",
+            "Score:23 path=app/run.py",
+            "list:23 external",
+            "rank:24 path=app/run.py",
+            "rank:25 path=app/run.py",
+            "score:25 path=app/run.py",
+            "score:26 path=app/run.py",
         ]
     );
 }
