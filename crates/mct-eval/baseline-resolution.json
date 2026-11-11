@@ -42,6 +42,11 @@
       "tokens": 230,
       "wrong": 0
     },
+    "stdlib: a standard global is the host's, never another file's alias": {
+      "score": 1.0,
+      "tokens": 281,
+      "wrong": 0
+    },
     "typescript: builtins, imports, fixtures and same-named methods": {
       "score": 1.0,
       "tokens": 379,
