@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=483 relations=765 name_matched_across_files=113
+# language=kotlin files=5 symbols=483 relations=804 name_matched_across_files=113
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -138,7 +138,11 @@ R 42:89 implements Outcome::PendingApproval -> Outcome
 R 43:47 implements Outcome::Rejected -> Outcome
 R 54:24 implements InMemoryOrders -> OrderRepository
 R 55:24 calls WarehouseApp -> linkedMapOf
+R 57:18 overrides InMemoryOrders::save -> save
+R 61:18 overrides InMemoryOrders::find -> find
+R 63:18 overrides InMemoryOrders::findByNumber -> findByNumber
 R 63:69 calls InMemoryOrders::findByNumber -> firstOrNull
+R 65:18 overrides InMemoryOrders::all -> all
 R 70:28 calls WarehouseApp -> AtomicLong
 R 72:52 calls OrderNumbers::next -> format (name-matched: money/Money.kt)
 R 72:69 calls OrderNumbers::next -> now
@@ -148,6 +152,14 @@ R 78:16 implements Outbox -> EventSink (name-matched: order/Order.kt)
 R 78:27 implements Outbox -> InventoryListener (name-matched: inventory/Inventory.kt)
 R 79:18 calls WarehouseApp -> mutableListOf
 R 80:17 calls WarehouseApp -> mutableListOf
+R 82:18 overrides Outbox::accept -> accept
+R 82:18 overrides Outbox::accept -> accept
+R 86:18 overrides Outbox::stockReserved -> stockReserved
+R 86:18 overrides Outbox::stockReserved -> stockReserved
+R 90:18 overrides Outbox::stockReleased -> stockReleased
+R 90:18 overrides Outbox::stockReleased -> stockReleased
+R 94:18 overrides Outbox::reorderPointReached -> reorderPointReached
+R 94:18 overrides Outbox::reorderPointReached -> reorderPointReached
 R 107:52 calls WarehouseApp -> eur (name-matched: money/Money.kt)
 R 110:21 calls OrderService::place -> priceLines
 R 111:25 calls OrderService::place -> instant
@@ -403,7 +415,10 @@ R 16:1 imports Inventory -> Delegates
 R 16:1 imports Inventory -> Delegates
 R 26:73 implements Location -> Comparable
 R 27:41 calls Inventory -> startsWith
+R 29:18 overrides Location::compareTo -> compareTo
 R 30:9 calls Location::compareTo -> compareValuesBy
+R 32:18 overrides Location::toString -> toString
+R 32:18 overrides Location::toString -> toString
 R 32:44 calls Location::toString -> format (name-matched: money/Money.kt)
 R 36:56 calls Location::parse -> also
 R 36:45 calls Location::parse -> split (name-matched: money/Money.kt)
@@ -415,6 +430,8 @@ R 60:42 calls StockLevel::release -> coerceAtLeast
 R 64:9 calls StockLevel::consume -> release
 R 82:55 calls Reservation::isExpired -> isAfter
 R 87:5 extends OutOfStockException -> RuntimeException
+R 101:26 overrides InventoryListener::stockReserved -> stockReserved
+R 102:26 overrides InventoryListener::stockReleased -> stockReleased
 R 123:9 calls Inventory -> require
 R 124:9 calls Inventory -> require
 R 132:5 calls List::pickingRoute -> sortedWith
@@ -636,6 +653,7 @@ R 8:1 imports Money -> Locale
 R 8:1 imports Money -> Locale
 R 9:1 imports Money -> Currency
 R 9:1 imports Money -> JavaCurrency
+R 24:22 overrides Currency::format -> format
 R 24:76 calls Currency::format -> toPlainString
 R 27:61 calls Currency::format -> toPlainString
 R 29:53 calls Currency::javaCurrency -> getInstance
@@ -683,12 +701,19 @@ R 103:38 calls Money::format -> getCurrencyInstance
 R 104:44 calls Money::format -> javaCurrency
 R 106:26 calls Money::format -> format
 R 110:47 calls Money::requireSameCurrency -> CurrencyMismatchException
+R 113:18 overrides Money::compareTo -> compareTo
 R 114:9 calls Money::compareTo -> requireSameCurrency
 R 115:23 calls Money::compareTo -> compareTo
+R 118:18 overrides Money::equals -> equals
+R 118:18 overrides Money::equals -> equals
 R 119:70 calls Money::equals -> compareTo
+R 121:18 overrides Money::hashCode -> hashCode
+R 121:18 overrides Money::hashCode -> hashCode
 R 121:69 calls Money::hashCode -> hashCode
 R 121:48 calls Money::hashCode -> stripTrailingZeros
 R 121:91 calls Money::hashCode -> hashCode
+R 123:18 overrides Money::toString -> toString
+R 123:18 overrides Money::toString -> toString
 R 123:49 calls Money::toString -> toPlainString
 R 126:65 calls Money::of -> Money
 R 128:61 calls Money::of -> of
@@ -712,11 +737,13 @@ R 168:41 calls ExchangeRates::identity -> ExchangeRates
 R 169:35 calls ExchangeRates::identity -> IllegalStateException
 R 173:66 calls ExchangeRates::perEuro -> FixedRates
 R 178:70 implements FixedRates -> ExchangeRates
+R 179:18 overrides FixedRates::rate -> rate
 R 180:41 calls FixedRates::rate -> missing
 R 181:37 calls FixedRates::rate -> missing
 R 182:23 calls FixedRates::rate -> divide
 R 186:15 calls FixedRates::missing -> IllegalStateException
 R 191:25 calls Money -> mutableMapOf
+R 195:18 overrides CachingRates::rate -> rate
 R 196:19 calls CachingRates::rate -> Triple
 R 197:21 calls CachingRates::rate -> let
 R 201:42 calls CachingRates::rate -> also
@@ -895,6 +922,7 @@ R 7:1 imports Order -> Instant
 R 7:1 imports Order -> Instant
 R 8:1 imports Order -> UUID
 R 8:1 imports Order -> UUID
+R 18:18 overrides OrderId::toString -> toString
 R 18:45 calls OrderId::toString -> toString
 R 21:24 calls OrderId::random -> OrderId
 R 21:37 calls OrderId::random -> randomUUID
@@ -949,6 +977,7 @@ R 144:19 calls Order::addLine -> CurrencyMismatchException (name-matched: money/
 R 156:17 calls Order::drainEvents -> forEach
 R 157:17 calls Order::drainEvents -> clear (name-matched: money/Money.kt)
 R 165:13 calls Order::summary -> trimMargin
+R 167:18 overrides Order::toString -> toString
 R 172:13 calls Order::place -> require
 R 172:27 calls Order::place -> isNotEmpty
 R 173:74 calls Order::place -> apply
@@ -1002,6 +1031,7 @@ R 253:19 calls OrderValidator::requireValid -> IllegalArgumentException
 R 253:55 calls OrderValidator::requireValid -> joinToString
 R 263:52 implements OrderHistory -> EventSink
 R 264:27 calls Order -> mutableListOf
+R 266:18 overrides OrderHistory::accept -> accept
 R 267:9 calls OrderHistory::accept -> require
 R 273:53 calls OrderHistory::lastState -> let
 R 273:39 calls OrderHistory::lastState -> lastOrNull
@@ -1146,15 +1176,20 @@ R 46:56 calls DiscountRule::then -> DiscountRule
 R 47:21 calls DiscountRule::then -> discount
 R 48:22 calls DiscountRule::then -> discount
 R 69:63 implements VolumeDiscount -> DiscountRule
+R 70:18 overrides VolumeDiscount::discount -> discount
 R 71:35 calls VolumeDiscount::discount -> sumOf
 R 72:68 calls VolumeDiscount::discount -> maxOrNull (name-matched: money/Money.kt)
 R 72:34 calls VolumeDiscount::discount -> filterKeys
 R 72:96 calls VolumeDiscount::discount -> zero (name-matched: money/Money.kt)
 R 78:62 implements LoyaltyDiscount -> DiscountRule
+R 79:18 overrides LoyaltyDiscount::discount -> discount
 R 80:45 calls LoyaltyDiscount::discount -> let
 R 86:102 implements CouponDiscount -> DiscountRule
+R 87:18 overrides CouponDiscount::discount -> discount
 R 88:38 calls CouponDiscount::discount -> min
 R 88:63 calls CouponDiscount::discount -> zero (name-matched: money/Money.kt)
+R 90:18 overrides CouponDiscount::toString -> toString
+R 90:18 overrides CouponDiscount::toString -> toString
 R 93:84 calls Money::percentOfInt -> toBigDecimal
 R 106:25 calls Pricing -> mutableListOf
 R 107:48 calls Pricing -> emptyMap
@@ -1203,12 +1238,15 @@ R 177:37 calls PricingEngine::explain -> append
 R 178:31 calls PricingEngine::explain -> append
 R 178:13 calls PricingEngine::explain -> append
 R 191:65 extends Promotion::PercentOff -> Promotion
+R 192:22 overrides PercentOff::toRule -> toRule
 R 192:33 calls PercentOff::toRule -> DiscountRule
 R 195:107 extends Promotion::BuyXGetY -> Promotion
+R 196:22 overrides BuyXGetY::toRule -> toRule
 R 196:33 calls BuyXGetY::toRule -> DiscountRule
 R 197:34 calls BuyXGetY::toRule -> firstOrNull
 R 197:93 calls BuyXGetY::toRule -> zero (name-matched: money/Money.kt)
 R 203:27 extends Promotion::FreeShipping -> Promotion
+R 204:22 overrides FreeShipping::toRule -> toRule
 R 210:27 calls Pricing -> mutableListOf
 R 213:9 calls PriceHistory::record -> require
 R 213:25 calls PriceHistory::record -> isEmpty
@@ -1218,6 +1256,7 @@ R 223:14 calls PriceHistory::lowestBefore -> minByOrNull
 R 222:14 calls PriceHistory::lowestBefore -> map
 R 221:17 calls PriceHistory::lowestBefore -> filter
 R 221:51 calls PriceHistory::lowestBefore -> minusDays
+R 225:18 overrides PriceHistory::toString -> toString
 R 230:12 calls priceList -> associate
 R 230:54 calls priceList -> of (name-matched: money/Money.kt)
 R 230:57 calls priceList -> BigDecimal
