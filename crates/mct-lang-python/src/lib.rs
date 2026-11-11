@@ -293,6 +293,7 @@ impl<'a> Walker<'a> {
                     self.visit(function, owner, class_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
+                    self.push_argument_references(arguments, owner);
                     self.visit_children(arguments, owner, class_name, depth + 1);
                 }
             }
@@ -513,13 +514,15 @@ impl<'a> Walker<'a> {
     /// written as a bare name (`len(x)`, `class A(Exception)`, `@property`):
     /// a builtin nothing in this module binds is external, and a name only
     /// a `def`/`class` of this module binds stays in this file.
-    fn push_bare_evidence(&mut self, expr: Node) {
+    ///
+    /// `true` when the name carried evidence.
+    fn push_bare_evidence(&mut self, expr: Node) -> bool {
         if expr.kind() == "attribute" {
             self.push_module_attribute_evidence(expr);
-            return;
+            return false;
         }
         if expr.kind() != "identifier" {
-            return;
+            return false;
         }
         let name = text(expr, self.source);
         let target = if self.scope.is_builtin(name) {
@@ -538,12 +541,38 @@ impl<'a> Walker<'a> {
                 ..Default::default()
             }
         } else {
-            return;
+            return false;
         };
         self.relation_targets.push(RelationTarget {
             relation: self.relations.len(),
             ..target
         });
+        true
+    }
+
+    /// A function passed by name as an argument (`safely(score, x)`,
+    /// `sorted(rows, key=rank)`) is a use of it: a `References` relation,
+    /// recorded only when the name carries evidence (this file's `def`, an
+    /// import, a builtin), so a parameter or local is never resolved by its
+    /// name alone.
+    fn push_argument_references(&mut self, arguments: Node, owner: SymbolId) {
+        let mut cursor = arguments.walk();
+        let values: Vec<Node> = arguments
+            .named_children(&mut cursor)
+            .filter_map(|argument| match argument.kind() {
+                "identifier" => Some(argument),
+                "keyword_argument" => argument
+                    .child_by_field_name("value")
+                    .filter(|v| v.kind() == "identifier"),
+                _ => None,
+            })
+            .collect();
+        for value in values {
+            if self.push_bare_evidence(value) {
+                let name = text(value, self.source).to_string();
+                self.push_relation(owner, RelationKind::References, name, location(value));
+            }
+        }
     }
 
     /// `m.f()` where `m` names a module only through an import (`import
