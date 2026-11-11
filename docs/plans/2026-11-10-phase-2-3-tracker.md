@@ -100,8 +100,15 @@ From `rules.md` and the two messages:
         resolved (each to the base class declaring the method), 7 external,
         4 unresolved (`Exception` and other framework bases), 0 ambiguous.
         Dead code unchanged. `override` properties get no relation yet.
-  - [ ] C++ `override`, TS `override`, Python `@override`; Kotlin
-        `override val` and C# `override` properties.
+  - [x] TypeScript `override` methods: the one candidate is the class the
+        class `extends` (TypeScript accepts `override` only there, with no
+        implicit root). An `abstract` method signature is now recorded as a
+        method of its class, so an override of it can resolve. This
+        repository has no TypeScript `override`; the corpus gains one
+        symbol (`Observable.get`). Dead code and index size unchanged. A
+        class expression's methods get no relation.
+  - [ ] C++ `override`, Python `@override`; Kotlin `override val`, C#
+        `override` properties and TypeScript `override` fields.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.
