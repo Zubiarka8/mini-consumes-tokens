@@ -19,6 +19,7 @@ use tree_sitter::{Node, Parser};
 
 mod details;
 mod receivers;
+mod stdlib;
 
 pub struct GoParser;
 
@@ -74,6 +75,7 @@ impl LanguageParser for GoParser {
         let mut walker = Walker::new(&file.contents);
         walker.globals = receivers::globals(root, &file.contents);
         walker.structs = receivers::structs(root, &file.contents);
+        walker.std_imports = stdlib::StdImports::of(root, &file.contents);
         let file_loc = file_location(root);
         let file_module_id = walker.push_symbol(module_name, SymbolKind::Module, file_loc, None);
         if let Some(ref pkg) = package_name {
@@ -124,6 +126,8 @@ struct Walker<'a> {
     structs: receivers::Structs,
     /// Declaration details of the symbols recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
+    /// The standard packages this file imports and never rebinds.
+    std_imports: stdlib::StdImports,
 }
 
 impl<'a> Walker<'a> {
@@ -301,7 +305,9 @@ impl<'a> Walker<'a> {
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some(name_node) = callee_identifier(function) {
-                        self.push_receiver(function, text(name_node, self.source));
+                        if !self.push_std_package(function) {
+                            self.push_receiver(function, text(name_node, self.source));
+                        }
                         // location(name_node), not location(node): a chained
                         // call (`a.F(x).F(y)`) has its outer and inner
                         // call_expression both start at `a`, which would make
@@ -431,6 +437,24 @@ impl<'a> Walker<'a> {
             member,
             ..Default::default()
         });
+    }
+
+    /// `errors.Is(…)` about to be pushed, through a standard package this
+    /// file imports and never rebinds: external. `true` when recorded.
+    fn push_std_package(&mut self, function: Node) -> bool {
+        let package = (function.kind() == "selector_expression")
+            .then(|| function.child_by_field_name("operand"))
+            .flatten()
+            .filter(|o| o.kind() == "identifier");
+        if !package.is_some_and(|p| self.std_imports.is_std(text(p, self.source))) {
+            return false;
+        }
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            external: true,
+            ..Default::default()
+        });
+        true
     }
 
     fn finish(self) -> ParsedFile {
