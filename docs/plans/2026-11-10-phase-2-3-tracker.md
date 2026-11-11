@@ -353,7 +353,20 @@ From `rules.md` and the two messages:
         an MCP signature change, so issue #371 first.
 - [ ] False positives in impact analysis and dead code (D7 #331 covers part
       of this).
-- [ ] Consistent CLI and MCP output.
+- [x] Consistent CLI and MCP output. The three CLI reports with an MCP
+      twin read the same index and agree, now pinned by
+      `crates/mct-cli/tests/cli_mcp_parity.rs`:
+      - `dead-code` and `find_dead_code`: the same `(path, name, line)` set,
+        whole and scoped (`src/util`, `src/util/`, `./src/util`);
+      - `duplicates` and `find_duplicate_code`: the same group,
+        candidate and below-threshold counts;
+      - `status` and `get_indexing_status`: the same text, apart from the
+        tool's `Last verified unchanged …` line for its own process.
+      On this repository: 124 dead-code candidates from both (the tool pages
+      them at its response budget, `truncated: true`, `next_offset: 62`), and
+      127 duplicate groups (20 REAL, 107 SUSPICIOUS) from both. One
+      difference is deliberate: the CLI applies review decisions only with
+      `--reviewed`, and the tool always does (`crates/mct-cli/src/reviewed.rs`).
 - [ ] Evaluation suite covering every language: precision, coverage,
       performance and tokens.
 
