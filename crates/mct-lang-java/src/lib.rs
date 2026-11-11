@@ -138,6 +138,29 @@ impl<'a> Walker<'a> {
         mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
+    /// `relation` from the type `from` to the supertype `type_id` names,
+    /// which can only be a type of `target_kind`: never a constructor or
+    /// method spelled like it.
+    fn push_supertype(
+        &mut self,
+        from: SymbolId,
+        relation: RelationKind,
+        target_kind: SymbolKind,
+        type_id: Node,
+    ) {
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            kind: Some(target_kind),
+            ..Default::default()
+        });
+        self.push_relation(
+            from,
+            relation,
+            text(type_id, self.source).to_string(),
+            location(type_id),
+        );
+    }
+
     /// Each component of `record R(T a, U b)` declares an implicit accessor
     /// method `a()` (JLS §8.10.3), indexed as a `method` of `R` at the
     /// component. A component whose accessor the body declares explicitly
@@ -308,24 +331,28 @@ impl<'a> Walker<'a> {
                 self.details
                     .push(details::type_detail(node, id, self.source));
 
-                if let Some(superclass) = node.child_by_field_name("superclass") {
-                    for type_id in find_type_identifiers(superclass) {
-                        self.push_relation(
-                            id,
-                            RelationKind::Extends,
-                            text(type_id, self.source).to_string(),
-                            location(type_id),
-                        );
-                    }
-                }
-                if let Some(interfaces) = node.child_by_field_name("interfaces") {
-                    for type_id in find_type_identifiers(interfaces) {
-                        self.push_relation(
-                            id,
-                            RelationKind::Implements,
-                            text(type_id, self.source).to_string(),
-                            location(type_id),
-                        );
+                // JLS §8.1.4, §8.1.5, §9.1.3: a class extends a class,
+                // implements interfaces, and an interface extends interfaces.
+                let supertypes = [
+                    (
+                        node.child_by_field_name("superclass"),
+                        RelationKind::Extends,
+                        SymbolKind::Class,
+                    ),
+                    (
+                        node.child_by_field_name("interfaces"),
+                        RelationKind::Implements,
+                        SymbolKind::Interface,
+                    ),
+                    (
+                        find_child(node, "extends_interfaces"),
+                        RelationKind::Extends,
+                        SymbolKind::Interface,
+                    ),
+                ];
+                for (clause, relation, target_kind) in supertypes {
+                    for type_id in clause.map(find_type_identifiers).unwrap_or_default() {
+                        self.push_supertype(id, relation, target_kind, type_id);
                     }
                 }
                 if node.kind() == "record_declaration" {
