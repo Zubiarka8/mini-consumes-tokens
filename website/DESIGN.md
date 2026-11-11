@@ -12,6 +12,8 @@ English is prerendered, including navigation and documentation links. react-i18n
 
 The responsive layout stacks at 767px; controls retain at least 44px targets. System fonts avoid runtime font requests. All SVG and 3D graphics are original. The social SVG is an English brand asset; the displayed atlas alternative is translated. Native details elements provide keyboard-accessible FAQ interaction.
 
+The header collapses into a hamburger disclosure at 1100px and below. Its single navigation and theme/language controls remain visible on desktop and without JavaScript. The translated toggle exposes expanded state and the controlled regions; Escape restores focus, section links and outside taps close the menu, and crossing into desktop clears its mobile state. The expanded header scrolls within short viewports. Mobile buttons, links and selects have 48px targets; custom decorative chevrons let WebKit honor the select height without changing native keyboard behavior.
+
 ## Sources and compatibility
 
 - Product facts: repository README.md, COMMANDS.md, and imported website/content/docs. No numerical performance claims are made.
