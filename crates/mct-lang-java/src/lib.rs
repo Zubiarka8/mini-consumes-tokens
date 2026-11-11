@@ -1,7 +1,8 @@
 //! `LanguageParser` implementation for Java, via `tree-sitter-java`.
 //!
-//! Known limits: an anonymous class's methods (`new Runnable() { … }`) and
-//! an enum constant's body attach to the enclosing type; a sealed type's
+//! Known limits: an anonymous class's methods (`new Runnable() { … }`)
+//! attach to the enclosing type (an enum constant's body is the constant's,
+//! since it has a name); a sealed type's
 //! `permits` list is no relation (it names subtypes, not supertypes).
 
 use mct_core::{
@@ -351,14 +352,16 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 self.push_symbol(
-                    name,
+                    name.clone(),
                     SymbolKind::Field,
                     location(node),
                     type_name.map(str::to_string),
                 );
                 // `NEW { Set<State> next() { … } }`: the constant's body is
-                // an anonymous subclass of the enum, so its methods belong
-                // to the enum like the abstract declaration they override.
+                // its own subclass of the enum (javac's `State$1`), so its
+                // methods have the constant as their parent and the enum as
+                // their supertype. Their override of `State.next` then has
+                // one candidate, the enum's own method, never themselves.
                 if let Some(body) = node.child_by_field_name("body") {
                     self.supertypes.push(
                         type_name
@@ -369,7 +372,7 @@ impl<'a> Walker<'a> {
                             .into_iter()
                             .collect(),
                     );
-                    self.visit_children(body, owner, type_name, depth + 1);
+                    self.visit_children(body, owner, Some(&name), depth + 1);
                     self.supertypes.pop();
                 }
             }
