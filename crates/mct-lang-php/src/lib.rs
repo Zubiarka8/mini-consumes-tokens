@@ -91,6 +91,8 @@
 //!   no other parser in this workspace synthesizes a symbol from a call's
 //!   arguments.
 
+use std::collections::HashSet;
+
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolAlias, SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
@@ -102,6 +104,7 @@ use tree_sitter::{Node, Parser};
 use libraries::laravel;
 use names::{namespace_alias, ImportKind, ResolvedName, Scope};
 
+mod builtins;
 mod details;
 mod libraries;
 mod names;
@@ -157,6 +160,7 @@ impl LanguageParser for PhpParser {
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.module_id = module_id;
+        collect_function_names(root, &file.contents, &mut walker.declared_functions, 0);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -218,6 +222,9 @@ struct Walker<'a> {
     namespaces: Vec<String>,
     /// Short names of the types this file declares.
     declared_types: Vec<String>,
+    /// Lowercase names of the functions this file declares anywhere,
+    /// including inside an `if (!function_exists(…))` polyfill guard.
+    declared_functions: HashSet<String>,
     /// The class-like declarations enclosing the node being visited,
     /// innermost last.
     classes: Vec<ClassContext>,
@@ -258,6 +265,7 @@ impl<'a> Walker<'a> {
             scope: Scope::default(),
             namespaces: Vec::new(),
             declared_types: Vec::new(),
+            declared_functions: HashSet::new(),
             classes: Vec::new(),
             route_controllers: Vec::new(),
             entry_points: Vec::new(),
@@ -532,8 +540,28 @@ impl<'a> Walker<'a> {
     /// Evidence for `f()`: the function's namespace, when the name is
     /// imported or qualified. A bare name in a namespace may be the
     /// namespaced function or the global one, which only a run can tell.
+    /// A call that can only reach the global function of one of PHP's core
+    /// functions (`\strlen()`, or `strlen()` in a file with no namespace) is
+    /// external, unless this file declares that name itself (a polyfill).
     fn function_target(&self, function: Node) -> Option<RelationTarget> {
-        let resolved = self.scope.resolve_function(text(function, self.source))?;
+        let written = text(function, self.source);
+        let resolved = self.scope.resolve_function(written);
+        let global_name = match &resolved {
+            Some(r) if r.namespace.is_empty() => Some(r.name.as_str()),
+            Some(_) => None,
+            None if self.scope.namespace().is_empty() => Some(written.trim()),
+            None => None,
+        };
+        if global_name.is_some_and(|name| {
+            builtins::is_core_function(name)
+                && !self.declared_functions.contains(&name.to_ascii_lowercase())
+        }) {
+            return Some(RelationTarget {
+                external: true,
+                ..Default::default()
+            });
+        }
+        let resolved = resolved?;
         Some(RelationTarget {
             kind: Some(SymbolKind::Function),
             target_module: Some(namespace_alias(&resolved.namespace)),
@@ -1337,5 +1365,21 @@ fn literal_string_text(node: Node, source: &str) -> Option<String> {
         None
     } else {
         Some(trimmed.to_string())
+    }
+}
+
+/// The lowercase name of every `function` declared anywhere under `node`.
+fn collect_function_names(node: Node, source: &str, out: &mut HashSet<String>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    if node.kind() == "function_definition" {
+        if let Some(name) = node.child_by_field_name("name") {
+            out.insert(text(name, source).to_ascii_lowercase());
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_function_names(child, source, out, depth + 1);
     }
 }
