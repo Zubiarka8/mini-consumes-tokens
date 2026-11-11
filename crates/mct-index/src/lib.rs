@@ -950,6 +950,12 @@ impl Index {
         queries::symbol_details(&self.conn, relative_path, line, name)
     }
 
+    /// The stored declaration header (ADR-034) of each symbol in `ids` that
+    /// has one, keyed by [`SymbolHit::id`].
+    pub fn stored_signatures(&self, ids: &[i64]) -> Result<std::collections::HashMap<i64, String>> {
+        queries::stored_signatures(&self.conn, ids)
+    }
+
     /// How many symbols have stored declaration details.
     pub fn symbol_detail_count(&self) -> Result<usize> {
         queries::symbol_detail_count(&self.conn)

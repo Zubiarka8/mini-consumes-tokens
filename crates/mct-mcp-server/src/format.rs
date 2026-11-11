@@ -1257,12 +1257,19 @@ const MAX_SIGNATURE_CHARS: usize = 120;
 /// `None` when the line is out of range (the file changed since the last
 /// reindex).
 pub fn signature_line(source: &str, line: u32) -> Option<String> {
-    let text = source.lines().nth((line.max(1) - 1) as usize)?.trim();
+    let text = source.lines().nth((line.max(1) - 1) as usize)?;
+    Some(capped_signature(text))
+}
+
+/// `text` trimmed and cut at [`MAX_SIGNATURE_CHARS`] on a char boundary: the
+/// same bound for a stored declaration header (ADR-034) as for a source line.
+pub fn capped_signature(text: &str) -> String {
+    let text = text.trim();
     if text.chars().count() <= MAX_SIGNATURE_CHARS {
-        return Some(text.to_string());
+        return text.to_string();
     }
     let cut: String = text.chars().take(MAX_SIGNATURE_CHARS).collect();
-    Some(format!("{cut}…"))
+    format!("{cut}…")
 }
 
 /// How many file paths or unresolved callee names `build_context_pack` spells
