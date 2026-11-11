@@ -347,8 +347,13 @@ fn an_index_from_before_the_table_gains_it_and_reparses_on_a_normal_reindex() {
     }
     // Rewind to the schema before the table existed, as an older binary left it.
     let conn = rusqlite::Connection::open(&db).unwrap();
-    conn.execute_batch("DROP TABLE symbol_entry_points;")
-        .unwrap();
+    // Tables of later migrations go too: an index at 13 never had them.
+    conn.execute_batch(
+        "DROP TABLE symbol_entry_points;
+         DROP TABLE symbol_parameters;
+         DROP TABLE symbol_details;",
+    )
+    .unwrap();
     conn.pragma_update(None, "user_version", 13).unwrap();
     drop(conn);
 
