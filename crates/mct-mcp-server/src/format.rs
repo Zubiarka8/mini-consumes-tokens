@@ -1340,13 +1340,38 @@ fn context_pack_header(pack: &crate::server::ContextPack) -> String {
             def.snippet
         ));
         if def.hidden_lines > 0 {
-            out.push_str(&format!(
-                "    … {} more line(s) — raise `source_lines` to see them\n",
-                def.hidden_lines
+            out.push_str(&hidden_lines_footer(
+                hit.line,
+                hit.end_line,
+                def.hidden_lines,
             ));
         }
     }
     out
+}
+
+/// The footer under a definition whose last `hidden` lines are cut. For a
+/// body longer than the `source_lines` cap it names the hidden range, since
+/// raising `source_lines` cannot reach past the cap.
+fn hidden_lines_footer(line: u32, end_line: Option<u32>, hidden: u32) -> String {
+    let max = crate::server::CONTEXT_PACK_MAX_SOURCE_LINES;
+    let Some(end) = end_line else {
+        return format!("    … {hidden} more line(s) — raise `source_lines` to see them\n");
+    };
+    let from = end.saturating_sub(hidden) + 1;
+    let total = end.saturating_sub(line) as usize + 1;
+    let shown = total.saturating_sub(hidden as usize);
+    if total <= max {
+        format!("    … {hidden} more line(s) — raise `source_lines` to see them\n")
+    } else if shown >= max {
+        format!(
+            "    … {hidden} more line(s), L{from}-L{end}: `source_lines` shows at most {max}, so read them from the file\n"
+        )
+    } else {
+        format!(
+            "    … {hidden} more line(s), L{from}-L{end} — raise `source_lines` (at most {max}) to see more\n"
+        )
+    }
 }
 
 /// `label: a, b, c (+N more)` on its own line, or nothing for an empty list.

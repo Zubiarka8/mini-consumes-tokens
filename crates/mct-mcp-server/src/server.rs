@@ -635,7 +635,7 @@ const CONTEXT_PACK_DEFAULT_LIMIT: usize = 30;
 /// doc comment.
 const CONTEXT_PACK_DEFAULT_SOURCE_LINES: usize = 40;
 /// Upper clamp on `source_lines` — a pack shows a definition, never a file.
-const CONTEXT_PACK_MAX_SOURCE_LINES: usize = 200;
+pub(crate) const CONTEXT_PACK_MAX_SOURCE_LINES: usize = 200;
 /// Definitions of an ambiguous name rendered with source; the rest are only
 /// counted, with a hint to narrow by `path`/`language`.
 const CONTEXT_PACK_MAX_DEFINITIONS: usize = 3;

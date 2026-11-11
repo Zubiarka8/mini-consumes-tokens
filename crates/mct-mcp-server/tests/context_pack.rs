@@ -457,3 +457,49 @@ async fn signatures_are_the_stored_declaration_headers() {
         "{summary}"
     );
 }
+
+#[tokio::test]
+async fn a_body_longer_than_the_source_lines_cap_names_the_lines_to_read() {
+    // `source_lines` stops at 200, so for a longer body raising it cannot
+    // show the rest: the footer gives the hidden range instead.
+    let root = std::env::temp_dir().join(format!("mct-pack-long-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let body: String = (0..258)
+        .map(|i| format!("    let _v{i} = {i};\n"))
+        .collect();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        format!("pub fn long_one() {{\n{body}}}\n"),
+    )
+    .unwrap();
+    let server = build_server(&root).await;
+    let capped = pack(
+        &server,
+        json!({ "symbol": "long_one", "source_lines": 200 }),
+    )
+    .await;
+    let short = pack(&server, json!({ "symbol": "long_one", "source_lines": 10 })).await;
+    std::fs::remove_dir_all(&root).unwrap();
+
+    assert!(
+        capped.contains("src/lib.rs:L1-L260 [rust] function long_one"),
+        "{capped}"
+    );
+    assert!(capped.contains("200|"), "{capped}");
+    assert!(!capped.contains("201|"), "{capped}");
+    assert!(
+        capped.contains(
+            "… 60 more line(s), L201-L260: `source_lines` shows at most 200, so read them from the file"
+        ),
+        "{capped}"
+    );
+    assert!(!capped.contains("raise `source_lines`"), "{capped}");
+    // Below the cap, raising it still shows more, and the footer says how
+    // far it can go.
+    assert!(
+        short.contains(
+            "… 250 more line(s), L11-L260 — raise `source_lines` (at most 200) to see more"
+        ),
+        "{short}"
+    );
+}
