@@ -140,7 +140,7 @@ pub enum Visibility {
     Package,
     /// Rust `pub(crate)`.
     Crate,
-    /// Rust `pub(super)`, `pub(in path)`.
+    /// Rust `pub(super)`, `pub(in path)`; C# `protected internal`, `private protected`.
     Restricted,
     Protected,
     Internal,
