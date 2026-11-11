@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=274 relations=999 name_matched_across_files=191
+# language=javascript_typescript files=7 symbols=275 relations=999 name_matched_across_files=191
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -310,6 +310,7 @@ S 73-91 class Observable
 S 74-74 field Observable::#subscribers
 S 76-84 method Observable::subscribe
 S 86-88 method Observable::notify
+S 90-90 method Observable::get
 S 93-154 class StockCache
 S 94-94 field StockCache::#levels
 S 95-95 field StockCache::#loadedAt

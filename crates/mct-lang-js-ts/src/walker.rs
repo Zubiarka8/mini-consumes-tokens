@@ -4,7 +4,7 @@ use mct_core::{
     Location, ParsedFile, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord,
     SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::location;
+use mct_tree_sitter::{location, Supertype};
 use std::collections::HashSet;
 use tree_sitter::Node;
 
@@ -52,6 +52,9 @@ pub(super) struct Walker<'a> {
     this_class: Option<usize>,
     /// Declaration details of the symbols recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
+    /// The class each enclosing class body `extends`, innermost last: what
+    /// an `override` method there overrides (D8). Empty without `extends`.
+    supertypes: Vec<Vec<Supertype>>,
 }
 
 impl<'a> Walker<'a> {
@@ -71,6 +74,7 @@ impl<'a> Walker<'a> {
             classes: Vec::new(),
             this_class: None,
             details: Vec::new(),
+            supertypes: Vec::new(),
         }
     }
 
@@ -328,11 +332,29 @@ impl<'a> Walker<'a> {
                 if let Some(body) = node.child_by_field_name("body") {
                     let scope = receivers::class_scope(&name, body, self.source, &self.generics);
                     self.classes.push(scope);
+                    self.supertypes.push(self.extended_class(node));
                     let outer_this = self.this_class.replace(self.classes.len() - 1);
                     self.visit_children(body, owner, Some(&name), depth + 1);
                     self.this_class = outer_this;
+                    self.supertypes.pop();
                     self.classes.pop();
                 }
+            }
+            // `abstract run(): void;` declares a method of its abstract
+            // class, which an `override` in a subclass overrides.
+            "abstract_method_signature" if type_name.is_some() => {
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|n| text(n, self.source).to_string())
+                    .unwrap_or_default();
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Method,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
+                self.details
+                    .push(details::function_detail(node, node, id, self.source));
             }
             "interface_declaration" => {
                 let name = node
@@ -421,6 +443,20 @@ impl<'a> Walker<'a> {
                     self.push_symbol(name, kind, location(node), type_name.map(str::to_string));
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
+                if is_override_in_class(node) {
+                    if let Some(name_node) = node.child_by_field_name("name") {
+                        let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                        mct_tree_sitter::push_overrides(
+                            &mut self.relations,
+                            &mut self.relation_targets,
+                            id,
+                            text(name_node, self.source),
+                            location(name_node),
+                            &supertypes,
+                            &[],
+                        );
+                    }
+                }
                 self.visit_function_like_body(node, id, depth);
             }
             // JS's `field_definition` vs TS's `public_field_definition` —
@@ -674,6 +710,36 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// The class `class_node` extends (`Base` for `extends ns.Base<T>`), as
+    /// the one supertype an `override` method can override.
+    fn extended_class(&self, class_node: Node) -> Vec<Supertype> {
+        let mut cursor = class_node.walk();
+        let heritage = class_node
+            .children(&mut cursor)
+            .find(|c| c.kind() == "class_heritage");
+        let Some(heritage) = heritage else {
+            return Vec::new();
+        };
+        let mut cursor = heritage.walk();
+        let extends = heritage
+            .named_children(&mut cursor)
+            .find(|c| c.kind() == "extends_clause");
+        let Some(extends) = extends else {
+            return Vec::new();
+        };
+        let mut cursor = extends.walk();
+        let base = extends
+            .named_children(&mut cursor)
+            .find(|v| v.kind() != "type_arguments")
+            .and_then(rightmost_name);
+        base.map(|name| Supertype {
+            name: text(name, self.source).to_string(),
+            external: false,
+        })
+        .into_iter()
+        .collect()
+    }
+
     /// `class Foo extends Base implements A, B` — in JS grammar
     /// `class_heritage` wraps the superclass expression directly (JS has no
     /// `implements`); in TS grammar it wraps `extends_clause`/
@@ -823,6 +889,26 @@ fn declares_function(name: Node) -> bool {
 /// type or value expression: `Foo` -> `Foo`, `ns.Foo` -> `Foo`,
 /// `Foo<T>` -> `Foo`, `Mixin(Base)` -> `Mixin`. Used for `extends`/
 /// `implements` targets and `export default <expr>`.
+/// Whether `method` carries `override` and belongs to a class declaration,
+/// whose `extends` the walker recorded; a class expression's methods are
+/// left out, since the enclosing declaration's supertype isn't theirs.
+fn is_override_in_class(method: Node) -> bool {
+    let in_declaration = method
+        .parent()
+        .and_then(|body| body.parent())
+        .is_some_and(|class| {
+            matches!(
+                class.kind(),
+                "class_declaration" | "abstract_class_declaration"
+            )
+        });
+    let mut cursor = method.walk();
+    let has_override = method
+        .children(&mut cursor)
+        .any(|c| c.kind() == "override_modifier");
+    in_declaration && has_override
+}
+
 fn rightmost_name(node: Node) -> Option<Node> {
     match node.kind() {
         "identifier"
