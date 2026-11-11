@@ -4,7 +4,10 @@
 > describe the parser probes at commit `71ec6d0` on 2026-10-19. They have not
 > been fully rechecked against the current working tree, including unreleased
 > branch changes. Confirm a specific construct against current parser tests
-> before relying on an individual cell.
+> before relying on an individual cell. Parser PRs have updated their
+> checklist items since; the score tables are recomputed from the
+> checklists, and `crates/mct-languages/tests/coverage_scores.rs` fails when
+> they disagree.
 
 What each `mct-lang-*` parser puts in the index, construct by construct:
 functions, methods, classes and the rest of object-oriented programming,
@@ -173,15 +176,15 @@ round to the nearest whole percent, with halves rounded up.
 
 | Language | Constructs | Checks | Features | Checks | Unverified |
 |---|--:|--:|--:|--:|--:|
-| Rust | 60% | 26 | 80% | 10 | 0 |
-| Python | 68% | 28 | 85% | 10 | 0 |
-| JS/TS | 61% | 32 | 80% | 10 | 1 |
-| Java | 70% | 27 | 65% | 10 | 0 |
+| Rust | 98% | 26 | 90% | 10 | 0 |
+| Python | 69% | 29 | 85% | 10 | 0 |
+| JS/TS | 62% | 33 | 80% | 10 | 1 |
+| Java | 72% | 27 | 65% | 10 | 0 |
 | Kotlin | 70% | 33 | 65% | 10 | 2 |
 | C# | 76% | 34 | 55% | 10 | 0 |
 | C++ | 77% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
-| PHP | 83% | 30 | 65% | 10 | 0 |
+| PHP | 85% | 30 | 65% | 10 | 0 |
 | Lua | 54% | 13 | 50% | 10 | 1 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
 | PowerShell | 38% | 17 | 60% | 10 | 0 |
@@ -269,15 +272,15 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Language | Functions | Types / OOP | Data | Relations | Search | Quality | Structure |
 |---|--:|--:|--:|--:|--:|--:|--:|
-| Rust | 79% | 75% | 25% | 50% | 70% | 75% | 100% |
+| Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
-| JS/TS | 69% | 70% | 17% | 75% | 80% | 50% | 100% |
-| Java | 80% | 85% | 38% | 63% | 80% | 25% | 67% |
+| JS/TS | 69% | 70% | 17% | 78% | 80% | 50% | 100% |
+| Java | 80% | 90% | 38% | 63% | 80% | 25% | 67% |
 | Kotlin | 72% | 79% | 33% | 83% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 42% | 70% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
-| PHP | 93% | 83% | 50% | 100% | 80% | 50% | 50% |
+| PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
 | Lua | 88% | 75% | 0% | 67% | 60% | 25% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
 | PowerShell | 42% | 25% | 25% | 67% | 80% | 50% | 33% |
@@ -779,7 +782,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Constant (module or global): `const` → `constant`
 - [x] Global / module-level variable: `static` and `static mut` → `variable`
 - [x] Local variable: `variable` owned by its function (`let`, `for`, `if let`, `while let`, `match` arms)
-- [x] Parameter: `variable` owned by its function (`let`, `for`, `if let`, `while let`, `match` arms)
+- [x] Parameter: `variable` owned by its function or method, each binding of a tuple pattern too
 - [x] Macro: `macro_rules!` is a `function`
 
 **Relations**
