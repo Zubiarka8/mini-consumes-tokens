@@ -344,6 +344,24 @@ impl<'a> Walker<'a> {
         )
     }
 
+    /// D8: an `override val`/`var` (`declaration` is a
+    /// `property_declaration` or a constructor `class_parameter`) overrides
+    /// a same-named property of a direct supertype.
+    fn push_property_overrides(&mut self, id: SymbolId, declaration: Node, name_node: Node) {
+        if !has_override_modifier(declaration, self.source) {
+            return;
+        }
+        let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+        mct_tree_sitter::push_property_overrides(
+            &mut self.relations,
+            &mut self.relation_targets,
+            id,
+            text(name_node, self.source),
+            location(name_node),
+            &supertypes,
+        );
+    }
+
     fn push_relation(
         &mut self,
         from: SymbolId,
@@ -484,6 +502,7 @@ impl<'a> Walker<'a> {
                         );
                         self.details
                             .push(details::property_detail(node, id, self.source));
+                        self.push_property_overrides(id, node, name_node);
                     }
                 }
                 // Default-value expressions (`= mutableListOf()`) may still
@@ -555,6 +574,7 @@ impl<'a> Walker<'a> {
                             );
                             self.details
                                 .push(details::property_detail(node, id, self.source));
+                            self.push_property_overrides(id, node, name_node);
                         }
                     }
                 }

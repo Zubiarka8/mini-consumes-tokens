@@ -192,17 +192,64 @@ pub fn push_overrides(
     supertypes: &[Supertype],
     root_methods: &[&str],
 ) {
+    push_member_overrides(
+        relations,
+        relation_targets,
+        from,
+        name,
+        location,
+        supertypes,
+        root_methods,
+        SymbolKind::Method,
+    );
+}
+
+/// D8 for a property (`override val`, a C# `override` property, a
+/// TypeScript `override` field): like [`push_overrides`], but the target is
+/// a same-named `Field` of a supertype. No root type declares a property a
+/// subclass can override, so an external supertype gets no relation.
+pub fn push_property_overrides(
+    relations: &mut Vec<SymbolRelation>,
+    relation_targets: &mut Vec<RelationTarget>,
+    from: SymbolId,
+    name: &str,
+    location: Location,
+    supertypes: &[Supertype],
+) {
+    push_member_overrides(
+        relations,
+        relation_targets,
+        from,
+        name,
+        location,
+        supertypes,
+        &[],
+        SymbolKind::Field,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_member_overrides(
+    relations: &mut Vec<SymbolRelation>,
+    relation_targets: &mut Vec<RelationTarget>,
+    from: SymbolId,
+    name: &str,
+    location: Location,
+    supertypes: &[Supertype],
+    root_members: &[&str],
+    kind: SymbolKind,
+) {
     if name.is_empty() {
         return;
     }
     for supertype in supertypes {
-        if supertype.external && !root_methods.contains(&name) {
+        if supertype.external && !root_members.contains(&name) {
             continue;
         }
         relation_targets.push(RelationTarget {
             relation: relations.len(),
             qualifier: Some(supertype.name.clone()),
-            kind: (!supertype.external).then_some(SymbolKind::Method),
+            kind: (!supertype.external).then_some(kind),
             external: supertype.external,
             ..Default::default()
         });
