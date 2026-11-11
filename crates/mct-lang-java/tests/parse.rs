@@ -115,7 +115,8 @@ fn enum_constant_bodies_are_visited() {
         .filter(|s| s.name == "next")
         .map(|s| (s.location.line, s.parent.as_deref()))
         .collect();
-    assert_eq!(next, [(3, Some("State")), (8, Some("State"))]);
+    // The body's method is the constant's; the abstract one is the enum's.
+    assert_eq!(next, [(3, Some("NEW")), (8, Some("State"))]);
     let of = parsed
         .relations
         .iter()
