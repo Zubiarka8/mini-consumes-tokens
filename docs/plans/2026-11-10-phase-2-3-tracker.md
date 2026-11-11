@@ -288,9 +288,15 @@ From `rules.md` and the two messages:
 - [ ] Members of an anonymous class or an enum constant's body are recorded
       under the enclosing type (Java, Kotlin), which leaves their overrides
       ambiguous (see D8).
-- [ ] Kotlin: the grammar reports a syntax error for a one-line body whose
+- [x] Kotlin: the grammar reports a syntax error for a one-line body whose
       last member has no terminator (`interface Shape { fun area(): Double }`,
-      `ADD { override fun apply() = 1 };`), so such a file is not indexed.
+      `ADD { override fun apply() = 1 };`). The parser now reparses
+      incrementally with a `;` in the blank before each such `}`, at the same
+      offsets, and keeps only a clean tree; a real syntax error is still
+      rejected (`tests/one_line_bodies.rs`). This repository's 14 Kotlin files
+      were already clean, so its index is unchanged. Each reparse pass costs
+      one parse, and a 12 KB file of 400 one-line classes takes 32 ms against
+      3 ms for its multi-line spelling (release build, 20 runs).
 - [ ] C++: a member declared in the class and defined out of line
       (`Product::describe`) is two symbols, so a relation to it, an
       `overrides` or a qualified call, has two candidates and stays
