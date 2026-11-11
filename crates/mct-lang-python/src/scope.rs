@@ -158,6 +158,9 @@ const BUILTINS: &[&str] = &[
     "zip",
 ];
 
+/// The modules that export the PEP 698 `override` decorator.
+pub(crate) const TYPING_MODULES: &[&str] = &["typing", "typing_extensions"];
+
 /// Calls that can bind a module name at run time (`globals()["f"] = …`,
 /// `exec("f = …")`, `vars()[…]`).
 const DYNAMIC_BINDERS: &[&str] = &["globals", "exec", "vars"];
@@ -179,6 +182,11 @@ pub(crate) struct ModuleScope {
     imports: HashMap<String, Option<Import>>,
     /// Names bound by anything other than an import.
     rebound: HashSet<String>,
+    /// Names an import binds to `override` of `typing` or
+    /// `typing_extensions` (`from typing import override [as o]`).
+    typing_override: HashSet<String>,
+    /// Names some other import binds.
+    other_imports: HashSet<String>,
 }
 
 /// What an import binds a local name to.
@@ -204,6 +212,18 @@ impl ModuleScope {
             && !self.opaque
             && !self.functions.contains(name)
             && !self.other.contains(name)
+    }
+
+    /// Whether a bare `name` can only be `typing.override`: every binding of
+    /// it is an import of `override` from `typing` or `typing_extensions`
+    /// (`try: from typing import … except ImportError: from
+    /// typing_extensions import …` binds it twice, to the same decorator).
+    pub(crate) fn is_typing_override(&self, name: &str) -> bool {
+        !self.opaque
+            && self.typing_override.contains(name)
+            && !self.other_imports.contains(name)
+            && !self.functions.contains(name)
+            && !self.rebound.contains(name)
     }
 
     /// Whether a bare `name` can only be a `def`/`class` of this file.
@@ -241,6 +261,14 @@ impl ModuleScope {
         if !name.is_empty() {
             self.other.insert(name.to_string());
             self.rebound.insert(name.to_string());
+        }
+    }
+
+    fn mark_override(&mut self, name: &str, typing_override: bool) {
+        if typing_override {
+            self.typing_override.insert(name.to_string());
+        } else {
+            self.other_imports.insert(name.to_string());
         }
     }
 
@@ -394,6 +422,8 @@ impl ModuleScope {
         // `from a.b import f` and `from .b import f`: module `b`. A bare
         // `from . import f` names no module, so it proves nothing.
         let from_module = module_node.and_then(|m| last_module_segment(m, source));
+        let from_typing =
+            from && module_node.is_some_and(|m| TYPING_MODULES.contains(&text(m, source)));
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
             if Some(child.id()) == module {
@@ -410,6 +440,11 @@ impl ModuleScope {
                                 .child_by_field_name("name")
                                 .map(|n| Import::Module(text(n, source).to_string()))
                         };
+                        let original = child.child_by_field_name("name").map(|n| text(n, source));
+                        self.mark_override(
+                            text(alias, source),
+                            from_typing && original == Some("override"),
+                        );
                         self.bind_import(text(alias, source), import);
                     }
                 }
@@ -430,6 +465,10 @@ impl ModuleScope {
                         } else {
                             Some(Import::Module(name.to_string()))
                         };
+                        self.mark_override(
+                            name,
+                            from_typing && child.named_child_count() == 1 && name == "override",
+                        );
                         self.bind_import(name, import);
                     }
                 }
