@@ -84,7 +84,7 @@ POST as hybrid_search_like.
 EFFECTS read; as hybrid_search_like.
 
 TOOL find_references
-WHEN every reference to a symbol: calls, imports, extends/implements; sort=execution orders by hop, file, line.
+WHEN every reference to a symbol: calls, imports, extends/implements/overrides; sort=execution orders by hop, file, line.
 ERR sort=execution is a static approximation (index has no runtime order: branches/loops/callbacks not modelled); not just direct callers (use find_callers); not a definition lookup (use find_symbol).
 TAGS references, calls, imports, broad
 PRE `symbol` non-blank.

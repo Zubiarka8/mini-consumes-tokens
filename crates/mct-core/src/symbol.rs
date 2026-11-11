@@ -85,6 +85,10 @@ pub enum RelationKind {
     Extends,
     Implements,
     References,
+    /// A method overriding or implementing the same-named method of a
+    /// supertype the source names (`impl Trait for T`, `@Override`); the
+    /// relation is qualified by that supertype, never by the name alone.
+    Overrides,
 }
 
 /// A relation from a symbol defined in this file to another symbol, which may

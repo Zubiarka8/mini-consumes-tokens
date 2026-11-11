@@ -697,7 +697,7 @@ pub(crate) fn entry_point_rows(conn: &Connection) -> Result<Vec<EntryPointRow>> 
 }
 
 /// Total reference counts for every referenced name, across *every* relation
-/// kind (calls/imports/extends/implements/plain references) — the whole-
+/// kind (calls/imports/extends/implements/overrides/plain references) — the whole-
 /// project fan-in `find_dead_code` needs to tell "zero references anywhere"
 /// from "referenced", in one query instead of one `find_references` per
 /// candidate symbol. Unlike [`fan_in_counts`] (which is `calls`-only, for
