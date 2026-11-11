@@ -1778,6 +1778,7 @@ fn relation_kind_str(kind: mct_core::RelationKind) -> &'static str {
         Extends => "extends",
         Implements => "implements",
         References => "references",
+        Overrides => "overrides",
     }
 }
 
