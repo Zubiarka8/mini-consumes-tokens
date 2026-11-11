@@ -49,10 +49,28 @@ From `rules.md` and the two messages:
 - [~] **D3, non-callable targets.** Java is done: a call never resolves to a
       field (#319). Not done for C# and Kotlin, where a delegate field or a
       function-typed property can be called.
+  - [!] #365: the fix needs a predicate in the `relation_candidates` view
+        (a migration). On this repository all 27 C#/Kotlin calls with a
+        `Field` candidate are ambiguous, and every such field is
+        non-callable (`new Price(…)` next to `Price Price { get; }`).
+        Waiting for the maintainer.
 - [x] **D4, variable scopes.** A function's variable or a Lua file-level
       `local` is a candidate only in its own file (migration 15): #324.
-- [~] **D5, receiver types.** JS/TS #326, Kotlin #327, C# #328, Go #329.
-      Rust, Java and Python have no PR yet.
+- [~] **D5, receiver types.** Java (#319), JS/TS #326, Kotlin #327, C#
+      #328, Go #329. Rust has no PR yet.
+  - [x] Python, proven receivers only: `self.m()`/`cls.m()` when the class
+        body defines `m`, a parameter annotated with a class, a local bound
+        once to `T(…)` or `x: T = …`, and `T.m()` on a class the file
+        defines or imports are qualified by that class; a receiver typed by
+        a builtin container or `str` (`opts: dict`, `rows = []`) is
+        external. Any other receiver is left to name resolution, which
+        keeps the `[!]` question below open for Python too. This
+        repository: 30 ambiguous calls became resolved, each to the stated
+        class; 20 resolved calls became external, all wrong before
+        (`list.extend` → `Report.extend`, `dict.values` →
+        `Repository.values`); `Path.home()` lost a wrong target; 644
+        unresolved or ambiguous builtin calls became external. No right
+        resolution was lost; dead code unchanged.
   - [!] Whether Kotlin (#327) and C# (#328) adopt Go's rule for a receiver
         with no stated type. Today that loses 12 (Kotlin) and 25 (C#) right
         resolutions. Waiting for the maintainer.
@@ -192,7 +210,10 @@ From `rules.md` and the two messages:
       has 2 for Java (`items.add`, `List.of` under `import java.util.List`
       next to a same-package `shop.List`, checked with `javac` and
       `javap`), both correct; before the fix, 1 wrong and 1 missing. D9
-      cases for the other languages wait on their fixes.
+      cases for the other languages wait on their fixes. D5 has 2 for
+      Python (`cat.find` on `cat: Catalogue` next to `Shelf.find`,
+      `opts.get` on a `dict` next to `View.get`, run with CPython), both
+      correct; before the fix, 1 wrong and 1 ambiguous.
 
 ## Block 2: phase 2, SQLite and enriched model
 

@@ -313,6 +313,45 @@
       ]
     },
     {
+      "name": "python: a typed receiver reaches its own class only",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "find",
+              "path": "py/app/stock.py",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "get",
+              "path": "py/app/stock.py",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "py/app/stock.py:17",
+          "relation": "calls find",
+          "truth": "py/app/stock.py:2",
+          "defect": "D5"
+        },
+        {
+          "at": "py/app/stock.py:18",
+          "relation": "calls get",
+          "truth": "external",
+          "defect": "D5"
+        }
+      ]
+    },
+    {
       "name": "typescript: builtins, imports, fixtures and same-named methods",
       "category": "resolution",
       "tool": "batch",

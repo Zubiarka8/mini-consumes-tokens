@@ -3,6 +3,8 @@
 //! Nothing here is known to `mct-core`, `mct-index`, or `mct-mcp-server` —
 //! this crate is the entire integration surface for Python support.
 
+use std::collections::HashSet;
+
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
@@ -13,6 +15,7 @@ use tree_sitter::{Node, Parser};
 mod details;
 #[cfg(test)]
 mod libraries;
+mod receivers;
 mod scope;
 mod tokens;
 
@@ -64,6 +67,7 @@ impl LanguageParser for PythonParser {
         let module_name = module_name_for(&file.relative_path);
         let mut walker = Walker::new(&file.contents, &file.relative_path);
         walker.scope = ModuleScope::collect(root, &file.contents);
+        walker.classes = receivers::class_names(root, &file.contents, &walker.scope);
         let mut module_location = location(root);
         // The root node of a file ending in a newline ends at column 0 of
         // the (empty) line after the last one; the file's last line is the
@@ -101,6 +105,12 @@ struct Walker<'a> {
     details: Vec<mct_core::SymbolDetail>,
     /// The candidate supertypes of each enclosing class, innermost last.
     supertypes: Vec<Vec<Supertype>>,
+    /// Class names a receiver can be typed by (D5).
+    classes: HashSet<String>,
+    /// The enclosing classes' own methods, innermost last (D5).
+    class_scopes: Vec<receivers::ClassScope>,
+    /// The enclosing functions' bindings, innermost last (D5).
+    frames: Vec<receivers::Frame>,
 }
 
 /// The methods `object` defines, the only ones a class with no base can
@@ -267,7 +277,9 @@ impl<'a> Walker<'a> {
             "call" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some((name, name_node)) = expr_name_node(function, self.source) {
-                        self.push_bare_evidence(function);
+                        if !self.push_receiver_evidence(function) {
+                            self.push_bare_evidence(function);
+                        }
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
                     self.visit(function, owner, class_name, depth + 1);
@@ -275,6 +287,12 @@ impl<'a> Walker<'a> {
                 if let Some(arguments) = node.child_by_field_name("arguments") {
                     self.visit_children(arguments, owner, class_name, depth + 1);
                 }
+            }
+            // A lambda's parameters may shadow the enclosing function's names.
+            "lambda" => {
+                self.frames.push(receivers::Frame::opaque());
+                self.visit_children(node, owner, class_name, depth + 1);
+                self.frames.pop();
             }
             _ => self.visit_children(node, owner, class_name, depth + 1),
         }
@@ -312,12 +330,17 @@ impl<'a> Walker<'a> {
                     id,
                     self.source,
                 ));
+                let class = class_name.and_then(|_| self.class_scopes.last());
+                let frame =
+                    receivers::Frame::of(node, self.source, class, &self.scope, &self.classes);
+                self.frames.push(frame);
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, None, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, None, depth + 1);
                 }
+                self.frames.pop();
                 Some(id)
             }
             "class_definition" => {
@@ -351,9 +374,16 @@ impl<'a> Walker<'a> {
                 }
                 let supertypes = class_supertypes(node, self.source);
                 self.supertypes.push(supertypes);
+                self.class_scopes
+                    .push(receivers::ClassScope::of(node, self.source));
+                // A class body is its own scope: the enclosing function's
+                // names are not its bindings.
+                self.frames.push(receivers::Frame::default());
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, Some(&name), depth + 1);
                 }
+                self.frames.pop();
+                self.class_scopes.pop();
                 self.supertypes.pop();
                 Some(id)
             }
@@ -408,6 +438,46 @@ impl<'a> Walker<'a> {
             &supertypes,
             &OBJECT_METHODS,
         );
+    }
+
+    /// D5: `x.m()` on an identifier whose type the code states. A class
+    /// qualifies the call; a builtin type makes it external. `false` when
+    /// nothing is proven, so the call keeps its other evidence.
+    fn push_receiver_evidence(&mut self, function: Node) -> bool {
+        if function.kind() != "attribute" {
+            return false;
+        }
+        let (Some(object), Some(method)) = (
+            function.child_by_field_name("object"),
+            function.child_by_field_name("attribute"),
+        ) else {
+            return false;
+        };
+        if object.kind() != "identifier" {
+            return false;
+        }
+        let object = text(object, self.source);
+        let method = text(method, self.source);
+        let receiver = match self.frames.last() {
+            Some(frame) => frame.receiver(object, method, &self.scope, &self.classes),
+            None => receivers::module_receiver(object, &self.scope, &self.classes),
+        };
+        let target = match receiver {
+            Some(receivers::Receiver::Class(class)) => RelationTarget {
+                qualifier: Some(class),
+                ..Default::default()
+            },
+            Some(receivers::Receiver::Builtin) => RelationTarget {
+                external: true,
+                ..Default::default()
+            },
+            None => return false,
+        };
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            ..target
+        });
+        true
     }
 
     /// Evidence for the relation about to be pushed, when its target is

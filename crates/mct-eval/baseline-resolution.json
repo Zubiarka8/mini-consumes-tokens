@@ -17,6 +17,11 @@
       "tokens": 475,
       "wrong": 0
     },
+    "python: a typed receiver reaches its own class only": {
+      "score": 1.0,
+      "tokens": 291,
+      "wrong": 0
+    },
     "python: builtins, imports, fixtures and nested scopes": {
       "score": 0.6,
       "tokens": 545,
