@@ -139,8 +139,9 @@ Without such details (every language but those above), the index has no:
 
 An `overrides` relation (which method overrides which, D8) exists for Rust
 `impl Trait for T` methods, Java `@Override` methods, Kotlin `override fun`,
-C#, TypeScript and C++ `override` methods and Python `typing.override`
-methods only. No language
+C#, TypeScript and C++ `override` methods, Python `typing.override`
+methods, and Kotlin `override val`/`var`, C# `override` properties,
+indexers and events and TypeScript `override` fields only. No language
 records variable or field types.
 
 Because of this, where details are missing:
