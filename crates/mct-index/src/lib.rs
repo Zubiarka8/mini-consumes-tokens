@@ -64,8 +64,8 @@ pub use indexer::{
     ReindexReport, UnsupportedFile, UnsupportedKind,
 };
 pub use queries::{
-    CandidateRef, QueryScope, RelationDirection, RelationHit, RelationPage, Resolution,
-    ResolutionEvidence, SymbolHit, SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
+    CandidateRef, QueryScope, ReferencedSymbols, RelationDirection, RelationHit, RelationPage,
+    Resolution, ResolutionEvidence, SymbolHit, SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
 };
 pub use read_limits::{read_repository_file, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV};
 pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
@@ -938,11 +938,12 @@ impl Index {
         queries::reference_counts(&self.conn)
     }
 
-    /// Names referenced anywhere in the index other than by a function's
-    /// call to itself (see [`queries::referenced_names`]). A name absent from
-    /// the set is a dead-code candidate's "zero references".
-    pub fn referenced_names(&self) -> Result<std::collections::HashSet<String>> {
-        queries::referenced_names(&self.conn)
+    /// Symbols of `kinds` referenced anywhere in the index other than by a
+    /// function's call to itself, counted by resolution (see
+    /// [`queries::referenced_symbols`]). A symbol it does not contain is a
+    /// dead-code candidate's "zero references".
+    pub fn referenced_symbols(&self, kinds: &[&str]) -> Result<queries::ReferencedSymbols> {
+        queries::referenced_symbols(&self.conn, kinds)
     }
 
     /// Multi-hop [`Index::find_calls`]: walks the call graph forward up to
