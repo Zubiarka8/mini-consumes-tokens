@@ -146,8 +146,9 @@ From `rules.md` and the two messages:
       languages are not.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
-      labelled cases. Positive and negative cases for D8 and D9 are still
-      missing.
+      labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
+      same-named method in an unrelated class), all correct. Cases for D9
+      are still missing.
 
 ## Block 2: phase 2, SQLite and enriched model
 
