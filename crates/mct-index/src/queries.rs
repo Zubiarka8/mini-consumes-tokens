@@ -1200,6 +1200,23 @@ pub fn symbol_details(
     Ok(Some(details))
 }
 
+/// The stored declaration header of each symbol in `ids` that has one,
+/// keyed by symbol id; ids without a stored header are absent.
+pub fn stored_signatures(
+    conn: &Connection,
+    ids: &[i64],
+) -> Result<std::collections::HashMap<i64, String>> {
+    let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".to_string());
+    let mut stmt = conn.prepare_cached(
+        "SELECT symbol_id, signature FROM symbol_details
+         WHERE signature IS NOT NULL AND symbol_id IN (SELECT value FROM json_each(?1))",
+    )?;
+    let rows = stmt
+        .query_map([ids], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
 /// How many symbols have stored declaration details.
 pub fn symbol_detail_count(conn: &Connection) -> Result<usize> {
     let n: i64 = conn.query_row("SELECT COUNT(*) FROM symbol_details", [], |r| r.get(0))?;
