@@ -233,8 +233,14 @@ async fn toon_renders_the_related_symbols_as_one_table() {
         json!({ "symbol": "place_order", "format": "toon" }),
     )
     .await;
+    // 13 rows: `store.insert(..)` on `store: &mut OrderStore` is a proven
+    // callee, `OrderStore::insert` (D5).
     assert!(
-        text.contains("related[12]{name,roles,hop,path,lines,kind,signature}:"),
+        text.contains("related[13]{name,roles,hop,path,lines,kind,signature}:"),
+        "{text}"
+    );
+    assert!(
+        text.contains("  insert,callee,1,src/store.rs,L27-L31,method,"),
         "{text}"
     );
     assert!(
@@ -260,11 +266,11 @@ async fn depth_two_adds_callees_of_callees_tagged_with_their_hop() {
     .await;
     println!("{deep}");
     assert!(!direct.contains("callee reserve "), "{direct}");
-    // `inventory.reserve(..)`: a receiver call is listed as uncertain, with
-    // its one method candidate, never as a proven dependency.
+    // `inventory.reserve(..)` on `inventory: &mut Inventory`: the stated
+    // type proves `Inventory::reserve` (D5).
     assert!(
         deep.contains(
-            "callee reserve [depth 2]  ambiguous among 1: src/inventory.rs:L29-L37 method"
+            "callee reserve [depth 2]  src/inventory.rs:L29-L37 method  | pub fn reserve("
         ),
         "{deep}"
     );
@@ -350,6 +356,8 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
              pub fn query(v: Vec<u8>, b: B) -> Result<u8, ()> {\n\
              \x20   A::run();\n\
              \x20   b.run();\n\
+             \x20   let c = b;\n\
+             \x20   c.run();\n\
              \x20   let _ = v.get(0);\n\
              \x20   let _ = v.iter().map(|x| x);\n\
              \x20   Ok(1)\n\
@@ -382,11 +390,13 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
         .skip(1)
         .take_while(|l| l.starts_with("  "))
         .collect();
-    // `b: B` and `A::run()` use the types `B` and `A`.
+    // `b: B` and `A::run()` use the types `B` and `A`. `A::run()` is `A`'s,
+    // and `b.run()` is `B`'s, proven by the parameter's stated type (D5).
     assert_eq!(
         related,
         vec![
             "  callee run  src/lib.rs:L3 method  | pub fn run()",
+            "  callee run  src/lib.rs:L7 method  | pub fn run(&self)",
             "  references B  src/lib.rs:L5 struct  | pub struct B",
             "  references A  src/lib.rs:L1 struct  | pub struct A",
         ],
