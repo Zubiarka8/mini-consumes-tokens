@@ -1126,7 +1126,7 @@ impl<'a> Walker<'a> {
         let terminal = name.child_by_field_name("name").unwrap_or(name);
         let attribute_name = text(terminal, self.source);
         if attribute_name != "derive" {
-            if !matches!(
+            if !(matches!(
                 attribute_name,
                 "allow"
                     | "warn"
@@ -1146,7 +1146,7 @@ impl<'a> Walker<'a> {
                     | "no_mangle"
                     | "path"
                     | "macro_export"
-            ) && !(name.kind() == "identifier" && is_bare_builtin_attribute(attribute_name))
+            ) || name.kind() == "identifier" && is_bare_builtin_attribute(attribute_name))
             {
                 self.push_relation(
                     owner,
