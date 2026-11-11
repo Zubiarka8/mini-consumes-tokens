@@ -11,6 +11,7 @@ use mct_core::{
 use mct_tree_sitter::{first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
+mod details;
 mod receivers;
 use receivers::Bindings;
 
@@ -90,6 +91,8 @@ struct Walker<'a> {
     fields: Vec<Bindings>,
     /// Type variables in scope, which never qualify a call.
     generics: Vec<String>,
+    /// Declaration details of the symbols recorded so far (ADR-034).
+    details: Vec<mct_core::SymbolDetail>,
 }
 
 impl<'a> Walker<'a> {
@@ -294,6 +297,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
 
                 if let Some(superclass) = node.child_by_field_name("superclass") {
                     for type_id in find_type_identifiers(superclass) {
@@ -360,6 +365,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::method_detail(node, id, self.source));
                 let generics_len = self.generics.len();
                 self.generics
                     .extend(receivers::type_parameters(node, self.source));
@@ -379,12 +386,18 @@ impl<'a> Walker<'a> {
                 for declarator in node.children(&mut cursor) {
                     if declarator.kind() == "variable_declarator" {
                         if let Some(name_node) = declarator.child_by_field_name("name") {
-                            self.push_symbol(
+                            let id = self.push_symbol(
                                 text(name_node, self.source).to_string(),
                                 SymbolKind::Field,
                                 location(declarator),
                                 type_name.map(str::to_string),
                             );
+                            self.details.push(details::field_detail(
+                                node,
+                                declarator,
+                                id,
+                                self.source,
+                            ));
                         }
                     }
                 }
@@ -469,6 +482,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
