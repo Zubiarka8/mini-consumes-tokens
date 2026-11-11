@@ -82,8 +82,16 @@ From `rules.md` and the two messages:
       method of that same type (`State.next`, `new Listener() { … }` inside
       `Listener`) every such body is a candidate and the relation stays
       ambiguous. All 14 ambiguous relations are this case.
-  - [ ] Kotlin/C# `override`, C++ `override`, TS `override`, Python
-        `@override`.
+  - [x] Kotlin `override fun`: same rule, with the supertypes from the
+        delegation specifiers (an enum entry's body: the enum; `object : T`:
+        `T`) and the root `Any` (`Enum` for an enum class) for `equals`,
+        `hashCode` and `toString`. On this repository: 39 relations from 30
+        functions, 15 resolved (each to the declaring interface or class), 8
+        external, 11 unresolved, 5 ambiguous, all 5 the limit above (members
+        of `object : InventoryListener { … }` inside `InventoryListener`, and
+        an enum entry's body). Dead code unchanged. `override val` properties
+        get no relation yet.
+  - [ ] C# `override`, C++ `override`, TS `override`, Python `@override`.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.
@@ -148,6 +156,9 @@ From `rules.md` and the two messages:
 - [ ] Members of an anonymous class or an enum constant's body are recorded
       under the enclosing type (Java, Kotlin), which leaves their overrides
       ambiguous (see D8).
+- [ ] Kotlin: the grammar reports a syntax error for a one-line body whose
+      last member has no terminator (`interface Shape { fun area(): Double }`,
+      `ADD { override fun apply() = 1 };`), so such a file is not indexed.
 - [ ] Java: a field initializer is not walked, so calls and anonymous
       classes in `Runnable r = new Runnable() { … };` are not indexed.
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
