@@ -556,7 +556,7 @@ S 20-20 field Currency::EUR
 S 21-21 field Currency::USD
 S 22-22 field Currency::GBP
 S 23-25 field Currency::JPY
-S 24-24 method Currency::format
+S 24-24 method JPY::format
 S 27-27 method Currency::format
 S 29-29 method Currency::javaCurrency
 S 32-34 method Currency::parse
@@ -653,8 +653,8 @@ R 8:1 imports Money -> Locale
 R 8:1 imports Money -> Locale
 R 9:1 imports Money -> Currency
 R 9:1 imports Money -> JavaCurrency
-R 24:22 overrides Currency::format -> format
-R 24:76 calls Currency::format -> toPlainString
+R 24:22 overrides JPY::format -> format
+R 24:76 calls JPY::format -> toPlainString
 R 27:61 calls Currency::format -> toPlainString
 R 29:53 calls Currency::javaCurrency -> getInstance
 R 33:21 calls Currency::parse -> firstOrNull

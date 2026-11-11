@@ -576,21 +576,26 @@ impl<'a> Walker<'a> {
             // `NEW { override fun next() = … }`: a field of the enum; its
             // body overrides members of the enum, so they keep its name.
             "enum_entry" => {
-                if let Some(name_node) = find_child(node, "identifier") {
+                let entry =
+                    find_child(node, "identifier").map(|n| text(n, self.source).to_string());
+                if let Some(entry) = &entry {
                     self.push_symbol(
-                        text(name_node, self.source).to_string(),
+                        entry.clone(),
                         SymbolKind::Field,
                         location(node),
                         type_name.map(str::to_string),
                     );
                 }
-                // The entry's body is an anonymous subclass of the enum.
+                // The entry's body is its own subclass of the enum: its
+                // functions have the entry as their parent and the enum as
+                // their supertype, so their override of the enum's function
+                // has one candidate, never themselves.
                 let enum_type = type_name.map(|name| Supertype {
                     name: name.to_string(),
                     external: false,
                 });
                 self.supertypes.push(enum_type.into_iter().collect());
-                self.visit_children(node, owner, type_name, depth + 1);
+                self.visit_children(node, owner, entry.as_deref().or(type_name), depth + 1);
                 self.supertypes.pop();
             }
             "class_parameter" => {

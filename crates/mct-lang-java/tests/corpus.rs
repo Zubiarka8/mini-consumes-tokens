@@ -93,18 +93,37 @@ fn methods_constructors_fields_and_enum_constants_attach_to_their_type() {
 }
 
 #[test]
-fn enum_constant_bodies_belong_to_the_enum() {
-    // `NEW { Set<State> next() { … } }`: each constant body overrides the
-    // abstract `next()`; its methods, and the calls in them, belong to the
-    // enum.
+fn enum_constant_bodies_belong_to_their_constant() {
+    // `NEW { Set<State> next() { … } }`: each constant body is its own
+    // subclass of the enum and overrides the abstract `next()`. Its methods
+    // have the constant as their parent (a `State` field), and the abstract
+    // declaration alone is `State`'s, so an override never names itself.
     let next: Vec<_> = corpus()
         .symbols_named("next")
         .into_iter()
         .filter(|(p, _)| p.ends_with("Order.java"))
-        .map(|(_, s)| s.parent.as_deref())
+        .map(|(_, s)| s.parent.as_deref().unwrap_or_default())
         .collect();
-    assert!(next.len() > 1, "{next:?}");
-    assert!(next.iter().all(|p| *p == Some("State")), "{next:?}");
+    assert_eq!(
+        next,
+        [
+            "NEW",
+            "RESERVED",
+            "PAID",
+            "PICKED",
+            "SHIPPED",
+            "INVOICED",
+            "CANCELLED",
+            "State"
+        ]
+    );
+    for constant in &next[..next.len() - 1] {
+        assert_eq!(
+            parent("Order.java", constant, SymbolKind::Field),
+            Some("State"),
+            "{constant}"
+        );
+    }
     assert!(corpus().has_relation("next", Calls, "of"));
     assert!(corpus().has_relation("next", Calls, "noneOf"));
 }
