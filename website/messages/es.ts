@@ -24,6 +24,8 @@ const es: Record<keyof typeof en, string> = {
   localFirst: "LOCAL. CONECTADO. PRECISO.",
   fieldGuide: "GUÍA DE CAMPO",
   nav: "Navegación principal",
+  navOpen: "Abrir menú",
+  navClose: "Cerrar menú",
   language: "Idioma",
   theme: "Tema de color",
   themeSystem: "Sistema",
