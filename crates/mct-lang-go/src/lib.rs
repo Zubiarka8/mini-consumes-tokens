@@ -17,6 +17,7 @@ use mct_core::{
 use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
 
+mod details;
 mod receivers;
 
 pub struct GoParser;
@@ -121,6 +122,8 @@ struct Walker<'a> {
     globals: receivers::Types,
     /// The structs and methods this file declares.
     structs: receivers::Structs,
+    /// Declaration details of the symbols recorded so far (ADR-034).
+    details: Vec<mct_core::SymbolDetail>,
 }
 
 impl<'a> Walker<'a> {
@@ -184,12 +187,14 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
+                let detail = details::function_detail(node, &name, self.next_id, self.source);
                 let id = self.push_symbol(
                     name,
                     SymbolKind::Function,
                     location(node),
                     package_name.map(str::to_string),
                 );
+                self.details.push(detail);
                 self.visit_function(node, id, package_name, depth);
             }
             "method_declaration" => {
@@ -199,7 +204,9 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 let receiver_type = receiver_type_name(node, self.source);
                 let parent = receiver_type.or_else(|| package_name.map(str::to_string));
+                let detail = details::function_detail(node, &name, self.next_id, self.source);
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
+                self.details.push(detail);
                 self.visit_function(node, id, package_name, depth);
             }
             "type_spec" => {
@@ -207,6 +214,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
+                let detail = details::type_detail(node, &name, self.next_id, self.source);
+                self.details.push(detail);
                 match node.child_by_field_name("type") {
                     Some(type_node) if type_node.kind() == "struct_type" => {
                         self.push_symbol(
@@ -233,6 +242,13 @@ impl<'a> Walker<'a> {
                                     .child_by_field_name("name")
                                     .map(|n| text(n, self.source).to_string())
                                     .unwrap_or_default();
+                                let detail = details::function_detail(
+                                    member,
+                                    &method_name,
+                                    self.next_id,
+                                    self.source,
+                                );
+                                self.details.push(detail);
                                 self.push_symbol(
                                     method_name,
                                     SymbolKind::Method,
@@ -261,6 +277,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
+                let detail = details::type_detail(node, &name, self.next_id, self.source);
+                self.details.push(detail);
                 self.push_symbol(
                     name,
                     SymbolKind::TypeAlias,
@@ -420,6 +438,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
