@@ -241,6 +241,22 @@ pub(crate) fn push_scope(sql: &mut String, bound: &mut BoundValues, scope: Resol
     }
 }
 
+/// A caller-supplied scope path as stored paths spell it: `./src/`, `src/`
+/// and `src//` are `src`, a file keeps its name, and `.`/`./` (the project
+/// root) is no narrowing at all, `None`. An empty path is left as it is: it
+/// names no directory, so it still matches nothing.
+pub(crate) fn scope_path(path: &str) -> Option<&str> {
+    if path.trim().is_empty() {
+        return Some(path);
+    }
+    let mut path = path.trim();
+    while let Some(rest) = path.strip_prefix("./") {
+        path = rest.trim_start_matches('/');
+    }
+    let path = path.trim_end_matches('/');
+    (!path.is_empty() && path != ".").then_some(path)
+}
+
 /// Directory names are literal, even when they contain SQL LIKE metacharacters.
 fn directory_pattern(path: &str) -> String {
     let escaped = path
