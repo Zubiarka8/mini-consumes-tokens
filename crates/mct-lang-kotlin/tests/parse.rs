@@ -233,3 +233,58 @@ fn pathological_error_recovery_stops_at_the_parse_budget() {
         }
     }
 }
+
+/// `(kind, to_name, target kind)` of every supertype relation in `parsed`.
+fn supertypes(parsed: &mct_core::ParsedFile) -> Vec<(RelationKind, &str, Option<SymbolKind>)> {
+    parsed
+        .relations
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| matches!(r.kind, RelationKind::Extends | RelationKind::Implements))
+        .map(|(i, r)| {
+            let kind = parsed
+                .relation_targets
+                .iter()
+                .find(|t| t.relation == i)
+                .and_then(|t| t.kind);
+            (r.kind, r.to_name.as_str(), kind)
+        })
+        .collect()
+}
+
+#[test]
+fn an_interface_extends_its_superinterfaces() {
+    // An interface's supertypes are interfaces it extends (Kotlin spec,
+    // "Classifier declaration"): `interface Named : Shape` is no
+    // implementation, and its target can only be an interface.
+    let parsed = parse("interface Shape\n\ninterface Named : Shape, Comparable<Named>\n");
+    assert_eq!(
+        supertypes(&parsed),
+        [
+            (RelationKind::Extends, "Shape", Some(SymbolKind::Interface)),
+            (
+                RelationKind::Extends,
+                "Comparable",
+                Some(SymbolKind::Interface)
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_superclass_call_targets_a_class() {
+    // `: Shape(4)` calls a constructor of the class `Shape`, never a
+    // function spelled `Shape`. A bare `Priceable` stays unpinned: a class
+    // whose secondary constructors call `super(…)` names its superclass
+    // without a call too.
+    let parsed = parse(
+        "open class Shape(val sides: Int)\nfun Shape(): Shape = Shape(0)\ninterface Priceable\nclass Circle : Shape(4), Priceable\n",
+    );
+    assert_eq!(
+        supertypes(&parsed),
+        [
+            (RelationKind::Extends, "Shape", Some(SymbolKind::Class)),
+            (RelationKind::Implements, "Priceable", None),
+        ]
+    );
+}
