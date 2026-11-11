@@ -45,7 +45,7 @@ pub(super) fn run(
     let file_hashes = index.file_hashes()?;
     let entries = queries::list_duplicate_candidates(
         &index.conn,
-        options.path.as_deref(),
+        options.path.as_deref().and_then(queries::scope_path),
         options.language.as_deref(),
     )?;
     let hashes: HashMap<String, String> = file_hashes.into_iter().collect();
