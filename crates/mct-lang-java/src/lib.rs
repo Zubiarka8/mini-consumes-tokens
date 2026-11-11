@@ -490,6 +490,19 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("type")
                     .and_then(|t| find_type_identifiers(t).into_iter().next())
                 {
+                    // `new HashMap<>()` under `import java.util.HashMap;`
+                    // can only build the JDK's type (D9). A qualified name
+                    // (`new java.util.ArrayList<>()`) is left to resolution.
+                    let unqualified = type_id
+                        .parent()
+                        .is_some_and(|p| p.kind() != "scoped_type_identifier");
+                    if unqualified && self.jdk.is_jdk(text(type_id, self.source)) {
+                        self.relation_targets.push(RelationTarget {
+                            relation: self.relations.len(),
+                            external: true,
+                            ..Default::default()
+                        });
+                    }
                     self.push_relation(
                         owner,
                         RelationKind::Calls,
