@@ -8,7 +8,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{first_error, location, module_location};
+use mct_tree_sitter::{find_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
 mod details;
@@ -93,6 +93,17 @@ struct Walker<'a> {
     generics: Vec<String>,
     /// Declaration details of the symbols recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
+    /// Direct supertypes of each enclosing type body, innermost last: what
+    /// an `@Override` method there can override (D8).
+    supertypes: Vec<Vec<Supertype>>,
+}
+
+/// A direct supertype as the type's header names it; `external` for the
+/// JDK root `Object`/`Enum`/`Record` a type that extends no class has.
+#[derive(Clone)]
+struct Supertype {
+    name: String,
+    external: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -323,6 +334,7 @@ impl<'a> Walker<'a> {
                 if node.kind() == "record_declaration" {
                     self.push_record_accessors(node, &name);
                 }
+                self.supertypes.push(self.direct_supertypes(node));
                 let generics_len = self.generics.len();
                 self.generics
                     .extend(receivers::type_parameters(node, self.source));
@@ -334,6 +346,7 @@ impl<'a> Walker<'a> {
                 }
                 self.locals = outer_locals;
                 self.fields.pop();
+                self.supertypes.pop();
                 self.generics.truncate(generics_len);
             }
             "enum_constant" => {
@@ -351,7 +364,17 @@ impl<'a> Walker<'a> {
                 // an anonymous subclass of the enum, so its methods belong
                 // to the enum like the abstract declaration they override.
                 if let Some(body) = node.child_by_field_name("body") {
+                    self.supertypes.push(
+                        type_name
+                            .map(|enum_name| Supertype {
+                                name: enum_name.to_string(),
+                                external: false,
+                            })
+                            .into_iter()
+                            .collect(),
+                    );
                     self.visit_children(body, owner, type_name, depth + 1);
+                    self.supertypes.pop();
                 }
             }
             "method_declaration" | "constructor_declaration" => {
@@ -367,6 +390,10 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::method_detail(node, id, self.source));
+                if node.kind() == "method_declaration" && has_override_annotation(node, self.source)
+                {
+                    self.push_overrides(node, id);
+                }
                 let generics_len = self.generics.len();
                 self.generics
                     .extend(receivers::type_parameters(node, self.source));
@@ -461,7 +488,23 @@ impl<'a> Walker<'a> {
                         location(type_id),
                     );
                 }
+                // `new T() { … }` is an anonymous subclass of `T`: its one
+                // direct supertype.
+                let anonymous = find_child(node, "class_body").is_some();
+                if anonymous {
+                    let supertype = node
+                        .child_by_field_name("type")
+                        .and_then(|t| find_type_identifiers(t).into_iter().next())
+                        .map(|t| Supertype {
+                            name: text(t, self.source).to_string(),
+                            external: false,
+                        });
+                    self.supertypes.push(supertype.into_iter().collect());
+                }
                 self.visit_children(node, owner, type_name, depth + 1);
+                if anonymous {
+                    self.supertypes.pop();
+                }
             }
             // An initializer block has its own locals, like a method body.
             "static_initializer" | "block"
@@ -474,6 +517,68 @@ impl<'a> Walker<'a> {
                 self.locals = outer_locals;
             }
             _ => self.visit_children(node, owner, type_name, depth + 1),
+        }
+    }
+
+    /// The direct supertypes `node`'s header names (`extends`, `implements`,
+    /// an interface's `extends`). A type that extends no class also has the
+    /// JDK root, external: `Object` (`Enum` for an enum, `Record` for a
+    /// record), whose overridable methods are [`OBJECT_METHODS`].
+    fn direct_supertypes(&self, node: Node) -> Vec<Supertype> {
+        let mut named: Vec<Supertype> = Vec::new();
+        let clauses = [
+            node.child_by_field_name("superclass"),
+            node.child_by_field_name("interfaces"),
+            find_child(node, "extends_interfaces"),
+        ];
+        for clause in clauses.into_iter().flatten() {
+            for type_id in find_type_identifiers(clause) {
+                named.push(Supertype {
+                    name: text(type_id, self.source).to_string(),
+                    external: false,
+                });
+            }
+        }
+        let root = match node.kind() {
+            "enum_declaration" => Some("Enum"),
+            "record_declaration" => Some("Record"),
+            _ if node.child_by_field_name("superclass").is_none() => Some("Object"),
+            _ => None,
+        };
+        named.extend(root.map(|name| Supertype {
+            name: name.to_string(),
+            external: true,
+        }));
+        named
+    }
+
+    /// D8: an `@Override` method overrides a same-named method of one of
+    /// its type's direct supertypes; which one the syntax can't say, so one
+    /// relation per supertype, each qualified by it. The JDK root counts
+    /// only for a method it declares.
+    fn push_overrides(&mut self, method: Node, id: SymbolId) {
+        let Some(name_node) = method.child_by_field_name("name") else {
+            return;
+        };
+        let name = text(name_node, self.source).to_string();
+        let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+        for supertype in supertypes {
+            if supertype.external && !OBJECT_METHODS.contains(&name.as_str()) {
+                continue;
+            }
+            self.push_relation(
+                id,
+                RelationKind::Overrides,
+                name.clone(),
+                location(name_node),
+            );
+            self.relation_targets.push(RelationTarget {
+                relation: self.relations.len() - 1,
+                qualifier: Some(supertype.name),
+                kind: (!supertype.external).then_some(SymbolKind::Method),
+                external: supertype.external,
+                ..Default::default()
+            });
         }
     }
 
@@ -563,4 +668,24 @@ fn last_identifier(node: Node) -> Option<Node> {
             children.into_iter().rev().find_map(last_identifier)
         }
     }
+}
+
+/// The methods of `java.lang.Object` a subclass can override; every other
+/// `Object` method is `final`.
+const OBJECT_METHODS: [&str; 5] = ["equals", "hashCode", "toString", "clone", "finalize"];
+
+/// Whether `method`'s modifiers carry `@Override` (or `@java.lang.Override`).
+fn has_override_annotation(method: Node, source: &str) -> bool {
+    let Some(modifiers) = find_child(method, "modifiers") else {
+        return false;
+    };
+    let mut cursor = modifiers.walk();
+    let found = modifiers.children(&mut cursor).any(|m| {
+        matches!(m.kind(), "marker_annotation" | "annotation")
+            && m.child_by_field_name("name").is_some_and(|n| {
+                let name = text(n, source);
+                name == "Override" || name == "java.lang.Override"
+            })
+    });
+    found
 }

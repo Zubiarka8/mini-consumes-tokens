@@ -1,4 +1,4 @@
-# language=java files=6 symbols=432 relations=912 name_matched_across_files=145
+# language=java files=6 symbols=432 relations=961 name_matched_across_files=145
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -247,6 +247,7 @@ R 253:68 calls DailyReport::render -> number
 R 253:103 calls DailyReport::render -> total
 R 254:24 calls DailyReport::render -> toString (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 260:20 calls OrderService::expiryJob -> Runnable
+R 264:25 overrides OrderService::run -> run
 R 266:41 calls OrderService::run -> expire (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 268:25 calls OrderService::run -> info
 R 276:51 calls OrderService::demo -> Orders (name-matched: com/example/warehouse/persistence/Repository.java)
@@ -400,10 +401,13 @@ R 37:24 calls Location::parse -> Location
 R 37:51 calls Location::parse -> parseInt
 R 37:79 calls Location::parse -> parseInt
 R 41:25 calls Location::isChilled -> startsWith
+R 45:20 overrides Location::compareTo -> compareTo
 R 49:18 calls Location::compareTo -> compare
 R 48:18 calls Location::compareTo -> thenComparingInt
 R 47:18 calls Location::compareTo -> thenComparingInt
 R 46:31 calls Location::compareTo -> comparing
+R 53:23 overrides Location::toString -> toString
+R 53:23 overrides Location::toString -> toString
 R 54:33 calls Location::toString -> formatted
 R 92:17 calls StockLevel::tryReserve -> available
 R 100:29 calls StockLevel::release -> max (name-matched: com/example/warehouse/money/Money.java)
@@ -411,6 +415,8 @@ R 104:13 calls StockLevel::consume -> release
 R 116:31 calls Reservation::isExpired -> isAfter
 R 121:53 extends Inventory::OutOfStockException -> RuntimeException
 R 152:24 calls Listener::noop -> Listener
+R 154:29 overrides Listener::stockReserved -> stockReserved
+R 158:29 overrides Listener::stockReleased -> stockReleased
 R 187:9 calls Inventory::receive -> withLock
 R 187:47 calls Inventory::receive -> receive
 R 187:24 calls Inventory::receive -> levelAt
@@ -516,6 +522,7 @@ R 298:26 calls Inventory::consume -> remove
 R 298:35 calls Inventory::consume -> id
 R 304:29 calls Inventory::expire -> instant
 R 305:34 implements Inventory::Expired -> Predicate
+R 309:28 overrides Expired::test -> test
 R 310:47 calls Expired::test -> isExpired
 R 317:31 calls Inventory::expire -> Expired
 R 318:14 calls Inventory::expire -> lock
@@ -666,6 +673,7 @@ R 122:39 implements ExchangeRates::FixedRates -> ExchangeRates
 R 126:54 calls FixedRates::FixedRates -> EnumMap
 R 127:18 calls FixedRates::FixedRates -> putAll
 R 128:18 calls FixedRates::FixedRates -> put
+R 133:27 overrides FixedRates::rate -> rate
 R 134:35 calls FixedRates::rate -> lookup
 R 135:33 calls FixedRates::rate -> lookup
 R 136:27 calls FixedRates::rate -> divide
@@ -675,6 +683,8 @@ R 153:40 implements ExchangeRates::CachedRates -> ExchangeRates
 R 153:55 implements ExchangeRates::CachedRates -> AutoCloseable
 R 163:43 calls Entry::isFresh -> isAfter
 R 163:33 calls Entry::isFresh -> plus (name-matched: com/example/warehouse/money/Money.java)
+R 175:27 overrides CachedRates::rate -> rate
+R 175:27 overrides CachedRates::rate -> rate
 R 176:47 calls CachedRates::rate -> ratesFor
 R 178:18 calls CachedRates::rate -> orElseThrow
 R 177:44 calls CachedRates::rate -> ofNullable
@@ -716,19 +726,25 @@ R 228:31 calls CachedRates::warmUp -> now
 R 228:49 calls CachedRates::warmUp -> instant
 R 232:24 calls CachedRates::stats -> copyOf
 R 236:19 calls CachedRates::count -> merge
+R 240:21 overrides CachedRates::close -> close
+R 240:21 overrides CachedRates::close -> close
 R 241:30 calls CachedRates::close -> lock
 R 241:18 calls CachedRates::close -> writeLock
 R 243:23 calls CachedRates::close -> clear
 R 245:34 calls CachedRates::close -> unlock
 R 245:22 calls CachedRates::close -> writeLock
 R 254:39 implements ExchangeRates::Memo -> Function
+R 263:18 overrides Memo::apply -> apply
 R 264:27 calls Memo::apply -> computeIfAbsent
 R 268:24 calls Memo::of -> Memo
 R 272:25 calls Memo::andThenMemo -> of
 R 272:40 calls Memo::andThenMemo -> apply
 R 272:46 calls Memo::andThenMemo -> apply
 R 278:20 calls ExchangeRates::constant -> RateSource
+R 282:46 overrides ExchangeRates::eurRates -> eurRates
+R 288:27 overrides ExchangeRates::toString -> toString
 R 296:20 calls ExchangeRates::lazyDefault -> Supplier
+R 300:34 overrides ExchangeRates::get -> get
 R 306:46 calls ExchangeRates::get -> constant
 R 306:59 calls ExchangeRates::get -> of
 R 306:80 calls ExchangeRates::get -> BigDecimal
@@ -842,6 +858,9 @@ R 52:30 calls Currency::parse -> equalsIgnoreCase
 R 52:23 calls Currency::parse -> name
 R 52:52 calls Currency::parse -> trim
 R 56:23 calls Currency::parse -> IllegalArgumentException
+R 64:26 overrides RoundingPolicy::mode -> mode
+R 70:26 overrides RoundingPolicy::mode -> mode
+R 76:26 overrides RoundingPolicy::mode -> mode
 R 90:25 calls Money::Money -> requireNonNull
 R 91:56 calls Money::Money -> setScale
 R 91:23 calls Money::Money -> requireNonNull
@@ -896,11 +915,18 @@ R 210:24 calls Money::split -> of
 R 212:28 calls Money::split -> unmodifiableList
 R 217:27 calls Money::allocate -> of
 R 222:23 calls Money::requireSameCurrency -> CurrencyMismatchException
+R 231:16 overrides Money::compareTo -> compareTo
 R 232:9 calls Money::compareTo -> requireSameCurrency
 R 233:23 calls Money::compareTo -> compareTo
+R 237:20 overrides Money::equals -> equals
+R 237:20 overrides Money::equals -> equals
 R 244:53 calls Money::equals -> compareTo
+R 248:16 overrides Money::hashCode -> hashCode
+R 248:16 overrides Money::hashCode -> hashCode
 R 249:24 calls Money::hashCode -> hash
 R 249:36 calls Money::hashCode -> stripTrailingZeros
+R 253:19 overrides Money::toString -> toString
+R 253:19 overrides Money::toString -> toString
 R 254:23 calls Money::toString -> toPlainString
 R 254:56 calls Money::toString -> name
 R 258:44 calls Money::format -> getCurrencyInstance
@@ -1081,13 +1107,22 @@ R 43:27 calls Order -> IllegalArgumentException
 R 45:21 calls Order -> requireNonNull
 R 49:30 calls Line::subtotal -> times (name-matched: com/example/warehouse/money/Money.java)
 R 53:24 calls Line::withQuantity -> Line
+R 64:24 overrides State::next -> next
 R 65:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 70:24 overrides State::next -> next
 R 71:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 76:24 overrides State::next -> next
 R 77:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 82:24 overrides State::next -> next
 R 83:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 88:24 overrides State::next -> next
 R 89:32 calls State::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 94:24 overrides State::next -> next
 R 95:32 calls State::next -> noneOf
+R 99:21 overrides State::isTerminal -> isTerminal
+R 105:24 overrides State::next -> next
 R 106:32 calls State::next -> noneOf
+R 110:21 overrides State::isTerminal -> isTerminal
 R 122:27 calls State::canMoveTo -> contains (name-matched: com/example/warehouse/money/Money.java)
 R 122:20 calls State::canMoveTo -> next
 R 133:31 calls OrderEvent::type -> getSimpleName
@@ -1163,6 +1198,7 @@ R 317:51 calls Order::describe -> reason
 R 329:25 calls Order::summary -> formatted
 R 329:68 calls Order::summary -> size (name-matched: com/example/warehouse/persistence/Repository.java)
 R 329:76 calls Order::summary -> total
+R 333:19 overrides Order::toString -> toString
 R 334:58 calls Order::toString -> total
 
 == com/example/warehouse/persistence/Repository.java (303 lines)
@@ -1279,6 +1315,7 @@ R 45:51 calls Repository::getById -> NotFoundException
 R 49:29 calls Repository::exists -> isPresent
 R 49:16 calls Repository::exists -> findById
 R 53:20 calls Repository::saveAll -> forEach
+R 57:18 overrides Repository::close -> close
 R 70:37 extends Repository::NotFoundException -> RuntimeException
 R 77:40 extends Repository::PersistenceException -> RuntimeException
 R 81:25 calls PersistenceException::PersistenceException -> getMessage
@@ -1287,27 +1324,35 @@ R 94:24 calls Page::of -> Page
 R 94:46 calls Page::of -> subList
 R 98:35 calls Page::nextOffset -> size
 R 113:38 implements Repository::InMemory -> Repository
+R 122:28 overrides InMemory::findById -> findById
 R 123:29 calls InMemory::findById -> ofNullable
 R 123:45 calls InMemory::findById -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 127:24 overrides InMemory::findAll -> findAll
 R 128:69 calls InMemory::findAll -> toList
 R 128:56 calls InMemory::findAll -> limit
 R 128:43 calls InMemory::findAll -> skip
 R 128:34 calls InMemory::findAll -> stream
 R 128:25 calls InMemory::findAll -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 132:21 overrides InMemory::save -> save
 R 133:18 calls InMemory::save -> put
 R 133:27 calls InMemory::save -> apply (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 137:24 overrides InMemory::delete -> delete
 R 138:25 calls InMemory::delete -> remove
 R 142:25 calls InMemory::size -> size
 R 151:43 implements Repository::Jdbc -> Repository
+R 168:28 overrides Jdbc::findById -> findById
 R 169:29 calls Jdbc::findById -> query
 R 169:79 calls Jdbc::findById -> mapper
 R 170:35 calls Jdbc::findById -> findFirst
 R 170:26 calls Jdbc::findById -> stream
+R 175:24 overrides Jdbc::findAll -> findAll
 R 176:20 calls Jdbc::findAll -> query
 R 176:86 calls Jdbc::findAll -> mapper
+R 181:21 overrides Jdbc::save -> save
 R 182:13 calls Jdbc::save -> update
 R 182:20 calls Jdbc::save -> insertSql
 R 182:33 calls Jdbc::save -> insertValues
+R 187:24 overrides Jdbc::delete -> delete
 R 188:20 calls Jdbc::delete -> update
 R 192:44 calls Jdbc::query -> getConnection
 R 193:41 calls Jdbc::query -> prepare
@@ -1324,7 +1369,10 @@ R 210:27 calls Jdbc::update -> PersistenceException
 R 215:38 calls Jdbc::prepare -> prepareStatement
 R 217:20 calls Jdbc::prepare -> setObject
 R 224:32 extends Repository::Orders -> Jdbc
+R 239:36 overrides Orders::mapper -> mapper
 R 241:27 calls Orders::mapper -> UnsupportedOperationException
+R 246:26 overrides Orders::insertSql -> insertSql
+R 251:28 overrides Orders::insertValues -> insertValues
 R 252:33 calls Orders::insertValues -> total (name-matched: com/example/warehouse/app/OrderService.java)
 R 254:28 calls Orders::insertValues -> value (name-matched: com/example/warehouse/order/Order.java)
 R 254:23 calls Orders::insertValues -> id (name-matched: com/example/warehouse/app/OrderService.java)
@@ -1335,6 +1383,7 @@ R 254:79 calls Orders::insertValues -> state (name-matched: com/example/warehous
 R 255:23 calls Orders::insertValues -> amount (name-matched: com/example/warehouse/money/Money.java)
 R 255:50 calls Orders::insertValues -> name
 R 255:39 calls Orders::insertValues -> currency (name-matched: com/example/warehouse/app/OrderService.java)
+R 261:21 overrides Orders::save -> save
 R 262:19 calls Orders::save -> save
 R 263:19 calls Orders::save -> drainEvents (name-matched: com/example/warehouse/order/Order.java)
 R 268:34 calls Orders::findIdByNumber -> query

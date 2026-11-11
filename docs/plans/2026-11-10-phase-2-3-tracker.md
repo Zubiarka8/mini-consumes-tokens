@@ -70,8 +70,20 @@ From `rules.md` and the two messages:
         relations on this repository, 186 resolved (each to a same-named
         method of the named trait), 62 external (std traits), 10
         unresolved (third-party traits), 0 ambiguous. Dead code unchanged.
-  - [ ] Java `@Override`, Kotlin/C# `override`, C++ `override`, TS
-        `override`, Python `@override`.
+  - [x] Java `@Override`: one relation per direct supertype, plus the JDK
+        root (`Object`, `Enum`, `Record`) for `equals`, `hashCode`,
+        `toString`, `clone` and `finalize` when the type extends no class.
+        On this repository: 49 relations from 43 methods, 15 resolved (each
+        to the declaring interface or class), 5 external, 15 unresolved (JDK
+        interfaces such as `Runnable`, or a supertype that doesn't declare
+        the method), 14 ambiguous. Dead code unchanged.
+    - Known limit: a method of an enum constant's body or of an anonymous
+      class has the enclosing type as its parent, so when it overrides a
+      method of that same type (`State.next`, `new Listener() { … }` inside
+      `Listener`) every such body is a candidate and the relation stays
+      ambiguous. All 14 ambiguous relations are this case.
+  - [ ] Kotlin/C# `override`, C++ `override`, TS `override`, Python
+        `@override`.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.
@@ -133,6 +145,11 @@ From `rules.md` and the two messages:
 - [ ] Updated symbol-coverage matrix, then work through the gaps by language
       group (3.1).
 - [ ] Inherited methods, using supertype data.
+- [ ] Members of an anonymous class or an enum constant's body are recorded
+      under the enclosing type (Java, Kotlin), which leaves their overrides
+      ambiguous (see D8).
+- [ ] Java: a field initializer is not walked, so calls and anonymous
+      classes in `Runnable r = new Runnable() { … };` are not indexed.
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
       D8).
 - [ ] Language-specific features (3.4), each checked against the real
