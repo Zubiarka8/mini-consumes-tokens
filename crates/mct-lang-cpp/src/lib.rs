@@ -14,12 +14,14 @@
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
-    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use std::collections::HashSet;
 
 use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
+
+mod details;
 
 pub struct CppParser;
 
@@ -173,6 +175,7 @@ struct Walker<'a> {
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
+    details: Vec<SymbolDetail>,
     /// This file's repository-relative path, the base of quoted includes.
     path: &'a str,
     next_id: SymbolId,
@@ -190,6 +193,7 @@ impl<'a> Walker<'a> {
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
+            details: Vec::new(),
             next_id: 0,
             namespaces: HashSet::new(),
         }
@@ -271,7 +275,9 @@ impl<'a> Walker<'a> {
                     return;
                 };
                 let (name, parent) = split_qualified(name_node, self.source, ctx.parent());
-                self.push_symbol(name.clone(), SymbolKind::Enum, location(node), parent);
+                let id = self.push_symbol(name.clone(), SymbolKind::Enum, location(node), parent);
+                self.details
+                    .push(details::type_detail(node, id, self.source));
                 let mut cursor = body.walk();
                 let enumerators: Vec<Node> = body.named_children(&mut cursor).collect();
                 for enumerator in enumerators {
@@ -295,12 +301,14 @@ impl<'a> Walker<'a> {
             "alias_declaration" => {
                 if !ctx.local {
                     if let Some(name_node) = node.child_by_field_name("name") {
-                        self.push_symbol(
+                        let id = self.push_symbol(
                             text(name_node, self.source).to_string(),
                             SymbolKind::TypeAlias,
                             location(node),
                             ctx.parent(),
                         );
+                        self.details
+                            .push(details::alias_detail(node, id, self.source));
                     }
                 }
             }
@@ -318,12 +326,14 @@ impl<'a> Walker<'a> {
                     .collect();
                 for declarator in declarators {
                     if let Some(name_node) = type_declarator_identifier(declarator) {
-                        self.push_symbol(
+                        let id = self.push_symbol(
                             text(name_node, self.source).to_string(),
                             SymbolKind::TypeAlias,
                             location(node),
                             ctx.parent(),
                         );
+                        self.details
+                            .push(details::alias_detail(node, id, self.source));
                     }
                 }
             }
@@ -344,6 +354,12 @@ impl<'a> Walker<'a> {
                 let (name, parent, kind) =
                     self.function_identity(func_declarator.child_by_field_name("declarator"), ctx);
                 let id = self.push_symbol(name, kind, location(node), parent);
+                self.details.push(details::function_detail(
+                    node,
+                    func_declarator,
+                    id,
+                    self.source,
+                ));
                 let inner = ctx.in_body_of(id);
                 if let Some(params) = func_declarator.child_by_field_name("parameters") {
                     self.visit_children(params, inner, depth + 1);
@@ -383,14 +399,26 @@ impl<'a> Walker<'a> {
                                 func_declarator.child_by_field_name("declarator"),
                                 ctx,
                             );
-                            self.push_symbol(name, kind, location(node), parent);
+                            let id = self.push_symbol(name, kind, location(node), parent);
+                            self.details.push(details::function_detail(
+                                node,
+                                func_declarator,
+                                id,
+                                self.source,
+                            ));
                         } else if let Some(name_node) = plain_declarator_identifier(*declarator) {
-                            self.push_symbol(
+                            let id = self.push_symbol(
                                 text(name_node, self.source).to_string(),
                                 ctx.variable_kind(),
                                 location(*declarator),
                                 ctx.parent(),
                             );
+                            self.details.push(details::variable_detail(
+                                node,
+                                *declarator,
+                                id,
+                                self.source,
+                            ));
                         }
                     }
                 }
@@ -467,6 +495,8 @@ impl<'a> Walker<'a> {
             None => (String::new(), ctx.parent()),
         };
         let id = self.push_symbol(name, kind, location(node), parent);
+        self.details
+            .push(details::type_detail(node, id, self.source));
 
         // `base_class_clause` is a direct child, not a named field —
         // every C++ base (`public`/`private`/`protected`) is genuine
@@ -535,6 +565,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
