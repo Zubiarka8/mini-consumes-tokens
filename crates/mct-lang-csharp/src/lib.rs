@@ -7,6 +7,8 @@ use mct_core::{
 use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
 
+mod receivers;
+
 pub struct CSharpParser;
 
 impl LanguageParser for CSharpParser {
@@ -89,6 +91,10 @@ struct Walker<'a> {
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
+    /// Declared types of the enclosing member's locals (see `receivers`).
+    locals: receivers::Types,
+    /// The enclosing types, innermost last: what `this` declares.
+    classes: Vec<receivers::ClassScope>,
 }
 
 impl<'a> Walker<'a> {
@@ -100,6 +106,8 @@ impl<'a> Walker<'a> {
             relations: Vec::new(),
             relation_targets: Vec::new(),
             next_id: 0,
+            locals: receivers::Types::new(),
+            classes: Vec::new(),
         }
     }
 
@@ -320,6 +328,7 @@ impl<'a> Walker<'a> {
                         let name = text(name_node, self.source);
                         // `nameof(x)` is an operator, not a call.
                         if !(name == "nameof" && function.kind() == "identifier") {
+                            self.push_receiver(function, name);
                             // location(name_node), not location(node): a
                             // chained call (`a.F(x).F(y)`) has its outer and
                             // inner invocation_expression both start at `a`,
@@ -385,6 +394,9 @@ impl<'a> Walker<'a> {
         let Some(body) = node.child_by_field_name("body") else {
             return;
         };
+        self.classes
+            .push(receivers::class_scope(&name, node, self.source));
+        let outer_locals = std::mem::take(&mut self.locals);
         if kind == SymbolKind::Enum {
             let mut cursor = body.walk();
             for member in body.named_children(&mut cursor) {
@@ -401,6 +413,8 @@ impl<'a> Walker<'a> {
         } else {
             self.visit_children(body, id, Some(&name), depth + 1);
         }
+        self.locals = outer_locals;
+        self.classes.pop();
     }
 
     /// `base_list` is unified in this grammar — C# doesn't syntactically
@@ -454,7 +468,27 @@ impl<'a> Walker<'a> {
     }
 
     /// Attributes, parameters and body of a method-like member.
+    ///
+    /// Its locals' declared types are known while its body is walked; a
+    /// local function also sees the enclosing member's.
     fn visit_callable(&mut self, node: Node, id: SymbolId, type_name: Option<&str>, depth: u32) {
+        let mut locals = self.locals.clone();
+        let mut cursor = node.walk();
+        for part in node.named_children(&mut cursor) {
+            receivers::locals(part, self.source, &mut locals, depth + 1);
+        }
+        let outer_locals = std::mem::replace(&mut self.locals, locals);
+        self.visit_callable_parts(node, id, type_name, depth);
+        self.locals = outer_locals;
+    }
+
+    fn visit_callable_parts(
+        &mut self,
+        node: Node,
+        id: SymbolId,
+        type_name: Option<&str>,
+        depth: u32,
+    ) {
         self.visit_attributes(node, id, type_name, depth);
         if let Some(params) = node.child_by_field_name("parameters") {
             self.visit_children(params, id, type_name, depth + 1);
@@ -477,6 +511,70 @@ impl<'a> Walker<'a> {
         for list in lists {
             self.visit_children(list, id, type_name, depth + 1);
         }
+    }
+
+    /// The receiver evidence of the call `function` names `method` on: its
+    /// receiver's declared type as the qualifier, or a member call when that
+    /// type is not proven. A bare call, `base.M()`, `this.M()` on a method
+    /// the class does not declare (it may be inherited) and a lowercase name
+    /// that is no local or field (a namespace) record nothing.
+    fn push_receiver(&mut self, function: Node, method: &str) {
+        let receiver = match function.kind() {
+            "member_access_expression" => function.child_by_field_name("expression"),
+            "conditional_access_expression" => function.child_by_field_name("condition"),
+            "member_binding_expression" => None,
+            _ => return,
+        };
+        let class = self.classes.last();
+        let typed = |ty: Option<String>| {
+            let member = ty.is_none();
+            (ty, member)
+        };
+        let (qualifier, member) = match receiver.map(|r| (r, r.kind())) {
+            Some((_, "this")) => match class {
+                Some(class) if class.methods.contains(method) => (Some(class.name.clone()), false),
+                _ => return,
+            },
+            Some((_, "base")) => return,
+            Some((r, "identifier")) => {
+                let name = text(r, self.source);
+                match self
+                    .locals
+                    .get(name)
+                    .or_else(|| class.and_then(|c| c.fields.get(name)))
+                {
+                    Some(ty) => typed(ty.clone()),
+                    None if name.starts_with(char::is_uppercase) => (Some(name.to_string()), false),
+                    None => return,
+                }
+            }
+            // `this.f.M()`: the field's declared type.
+            Some((r, "member_access_expression"))
+                if r.child_by_field_name("expression")
+                    .is_some_and(|e| e.kind() == "this") =>
+            {
+                let field = r.child_by_field_name("name").map(|n| text(n, self.source));
+                typed(
+                    field
+                        .and_then(|f| class.and_then(|c| c.fields.get(f)))
+                        .cloned()
+                        .flatten(),
+                )
+            }
+            Some((r, "object_creation_expression")) => {
+                typed(receivers::constructed(r, self.source))
+            }
+            Some((r, "predefined_type" | "generic_name")) => {
+                typed(receivers::named_type(r, self.source))
+            }
+            _ => (None, true),
+        };
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            qualifier,
+            member,
+            ..Default::default()
+        });
     }
 
     fn finish(self) -> ParsedFile {
