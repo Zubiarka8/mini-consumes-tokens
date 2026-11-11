@@ -58,12 +58,34 @@ fn checklists() -> Result<Vec<(String, Areas)>, String> {
 }
 
 /// The text of the `## heading` section, up to the next `## ` heading.
+/// Matched line by line, so a CRLF checkout (Git for Windows) reads the same.
 fn section(page: &'static str, heading: &str) -> Result<&'static str, String> {
-    let start = page
-        .find(&format!("\n{heading}\n"))
-        .ok_or_else(|| format!("no `{heading}` section"))?;
-    let rest = &page[start + 1 + heading.len()..];
-    Ok(&rest[..rest.find("\n## ").unwrap_or(rest.len())])
+    let mut offset = 0;
+    let mut start = None;
+    for line in page.split_inclusive('\n') {
+        let text = line.trim_end_matches(['\r', '\n']);
+        match start {
+            Some(begin) if text.starts_with("## ") => return Ok(&page[begin..offset]),
+            None if text == heading => start = Some(offset + line.len()),
+            _ => {}
+        }
+        offset += line.len();
+    }
+    start
+        .map(|begin| &page[begin..])
+        .ok_or_else(|| format!("no `{heading}` section"))
+}
+
+#[test]
+fn a_section_is_found_with_either_line_ending() -> Result<(), String> {
+    for page in [
+        "# Page\n## Wanted\nbody\n## Next\nrest\n",
+        "# Page\r\n## Wanted\r\nbody\r\n## Next\r\nrest\r\n",
+    ] {
+        assert_eq!(section(page, "## Wanted")?.trim_end(), "body");
+        assert_eq!(section(page, "## Next")?.trim_end(), "rest");
+    }
+    Ok(())
 }
 
 /// `(percent, scored checks)`, or `None` with no scored check.
