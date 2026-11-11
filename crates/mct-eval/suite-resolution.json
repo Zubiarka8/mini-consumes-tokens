@@ -473,6 +473,45 @@
           "defect": "D8"
         }
       ]
+    },
+    {
+      "name": "stdlib: a standard global is the host's, never another file's alias",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "setmetatable",
+              "path": "lua/order.lua",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "format",
+              "path": "lua/order.lua",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "lua/order.lua:5",
+          "relation": "calls setmetatable",
+          "truth": "external",
+          "defect": "D9"
+        },
+        {
+          "at": "lua/order.lua:9",
+          "relation": "calls format",
+          "truth": "external",
+          "defect": "D9"
+        }
+      ]
     }
   ]
 }

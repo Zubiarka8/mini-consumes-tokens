@@ -141,14 +141,26 @@ From `rules.md` and the two messages:
         `#[\Override]`: corpus, dead code and index size unchanged.
         PowerShell classes override by name only, with no syntax to show it,
         so they get no relation.
-- [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
+- [~] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
-      languages are not.
+      languages are not, except:
+  - [x] Lua 5.4 standard globals (basic functions and library tables) a
+        file never binds are external, in a bare call (`setmetatable(…)`)
+        or through the library table (`math.floor(…)`). Any binding of the
+        name in the file (a local, a parameter, a global assignment,
+        `function type()`) leaves it unproven, and a file touching `_ENV`,
+        `_G` or `setfenv` marks nothing. This repository: 99 calls become
+        external; the 19 that had a target were all wrong (another file's
+        `local setmetatable`/`floor`/`format` alias, or `Money:max` for
+        `math.max`). 5.1-only names (`unpack`, `loadstring`) are left out,
+        because projects often define them as globals.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
-      same-named method in an unrelated class), all correct. Cases for D9
-      are still missing.
+      same-named method in an unrelated class), all correct. D9 has 2 for
+      Lua (`setmetatable`, `string.format` next to another file's local
+      aliases), both correct; before the fix, 1 wrong and 1 ambiguous. D9
+      cases for the other languages wait on their fixes.
 
 ## Block 2: phase 2, SQLite and enriched model
 
