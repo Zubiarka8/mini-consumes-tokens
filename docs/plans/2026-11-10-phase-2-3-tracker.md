@@ -124,8 +124,16 @@ From `rules.md` and the two messages:
         different name). This repository (the C++ corpus): 11 relations, 10
         resolved, 1 ambiguous (`Product::describe`: see Block 3). Dead code
         unchanged; index size 26,132,480 → 26,128,384 B (page rounding).
-  - [ ] Kotlin `override val`, C# `override` properties and TypeScript
-        `override` fields.
+  - [x] Property overrides, with the shared `push_property_overrides`
+        (same candidates as the language's methods, target kind `field`, no
+        root: `Any` and `object` declare no property). Kotlin `override
+        val`/`var`, in a body or as a constructor property (corpus +14,
+        `OrderEvent`'s data classes); C# `override` properties, indexers
+        (`this`) and events, field-like ones too (corpus +7); TypeScript
+        `override` fields, where an arrow-valued field is a method and so
+        targets a method (corpus unchanged). Measurements in the PR.
+  - [ ] PHP 8.3 `#[\Override]` methods. PowerShell classes override by
+        name only, with no syntax to show it, so they get no relation.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.
