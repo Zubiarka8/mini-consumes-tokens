@@ -154,6 +154,19 @@ From `rules.md` and the two messages:
         `local setmetatable`/`floor`/`format` alias, or `Money:max` for
         `math.max`). 5.1-only names (`unpack`, `loadstring`) are left out,
         because projects often define them as globals.
+  - [x] Go: `pkg.F(…)` through an import of a standard package (Go 1.24's
+        public `src/` packages; `json` for `encoding/json`, `rand` for
+        `math/rand/v2`, an alias) is external. `cmd/go` resolves a standard
+        path from GOROOT before any module, so no repository directory is
+        that import. A name the file uses anywhere other than as a selector
+        operand (a local `path := …`, a parameter) is not proven; dot and
+        blank imports bind nothing. This repository: 136 calls become
+        external; the 16 with a target were all wrong (`strings.Split` →
+        `Money.Split`, `time.Now` and `errors.Is`/`Unwrap` ambiguous between
+        repo methods). Universe builtins (`len`, `append`) stay unresolved:
+        a package-level declaration in a sibling file can shadow them, which
+        one file can't rule out. No eval case yet: there is no Go toolchain
+        here to run its truth.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
