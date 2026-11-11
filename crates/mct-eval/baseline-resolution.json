@@ -24,12 +24,12 @@
     },
     "rust: explicit and glob imports": {
       "score": 1.0,
-      "tokens": 345,
+      "tokens": 353,
       "wrong": 0
     },
     "rust: prelude names vs same-named variants and locals": {
       "score": 1.0,
-      "tokens": 896,
+      "tokens": 908,
       "wrong": 0
     },
     "rust: same name in different modules": {
