@@ -713,7 +713,11 @@ impl<'a> Walker<'a> {
                             }
                         }
                     }
+                    let before = self.symbols.len();
                     self.visit_children(body, owner, Some(&type_name), depth + 1);
+                    if let Some(trait_node) = node.child_by_field_name("trait") {
+                        self.push_trait_overrides(trait_node, body, before);
+                    }
                 }
             }
             "mod_item" => {
@@ -1000,6 +1004,43 @@ impl<'a> Walker<'a> {
             target.kind = Some(SymbolKind::Trait);
         }
         Some((name, target))
+    }
+
+    /// D8: every `fn` of `impl Trait for T` overrides `Trait`'s method of
+    /// that name. The trait is named, so the relation is qualified by it
+    /// (and external when the trait is proven to be std's); `before` is the
+    /// symbol count before the impl body was visited, so only its own
+    /// methods are matched.
+    fn push_trait_overrides(&mut self, trait_node: Node, body: Node, before: usize) {
+        let Some((trait_name, mut target)) = self.trait_reference(trait_node) else {
+            return;
+        };
+        target.qualifier = Some(trait_name);
+        if !target.external {
+            target.kind = Some(SymbolKind::Method);
+        }
+        let mut cursor = body.walk();
+        let methods: Vec<Node> = body
+            .named_children(&mut cursor)
+            .filter(|item| item.kind() == "function_item")
+            .collect();
+        for item in methods {
+            let Some(name_node) = item.child_by_field_name("name") else {
+                continue;
+            };
+            let name = text(name_node, self.source).to_string();
+            let line = location(item).line;
+            let Some(id) = self.symbols[before..]
+                .iter()
+                .find(|s| s.name == name && s.location.line == line)
+                .map(|s| s.id)
+            else {
+                continue;
+            };
+            let relation =
+                self.push_relation(id, RelationKind::Overrides, name, location(name_node));
+            self.qualify(relation, target.clone());
+        }
     }
 
     /// Records the string literals under `node` and nothing else.
