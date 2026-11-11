@@ -590,6 +590,51 @@
           "defect": "D9"
         }
       ]
+    },
+    {
+      "name": "stdlib: a call through std:: is the standard library's, never a same-named repository function",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "sort",
+              "path": "cpp/src/report.cpp",
+              "limit": 200
+            }
+          },
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "to_string",
+              "path": "cpp/src/report.cpp",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "cpp/src/report.cpp:8",
+          "relation": "calls sort",
+          "truth": "external",
+          "defect": "D9"
+        },
+        {
+          "at": "cpp/src/report.cpp:9",
+          "relation": "calls sort",
+          "truth": "cpp/src/util.hpp:6",
+          "defect": "D9"
+        },
+        {
+          "at": "cpp/src/report.cpp:10",
+          "relation": "calls to_string",
+          "truth": "external",
+          "defect": "D9"
+        }
+      ]
     }
   ]
 }
