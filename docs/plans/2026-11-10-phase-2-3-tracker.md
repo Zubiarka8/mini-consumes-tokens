@@ -502,6 +502,18 @@ From `rules.md` and the two messages:
         `log_info` after `source "$(dirname "$0")/../lib/log.sh"` is
         ambiguous between `log.sh` and `other.sh`, and the builtin `printf`
         is unresolved. Nothing is wrong. These scores are the baseline.
+        None of the three misses is provable from one file, so none is
+        forced:
+        - `printf` can be redefined by a function in any script that
+          sources this one or that it sources, so "builtin" rests on the
+          name alone;
+        - with `log.sh` and `other.sh` both defining `log_info`, only the
+          `source` graph tells them apart. That is index-level resolution
+          through `Imports`, a cross-cutting change that needs an issue
+          first;
+        - `id.Trim()` on a `string` reaches `System.String.Trim` only when an
+          overload applies; otherwise C# falls back to an extension method,
+          which a repository may declare.
   - [ ] Kotlin, Go, PHP and PowerShell: no `kotlinc`, `go`, `php` or `pwsh`
         here to run their truth.
 
