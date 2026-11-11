@@ -600,3 +600,56 @@ fn directory_scopes_treat_percent_and_underscore_literally() {
         assert_eq!(found.len(), 1);
     }
 }
+
+#[test]
+fn a_directory_scope_spelled_with_a_trailing_slash_or_a_leading_dot_slash_still_narrows() {
+    // `src/`, `./src` and `./src/` name the same directory as `src`; `./`
+    // and `.` name the project root, i.e. no narrowing.
+    let (_dir, index) = scoped_index();
+    let all = hits(&index.find_callers("target").unwrap());
+    for path in ["src/", "./src", "./src/", "src//"] {
+        let scoped = index
+            .find_callers_scoped(
+                "target",
+                QueryScope {
+                    path: Some(path),
+                    language: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            hits(&scoped),
+            vec!["src/a.fake:a", "src/b.fake:b"],
+            "{path}"
+        );
+        let listed: Vec<String> = index
+            .list_symbols(path, None, None)
+            .unwrap()
+            .into_iter()
+            .map(|e| e.relative_path)
+            .collect();
+        assert_eq!(listed, ["src/a.fake", "src/b.fake"], "{path}");
+    }
+    for path in ["./", "."] {
+        let scoped = index
+            .find_callers_scoped(
+                "target",
+                QueryScope {
+                    path: Some(path),
+                    language: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(hits(&scoped), all, "{path}");
+    }
+    let file = index
+        .find_callers_scoped(
+            "target",
+            QueryScope {
+                path: Some("./src/a.fake"),
+                language: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(hits(&file), vec!["src/a.fake:a"]);
+}
