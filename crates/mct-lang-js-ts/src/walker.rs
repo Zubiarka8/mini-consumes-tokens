@@ -471,6 +471,7 @@ impl<'a> Walker<'a> {
                     .or_else(|| node.child_by_field_name("name"));
                 let Some(name_node) = name_node else { return };
                 let name = text(name_node, self.source).to_string();
+                let overrides = is_override_in_class(node);
                 self.visit_part(node, "type", owner, depth);
                 match node.child_by_field_name("value") {
                     Some(value)
@@ -484,6 +485,18 @@ impl<'a> Walker<'a> {
                         );
                         self.details
                             .push(details::function_detail(node, value, id, self.source));
+                        if overrides {
+                            let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                            mct_tree_sitter::push_overrides(
+                                &mut self.relations,
+                                &mut self.relation_targets,
+                                id,
+                                text(name_node, self.source),
+                                location(name_node),
+                                &supertypes,
+                                &[],
+                            );
+                        }
                         self.visit_function_like_body(value, id, depth);
                     }
                     _ => {
@@ -495,6 +508,17 @@ impl<'a> Walker<'a> {
                         );
                         self.details
                             .push(details::field_detail(node, id, self.source));
+                        if overrides {
+                            let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                            mct_tree_sitter::push_property_overrides(
+                                &mut self.relations,
+                                &mut self.relation_targets,
+                                id,
+                                text(name_node, self.source),
+                                location(name_node),
+                                &supertypes,
+                            );
+                        }
                     }
                 }
             }
@@ -892,6 +916,8 @@ fn declares_function(name: Node) -> bool {
 /// Whether `method` carries `override` and belongs to a class declaration,
 /// whose `extends` the walker recorded; a class expression's methods are
 /// left out, since the enclosing declaration's supertype isn't theirs.
+/// Whether a method or field is declared `override` directly in the body of
+/// a class declaration.
 fn is_override_in_class(method: Node) -> bool {
     let in_declaration = method
         .parent()

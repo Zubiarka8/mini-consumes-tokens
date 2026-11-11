@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=454 relations=654 name_matched_across_files=156
+# language=csharp files=6 symbols=454 relations=661 name_matched_across_files=156
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -121,16 +121,20 @@ R 78:32 overrides WarehouseException::ToString -> ToString
 R 78:46 calls WarehouseException::ToString -> Describe
 R 81:6 references Warehouse.Errors::NotFoundException -> ErrorCodeAttribute
 R 82:45 extends Warehouse.Errors::NotFoundException -> WarehouseException
+R 95:35 overrides NotFoundException::Code -> Code
 R 98:6 references Warehouse.Errors::ValidationException -> ErrorCodeAttribute
 R 99:40 extends Warehouse.Errors::ValidationException -> WarehouseException
 R 106:27 calls ValidationException::ValidationException -> List
 R 110:32 calls ValidationException::ValidationException -> FieldError
+R 116:35 overrides ValidationException::Code -> Code
 R 118:32 overrides ValidationException::Describe -> Describe
 R 120:29 calls ValidationException::Describe -> Describe
 R 121:69 calls ValidationException::Describe -> Join
 R 125:47 extends Warehouse.Errors::OutOfStockException -> ValidationException
 R 130:25 calls OutOfStockException::OutOfStockException -> Max
+R 135:35 overrides OutOfStockException::Code -> Code
 R 138:45 extends Warehouse.Errors::ConflictException -> WarehouseException
+R 151:35 overrides ConflictException::Code -> Code
 R 157:32 overrides FieldError::ToString -> ToString
 R 182:33 calls Result::Map -> Ok
 R 182:36 calls Result::Map -> map
@@ -172,6 +176,7 @@ R 359:27 calls RateLimiter::Acquire -> QuotaExceededException
 R 366:60 calls RateLimiter::Refill -> Max
 R 367:23 calls RateLimiter::Refill -> Min
 R 371:55 extends RateLimiter::QuotaExceededException -> WarehouseException
+R 376:39 overrides QuotaExceededException::Code -> Code
 
 == Warehouse/Models.cs (391 lines)
 S 1-391 module Models
@@ -681,6 +686,7 @@ R 73:27 calls Report::RenderWith -> ToString
 R 76:32 overrides Report::ToString -> ToString
 R 76:46 calls Report::ToString -> RenderWith
 R 79:43 extends Warehouse.Reporting::InventoryReport -> Report
+R 91:34 overrides InventoryReport::Headers -> Headers
 R 93:54 overrides InventoryReport::Rows -> Rows
 R 95:47 calls InventoryReport::Rows -> OrderBy
 R 97:40 calls InventoryReport::Rows -> GetValueOrDefault
@@ -689,6 +695,7 @@ R 98:67 calls InventoryReport::Rows -> Describe (name-matched: Warehouse/Errors.
 R 102:45 calls InventoryReport::GrandTotal -> Aggregate
 R 102:38 calls InventoryReport::GrandTotal -> Rows
 R 105:41 extends Warehouse.Reporting::BacklogReport -> Report
+R 112:34 overrides BacklogReport::Headers -> Headers
 R 114:52 overrides BacklogReport::Rows -> Rows
 R 117:18 calls BacklogReport::Rows -> Select
 R 116:18 calls BacklogReport::Rows -> OrderByDescending
