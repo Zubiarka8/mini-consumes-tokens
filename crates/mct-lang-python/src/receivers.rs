@@ -7,7 +7,13 @@
 //!   (an inherited `m` lives in a base, which the syntax doesn't name);
 //! - a parameter annotated with a class (`cat: Catalogue`), or a local bound
 //!   exactly once, to `Catalogue(…)` or by `x: Catalogue = …`;
-//! - `T.m()` on a class the file defines or imports (`from a import T`).
+//! - `T.m()` on a class the file defines or imports (`from a import T`);
+//! - `self.attr.m()` when the enclosing class annotates `attr` (`attr: T` in
+//!   its body, or `self.attr: T = …` in a method), defines no method or class
+//!   named `attr`, and nothing in the file states another type for an
+//!   attribute of that name (an annotation, `x.attr = U(…)`, a literal) or
+//!   sets attributes dynamically (`setattr`, `__dict__`, `vars`,
+//!   `__setattr__`, `__getattr__`).
 //!
 //! A receiver typed by a builtin container or `str` (`opts: dict`,
 //! `rows = []`, `name = "a"`) is the builtin's, so the call is external.
@@ -52,20 +58,149 @@ pub(crate) enum Receiver {
     Builtin,
 }
 
-/// The enclosing class of a method: its name and the methods its own body
-/// defines.
+/// Identifiers that set or read attributes by a computed name, so no
+/// attribute's type is proven in a file that uses one.
+const DYNAMIC_ATTRIBUTES: &[&str] = &[
+    "__dict__",
+    "__getattr__",
+    "__getattribute__",
+    "__setattr__",
+    "setattr",
+    "vars",
+];
+
+/// What the whole file states about attribute types, by attribute name.
+#[derive(Default)]
+pub(crate) struct AttributeFacts {
+    /// The file sets attributes by a computed name.
+    dynamic: bool,
+    /// Every type stated for an attribute of that name: an annotation
+    /// (`None` when it names no provable type) or a typed value.
+    stated: HashMap<String, Vec<Option<Receiver>>>,
+}
+
+impl AttributeFacts {
+    pub(crate) fn collect(
+        root: Node,
+        source: &str,
+        scope: &ModuleScope,
+        classes: &HashSet<String>,
+    ) -> Self {
+        let ctx = Ctx {
+            source,
+            scope,
+            classes,
+        };
+        let mut facts = Self::default();
+        facts.walk(root, &ctx, 0);
+        facts
+    }
+
+    fn walk(&mut self, node: Node, ctx: &Ctx, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            self.dynamic = true;
+            return;
+        }
+        match node.kind() {
+            "identifier" if DYNAMIC_ATTRIBUTES.contains(&text(node, ctx.source)) => {
+                self.dynamic = true;
+            }
+            "assignment" => self.assignment(node, ctx),
+            _ => {}
+        }
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            self.walk(child, ctx, depth + 1);
+        }
+    }
+
+    /// `x.attr = …` anywhere, or `attr = …` directly in a class body.
+    fn assignment(&mut self, node: Node, ctx: &Ctx) {
+        let Some(left) = node.child_by_field_name("left") else {
+            return;
+        };
+        let name = match left.kind() {
+            "attribute" => left.child_by_field_name("attribute"),
+            "identifier" if in_class_body(node) => Some(left),
+            _ => None,
+        };
+        let Some(name) = name else {
+            return;
+        };
+        let stated = match node.child_by_field_name("type") {
+            Some(ty) => Some(ctx.annotation(ty)),
+            None => node
+                .child_by_field_name("right")
+                .and_then(|v| ctx.value(v))
+                .map(Some),
+        };
+        if let Some(stated) = stated {
+            self.stated
+                .entry(text(name, ctx.source).to_string())
+                .or_default()
+                .push(stated);
+        }
+    }
+
+    /// The type of `attr` when every type the file states for it is `ty`.
+    fn agrees(&self, attr: &str, ty: &Receiver) -> bool {
+        !self.dynamic
+            && self
+                .stated
+                .get(attr)
+                .is_some_and(|all| all.iter().all(|s| s.as_ref() == Some(ty)))
+    }
+}
+
+/// Whether the statement holding `assignment` sits directly in a class body.
+fn in_class_body(assignment: Node) -> bool {
+    assignment
+        .parent()
+        .filter(|p| p.kind() == "expression_statement")
+        .and_then(|p| p.parent())
+        .filter(|b| b.kind() == "block")
+        .and_then(|b| b.parent())
+        .is_some_and(|c| c.kind() == "class_definition")
+}
+
+/// The enclosing class of a method: its name, the methods its own body
+/// defines, and the attributes whose type it states and the file agrees on.
 pub(crate) struct ClassScope {
     pub(crate) name: String,
     pub(crate) methods: HashSet<String>,
+    attributes: HashMap<String, Receiver>,
 }
 
 impl ClassScope {
-    pub(crate) fn of(class: Node, source: &str) -> Self {
+    pub(crate) fn of(
+        class: Node,
+        source: &str,
+        scope: &ModuleScope,
+        classes: &HashSet<String>,
+        facts: &AttributeFacts,
+    ) -> Self {
+        let ctx = Ctx {
+            source,
+            scope,
+            classes,
+        };
         let name = class
             .child_by_field_name("name")
             .map(|n| text(n, source).to_string())
             .unwrap_or_default();
         let mut methods = HashSet::new();
+        let mut nested = HashSet::new();
+        let mut annotated: HashMap<String, Option<Receiver>> = HashMap::new();
+        let mut annotate = |attr: &str, ty: Option<Receiver>| {
+            annotated
+                .entry(attr.to_string())
+                .and_modify(|seen| {
+                    if *seen != ty {
+                        *seen = None;
+                    }
+                })
+                .or_insert(ty);
+        };
         if let Some(body) = class.child_by_field_name("body") {
             let mut cursor = body.walk();
             for child in body.named_children(&mut cursor) {
@@ -74,14 +209,102 @@ impl ClassScope {
                 } else {
                     Some(child)
                 };
-                if let Some(def) = definition.filter(|d| d.kind() == "function_definition") {
-                    if let Some(n) = def.child_by_field_name("name") {
-                        methods.insert(text(n, source).to_string());
+                let Some(def) = definition else {
+                    continue;
+                };
+                match def.kind() {
+                    "function_definition" => {
+                        if let Some(n) = def.child_by_field_name("name") {
+                            methods.insert(text(n, source).to_string());
+                        }
+                        if !is_staticmethod(def, source) {
+                            self_annotations(def, &ctx, &mut annotate);
+                        }
                     }
+                    "class_definition" => {
+                        if let Some(n) = def.child_by_field_name("name") {
+                            nested.insert(text(n, source).to_string());
+                        }
+                    }
+                    "expression_statement" => {
+                        if let Some((attr, ty)) = def
+                            .named_child(0)
+                            .and_then(|a| annotation_of(a, "identifier", &ctx))
+                        {
+                            annotate(text(attr, source), ty);
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
-        Self { name, methods }
+        let attributes = annotated
+            .into_iter()
+            .filter_map(|(attr, ty)| Some((attr, ty?)))
+            .filter(|(attr, ty)| {
+                !methods.contains(attr) && !nested.contains(attr) && facts.agrees(attr, ty)
+            })
+            .collect();
+        Self {
+            name,
+            methods,
+            attributes,
+        }
+    }
+}
+
+/// `target: T …`, an annotated assignment whose left side is a `kind` node:
+/// the annotated name and the type it states.
+fn annotation_of<'t>(
+    assignment: Node<'t>,
+    kind: &str,
+    ctx: &Ctx,
+) -> Option<(Node<'t>, Option<Receiver>)> {
+    if assignment.kind() != "assignment" {
+        return None;
+    }
+    let left = assignment
+        .child_by_field_name("left")
+        .filter(|l| l.kind() == kind)?;
+    let ty = assignment.child_by_field_name("type")?;
+    Some((left, ctx.annotation(ty)))
+}
+
+/// Every `self.attr: T …` in `method`, `self` its first parameter, not
+/// entering a nested scope.
+fn self_annotations(method: Node, ctx: &Ctx, annotate: &mut impl FnMut(&str, Option<Receiver>)) {
+    let first = method
+        .child_by_field_name("parameters")
+        .and_then(|p| p.named_child(0))
+        .filter(|p| p.kind() == "identifier");
+    let (Some(first), Some(body)) = (first, method.child_by_field_name("body")) else {
+        return;
+    };
+    let self_name = text(first, ctx.source);
+    let mut stack = vec![(body, 0u32)];
+    while let Some((node, depth)) = stack.pop() {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            continue;
+        }
+        if matches!(
+            node.kind(),
+            "function_definition" | "class_definition" | "lambda"
+        ) {
+            continue;
+        }
+        if let Some((left, ty)) = annotation_of(node, "attribute", ctx) {
+            let object = left.child_by_field_name("object");
+            let attr = left.child_by_field_name("attribute");
+            if let (Some(object), Some(attr)) = (object, attr) {
+                if object.kind() == "identifier" && text(object, ctx.source) == self_name {
+                    annotate(text(attr, ctx.source), ty);
+                }
+            }
+        }
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            stack.push((child, depth + 1));
+        }
     }
 }
 
@@ -89,7 +312,7 @@ impl ClassScope {
 /// type, or more than once.
 #[derive(Default)]
 pub(crate) struct Frame {
-    class: Option<(String, HashSet<String>)>,
+    class: Option<(String, HashSet<String>, HashMap<String, Receiver>)>,
     self_name: Option<String>,
     bindings: HashMap<String, Option<Receiver>>,
     opaque: bool,
@@ -133,7 +356,7 @@ impl Frame {
         if let Some(body) = function.child_by_field_name("body") {
             frame.collect(body, &ctx, 0);
         }
-        frame.class = class.map(|c| (c.name.clone(), c.methods.clone()));
+        frame.class = class.map(|c| (c.name.clone(), c.methods.clone(), c.attributes.clone()));
         frame
     }
 
@@ -148,8 +371,8 @@ impl Frame {
         if self.opaque {
             return None;
         }
-        if self.self_name.as_deref() == Some(object) && !self.bindings.contains_key(object) {
-            let (class, methods) = self.class.as_ref()?;
+        if self.is_self(object) {
+            let (class, methods, _) = self.class.as_ref()?;
             return methods
                 .contains(method)
                 .then(|| Receiver::Class(class.clone()));
@@ -158,6 +381,20 @@ impl Frame {
             Some(bound) => bound.clone(),
             None => module_receiver(object, scope, classes),
         }
+    }
+
+    /// The proven receiver of `object.attr.method()`: the type the enclosing
+    /// class states for `attr`, when `object` is its never-rebound `self`.
+    pub(crate) fn attribute_receiver(&self, object: &str, attr: &str) -> Option<Receiver> {
+        if self.opaque || !self.is_self(object) {
+            return None;
+        }
+        let (_, _, attributes) = self.class.as_ref()?;
+        attributes.get(attr).cloned()
+    }
+
+    fn is_self(&self, object: &str) -> bool {
+        self.self_name.as_deref() == Some(object) && !self.bindings.contains_key(object)
     }
 
     fn bind(&mut self, name: &str, receiver: Option<Receiver>) {
