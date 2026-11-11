@@ -141,7 +141,15 @@ fn assert_label_well_formed(suite: &Suite, case: &str, label: &mct_eval::resolut
     );
     assert!(
         label.relation.split_once(' ').is_some_and(|(kind, name)| {
-            ["calls", "references", "imports", "extends", "implements"].contains(&kind)
+            [
+                "calls",
+                "references",
+                "imports",
+                "extends",
+                "implements",
+                "overrides",
+            ]
+            .contains(&kind)
                 && !name.is_empty()
         }),
         "`{case}`: bad relation `{}`",
