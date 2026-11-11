@@ -311,7 +311,13 @@ From `rules.md` and the two messages:
 
 - [ ] Index pollution from `duplicate-app`, `omni-app`, `portfolio-3d-app`
       and other fixture projects.
-- [ ] Path filter with a trailing slash.
+- [x] Path filter with a trailing slash. A scope path is normalized once in
+      `mct-index` (`queries::scope_path`): `src/`, `./src`, `./src/` and
+      `src//` are `src`, and `.`/`./` is the whole project. Before, any of
+      them matched nothing (`LIKE 'src//%'`) in `find_symbol`,
+      `find_references`/`find_calls`/`find_callers`, `list_symbols`,
+      `get_project_overview` and `find_dead_code`; `find_duplicate_code`
+      only trimmed the trailing slash.
 - [ ] Inline module resolution.
 - [ ] Reading long functions through the context tools.
 - [ ] False positives in impact analysis and dead code (D7 #331 covers part
