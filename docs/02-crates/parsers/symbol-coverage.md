@@ -459,7 +459,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Interface inherits interface using `implements` | Bug | `interface B : A` has output of the wrong relation kind: `implements`, not `extends` |
 | Anonymous object in a function | Not implemented | no class symbol; its named functions become parentless `function` rows |
 | Infix and operator calls (`a + b`) | Not implemented | [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L16) describe a known limit, not an explicit decision to omit them |
-| One-line member without separator (`class A { fun f() {} }`) | Grammar | tree-sitter-kotlin-ng rejects it; the file is not indexed |
+| One-line member without separator (`class A { fun f() {} }`) | Worked around | tree-sitter-kotlin-ng reports a missing separator; the parser reparses with a `;` in the blank before each such `}` and keeps the result only when it is clean ([`reparse_with_terminated_lines`](../../../crates/mct-lang-kotlin/src/lib.rs)) |
 | Duplicate import names | Bug | path/stem or symbol import evidence can leave an extra external entry; not every import produces two rows |
 
 ### C#
@@ -1492,11 +1492,12 @@ the other documents.
 **Valid code the grammar rejects:**
 
 1. **Kotlin** (`tree-sitter-kotlin-ng`): these one-line member forms
-   without an explicit separator are syntax errors: `class A { fun f() {} }`,
-   `class A { val x = 1 }`, `object O { fun f() {} }`. The same code on
-   several lines parses; `class A { fun f() {}; }` also parses on one line. On a fresh index the file contributes no symbols and records a syntax issue.
+   without an explicit separator are syntax errors in the grammar:
+   `class A { fun f() {} }`, `class A { val x = 1 }`, `object O { fun f() {} }`.
    The [official Kotlin grammar](https://kotlinlang.org/grammar/#classMemberDeclarations) permits an optional separator after a class member.
-   This example is not in `errors/REGISTRY.md` yet.
+   The parser works around it. When a parse has an error, it puts a `;` in the space or tab before each closing `}` token that ends a member on its line, and reparses incrementally. The offsets stay the same, and a template's `${ … }` is never touched. It keeps the result only if it is clean. Error recovery can hide the rest of the file after the first missing separator, so it repeats this up to 16 times. A file with a real syntax error is still rejected. Before the workaround such a file contributed no symbols.
+   Tests: `crates/mct-lang-kotlin/tests/one_line_bodies.rs`.
+   A body with no blank before `}` (`class A {fun f()=1}`) is still rejected, because the patch has no byte to use.
 2. **PowerShell** (`tree-sitter-powershell`): a constructor that chains to
    the base class, `B([int]$x) : base($x) {}`, is a syntax error in the
    tree-sitter grammar. This is valid [PowerShell constructor syntax](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_classes_constructors#constructors-for-derived-classes).
