@@ -328,9 +328,10 @@ impl Index {
     /// Resolves a caller-supplied [`QueryScope`] against the filesystem once,
     /// so a multi-hop walk doesn't re-`stat` the same path at every level.
     fn resolve_scope<'a>(&self, scope: QueryScope<'a>) -> ResolvedScope<'a> {
+        let path = scope.path.and_then(queries::scope_path);
         ResolvedScope {
-            path: scope.path,
-            path_is_file: scope.path.is_some_and(|p| self.resolve_is_file(p)),
+            path,
+            path_is_file: path.is_some_and(|p| self.resolve_is_file(p)),
             language: scope.language,
         }
     }
@@ -1187,6 +1188,14 @@ impl Index {
         kind: Option<&str>,
         language: Option<&str>,
     ) -> Result<Vec<SymbolListEntry>> {
+        // `.`/`./` is the whole project, which only `list_symbols_all` lists.
+        let Some(path) = queries::scope_path(path) else {
+            let mut all = self.list_symbols_all(None, language)?;
+            if let Some(kind) = kind {
+                all.retain(|entry| entry.kind == kind);
+            }
+            return Ok(all);
+        };
         queries::list_symbols(&self.conn, path, self.resolve_is_file(path), kind, language)
     }
 
@@ -1207,7 +1216,7 @@ impl Index {
         path: Option<&str>,
         language: Option<&str>,
     ) -> Result<Vec<SymbolListEntry>> {
-        if let Some(path) = path {
+        if let Some(path) = path.and_then(queries::scope_path) {
             return self.list_symbols(path, None, language);
         }
         let mut top_level: Vec<String> = std::fs::read_dir(&self.root)
