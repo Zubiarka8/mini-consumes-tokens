@@ -18,7 +18,7 @@ use mct_core::{
 };
 use std::collections::HashSet;
 
-use mct_tree_sitter::{find_child, first_error, location};
+use mct_tree_sitter::{find_child, first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
@@ -183,6 +183,8 @@ struct Walker<'a> {
     /// an out-of-line `ns::fn()` definition is told apart from a
     /// `Class::method()` one.
     namespaces: HashSet<&'a str>,
+    /// The bases of each enclosing class definition, innermost last.
+    supertypes: Vec<Vec<Supertype>>,
 }
 
 impl<'a> Walker<'a> {
@@ -196,6 +198,7 @@ impl<'a> Walker<'a> {
             details: Vec::new(),
             next_id: 0,
             namespaces: HashSet::new(),
+            supertypes: Vec::new(),
         }
     }
 
@@ -360,6 +363,7 @@ impl<'a> Walker<'a> {
                     id,
                     self.source,
                 ));
+                self.push_overrides(id, func_declarator, ctx);
                 let inner = ctx.in_body_of(id);
                 if let Some(params) = func_declarator.child_by_field_name("parameters") {
                     self.visit_children(params, inner, depth + 1);
@@ -406,6 +410,7 @@ impl<'a> Walker<'a> {
                                 id,
                                 self.source,
                             ));
+                            self.push_overrides(id, func_declarator, ctx);
                         } else if let Some(name_node) = plain_declarator_identifier(*declarator) {
                             let id = self.push_symbol(
                                 text(name_node, self.source).to_string(),
@@ -503,6 +508,7 @@ impl<'a> Walker<'a> {
         // inheritance (unlike C#, there's no syntactic "implements"
         // to split out: interfaces are just abstract base classes),
         // so every entry becomes Extends regardless of access.
+        let mut supertypes = Vec::new();
         if let Some(bases) = find_child(node, "base_class_clause") {
             let mut cursor = bases.walk();
             let bases: Vec<Node> = bases.children(&mut cursor).collect();
@@ -516,6 +522,17 @@ impl<'a> Walker<'a> {
                     } else {
                         base
                     };
+                    // `Base<T>` and `ns::Base<T>` declare their members
+                    // under `Base`.
+                    let class_name = if name_node.kind() == "template_type" {
+                        name_node.child_by_field_name("name").unwrap_or(name_node)
+                    } else {
+                        name_node
+                    };
+                    supertypes.push(Supertype {
+                        name: text(class_name, self.source).to_string(),
+                        external: false,
+                    });
                     self.push_relation(
                         id,
                         RelationKind::Extends,
@@ -527,7 +544,35 @@ impl<'a> Walker<'a> {
         }
         // Members hang off the class's own unqualified name.
         let scope_name = name_node.map_or("", |n| last_segment_text(n, self.source));
+        self.supertypes.push(supertypes);
         self.visit_children(body, ctx.with_scope(scope_name, true), depth + 1);
+        self.supertypes.pop();
+    }
+
+    /// D8: a member function declared `override` in a class body gets one
+    /// `Overrides` relation per base of that class. C++ has no root class,
+    /// and `override` can't be written on an out-of-line definition.
+    fn push_overrides(&mut self, id: SymbolId, func_declarator: Node, ctx: Ctx) {
+        if !ctx.in_type() || !has_override_specifier(func_declarator, self.source) {
+            return;
+        }
+        // A destructor overrides the base's, whose name differs (`~Base`).
+        let Some(name_node) = func_declarator
+            .child_by_field_name("declarator")
+            .filter(|n| n.kind() != "destructor_name")
+        else {
+            return;
+        };
+        let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+        mct_tree_sitter::push_overrides(
+            &mut self.relations,
+            &mut self.relation_targets,
+            id,
+            text(name_node, self.source),
+            location(name_node),
+            &supertypes,
+            &[],
+        );
     }
 
     /// Name, parent and kind of a function from its declarator's name
@@ -684,6 +729,15 @@ fn last_segment_text<'s>(node: Node, source: &'s str) -> &'s str {
 
 /// Rightmost name in a possibly-nested `qualified_identifier`
 /// (`A::B::C` → `C`), used for base-class names and qualified call targets.
+/// Whether a function declarator ends in the `override` virt-specifier.
+fn has_override_specifier(func_declarator: Node, source: &str) -> bool {
+    let mut cursor = func_declarator.walk();
+    let found = func_declarator
+        .children(&mut cursor)
+        .any(|c| c.kind() == "virtual_specifier" && text(c, source) == "override");
+    found
+}
+
 fn qualified_tail(node: Node) -> Node {
     if node.kind() == "qualified_identifier" {
         if let Some(name) = node.child_by_field_name("name") {

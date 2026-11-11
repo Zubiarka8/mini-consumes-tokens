@@ -1,4 +1,4 @@
-# language=cpp files=5 symbols=423 relations=500 name_matched_across_files=156
+# language=cpp files=5 symbols=423 relations=511 name_matched_across_files=156
 
 == include/inventory/model.hpp (342 lines)
 S 1-342 module model
@@ -179,6 +179,8 @@ R 192:34 calls Builder::tag -> move
 R 217:38 calls Product::sku -> make_sku
 R 234:40 extends inv::PerishableProduct -> Product
 R 237:28 calls PerishableProduct::PerishableProduct -> move
+R 239:10 overrides PerishableProduct::perishable -> perishable
+R 240:17 overrides PerishableProduct::describe -> describe
 R 241:41 calls PerishableProduct::expired -> now
 R 268:27 calls model -> now
 R 282:71 calls DeltaVisitor::operator() -> amount
@@ -329,8 +331,10 @@ R 20:29 extends inv::StorageError -> runtime_error
 R 26:25 extends inv::NotFound -> StorageError
 R 29:29 calls NotFound::NotFound -> string
 R 29:66 calls NotFound::NotFound -> string
+R 30:9 overrides NotFound::code -> code
 R 33:25 extends inv::Conflict -> StorageError
 R 36:24 calls Conflict::Conflict -> format_conflict
+R 37:9 overrides Conflict::code -> code
 R 61:22 calls Repository::require -> find
 R 62:27 calls Repository::require -> NotFound
 R 62:36 calls Repository::require -> kind
@@ -347,16 +351,22 @@ R 82:20 calls Repository::key_to_string -> make_sku (name-matched: include/inven
 R 84:25 calls Repository::key_to_string -> string
 R 91:33 extends inv::MemoryRepository -> Repository<K, V>
 R 95:73 calls MemoryRepository::MemoryRepository -> move
+R 97:22 overrides MemoryRepository::find -> find
 R 99:25 calls MemoryRepository::find -> find
 R 100:25 calls MemoryRepository::find -> end
+R 104:10 overrides MemoryRepository::put -> put
 R 107:27 calls MemoryRepository::put -> move
 R 116:19 calls MemoryRepository::put_if_version -> Conflict
 R 116:46 calls MemoryRepository::put_if_version -> key_to_string
 R 118:27 calls MemoryRepository::put_if_version -> move
+R 124:10 overrides MemoryRepository::erase -> erase
 R 126:22 calls MemoryRepository::erase -> erase
+R 129:10 overrides MemoryRepository::for_each -> for_each
 R 131:47 calls MemoryRepository::for_each -> visit
+R 134:17 overrides MemoryRepository::size -> size
 R 136:22 calls MemoryRepository::size -> size
 R 141:15 calls MemoryRepository::clear -> clear
+R 145:22 overrides MemoryRepository::kind -> kind
 R 162:21 calls MemoryRepository::version -> find
 R 163:24 calls MemoryRepository::version -> end
 R 235:30 calls storage -> now
@@ -750,6 +760,7 @@ R 269:13 calls inv::service::attach_logging -> subscribe
 R 269:39 calls inv::service::attach_logging -> get
 R 269:79 calls inv::service::attach_logging -> notify
 R 280:34 extends inv::service::FlatPricing -> PricingStrategy
+R 283:12 overrides FlatPricing::price -> price
 R 297:74 calls inv::service::tiered_price -> push_back
 R 300:29 calls inv::service::tiered_price -> back
 R 306:17 calls inv::service::make_service -> make_unique<InventoryService>
