@@ -80,6 +80,69 @@ fn reparse_with_terminated_lines(parser: &mut Parser, tree: &Tree, source: &[u8]
     None
 }
 
+/// Soft modifiers the pinned grammar reads as an identifier after a
+/// file-level annotation: `@X annotation class D` becomes the annotated
+/// infix call `annotation class D`, and `@X enum class E { A }` the call
+/// `enum class E` with a trailing lambda. Neither is an error.
+const MISREAD_SOFT_MODIFIERS: [&str; 2] = ["annotation", "enum"];
+
+/// A reparse of `source` in which the annotations before each misread
+/// declaration are blanked, so `annotation class D` parses as the class
+/// it is. Blanks keep every byte offset and line break; the walker reads
+/// names from the original source, and the declaration starts at its
+/// modifier. `None` when nothing is misread or the reparse is not clean.
+fn reparse_annotated_soft_modifiers(
+    parser: &mut Parser,
+    tree: &Tree,
+    source: &[u8],
+) -> Option<Tree> {
+    let root = tree.root_node();
+    let mut cursor = root.walk();
+    let prefixes: Vec<(usize, usize)> = root
+        .named_children(&mut cursor)
+        .filter(|node| node.kind() == "annotated_expression")
+        .filter_map(|node| {
+            let declaration = misread_declaration(node, source)?;
+            Some((node.start_byte(), declaration.start_byte()))
+        })
+        .collect();
+    if prefixes.is_empty() {
+        return None;
+    }
+    let mut patched = source.to_vec();
+    for (start, end) in prefixes {
+        for byte in patched.get_mut(start..end).into_iter().flatten() {
+            if !matches!(byte, b'\n' | b'\r') {
+                *byte = b' ';
+            }
+        }
+    }
+    let reparsed = parse_within_budget(parser, &patched, None)?;
+    (!reparsed.root_node().has_error()).then_some(reparsed)
+}
+
+/// The infix expression `annotation class D` (or `enum class E { … }`)
+/// an `annotated_expression` wraps, through nested annotations.
+fn misread_declaration<'t>(annotated: Node<'t>, source: &[u8]) -> Option<Node<'t>> {
+    let mut node = annotated;
+    while node.kind() == "annotated_expression" {
+        let mut cursor = node.walk();
+        let inner = node
+            .named_children(&mut cursor)
+            .find(|child| child.kind() != "annotation")?;
+        node = inner;
+    }
+    let word = |child: Option<Node>| {
+        child
+            .filter(|c| c.kind() == "identifier")
+            .and_then(|c| c.utf8_text(source).ok())
+    };
+    let misread = node.kind() == "infix_expression"
+        && word(node.named_child(0)).is_some_and(|w| MISREAD_SOFT_MODIFIERS.contains(&w))
+        && word(node.named_child(1)) == Some("class");
+    misread.then_some(node)
+}
+
 /// Puts a `;` in `source` in place of the space or tab before each closing
 /// `}` token that ends a member or statement on its line, and returns one
 /// edit per byte changed, for an incremental reparse. Kotlin reads a body closed on the line its last member ends on
@@ -201,6 +264,9 @@ impl LanguageParser for KotlinParser {
                     });
                 }
             }
+        }
+        if let Some(patched) = reparse_annotated_soft_modifiers(&mut parser, &tree, source) {
+            tree = patched;
         }
         let root = tree.root_node();
 

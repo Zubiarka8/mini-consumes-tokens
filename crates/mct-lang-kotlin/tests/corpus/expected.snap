@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=483 relations=821 name_matched_across_files=113
+# language=kotlin files=5 symbols=484 relations=821 name_matched_across_files=113
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -1113,6 +1113,7 @@ S 87-88 method CouponDiscount::discount
 S 90-90 method CouponDiscount::toString
 S 93-93 method Money::percentOfInt
 S 95-95 method Money::min
+S 102-102 class PricingDsl
 S 104-129 class PricingBuilder
 S 106-106 field PricingBuilder::rules
 S 107-107 field PricingBuilder::vatCatalog
