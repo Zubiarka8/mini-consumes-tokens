@@ -24,7 +24,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{find_child, first_error, location};
+use mct_tree_sitter::{find_child, first_error, location, Supertype};
 use tree_sitter::{Node, ParseOptions, ParseState, Parser};
 
 /// Parse work budget, in tree-sitter progress-callback calls (one per 100
@@ -155,6 +155,72 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 /// grammar's only signal is the anonymous `interface` token (no field, no
 /// dedicated node kind), so it's found by scanning all children (not just
 /// named ones — the token itself is unnamed).
+/// The functions of `kotlin.Any` a subclass can override.
+const ANY_METHODS: [&str; 3] = ["equals", "hashCode", "toString"];
+
+/// The direct supertypes a class, object or object expression names in
+/// its delegation specifiers: `Base()` (a constructor call: the
+/// superclass), `Shape` or `Shape by impl`. One that names no superclass
+/// also has the root, external: `Any`, or `Enum` for an enum class.
+fn direct_supertypes(node: Node, source: &str) -> Vec<Supertype> {
+    let mut named = Vec::new();
+    let mut has_superclass = false;
+    if let Some(delegations) = find_child(node, "delegation_specifiers") {
+        let mut cursor = delegations.walk();
+        for spec in delegations.named_children(&mut cursor) {
+            let mut parts = spec.walk();
+            let target = spec
+                .named_children(&mut parts)
+                .find(|part| part.kind() != "annotation");
+            let Some(target) = target else {
+                continue;
+            };
+            let user_type = match target.kind() {
+                "constructor_invocation" => {
+                    has_superclass = true;
+                    target.named_child(0)
+                }
+                "explicit_delegation" => target.named_child(0),
+                "user_type" => Some(target),
+                _ => None,
+            };
+            if let Some(type_id) = user_type
+                .filter(|t| t.kind() == "user_type")
+                .and_then(|t| t.named_child(0))
+            {
+                named.push(Supertype {
+                    name: text(type_id, source).to_string(),
+                    external: false,
+                });
+            }
+        }
+    }
+    if !has_superclass {
+        let root = if find_child(node, "enum_class_body").is_some() {
+            "Enum"
+        } else {
+            "Any"
+        };
+        named.push(Supertype {
+            name: root.to_string(),
+            external: true,
+        });
+    }
+    named
+}
+
+/// Whether `declaration`'s modifiers include `override`.
+fn has_override_modifier(declaration: Node, source: &str) -> bool {
+    let Some(modifiers) = find_child(declaration, "modifiers") else {
+        return false;
+    };
+    let mut cursor = modifiers.walk();
+    let found = modifiers
+        .children(&mut cursor)
+        .any(|m| m.kind() == "member_modifier" && text(m, source) == "override");
+    found
+}
+
 fn is_interface(class_declaration: Node) -> bool {
     let mut cursor = class_declaration.walk();
     let children: Vec<Node> = class_declaration.children(&mut cursor).collect();
@@ -248,6 +314,9 @@ struct Walker<'a> {
     this_class: Option<usize>,
     /// Declaration details of the symbols recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
+    /// Direct supertypes of each enclosing class, object or enum entry
+    /// body, innermost last: what an `override fun` there can override (D8).
+    supertypes: Vec<Vec<Supertype>>,
 }
 
 impl<'a> Walker<'a> {
@@ -359,6 +428,7 @@ impl<'a> Walker<'a> {
                     }
                 }
 
+                self.supertypes.push(direct_supertypes(node, self.source));
                 self.classes
                     .push(receivers::class_scope(&name, node, self.source));
                 let outer_this = self.this_class.replace(self.classes.len() - 1);
@@ -374,6 +444,14 @@ impl<'a> Walker<'a> {
                 self.locals = outer_locals;
                 self.this_class = outer_this;
                 self.classes.pop();
+                self.supertypes.pop();
+            }
+            // `object : Runnable { … }`: an anonymous class whose direct
+            // supertypes are its delegation specifiers.
+            "object_literal" => {
+                self.supertypes.push(direct_supertypes(node, self.source));
+                self.visit_children(node, owner, type_name, depth + 1);
+                self.supertypes.pop();
             }
             // `NEW { override fun next() = … }`: a field of the enum; its
             // body overrides members of the enum, so they keep its name.
@@ -386,7 +464,14 @@ impl<'a> Walker<'a> {
                         type_name.map(str::to_string),
                     );
                 }
+                // The entry's body is an anonymous subclass of the enum.
+                let enum_type = type_name.map(|name| Supertype {
+                    name: name.to_string(),
+                    external: false,
+                });
+                self.supertypes.push(enum_type.into_iter().collect());
                 self.visit_children(node, owner, type_name, depth + 1);
+                self.supertypes.pop();
             }
             "class_parameter" => {
                 if is_promoted_property(node) {
@@ -422,6 +507,20 @@ impl<'a> Walker<'a> {
                 let id = self.push_symbol(name, kind, location(node), parent);
                 self.details
                     .push(details::function_detail(node, id, self.source));
+                if has_override_modifier(node, self.source) {
+                    if let Some(name_node) = node.child_by_field_name("name") {
+                        let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                        mct_tree_sitter::push_overrides(
+                            &mut self.relations,
+                            &mut self.relation_targets,
+                            id,
+                            text(name_node, self.source),
+                            location(name_node),
+                            &supertypes,
+                            &ANY_METHODS,
+                        );
+                    }
+                }
                 let mut locals = self.locals.clone();
                 let mut cursor = node.walk();
                 for part in node.named_children(&mut cursor) {

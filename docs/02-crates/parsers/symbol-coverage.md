@@ -138,15 +138,16 @@ Without such details (every language but those above), the index has no:
 - generic type parameters and their constraints.
 
 An `overrides` relation (which method overrides which, D8) exists for Rust
-`impl Trait for T` methods and Java `@Override` methods only. No language
+`impl Trait for T` methods, Java `@Override` methods and Kotlin `override fun`
+only. No language
 records variable or field types.
 
 Because of this, where details are missing:
 
 - a `private` method and a `public` method look the same;
 - an abstract class is a plain `class`;
-- `override` is not linked to the method it overrides (except Rust and
-  Java, above);
+- `override` is not linked to the method it overrides (except Rust, Java
+  and Kotlin functions, above);
 - overloads are separate rows with the same name and parent, with no
   signature to tell them apart.
 

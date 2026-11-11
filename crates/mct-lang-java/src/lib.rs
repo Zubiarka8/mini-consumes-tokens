@@ -8,7 +8,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{find_child, first_error, location, module_location};
+use mct_tree_sitter::{find_child, first_error, location, module_location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
@@ -96,14 +96,6 @@ struct Walker<'a> {
     /// Direct supertypes of each enclosing type body, innermost last: what
     /// an `@Override` method there can override (D8).
     supertypes: Vec<Vec<Supertype>>,
-}
-
-/// A direct supertype as the type's header names it; `external` for the
-/// JDK root `Object`/`Enum`/`Record` a type that extends no class has.
-#[derive(Clone)]
-struct Supertype {
-    name: String,
-    external: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -553,33 +545,21 @@ impl<'a> Walker<'a> {
     }
 
     /// D8: an `@Override` method overrides a same-named method of one of
-    /// its type's direct supertypes; which one the syntax can't say, so one
-    /// relation per supertype, each qualified by it. The JDK root counts
-    /// only for a method it declares.
+    /// its type's direct supertypes; the JDK root only one it declares.
     fn push_overrides(&mut self, method: Node, id: SymbolId) {
         let Some(name_node) = method.child_by_field_name("name") else {
             return;
         };
-        let name = text(name_node, self.source).to_string();
         let supertypes = self.supertypes.last().cloned().unwrap_or_default();
-        for supertype in supertypes {
-            if supertype.external && !OBJECT_METHODS.contains(&name.as_str()) {
-                continue;
-            }
-            self.push_relation(
-                id,
-                RelationKind::Overrides,
-                name.clone(),
-                location(name_node),
-            );
-            self.relation_targets.push(RelationTarget {
-                relation: self.relations.len() - 1,
-                qualifier: Some(supertype.name),
-                kind: (!supertype.external).then_some(SymbolKind::Method),
-                external: supertype.external,
-                ..Default::default()
-            });
-        }
+        mct_tree_sitter::push_overrides(
+            &mut self.relations,
+            &mut self.relation_targets,
+            id,
+            text(name_node, self.source),
+            location(name_node),
+            &supertypes,
+            &OBJECT_METHODS,
+        );
     }
 
     fn finish(self) -> ParsedFile {
