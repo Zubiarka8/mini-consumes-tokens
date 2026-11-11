@@ -139,7 +139,8 @@ Without such details (every language but those above), the index has no:
 
 An `overrides` relation (which method overrides which, D8) exists for Rust
 `impl Trait for T` methods, Java `@Override` methods, Kotlin `override fun`,
-and C# and TypeScript `override` methods only. No language
+C# and TypeScript `override` methods and Python `typing.override` methods
+only. No language
 records variable or field types.
 
 Because of this, where details are missing:
@@ -147,7 +148,7 @@ Because of this, where details are missing:
 - a `private` method and a `public` method look the same;
 - an abstract class is a plain `class`;
 - `override` is not linked to the method it overrides (except Rust, Java,
-  Kotlin, C# and TypeScript methods, above);
+  Kotlin, C#, TypeScript and Python methods, above);
 - overloads are separate rows with the same name and parent, with no
   signature to tell them apart.
 
