@@ -43,6 +43,9 @@ checked by running the code, never read off the index:
     not in the chain.
 - **Lua:** run with a stub host global `speed`. `hud.draw()` returns the
   host's value, never `physics.lua`'s local.
+- **Standard globals (D9), Lua:** run with Lua 5.5. `order.lua` calls the
+  host's `setmetatable` and `string.format` (replacing them is observed),
+  never `money.lua`'s `local setmetatable` / `local format` aliases.
 
 The fixture is checked in as one `.txt` bundle, which no parser indexes, and
 unpacked into a temporary directory per eval run, so its clashing names never
@@ -104,6 +107,35 @@ function M.draw()
 end
 
 return M
+==> lua/money.lua <==
+local setmetatable = setmetatable
+local format = string.format
+
+local Money = {}
+Money.__index = Money
+
+function Money.new(minor)
+  return setmetatable({ minor = minor }, Money)
+end
+
+function Money:format()
+  return format("%d.%02d", self.minor // 100, self.minor % 100)
+end
+
+return Money
+==> lua/order.lua <==
+local Order = {}
+Order.__index = Order
+
+function Order.new(id)
+  return setmetatable({ id = id }, Order)
+end
+
+function Order:label()
+  return string.format("order-%d", self.id)
+end
+
+return Order
 ==> lua/physics.lua <==
 local function step(dt)
   local speed = 10 * dt
