@@ -371,8 +371,15 @@ From `rules.md` and the two messages:
 
 - [x] Signatures, parameters, types, visibility and modifiers for every
       language with declarations (see 2.3).
-- [ ] Updated symbol-coverage matrix, then work through the gaps by language
+- [~] Updated symbol-coverage matrix, then work through the gaps by language
       group (3.1).
+  - [x] The score tables had drifted from the checklists that parser PRs
+        update (Rust constructs 60% → 98% after the checklist gaps were
+        closed, Python, JS/TS, Java and PHP by 1–6 points). They are
+        recomputed, and `crates/mct-languages/tests/coverage_scores.rs`
+        recomputes them from the checklists on every test run.
+  - [ ] Re-probe the cells still dated 2026-10-19 (`71ec6d0`), then the
+        gaps by language group.
 - [ ] Inherited methods, using supertype data.
 - [~] Members of an anonymous class or an enum constant's body are recorded
       under the enclosing type (Java, Kotlin), which leaves their overrides
