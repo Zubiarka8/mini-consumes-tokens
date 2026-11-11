@@ -1,4 +1,4 @@
-# language=java files=6 symbols=432 relations=961 name_matched_across_files=145
+# language=java files=6 symbols=432 relations=977 name_matched_across_files=145
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -115,16 +115,20 @@ R 30:1 imports OrderService -> Collectors
 R 30:1 imports OrderService -> groupingBy
 R 31:1 imports OrderService -> Collectors
 R 31:1 imports OrderService -> counting
+R 40:46 calls OrderService -> getLogger
+R 40:75 calls OrderService -> getName
 R 45:21 calls OrderService -> requireNonNull
 R 46:28 calls OrderService -> isEmpty
 R 47:27 calls OrderService -> IllegalArgumentException
 R 56:80 implements OrderService::Accepted -> Outcome
 R 59:87 implements OrderService::PendingApproval -> Outcome
 R 62:54 implements OrderService::Rejected -> Outcome
+R 73:49 calls OrderService -> AtomicLong
 R 81:45 calls OrderNumbers::next -> getYear
 R 81:34 calls OrderNumbers::next -> now
 R 82:34 calls OrderNumbers::next -> formatted
 R 82:59 calls OrderNumbers::next -> incrementAndGet
+R 93:64 calls OrderService -> ArrayList
 R 102:28 calls OrderService::OrderService -> OrderNumbers
 R 107:21 calls OrderService::subscribe -> add
 R 116:28 calls OrderService::place -> priceLines
@@ -417,6 +421,10 @@ R 121:53 extends Inventory::OutOfStockException -> RuntimeException
 R 152:24 calls Listener::noop -> Listener
 R 154:29 overrides Listener::stockReserved -> stockReserved
 R 158:29 overrides Listener::stockReleased -> stockReleased
+R 168:62 calls Inventory -> HashMap
+R 169:63 calls Inventory -> HashMap
+R 170:60 calls Inventory -> HashMap
+R 171:35 calls Inventory -> ReentrantLock
 R 187:9 calls Inventory::receive -> withLock
 R 187:47 calls Inventory::receive -> receive
 R 187:24 calls Inventory::receive -> levelAt
@@ -681,6 +689,9 @@ R 140:39 calls FixedRates::lookup -> get
 R 142:27 calls FixedRates::lookup -> UnknownRateException
 R 153:40 implements ExchangeRates::CachedRates -> ExchangeRates
 R 153:55 implements ExchangeRates::CachedRates -> AutoCloseable
+R 157:57 calls ExchangeRates -> HashMap
+R 158:57 calls ExchangeRates -> ReentrantReadWriteLock
+R 159:53 calls ExchangeRates -> ConcurrentHashMap
 R 163:43 calls Entry::isFresh -> isAfter
 R 163:33 calls Entry::isFresh -> plus (name-matched: com/example/warehouse/money/Money.java)
 R 175:27 overrides CachedRates::rate -> rate
@@ -734,6 +745,7 @@ R 243:23 calls CachedRates::close -> clear
 R 245:34 calls CachedRates::close -> unlock
 R 245:22 calls CachedRates::close -> writeLock
 R 254:39 implements ExchangeRates::Memo -> Function
+R 255:46 calls ExchangeRates -> ConcurrentHashMap
 R 263:18 overrides Memo::apply -> apply
 R 264:27 calls Memo::apply -> computeIfAbsent
 R 268:24 calls Memo::of -> Memo
@@ -1135,6 +1147,8 @@ R 149:101 implements Order::Shipped -> OrderEvent
 R 152:85 implements Order::Invoiced -> OrderEvent
 R 155:79 implements Order::Cancelled -> OrderEvent
 R 159:66 extends Order::IllegalTransitionException -> IllegalStateException
+R 186:42 calls Order -> ArrayList
+R 187:50 calls Order -> ArrayList
 R 200:19 calls Order::place -> isEmpty
 R 201:23 calls Order::place -> IllegalArgumentException
 R 203:27 calls Order::place -> Order
@@ -1324,6 +1338,7 @@ R 94:24 calls Page::of -> Page
 R 94:46 calls Page::of -> subList
 R 98:35 calls Page::nextOffset -> size
 R 113:38 implements Repository::InMemory -> Repository
+R 114:45 calls Repository -> ConcurrentHashMap
 R 122:28 overrides InMemory::findById -> findById
 R 123:29 calls InMemory::findById -> ofNullable
 R 123:45 calls InMemory::findById -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
@@ -1400,6 +1415,7 @@ R 280:66 calls Orders::revenue -> from (name-matched: com/example/warehouse/orde
 R 281:36 calls Orders::revenue -> collect
 R 281:27 calls Orders::revenue -> stream
 R 281:50 calls Orders::revenue -> summing (name-matched: com/example/warehouse/money/Money.java)
+R 287:53 calls Repository -> ArrayList
 R 290:20 calls Outbox::append -> add
 R 294:41 calls Outbox::drain -> copyOf
 R 295:20 calls Outbox::drain -> clear
