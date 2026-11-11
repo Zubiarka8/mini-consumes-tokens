@@ -1359,6 +1359,8 @@ fn write_parsed_file(
         )?;
     }
 
+    write_symbol_details(tx, &id_map, &parsed.symbol_details)?;
+
     let targets: HashMap<usize, &mct_core::RelationTarget> = parsed
         .relation_targets
         .iter()
@@ -1413,6 +1415,71 @@ fn write_parsed_file(
 /// enclosing symbol before what it contains, so on an identical span (a
 /// function that fills its whole file, and the file-level module) the inner
 /// one wins. A symbol with no `end_line` spans only its first line.
+/// Stores each parsed file's declaration details (ADR-034), normalized. A
+/// detail naming no symbol of the file is ignored, and so is any detail after
+/// the first for one symbol; the file's previous rows are already gone with
+/// its symbols (`ON DELETE CASCADE`).
+fn write_symbol_details(
+    tx: &rusqlite::Connection,
+    id_map: &HashMap<u32, i64>,
+    details: &[mct_core::SymbolDetail],
+) -> Result<()> {
+    let mut seen = std::collections::HashSet::new();
+    for detail in details {
+        let Some(&symbol_id) = id_map.get(&detail.symbol) else {
+            continue;
+        };
+        if !seen.insert(symbol_id) {
+            continue;
+        }
+        let detail = detail.clone().normalized();
+        let modifiers = (!detail.modifiers.is_empty()).then(|| {
+            detail
+                .modifiers
+                .iter()
+                .map(|m| m.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        });
+        tx.prepare_cached(
+            "INSERT INTO symbol_details
+                 (symbol_id, signature, return_type, return_source, visibility,
+                  modifiers, generics, parameters_known)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        )?
+        .execute(params![
+            symbol_id,
+            detail.signature,
+            detail.return_type.as_ref().map(|t| t.text.as_str()),
+            detail.return_type.as_ref().map(|t| t.provenance.as_str()),
+            detail.visibility.map(|v| v.as_str()),
+            modifiers,
+            detail.generics,
+            detail.parameters_known,
+        ])?;
+        if !detail.parameters_known {
+            continue;
+        }
+        for (position, p) in detail.parameters.iter().enumerate() {
+            tx.prepare_cached(
+                "INSERT INTO symbol_parameters
+                     (symbol_id, position, name, type_text, type_source, default_text, kind)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?
+            .execute(params![
+                symbol_id,
+                position as i64,
+                p.name,
+                p.type_text.as_ref().map(|t| t.text.as_str()),
+                p.type_text.as_ref().map(|t| t.provenance.as_str()),
+                p.default,
+                p.kind.as_str(),
+            ])?;
+        }
+    }
+    Ok(())
+}
+
 fn enclosing_symbol(symbols: &[mct_core::SymbolRecord], line: u32) -> Option<u32> {
     symbols
         .iter()

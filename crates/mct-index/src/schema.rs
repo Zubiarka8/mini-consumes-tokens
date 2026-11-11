@@ -574,6 +574,40 @@ pub fn migrations() -> Migrations<'static> {
             r#";
             "#,
         )),
+        // Declaration details (issue #321, ADR-034): a parser may record what
+        // the syntax proves about a declaration — its header as written,
+        // parameters, return type, visibility, modifiers and generics. Sparse:
+        // a symbol without a row has no known details, and a NULL column is
+        // "unknown". The rows belong to the symbol, so a reparse or deletion
+        // of its file replaces or removes them through the cascade. Every
+        // file is reparsed so parsers that emit details can record them.
+        M::up(
+            r#"
+            CREATE TABLE symbol_details (
+                symbol_id        INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+                signature        TEXT,
+                return_type      TEXT,
+                return_source    TEXT,
+                visibility       TEXT,
+                modifiers        TEXT,
+                generics         TEXT,
+                parameters_known INTEGER NOT NULL DEFAULT 0
+            ) WITHOUT ROWID;
+
+            CREATE TABLE symbol_parameters (
+                symbol_id    INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+                position     INTEGER NOT NULL,
+                name         TEXT,
+                type_text    TEXT,
+                type_source  TEXT,
+                default_text TEXT,
+                kind         TEXT NOT NULL,
+                PRIMARY KEY (symbol_id, position)
+            ) WITHOUT ROWID;
+
+            UPDATE files SET content_hash = '';
+            "#,
+        ),
     ])
 }
 
@@ -631,6 +665,31 @@ mod tests {
             [],
         )?;
         migrations().to_latest(&mut conn)?;
+        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
+        assert_eq!(hash, "");
+        Ok(())
+    }
+
+    /// Declaration details (ADR-034): migrating an index that already holds
+    /// data keeps every row, creates both empty tables and forces one reparse
+    /// so parsers can record details.
+    #[test]
+    fn symbol_details_migration_keeps_rows_and_forces_one_reparse(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, 15)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at)
+                 VALUES (1, 'src/lib.rs', 'rust', 'abc123', 0);
+             INSERT INTO symbols (id, file_id, name, kind, line, column, byte_len)
+                 VALUES (1, 1, 'run', 'function', 1, 1, 1);",
+        )?;
+        migrations().to_latest(&mut conn)?;
+        let count = |sql: &str| -> rusqlite::Result<i64> { conn.query_row(sql, [], |r| r.get(0)) };
+        assert_eq!(count("SELECT COUNT(*) FROM symbols")?, 1);
+        assert_eq!(count("SELECT COUNT(*) FROM symbol_details")?, 0);
+        assert_eq!(count("SELECT COUNT(*) FROM symbol_parameters")?, 0);
         let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
         assert_eq!(hash, "");
         Ok(())
@@ -707,7 +766,7 @@ mod tests {
                  (4, 7, 'references', 'mass', 6, 1, 1, 1),
                  (5, 7, 'calls', 'now', 7, 1, 1, 1);",
         )?;
-        migrations().to_latest(&mut conn)?;
+        migrations().to_version(&mut conn, 15)?;
         let candidates = |relation: i64| -> rusqlite::Result<i64> {
             conn.query_row(
                 "SELECT COUNT(*) FROM relation_candidates WHERE relation_id = ?1",

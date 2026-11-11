@@ -5,6 +5,7 @@
 //! language means implementing [`LanguageParser`] in a new crate and registering
 //! it with a [`LanguageRegistry`] — no changes here.
 
+mod detail;
 mod error;
 mod literal;
 mod reference_path;
@@ -12,6 +13,10 @@ mod registry;
 mod symbol;
 mod tokens;
 
+pub use detail::{
+    Modifier, Parameter, ParameterKind, Provenance, SymbolDetail, TypeText, Visibility,
+    MAX_DEFAULT_BYTES, MAX_SIGNATURE_BYTES, MAX_TYPE_BYTES,
+};
 pub use error::ParseError;
 pub use literal::{
     prose_literal, LiteralCollector, StringLiteral, MAX_LITERALS_PER_FILE, MAX_LITERAL_CHARS,
@@ -82,6 +87,10 @@ pub struct ParsedFile {
     /// names them (see [`EntryPointHint`]). Empty for parsers that know no
     /// such convention.
     pub entry_points: Vec<EntryPointHint>,
+    /// Declaration details for some of `symbols` (ADR-034). Sparse: a symbol
+    /// without an entry has no known details. An entry naming an unknown
+    /// symbol is ignored, and so is every entry after the first for a symbol.
+    pub symbol_details: Vec<SymbolDetail>,
 }
 
 /// Parser-declared evidence that a framework **may** load a symbol by
