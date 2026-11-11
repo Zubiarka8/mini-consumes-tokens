@@ -438,6 +438,16 @@ From `rules.md` and the two messages:
         and stdlib classes, which have no indexed candidate). Dead code
         124 → 122 (`score_verdicts`, `score_subgroups`). Test:
         `mct-lang-python/tests/function_values.rs`.
+  - [x] Python, the other value positions: an element of a tuple, list,
+        set or dict value (`isinstance(e, (A, B))`, `{"k": rank}`), the right
+        side of an assignment (`model = BookRecord`, `handler = rank`) and a
+        returned name (`return wrapper`), with the same evidence rule. This
+        repository: 44 new Python relations, 27 resolved (all to the right
+        definition: Django `model = BookRecord` → `lending/models.py`,
+        `return register` → its nested `def`), 11 external, 4 ambiguous (two
+        decorators of `library/errors.py` each return a nested `wrapper`, and
+        `path=` evidence can't tell the two apart), 2 unresolved. Dead code
+        unchanged (122).
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
