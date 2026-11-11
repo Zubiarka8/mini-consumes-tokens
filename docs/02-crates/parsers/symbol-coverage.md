@@ -115,8 +115,9 @@ table emits none yet:
 | Language | Symbols with details | Visibility mapping | Modifiers | Not covered |
 |---|---|---|---|---|
 | Rust | `fn` (free, method, trait, `extern` block), `struct`, `union`, `enum`, `trait`, `type`, associated `type`, `const`, `static` | `pub` → public, `pub(crate)` → crate, `pub(super)`/`pub(in …)` → restricted, `pub(self)` or no keyword → private; none recorded in a trait or `impl Trait for T`, where the trait decides | `async`, `const`, `unsafe`, `extern` (functions); `unsafe` (traits) | closures bound by `let`, enum variants, fields, macro-generated items; parameter defaults (Rust has none) |
+| Go | `func`, methods, interface methods, `type` (struct, interface, defined type, alias) | an upper-case first letter → public, otherwise package (the exported-name rule) | — (Go has none) | `const`/`var` (not indexed as symbols), struct fields, function literals. A result list is one return type as written: `(n int, err error)` |
 
-A receiver is stored with the type it stands for: `&mut self` is `&mut Self`.
+A Rust receiver is stored with the type it stands for: `&mut self` is `&mut Self`; a Go receiver keeps its declared type (`*Stack[T]`). `a, b int` is two `int` parameters.
 A destructuring or `_` parameter keeps its type but has no name.
 
 Without such details (every language but those above), the index has no:
