@@ -177,9 +177,9 @@ From `rules.md` and the two messages:
         without an import (`Math`, `String`). This repository: 180 calls
         become external; the only one with a target was wrong (`LOG.log` on
         a `java.util.logging.Logger` field → another fixture's `Logger.log`).
-        Found on the way, not fixed here: calls in a field initializer
-        (`private List<String> items = List.of();`) are not recorded as
-        calls at all.
+        Not yet: `new HashMap<>()` under `import java.util.HashMap` (a
+        constructor call) stays unresolved; 15 such calls in this
+        repository.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
@@ -255,8 +255,11 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
-- [ ] Java: a field initializer is not walked, so calls and anonymous
-      classes in `Runnable r = new Runnable() { … };` are not indexed.
+- [x] Java: a field initializer is walked like an initializer block, so
+      the calls and anonymous classes in `Runnable r = new Runnable() { … };`
+      are indexed. Corpus: +16 calls (`new HashMap<>()`,
+      `Logger.getLogger(…)`), symbols unchanged; this repository: the same
+      16 Java calls, dead code unchanged.
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
       D8).
 - [ ] Language-specific features (3.4), each checked against the real
