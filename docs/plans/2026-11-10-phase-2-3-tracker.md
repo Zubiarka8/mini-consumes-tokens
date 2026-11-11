@@ -492,8 +492,18 @@ From `rules.md` and the two messages:
       127 duplicate groups (20 REAL, 107 SUSPICIOUS) from both. One
       difference is deliberate: the CLI applies review decisions only with
       `--reviewed`, and the tool always does (`crates/mct-cli/src/reviewed.rs`).
-- [ ] Evaluation suite covering every language: precision, coverage,
+- [~] Evaluation suite covering every language: precision, coverage,
       performance and tokens.
+  - [x] `suite-resolution.json` has a labelled case for C#, JavaScript and
+        Bash, each with a repository target and an external one, the truth
+        run with `dotnet run`, Node and `bash`. JavaScript is 1.00. C# is
+        0.50: `_notifier.Notify` reaches `INotifier.Notify`, and `id.Trim()`
+        on a `string` is unresolved, not external. Bash is 0.00:
+        `log_info` after `source "$(dirname "$0")/../lib/log.sh"` is
+        ambiguous between `log.sh` and `other.sh`, and the builtin `printf`
+        is unresolved. Nothing is wrong. These scores are the baseline.
+  - [ ] Kotlin, Go, PHP and PowerShell: no `kotlinc`, `go`, `php` or `pwsh`
+        here to run their truth.
 
 ## Block 5: deliveries
 
