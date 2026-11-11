@@ -106,16 +106,30 @@ from one symbol to a target name. Parser-supplied `RelationTarget` evidence
 can also constrain resolution by language, parent, qualifier or import path;
 ordinary graph queries are not all name-only. Dead-code counts are name-only.
 
-So, **in every language**, the index has no:
+Declaration details ([ADR-034](../../01-architecture/adrs/034-symbol-details.md))
+add a separate, sparse store for the signature as written, the parameters
+(name, type, default, kind), the return type, visibility, modifiers and
+generics. Each parser fills it from syntax only. A language not in this
+table emits none yet:
+
+| Language | Symbols with details | Visibility mapping | Modifiers | Not covered |
+|---|---|---|---|---|
+| Rust | `fn` (free, method, trait, `extern` block), `struct`, `union`, `enum`, `trait`, `type`, associated `type`, `const`, `static` | `pub` → public, `pub(crate)` → crate, `pub(super)`/`pub(in …)` → restricted, `pub(self)` or no keyword → private; none recorded in a trait or `impl Trait for T`, where the trait decides | `async`, `const`, `unsafe`, `extern` (functions); `unsafe` (traits) | closures bound by `let`, enum variants, fields, macro-generated items; parameter defaults (Rust has none) |
+
+A receiver is stored with the type it stands for: `&mut self` is `&mut Self`.
+A destructuring or `_` parameter keeps its type but has no name.
+
+Without such details (every language but those above), the index has no:
 
 - visibility (`pub`, `private`, `protected`, `internal`);
 - modifiers: `static`, `abstract`, `final`/`sealed`, `virtual`/`override`, `async`, `readonly`;
-- override relation (which method overrides which);
 - parameter names and types, return types, or full signatures;
-- generic type parameters and their constraints;
-- variable and field types.
+- generic type parameters and their constraints.
 
-Because of this:
+In every language it has no override relation (which method overrides
+which) and no variable or field types.
+
+Because of this, where details are missing:
 
 - a `private` method and a `public` method look the same;
 - an abstract class is a plain `class`;
