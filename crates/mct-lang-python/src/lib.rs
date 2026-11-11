@@ -7,7 +7,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use mct_tree_sitter::{first_error, location};
+use mct_tree_sitter::{first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
@@ -99,7 +99,37 @@ struct Walker<'a> {
     scope: ModuleScope,
     /// Declaration details of the symbols recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
+    /// The candidate supertypes of each enclosing class, innermost last.
+    supertypes: Vec<Vec<Supertype>>,
 }
+
+/// The methods `object` defines, the only ones a class with no base can
+/// override (CPython 3.14, `dir(object)`).
+const OBJECT_METHODS: [&str; 23] = [
+    "__class_getitem__",
+    "__delattr__",
+    "__dir__",
+    "__eq__",
+    "__format__",
+    "__ge__",
+    "__getattribute__",
+    "__getstate__",
+    "__gt__",
+    "__hash__",
+    "__init__",
+    "__init_subclass__",
+    "__le__",
+    "__lt__",
+    "__ne__",
+    "__new__",
+    "__reduce__",
+    "__reduce_ex__",
+    "__repr__",
+    "__setattr__",
+    "__sizeof__",
+    "__str__",
+    "__subclasshook__",
+];
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str, path: &'a str) -> Self {
@@ -159,11 +189,15 @@ impl<'a> Walker<'a> {
         }
         match node.kind() {
             "decorated_definition" => {
-                let target_id = node
-                    .child_by_field_name("definition")
-                    .and_then(|definition| {
-                        self.visit_definition(definition, owner, class_name, depth + 1)
-                    });
+                let definition = node.child_by_field_name("definition");
+                let target_id = definition.and_then(|definition| {
+                    self.visit_definition(definition, owner, class_name, depth + 1)
+                });
+                if let (Some(id), Some(definition), Some(_)) = (target_id, definition, class_name) {
+                    if definition.kind() == "function_definition" && self.has_override(node) {
+                        self.push_overrides(id, definition);
+                    }
+                }
                 let mut cursor = node.walk();
                 for decorator in node.children(&mut cursor) {
                     if decorator.kind() == "decorator" {
@@ -315,9 +349,12 @@ impl<'a> Walker<'a> {
                         }
                     }
                 }
+                let supertypes = class_supertypes(node, self.source);
+                self.supertypes.push(supertypes);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, Some(&name), depth + 1);
                 }
+                self.supertypes.pop();
                 Some(id)
             }
             _ => {
@@ -325,6 +362,52 @@ impl<'a> Walker<'a> {
                 None
             }
         }
+    }
+
+    /// Whether one of the `decorated_definition`'s decorators is PEP 698's
+    /// `override`: a bare name only `typing`/`typing_extensions` imports
+    /// bind, or `override` on a module alias of one of them.
+    fn has_override(&self, decorated: Node) -> bool {
+        let mut cursor = decorated.walk();
+        let found = decorated
+            .children(&mut cursor)
+            .filter(|d| d.kind() == "decorator")
+            .filter_map(|d| d.named_child(0))
+            .any(|expr| match expr.kind() {
+                "identifier" => self.scope.is_typing_override(text(expr, self.source)),
+                "attribute" => {
+                    let attribute = expr.child_by_field_name("attribute");
+                    let object = expr.child_by_field_name("object");
+                    attribute.is_some_and(|a| text(a, self.source) == "override")
+                        && object.is_some_and(|o| {
+                            o.kind() == "identifier"
+                                && self
+                                    .scope
+                                    .module_alias(text(o, self.source))
+                                    .is_some_and(|m| scope::TYPING_MODULES.contains(&m))
+                        })
+                }
+                _ => false,
+            });
+        found
+    }
+
+    /// One `overrides` relation per candidate supertype of the enclosing
+    /// class for the method `definition`.
+    fn push_overrides(&mut self, id: SymbolId, definition: Node) {
+        let Some(name_node) = definition.child_by_field_name("name") else {
+            return;
+        };
+        let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+        mct_tree_sitter::push_overrides(
+            &mut self.relations,
+            &mut self.relation_targets,
+            id,
+            text(name_node, self.source),
+            location(name_node),
+            &supertypes,
+            &OBJECT_METHODS,
+        );
     }
 
     /// Evidence for the relation about to be pushed, when its target is
@@ -533,6 +616,45 @@ fn first_identifier(node: Node, depth: u32) -> Option<Node> {
     children
         .into_iter()
         .find_map(|child| first_identifier(child, depth + 1))
+}
+
+/// The bases a method of `class` can override: every positional base
+/// written as a name (`Base[int]` is `Base`), or the root `object`,
+/// external, when the class has no positional base at all. `metaclass=…`
+/// is not a base; `make_base()` or `*bases` is one the syntax can't name,
+/// so it gets no relation but rules out the root.
+fn class_supertypes(class: Node, source: &str) -> Vec<Supertype> {
+    let mut supertypes = Vec::new();
+    let mut has_base = false;
+    if let Some(superclasses) = class.child_by_field_name("superclasses") {
+        let mut cursor = superclasses.walk();
+        for base in superclasses.named_children(&mut cursor) {
+            if matches!(base.kind(), "keyword_argument" | "comment") {
+                continue;
+            }
+            has_base = true;
+            let base = if base.kind() == "subscript" {
+                base.child_by_field_name("value").unwrap_or(base)
+            } else {
+                base
+            };
+            if matches!(base.kind(), "identifier" | "attribute") {
+                if let Some(name) = expr_name(base, source) {
+                    supertypes.push(Supertype {
+                        name,
+                        external: false,
+                    });
+                }
+            }
+        }
+    }
+    if !has_base {
+        supertypes.push(Supertype {
+            name: "object".to_string(),
+            external: true,
+        });
+    }
+    supertypes
 }
 
 /// Name of a callable/base-class expression: a bare identifier, or the
