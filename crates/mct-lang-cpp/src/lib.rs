@@ -469,24 +469,7 @@ impl<'a> Walker<'a> {
                         // call_expression both start at `a`, which would make
                         // two same-named chained calls collide into one
                         // indistinguishable row.
-                        let relation = self.relations.len();
-                        self.push_relation(
-                            ctx.owner,
-                            RelationKind::Calls,
-                            text(name_node, self.source).to_string(),
-                            location(name_node),
-                        );
-                        // D9: only the standard library declares in `std`.
-                        if self.relations.len() > relation
-                            && !self.opens_std
-                            && is_std_qualified(function, self.source)
-                        {
-                            self.relation_targets.push(RelationTarget {
-                                relation,
-                                external: true,
-                                ..Default::default()
-                            });
-                        }
+                        self.push_call(ctx.owner, name_node, function);
                     }
                     self.visit(function, ctx, depth + 1);
                 }
@@ -494,7 +477,41 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, ctx, depth + 1);
                 }
             }
+            // `new T(...)` runs a constructor of `T` exactly as `T(...)` does
+            // ([expr.new]), so it is the same `calls T`. A built-in type
+            // (`new int[4]`) names no constructor.
+            "new_expression" => {
+                if let Some(written) = node.child_by_field_name("type") {
+                    if let Some(name_node) = constructed_type_name(written) {
+                        self.push_call(ctx.owner, name_node, written);
+                    }
+                }
+                self.visit_children(node, ctx, depth + 1);
+            }
             _ => self.visit_children(node, ctx, depth + 1),
+        }
+    }
+
+    /// A `calls` relation from `owner` to `name_node`, the callee or the
+    /// constructed type as `written` in the source. D9: only the standard
+    /// library declares in `std`, so a `std::`-qualified name is external.
+    fn push_call(&mut self, owner: SymbolId, name_node: Node<'a>, written: Node<'a>) {
+        let relation = self.relations.len();
+        self.push_relation(
+            owner,
+            RelationKind::Calls,
+            text(name_node, self.source).to_string(),
+            location(name_node),
+        );
+        if self.relations.len() > relation
+            && !self.opens_std
+            && is_std_qualified(written, self.source)
+        {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                external: true,
+                ..Default::default()
+            });
         }
     }
 
@@ -776,6 +793,19 @@ fn callee_identifier(function: Node) -> Option<Node> {
             .child_by_field_name("name")
             .map(qualified_tail)
             .and_then(template_name),
+        _ => None,
+    }
+}
+
+/// The class name a `new` expression constructs: `Widget`, the tail of
+/// `shop::Cart`, or `Box` for `Box<int>`. `None` for a built-in type.
+fn constructed_type_name(written: Node) -> Option<Node> {
+    let tail = qualified_tail(written);
+    match tail.kind() {
+        "type_identifier" => Some(tail),
+        "template_type" => tail
+            .child_by_field_name("name")
+            .filter(|name| name.kind() == "type_identifier"),
         _ => None,
     }
 }

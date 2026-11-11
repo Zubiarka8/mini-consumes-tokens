@@ -119,3 +119,53 @@ fn syntax_error_is_reported_not_panicked() {
         "class Broken {\n  void go( {\n",
     );
 }
+
+/// `(to_name, line)` of every `calls` relation in `parsed`, in source order.
+fn calls(parsed: &mct_core::ParsedFile) -> Vec<(&str, u32)> {
+    parsed
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Calls)
+        .map(|r| (r.to_name.as_str(), r.location.line))
+        .collect()
+}
+
+#[test]
+fn a_new_expression_calls_the_constructed_type() {
+    // `new T(...)` runs a constructor of `T` exactly as `T(...)` does
+    // ([expr.new]), so both give `calls T`; the template and namespace
+    // qualifiers are not part of the name. A built-in type has no
+    // constructor to call.
+    let parsed = parse(
+        "src/make.cpp",
+        "namespace shop { class Cart {}; }\ntemplate <class T> class Box {};\nclass Widget {};\nvoid make() {\n  Widget a = Widget();\n  Widget* b = new Widget(1);\n  Widget* c = new Widget;\n  auto* d = new shop::Cart{};\n  auto* e = new Box<int>(make_size());\n  int* f = new int[4];\n}\n",
+    );
+    assert_eq!(
+        calls(&parsed),
+        [
+            ("Widget", 5),
+            ("Widget", 6),
+            ("Widget", 7),
+            ("Cart", 8),
+            ("Box", 9),
+            ("make_size", 9),
+        ]
+    );
+}
+
+#[test]
+fn a_new_expression_of_a_std_type_is_external() {
+    let parsed = parse(
+        "src/make.cpp",
+        "void make() { auto* s = new std::string(\"x\"); }\n",
+    );
+    let index = parsed
+        .relations
+        .iter()
+        .position(|r| r.kind == RelationKind::Calls && r.to_name == "string")
+        .unwrap();
+    assert!(parsed
+        .relation_targets
+        .iter()
+        .any(|t| t.relation == index && t.external));
+}
