@@ -8,6 +8,7 @@ use mct_tree_sitter::location;
 use std::collections::HashSet;
 use tree_sitter::Node;
 
+mod details;
 mod exports;
 mod globals;
 mod imports;
@@ -49,6 +50,8 @@ pub(super) struct Walker<'a> {
     /// The class `this` is, an index into `classes`; `None` inside a
     /// non-arrow function, which binds its own `this`.
     this_class: Option<usize>,
+    /// Declaration details of the symbols recorded so far (ADR-034).
+    details: Vec<mct_core::SymbolDetail>,
 }
 
 impl<'a> Walker<'a> {
@@ -67,6 +70,7 @@ impl<'a> Walker<'a> {
             local_types: receivers::Types::new(),
             classes: Vec::new(),
             this_class: None,
+            details: Vec::new(),
         }
     }
 
@@ -298,6 +302,8 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
+                self.details
+                    .push(details::function_detail(node, node, id, self.source));
                 self.visit_function_like_body(node, id, depth);
             }
             "class_declaration" | "abstract_class_declaration" => {
@@ -311,6 +317,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
                     if child.kind() == "class_heritage" {
@@ -337,6 +345,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
                     if child.kind() == "extends_type_clause" {
@@ -368,6 +378,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
                 self.visit_part(node, "value", id, depth);
             }
             "enum_declaration" => {
@@ -375,12 +387,14 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                self.push_symbol(
+                let id = self.push_symbol(
                     name,
                     SymbolKind::Enum,
                     location(node),
                     type_name.map(str::to_string),
                 );
+                self.details
+                    .push(details::type_detail(node, id, self.source));
             }
             // `namespace Legacy { … }`: a symbol of its own, but its members
             // stay top-level (owner and parent unchanged).
@@ -405,6 +419,8 @@ impl<'a> Walker<'a> {
                 };
                 let id =
                     self.push_symbol(name, kind, location(node), type_name.map(str::to_string));
+                self.details
+                    .push(details::function_detail(node, node, id, self.source));
                 self.visit_function_like_body(node, id, depth);
             }
             // JS's `field_definition` vs TS's `public_field_definition` —
@@ -430,15 +446,19 @@ impl<'a> Walker<'a> {
                             location(node),
                             type_name.map(str::to_string),
                         );
+                        self.details
+                            .push(details::function_detail(node, value, id, self.source));
                         self.visit_function_like_body(value, id, depth);
                     }
                     _ => {
-                        self.push_symbol(
+                        let id = self.push_symbol(
                             name,
                             SymbolKind::Field,
                             location(node),
                             type_name.map(str::to_string),
                         );
+                        self.details
+                            .push(details::field_detail(node, id, self.source));
                     }
                 }
             }
@@ -466,6 +486,8 @@ impl<'a> Walker<'a> {
                         location(node),
                         type_name.map(str::to_string),
                     );
+                    self.details
+                        .push(details::function_detail(node, value, id, self.source));
                     self.visit_function_like_body(value, id, depth);
                     return;
                 }
@@ -727,6 +749,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
