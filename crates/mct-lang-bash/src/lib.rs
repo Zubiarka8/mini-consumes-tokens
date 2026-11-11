@@ -27,10 +27,12 @@
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
-    SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
+
+mod details;
 
 pub struct BashParser;
 
@@ -163,6 +165,7 @@ struct Walker<'a> {
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
+    details: Vec<SymbolDetail>,
     /// This file's repository-relative path, the base of relative sources.
     path: &'a str,
     next_id: SymbolId,
@@ -251,6 +254,8 @@ impl<'a> Walker<'a> {
                     location(node),
                     Some(scope_name.to_string()),
                 );
+                self.details
+                    .push(details::function_detail(node, id, self.source));
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, &name, module_id, depth + 1);
                 }
@@ -263,12 +268,14 @@ impl<'a> Walker<'a> {
                 if owner == module_id {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let name = text(name_node, self.source).to_string();
-                        self.push_symbol(
+                        let id = self.push_symbol(
                             name,
                             SymbolKind::Variable,
                             location(node),
                             Some(scope_name.to_string()),
                         );
+                        self.details
+                            .push(details::variable_detail(node, id, self.source));
                     }
                 }
                 if let Some(value) = node.child_by_field_name("value") {
@@ -328,6 +335,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            symbol_details: self.details,
             ..Default::default()
         }
     }
