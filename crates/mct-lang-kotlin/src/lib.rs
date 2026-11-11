@@ -474,6 +474,30 @@ impl<'a> Walker<'a> {
         mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
+    /// A supertype relation to the type named by `type_id`, restricted to
+    /// symbols of `target_kind` when the syntax fixes it.
+    fn push_supertype(
+        &mut self,
+        from: SymbolId,
+        relation: RelationKind,
+        target_kind: Option<SymbolKind>,
+        type_id: Node,
+    ) {
+        if target_kind.is_some() {
+            self.relation_targets.push(RelationTarget {
+                relation: self.relations.len(),
+                kind: target_kind,
+                ..Default::default()
+            });
+        }
+        self.push_relation(
+            from,
+            relation,
+            text(type_id, self.source).to_string(),
+            location(type_id),
+        );
+    }
+
     fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
@@ -518,28 +542,35 @@ impl<'a> Walker<'a> {
                         }
                         if let Some(target) = spec.named_child(0) {
                             match target.kind() {
-                                // `Shape(4)` — a constructor call, so `Shape` is the superclass.
+                                // `Shape(4)` — a constructor call, so `Shape` is the
+                                // superclass: a class, never a function `Shape`.
                                 "constructor_invocation" => {
-                                    if let Some(user_type) = target.named_child(0) {
-                                        if let Some(type_id) = user_type.named_child(0) {
-                                            self.push_relation(
-                                                id,
-                                                RelationKind::Extends,
-                                                text(type_id, self.source).to_string(),
-                                                location(type_id),
-                                            );
-                                        }
+                                    if let Some(type_id) =
+                                        target.named_child(0).and_then(|t| t.named_child(0))
+                                    {
+                                        self.push_supertype(
+                                            id,
+                                            RelationKind::Extends,
+                                            Some(SymbolKind::Class),
+                                            type_id,
+                                        );
                                     }
                                 }
-                                // A bare type name, no call — an interface.
+                                // A bare type name, no call. An interface's
+                                // supertypes are interfaces it extends; a
+                                // class's is usually one it implements, but
+                                // can be its superclass when only secondary
+                                // constructors call `super(…)`, so its kind
+                                // stays open.
                                 "user_type" => {
                                     if let Some(type_id) = target.named_child(0) {
-                                        self.push_relation(
-                                            id,
-                                            RelationKind::Implements,
-                                            text(type_id, self.source).to_string(),
-                                            location(type_id),
-                                        );
+                                        let (relation, target_kind) =
+                                            if kind == SymbolKind::Interface {
+                                                (RelationKind::Extends, Some(SymbolKind::Interface))
+                                            } else {
+                                                (RelationKind::Implements, None)
+                                            };
+                                        self.push_supertype(id, relation, target_kind, type_id);
                                     }
                                 }
                                 _ => {}
