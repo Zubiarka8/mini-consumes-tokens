@@ -91,7 +91,17 @@ From `rules.md` and the two messages:
         of `object : InventoryListener { … }` inside `InventoryListener`, and
         an enum entry's body). Dead code unchanged. `override val` properties
         get no relation yet.
-  - [ ] C# `override`, C++ `override`, TS `override`, Python `@override`.
+  - [x] C# `override` methods: the one candidate is the base list's first
+        entry, since only a base class's `virtual`/`abstract` method can be
+        overridden. A class with no base list has the root `object` (a
+        struct `ValueType`) for `Equals`, `GetHashCode` and `ToString`; a
+        first entry named like an interface (`IShape`) keeps both it and
+        `object`. On this repository: 20 relations from 17 methods, 9
+        resolved (each to the base class declaring the method), 7 external,
+        4 unresolved (`Exception` and other framework bases), 0 ambiguous.
+        Dead code unchanged. `override` properties get no relation yet.
+  - [ ] C++ `override`, TS `override`, Python `@override`; Kotlin
+        `override val` and C# `override` properties.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.
