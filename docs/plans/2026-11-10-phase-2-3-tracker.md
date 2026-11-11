@@ -233,6 +233,17 @@ From `rules.md` and the two messages:
         repository: 28 more calls become external, none had a target.
         JDK supertypes (`implements Comparator<T>`) are not marked yet,
         which leaves their `Overrides` to name resolution.
+  - [x] PHP: a call that can only reach a global core function
+        (`\strlen()`, or a bare `strlen()` in a file with no namespace and
+        no `use function` of it) is external, since a global core function
+        can't be declared again. The list has only PHP 7.0 `Core`,
+        `standard`, `date`, `pcre`, `spl` and `json` functions and the
+        call-like keywords (`isset`, `empty`). Not proven: a bare call in a
+        namespace, and a name the file declares itself (a polyfill). This
+        repository: 2 calls become external, almost all of its PHP is
+        namespaced. The one with a target was wrong (`count()` in
+        `omni-app/web/api.php`, ambiguous between two `count` methods).
+        Dead code unchanged. Test: `mct-lang-php/tests/builtins.rs`.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
@@ -349,8 +360,13 @@ From `rules.md` and the two messages:
   - [x] Rust: an imported crate's item is never resolved to a same-named
         fixture item (`crates/mct-eval` `#[derive(Serialize)]` →
         `mct-lang-rust/tests/fixtures/depgraph/src/other.rs`); see D6.
-  - [ ] Production relations whose only candidate is in a fixture, in the
-        other languages (JS/TS `matchMedia` → `tests/dashboard/harness.mjs`).
+  - [!] Production relations whose only candidate is in a fixture, in the
+        other languages. Most are a function local to another function
+        (JS/TS `matchMedia` → a `const` inside `tests/dashboard/harness.mjs`'s
+        setup, `vi` → a nested function of the minified `notes-dist/notes.js`):
+        155 such resolutions on this repository (154 JS/TS, 1 Python). The
+        fix is a predicate in the `relation_candidates` view (a migration):
+        #376. Waiting for the maintainer.
 - [x] Path filter with a trailing slash. A scope path is normalized once in
       `mct-index` (`queries::scope_path`): `src/`, `./src`, `./src/` and
       `src//` are `src`, and `.`/`./` is the whole project. Before, any of
