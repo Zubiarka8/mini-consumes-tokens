@@ -323,6 +323,24 @@ fn has_override_modifier(declaration: Node, source: &str) -> bool {
     found
 }
 
+/// The last identifier of the type an `annotation` names, past a use-site
+/// target (`field:`) and through a constructor call (`Inject(order = 1)`).
+fn annotation_class_name(annotation: Node) -> Option<Node> {
+    let mut cursor = annotation.walk();
+    let named: Vec<Node> = annotation.named_children(&mut cursor).collect();
+    let user_type = named.into_iter().find_map(|part| match part.kind() {
+        "user_type" => Some(part),
+        "constructor_invocation" => part.named_child(0).filter(|t| t.kind() == "user_type"),
+        _ => None,
+    })?;
+    let mut cursor = user_type.walk();
+    let last = user_type
+        .named_children(&mut cursor)
+        .filter(|part| part.kind() == "identifier")
+        .last();
+    last
+}
+
 fn is_interface(class_declaration: Node) -> bool {
     let mut cursor = class_declaration.walk();
     let children: Vec<Node> = class_declaration.children(&mut cursor).collect();
@@ -474,9 +492,34 @@ impl<'a> Walker<'a> {
         mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
-    /// A supertype relation to the type named by `type_id`, restricted to
-    /// symbols of `target_kind` when the syntax fixes it.
-    fn push_supertype(
+    /// A `references` relation from `from` to the annotation class each
+    /// annotation on `declaration` names: `Audited` for `@Audited`,
+    /// `@shop.meta.Audited` or `@field:Audited(…)`. An annotation is a
+    /// class, so a same-named function is never the target.
+    fn push_annotations(&mut self, declaration: Node, from: SymbolId) {
+        let Some(modifiers) = find_child(declaration, "modifiers") else {
+            return;
+        };
+        let mut cursor = modifiers.walk();
+        let names: Vec<Node> = modifiers
+            .named_children(&mut cursor)
+            .filter(|m| m.kind() == "annotation")
+            .filter_map(annotation_class_name)
+            .collect();
+        for name in names {
+            self.push_type_relation(
+                from,
+                RelationKind::References,
+                Some(SymbolKind::Class),
+                name,
+            );
+        }
+    }
+
+    /// `relation` to the type named by `type_id` (a supertype or an
+    /// annotation class), restricted to symbols of `target_kind` when the
+    /// syntax fixes it.
+    fn push_type_relation(
         &mut self,
         from: SymbolId,
         relation: RelationKind,
@@ -533,6 +576,7 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::type_detail(node, id, self.source));
+                self.push_annotations(node, id);
 
                 if let Some(delegations) = find_child(node, "delegation_specifiers") {
                     let mut cursor = delegations.walk();
@@ -548,7 +592,7 @@ impl<'a> Walker<'a> {
                                     if let Some(type_id) =
                                         target.named_child(0).and_then(|t| t.named_child(0))
                                     {
-                                        self.push_supertype(
+                                        self.push_type_relation(
                                             id,
                                             RelationKind::Extends,
                                             Some(SymbolKind::Class),
@@ -570,7 +614,7 @@ impl<'a> Walker<'a> {
                                             } else {
                                                 (RelationKind::Implements, None)
                                             };
-                                        self.push_supertype(id, relation, target_kind, type_id);
+                                        self.push_type_relation(id, relation, target_kind, type_id);
                                     }
                                 }
                                 _ => {}
@@ -640,6 +684,7 @@ impl<'a> Walker<'a> {
                         );
                         self.details
                             .push(details::property_detail(node, id, self.source));
+                        self.push_annotations(node, id);
                         self.push_property_overrides(id, node, name_node);
                     }
                 }
@@ -664,6 +709,7 @@ impl<'a> Walker<'a> {
                 let id = self.push_symbol(name, kind, location(node), parent);
                 self.details
                     .push(details::function_detail(node, id, self.source));
+                self.push_annotations(node, id);
                 if has_override_modifier(node, self.source) {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let supertypes = self.supertypes.last().cloned().unwrap_or_default();
@@ -712,6 +758,7 @@ impl<'a> Walker<'a> {
                             );
                             self.details
                                 .push(details::property_detail(node, id, self.source));
+                            self.push_annotations(node, id);
                             self.push_property_overrides(id, node, name_node);
                         }
                     }
