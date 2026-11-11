@@ -1,5 +1,10 @@
 /* Editorial look: graphite, serif display, live code map. */
 
+.mobile-menu-toggle,
+.header-control-chevron {
+  display: none;
+}
+
 /* ---------- Editorial: graphite, serif display, live map ---------- */
 .landing.v-editorial {
   /* Light (default). Dark tokens follow under .dark. */
@@ -519,5 +524,116 @@
   }
   .v-editorial .feature-grid {
     background-size: 100% 1px;
+  }
+}
+
+/* A single navigation stays usable on desktop and without JavaScript. */
+@media (max-width: 1100px) {
+  .landing.v-editorial .landing-header {
+    min-height: 88px;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-block: 16px;
+    background: var(--bg);
+    max-height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .landing.v-editorial .brand {
+    gap: 8px;
+    min-width: 0;
+    font-size: 14px;
+  }
+  .landing.v-editorial .brand img {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+  .landing-header[data-menu-ready] .mobile-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    margin-inline-start: auto;
+    border: 1px solid var(--rule-strong);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .landing.v-editorial
+    .landing-header[data-menu-ready]:not([data-menu-open])
+    nav,
+  .landing.v-editorial
+    .landing-header[data-menu-ready]:not([data-menu-open])
+    .header-actions {
+    display: none;
+  }
+  .landing.v-editorial .landing-header nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-basis: 100%;
+    gap: 2px 12px;
+    order: 3;
+    border-top: 1px solid var(--rule);
+    padding-top: 12px;
+    font-size: 16px;
+  }
+  .landing.v-editorial .landing-header nav a {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 8px 12px;
+    border-radius: 12px;
+  }
+  .landing.v-editorial .landing-header nav a:hover,
+  .landing.v-editorial .mobile-menu-toggle:hover {
+    background: var(--surface);
+    color: var(--lime);
+  }
+  .landing.v-editorial .header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    flex-basis: 100%;
+    order: 4;
+  }
+  .landing.v-editorial .header-actions select {
+    appearance: none;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    min-height: 48px;
+    height: 48px;
+    padding: 8px 36px 8px 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 14px;
+  }
+  .landing.v-editorial .header-actions label {
+    position: relative;
+  }
+  .landing.v-editorial .header-control-chevron {
+    display: block;
+    position: absolute;
+    inset-inline-end: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  .landing.v-editorial .header-actions .header-docs {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    min-height: 48px;
+    padding: 8px 12px 8px 20px;
+    font-size: 14px;
+  }
+  .landing.v-editorial .mobile-menu-toggle:focus-visible,
+  .landing.v-editorial .landing-header :focus-visible {
+    outline-color: var(--lime);
   }
 }
