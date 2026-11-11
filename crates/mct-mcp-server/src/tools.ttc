@@ -40,8 +40,8 @@ WHEN locate a symbol's definition; exact/prefix/fuzzy match, any language.
 ERR not for callers/references — use find_callers/find_references.
 TAGS lookup, definition, location, exact, prefix, fuzzy
 PRE `name` non-blank.
-POST matching definitions with path:line, or a no-match note. TOON by default; `format`:`text` for plain text.
-EFFECTS read; index only.
+POST matching definitions with path:line and declaration header when stored, or a no-match note. TOON by default; `format`:`text` for plain text.
+EFFECTS read; index, and each shown file to check its header is current.
 
 TOOL search_symbols_like
 WHEN unsure of a name: words/partial ident in any case style, BM25-ranked, exact first.
