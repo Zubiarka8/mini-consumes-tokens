@@ -513,6 +513,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `#include "x.h"`, `<vector>` | `preproc_include` | `imports` (path and stem) |
 | base classes | `base_class_clause` | `extends` |
 | `f()`, `a.m()`, `p->m()`, `ns::f()`, `T()` | `call_expression`, `field_expression`, `qualified_identifier` | `calls`; `new T()` is not handled |
+| `std::f()`, `::std::f()`, `std::f<T>()`, `std::chrono::f()` | `call_expression`, `qualified_identifier`, `template_function` | `calls` named `f` (template arguments dropped), external: a program may not add declarations to namespace `std` ([namespace.std]). Not proven in a file that opens `namespace std` itself (a `std::hash` specialization), nor for a bare `f()` after `using namespace std;` |
 
 #### Why the gaps exist
 
