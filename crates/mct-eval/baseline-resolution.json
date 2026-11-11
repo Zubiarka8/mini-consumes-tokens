@@ -28,8 +28,8 @@
       "wrong": 0
     },
     "rust: a function and a method with the same name": {
-      "score": 0.0,
-      "tokens": 308,
+      "score": 0.25,
+      "tokens": 304,
       "wrong": 0
     },
     "rust: explicit and glob imports": {
