@@ -44,6 +44,8 @@ impl Walker<'_> {
                 .map(|n| text(n, self.source).to_string())
                 .unwrap_or_default();
             let id = self.push_symbol(name, SymbolKind::Method, location(member), module.clone());
+            self.details
+                .push(crate::details::function_detail(member, id, self.source));
             for field in ["parameters", "return_type", "body"] {
                 if let Some(part) = member.child_by_field_name(field) {
                     self.visit_children(part, id, None, depth + 1);
