@@ -30,12 +30,51 @@ checked by running the code, never read off the index:
 - **Java:** compiled against a stub `vendor.Base` with `protected int
   total()`, which is not in the fixture. `new Report().print()` returns the
   stub's value, never `Ledger.total`.
+- **Overrides (D8):** each `override` has one candidate supertype, and a
+  same-named method in an unrelated class (`Board`) that must not be linked.
+  - Java, compiled and checked by reflection: `Circle implements Shape`,
+    `Shape` declares `area()`, `Board` is not a supertype of `Circle`, and
+    `Board`'s only supertype is `Object`, so `Board.toString` overrides
+    `Object`'s.
+  - Python 3.12+: `Square.__mro__[1] is Shape`, `Board` is not in it,
+    `Shape` defines `area`, and `Square.area.__override__` is set.
+  - TypeScript, run with Node's type stripping: `Square.prototype`'s
+    prototype is `Base.prototype`, which owns `area`; `Board.prototype` is
+    not in the chain.
 - **Lua:** run with a stub host global `speed`. `hud.draw()` returns the
   host's value, never `physics.lua`'s local.
 
 The fixture is checked in as one `.txt` bundle, which no parser indexes, and
 unpacked into a temporary directory per eval run, so its clashing names never
 become candidates outside the eval.
+==> java/src/shapes/Board.java <==
+package shapes;
+
+public class Board {
+    public double area() {
+        return 9.0;
+    }
+
+    @Override
+    public String toString() {
+        return "board";
+    }
+}
+==> java/src/shapes/Circle.java <==
+package shapes;
+
+public class Circle implements Shape {
+    @Override
+    public double area() {
+        return 3.0;
+    }
+}
+==> java/src/shapes/Shape.java <==
+package shapes;
+
+public interface Shape {
+    double area();
+}
 ==> java/src/shop/Ledger.java <==
 package shop;
 
@@ -98,6 +137,24 @@ def render_short(rows):
         return row[:3]
 
     return [fmt(r) for r in rows]
+==> py/app/shapes.py <==
+from typing import override
+
+
+class Shape:
+    def area(self) -> float:
+        return 0.0
+
+
+class Square(Shape):
+    @override
+    def area(self) -> float:
+        return 4.0
+
+
+class Board:
+    def area(self) -> float:
+        return 9.0
 ==> py/app/util.py <==
 def parse(text):
     return text.split(",")
@@ -231,6 +288,24 @@ export class Invoice {
   format(): string {
     return `#${this.total}`;
   }
+}
+==> ts/src/shapes.ts <==
+export class Base {
+    area(): number {
+        return 0;
+    }
+}
+
+export class Square extends Base {
+    override area(): number {
+        return 4;
+    }
+}
+
+export class Board {
+    area(): number {
+        return 9;
+    }
 }
 ==> ts/tests/fixtures/money.ts <==
 export class Money {
