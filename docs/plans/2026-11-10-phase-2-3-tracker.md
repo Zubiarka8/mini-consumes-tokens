@@ -107,8 +107,18 @@ From `rules.md` and the two messages:
         repository has no TypeScript `override`; the corpus gains one
         symbol (`Observable.get`). Dead code and index size unchanged. A
         class expression's methods get no relation.
-  - [ ] C++ `override`, Python `@override`; Kotlin `override val`, C#
-        `override` properties and TypeScript `override` fields.
+  - [x] Python `@override` (PEP 698): one candidate per positional base
+        written as a name (`Base[int]` is `Base`), else the root `object`,
+        external, only for the methods `object` defines. The decorator
+        counts only when every binding of a bare `override` is an import
+        from `typing` or `typing_extensions` (the `try`/`except ImportError`
+        pair included), or through a module alias of one of them; a
+        user-defined `override` gives nothing. A base the syntax can't name
+        (`make_base()`) gets no relation and rules out the root. This
+        repository and the corpus have no Python `override`: corpus, dead
+        code and index size unchanged.
+  - [ ] C++ `override`; Kotlin `override val`, C# `override` properties and
+        TypeScript `override` fields.
 - [ ] **D9, external and stdlib symbols.** Rust prelude (#318) and Python/JS
       builtins (#319) are done. Host and stdlib globals for the other
       languages are not.
