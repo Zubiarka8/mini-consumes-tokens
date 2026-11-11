@@ -340,7 +340,17 @@ From `rules.md` and the two messages:
       `get_project_overview` and `find_dead_code`; `find_duplicate_code`
       only trimmed the trailing slash.
 - [ ] Inline module resolution.
-- [ ] Reading long functions through the context tools.
+- [~] Reading long functions through the context tools.
+  - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
+        its footer said "raise `source_lines`" even at that cap. For a body
+        past the cap the footer now names the hidden range (`… 60 more
+        line(s), L201-L260: … read them from the file`), and while
+        `source_lines` is below 200 it says how far raising it can go. On
+        this repository, `mct-lang-rust` `visit_node` (L291-L827) ends with
+        `L491-L827`. Test: `context_pack.rs`
+        `a_body_longer_than_the_source_lines_cap_names_the_lines_to_read`.
+  - [ ] Paging past the cap through the tool itself (`source_offset`):
+        an MCP signature change, so issue #371 first.
 - [ ] False positives in impact analysis and dead code (D7 #331 covers part
       of this).
 - [ ] Consistent CLI and MCP output.
