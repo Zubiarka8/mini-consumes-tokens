@@ -11,6 +11,7 @@ use tree_sitter::Node;
 mod exports;
 mod globals;
 mod imports;
+mod receivers;
 
 use globals::FileGlobals;
 use imports::{require_argument, string_value};
@@ -41,6 +42,13 @@ pub(super) struct Walker<'a> {
     generics: HashSet<String>,
     /// The ECMAScript globals this file never binds.
     globals: FileGlobals,
+    /// Declared types of the enclosing functions' locals (see `receivers`).
+    local_types: receivers::Types,
+    /// What each enclosing class body declares, innermost last.
+    classes: Vec<receivers::ClassScope>,
+    /// The class `this` is, an index into `classes`; `None` inside a
+    /// non-arrow function, which binds its own `this`.
+    this_class: Option<usize>,
 }
 
 impl<'a> Walker<'a> {
@@ -56,6 +64,9 @@ impl<'a> Walker<'a> {
             bound: HashSet::new(),
             generics: HashSet::new(),
             globals: FileGlobals::default(),
+            local_types: receivers::Types::new(),
+            classes: Vec::new(),
+            this_class: None,
         }
     }
 
@@ -94,6 +105,57 @@ impl<'a> Walker<'a> {
         self.relation_targets.push(RelationTarget {
             relation: self.relations.len(),
             ..target
+        });
+    }
+
+    /// Evidence for `object.method(…)` about to be pushed: the receiver's
+    /// declared type, or a member call when the receiver is a local or an
+    /// expression of unproven type. `this.m()` is qualified by the enclosing
+    /// class only when its body declares `m` (otherwise `m` may be
+    /// inherited), and a name that is no local is left as it was.
+    fn push_receiver(&mut self, object: Node, method: &str) {
+        let this_class = self.this_class.and_then(|i| self.classes.get(i));
+        let (qualifier, member) = match object.kind() {
+            "this" => match this_class {
+                Some(class) if class.methods.contains(method) => (Some(class.name.clone()), false),
+                _ => return,
+            },
+            "super" => return,
+            "identifier" => {
+                let name = text(object, self.source);
+                match self.local_types.get(name) {
+                    Some(Some(ty)) => (Some(ty.clone()), false),
+                    Some(None) => (None, true),
+                    None if self.bound.contains(name) => (None, true),
+                    None => return,
+                }
+            }
+            "member_expression" => {
+                let on_this = object
+                    .child_by_field_name("object")
+                    .is_some_and(|o| o.kind() == "this");
+                let field = object
+                    .child_by_field_name("property")
+                    .map(|p| text(p, self.source));
+                match (on_this, field, this_class) {
+                    (true, Some(field), Some(class)) => match class.fields.get(field) {
+                        Some(Some(ty)) => (Some(ty.clone()), false),
+                        _ => (None, true),
+                    },
+                    _ => (None, true),
+                }
+            }
+            "new_expression" => match receivers::constructed(object, self.source) {
+                Some(ty) => (Some(ty), false),
+                None => (None, true),
+            },
+            _ => (None, true),
+        };
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            qualifier,
+            member,
+            ..Default::default()
         });
     }
 
@@ -158,6 +220,23 @@ impl<'a> Walker<'a> {
             }
         }
         let outer = std::mem::replace(&mut self.bound, locals);
+        let mut types = self.local_types.clone();
+        for field in ["parameters", "parameter", "body"] {
+            if let Some(part) = function_node.child_by_field_name(field) {
+                receivers::locals(part, self.source, &self.generics, &mut types, depth + 1);
+            }
+        }
+        let outer_types = std::mem::replace(&mut self.local_types, types);
+        let outer_this = self.this_class;
+        if matches!(
+            function_node.kind(),
+            "function_declaration"
+                | "function_expression"
+                | "generator_function"
+                | "generator_function_declaration"
+        ) {
+            self.this_class = None;
+        }
         if let Some(params) = function_node.child_by_field_name("parameters") {
             self.visit_children(params, owner, None, depth + 1);
         }
@@ -169,6 +248,8 @@ impl<'a> Walker<'a> {
             self.visit(body, owner, None, depth + 1);
         }
         self.bound = outer;
+        self.local_types = outer_types;
+        self.this_class = outer_this;
     }
 
     /// `depth` bounds native stack usage against adversarially deep/nested
@@ -237,7 +318,12 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
+                    let scope = receivers::class_scope(&name, body, self.source, &self.generics);
+                    self.classes.push(scope);
+                    let outer_this = self.this_class.replace(self.classes.len() - 1);
                     self.visit_children(body, owner, Some(&name), depth + 1);
+                    self.this_class = outer_this;
+                    self.classes.pop();
                 }
             }
             "interface_declaration" => {
@@ -440,7 +526,11 @@ impl<'a> Walker<'a> {
                                 // which would make two same-named chained
                                 // calls collide into one indistinguishable row.
                                 if let Some(object) = function.child_by_field_name("object") {
+                                    let evidence = self.relation_targets.len();
                                     self.mark_global(object, true);
+                                    if self.relation_targets.len() == evidence {
+                                        self.push_receiver(object, text(property, self.source));
+                                    }
                                 }
                                 self.push_relation(
                                     owner,

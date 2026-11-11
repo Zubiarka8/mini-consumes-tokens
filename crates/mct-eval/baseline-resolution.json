@@ -38,8 +38,8 @@
       "wrong": 0
     },
     "typescript: builtins, imports, fixtures and same-named methods": {
-      "score": 0.6666666666666666,
-      "tokens": 393,
+      "score": 1.0,
+      "tokens": 379,
       "wrong": 0
     }
   }
