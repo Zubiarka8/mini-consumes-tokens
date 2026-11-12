@@ -1,13 +1,16 @@
 //! D9 for PHP: functions a call can only reach in PHP itself.
 //!
-//! A global function of PHP's core can't be declared again: `function
-//! strlen() {}` in the global namespace is a fatal "Cannot redeclare" error.
+//! An enabled global function of PHP's core can't be declared again:
+//! `function strlen() {}` in the global namespace is a fatal "Cannot redeclare"
+//! error when `strlen` is enabled.
 //! So a call that resolves to the global function of one of these names
 //! (`\strlen()`, or a bare `strlen()` in a file with no namespace) is
 //! external. The list holds only functions every PHP 7.0 build has (the
-//! `Core`, `standard`, `date`, `pcre`, `spl` and `json` extensions), so a
+//! `Core`, `standard`, `date`, `pcre` and `spl` extensions), so a
 //! polyfill for a newer function (`str_contains`, `array_key_first`) or for an
-//! optional extension (`mb_*`, `ctype_*`, `iconv`) is never mistaken for one.
+//! optional extension (`filter`, `hash`, `json`, `mb_*`, `ctype_*`, `iconv`)
+//! is never mistaken for one. PHP 8's `disable_functions` can remove even
+//! core functions; this heuristic assumes those functions are enabled.
 //! The keywords that read like calls (`isset(…)`, `empty(…)`) are here too:
 //! they are reserved, so no function has their name.
 
@@ -121,7 +124,6 @@ const CORE_FUNCTIONS: &[&str] = &[
     "file_put_contents",
     "filemtime",
     "filesize",
-    "filter_var",
     "floatval",
     "flock",
     "floor",
@@ -147,9 +149,6 @@ const CORE_FUNCTIONS: &[&str] = &[
     "gettype",
     "glob",
     "gmdate",
-    "hash",
-    "hash_equals",
-    "hash_hmac",
     "header",
     "hex2bin",
     "hexdec",
@@ -184,10 +183,6 @@ const CORE_FUNCTIONS: &[&str] = &[
     "isset",
     "iterator_to_array",
     "join",
-    "json_decode",
-    "json_encode",
-    "json_last_error",
-    "json_last_error_msg",
     "key",
     "krsort",
     "ksort",
@@ -352,5 +347,21 @@ mod tests {
         assert!(is_core_function("StrLen"));
         assert!(!is_core_function("str_contains"));
         assert!(!is_core_function("mb_strlen"));
+    }
+
+    #[test]
+    fn optional_extensions_are_not_core_evidence() {
+        for name in [
+            "filter_var",
+            "hash",
+            "hash_equals",
+            "hash_hmac",
+            "json_decode",
+            "json_encode",
+            "json_last_error",
+            "json_last_error_msg",
+        ] {
+            assert!(!is_core_function(name), "{name} can be absent");
+        }
     }
 }
