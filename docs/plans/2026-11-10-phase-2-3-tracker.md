@@ -93,6 +93,20 @@ From `rules.md` and the two messages:
       evidence for Python and JS/TS (#323). Aliases, globs, Rust inline
       modules and name collisions across the other languages are not
       checked yet.
+  - [x] Rust: a bare name a `use` of another crate brings in gets the crate
+        as module evidence, in calls, type references, derive and
+        attribute arguments, path qualifiers and trait names. It carries
+        none for a `crate::`/`self::`/`super::` path, an alias, a declared
+        or locally bound name, a path from a module of the file, or a file
+        that may import its own package (tests, examples, benches,
+        binaries, build scripts). On this repository, Rust relations went
+        441 ambiguous → resolved, 144 ambiguous → unresolved, and
+        90 resolved → unresolved. Every one of the 90 was wrong:
+        `rusqlite::Connection` → `web/http.rs`, `serde::Serialize` → a
+        `depgraph` fixture, `tree_sitter::Tree` → `Action.Tree`. One
+        `reindex` call in a test went resolved → ambiguous. Dead code is
+        unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
+        A package whose directory has another name loses the edge: #374.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
@@ -330,8 +344,13 @@ From `rules.md` and the two messages:
 
 ## Block 4: quality, fixtures and performance
 
-- [ ] Index pollution from `duplicate-app`, `omni-app`, `portfolio-3d-app`
+- [~] Index pollution from `duplicate-app`, `omni-app`, `portfolio-3d-app`
       and other fixture projects.
+  - [x] Rust: an imported crate's item is never resolved to a same-named
+        fixture item (`crates/mct-eval` `#[derive(Serialize)]` →
+        `mct-lang-rust/tests/fixtures/depgraph/src/other.rs`); see D6.
+  - [ ] Production relations whose only candidate is in a fixture, in the
+        other languages (JS/TS `matchMedia` → `tests/dashboard/harness.mjs`).
 - [x] Path filter with a trailing slash. A scope path is normalized once in
       `mct-index` (`queries::scope_path`): `src/`, `./src`, `./src/` and
       `src//` are `src`, and `.`/`./` is the whole project. Before, any of
