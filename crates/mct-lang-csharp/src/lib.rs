@@ -558,13 +558,77 @@ impl<'a> Walker<'a> {
         if let Some(params) = node.child_by_field_name("parameters") {
             self.visit_children(params, id, type_name, depth + 1);
         }
-        // A constructor's `: base(…)` / `: this(…)` initializer.
+        // A constructor's `: base(…)` / `: this(…)` initializer calls a
+        // constructor of the enclosing type or of its base class.
         if let Some(init) = find_child(node, "constructor_initializer") {
+            self.push_initializer_call(node, init, id, type_name);
             self.visit_children(init, id, type_name, depth + 1);
         }
         if let Some(body) = node.child_by_field_name("body") {
             self.visit_children(body, id, type_name, depth + 1);
         }
+    }
+
+    /// `: this(…)` → the enclosing type's constructor; `: base(…)` → a
+    /// constructor declared in the base list's first entry (C# requires the
+    /// base class first; an interface there has no constructor to match),
+    /// or `object`'s, external, with no base list.
+    fn push_initializer_call(
+        &mut self,
+        constructor: Node,
+        init: Node,
+        id: SymbolId,
+        type_name: Option<&str>,
+    ) {
+        let mut cursor = init.walk();
+        let keyword = init
+            .children(&mut cursor)
+            .find(|c| matches!(c.kind(), "this" | "base"))
+            .map(|c| c.kind());
+        let target = match keyword {
+            Some("this") => type_name.map(str::to_string),
+            Some("base") => {
+                let Some(declaration) = constructor.parent().and_then(|list| list.parent()) else {
+                    return;
+                };
+                match find_child(declaration, "base_list") {
+                    Some(list) => {
+                        let mut cursor = list.walk();
+                        let first = list.named_children(&mut cursor).next();
+                        let type_node = match first {
+                            Some(e) if e.kind() == "primary_constructor_base_type" => {
+                                e.child_by_field_name("type")
+                            }
+                            other => other,
+                        };
+                        type_node.and_then(|t| type_base_name(t, self.source))
+                    }
+                    None => {
+                        self.relation_targets.push(RelationTarget {
+                            relation: self.relations.len(),
+                            external: true,
+                            ..Default::default()
+                        });
+                        self.push_relation(
+                            id,
+                            RelationKind::Calls,
+                            "object".into(),
+                            location(init),
+                        );
+                        return;
+                    }
+                }
+            }
+            _ => None,
+        };
+        let Some(name) = target else { return };
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            qualifier: Some(name.clone()),
+            kind: Some(SymbolKind::Method),
+            ..Default::default()
+        });
+        self.push_relation(id, RelationKind::Calls, name, location(init));
     }
 
     fn visit_attributes(&mut self, node: Node, id: SymbolId, type_name: Option<&str>, depth: u32) {

@@ -387,6 +387,13 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] C# `: this(…)` and `: base(…)` give `calls`, restricted to a
+          constructor declared in the enclosing type or in the base list's
+          first entry (an interface there has none, so nothing matches);
+          `: base()` with no base list (`object`) is external. On the
+          snapshot: 18 new C# relations (12 resolved, 5 ambiguous between
+          overloaded constructors, `Exception` unresolved); dead code
+          unchanged at 122.
     - [x] Java `this(…)` and `super(…)` give `calls`, restricted to a
           constructor (a `method`) declared in the enclosing class or in
           the class `extends` names; `super()` with no `extends`

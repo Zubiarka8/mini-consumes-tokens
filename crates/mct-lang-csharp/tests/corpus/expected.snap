@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=454 relations=661 name_matched_across_files=156
+# language=csharp files=6 symbols=454 relations=679 name_matched_across_files=156
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -113,6 +113,7 @@ R 25:6 references Warehouse.Errors::Severity -> FlagsAttribute
 R 35:6 references Warehouse.Errors::ErrorCodeAttribute -> AttributeUsageAttribute
 R 36:46 extends Warehouse.Errors::ErrorCodeAttribute -> Attribute
 R 46:48 extends Warehouse.Errors::WarehouseException -> Exception
+R 51:13 calls WarehouseException::WarehouseException -> Exception
 R 70:29 calls WarehouseException::Describe -> List
 R 73:23 calls WarehouseException::Describe -> Add
 R 73:34 calls WarehouseException::Describe -> Format
@@ -121,19 +122,24 @@ R 78:32 overrides WarehouseException::ToString -> ToString
 R 78:46 calls WarehouseException::ToString -> Describe
 R 81:6 references Warehouse.Errors::NotFoundException -> ErrorCodeAttribute
 R 82:45 extends Warehouse.Errors::NotFoundException -> WarehouseException
+R 85:13 calls NotFoundException::NotFoundException -> WarehouseException
 R 95:35 overrides NotFoundException::Code -> Code
 R 98:6 references Warehouse.Errors::ValidationException -> ErrorCodeAttribute
 R 99:40 extends Warehouse.Errors::ValidationException -> WarehouseException
+R 104:13 calls ValidationException::ValidationException -> WarehouseException
 R 106:27 calls ValidationException::ValidationException -> List
+R 110:13 calls ValidationException::ValidationException -> ValidationException
 R 110:32 calls ValidationException::ValidationException -> FieldError
 R 116:35 overrides ValidationException::Code -> Code
 R 118:32 overrides ValidationException::Describe -> Describe
 R 120:29 calls ValidationException::Describe -> Describe
 R 121:69 calls ValidationException::Describe -> Join
 R 125:47 extends Warehouse.Errors::OutOfStockException -> ValidationException
+R 128:13 calls OutOfStockException::OutOfStockException -> ValidationException
 R 130:25 calls OutOfStockException::OutOfStockException -> Max
 R 135:35 overrides OutOfStockException::Code -> Code
 R 138:45 extends Warehouse.Errors::ConflictException -> WarehouseException
+R 141:13 calls ConflictException::ConflictException -> WarehouseException
 R 151:35 overrides ConflictException::Code -> Code
 R 157:32 overrides FieldError::ToString -> ToString
 R 182:33 calls Result::Map -> Ok
@@ -176,6 +182,7 @@ R 359:27 calls RateLimiter::Acquire -> QuotaExceededException
 R 366:60 calls RateLimiter::Refill -> Max
 R 367:23 calls RateLimiter::Refill -> Min
 R 371:55 extends RateLimiter::QuotaExceededException -> WarehouseException
+R 374:17 calls QuotaExceededException::QuotaExceededException -> WarehouseException
 R 376:39 overrides QuotaExceededException::Code -> Code
 
 == Warehouse/Models.cs (391 lines)
@@ -322,6 +329,7 @@ R 152:25 overrides Entity::GetHashCode -> GetHashCode
 R 152:25 overrides Entity::GetHashCode -> GetHashCode
 R 152:45 calls Entity::GetHashCode -> GetHashCode
 R 156:31 extends Warehouse.Models::Product -> Entity
+R 161:9 calls Product::Product -> Entity
 R 163:22 calls Product::Product -> NotBlank (name-matched: Warehouse/Errors.cs)
 R 164:23 calls Product::Product -> Validated
 R 180:22 calls Product::Rename -> NotBlank (name-matched: Warehouse/Errors.cs)
@@ -357,6 +365,7 @@ R 264:9 calls StockLine::Ship -> Release
 R 266:9 calls StockLine::Ship -> Bump
 R 277:37 extends Warehouse.Models::Order -> Entity
 R 277:51 implements Warehouse.Models::Order -> IEnumerable
+R 282:9 calls Order::Order -> Entity
 R 284:26 calls Order::Order -> NotBlank (name-matched: Warehouse/Errors.cs)
 R 291:47 calls Order::this -> FirstOrDefault
 R 295:34 calls Order::Total -> Aggregate
@@ -490,6 +499,7 @@ R 152:61 calls Command::Metadata -> GetType
 R 156:61 calls Command::Say -> Notify (name-matched: Warehouse/Services.cs)
 R 159:6 references Warehouse.Cli::ReceiveCommand -> CommandAttribute
 R 160:42 extends Warehouse.Cli::ReceiveCommand -> Command
+R 163:13 calls ReceiveCommand::ReceiveCommand -> Command
 R 167:41 overrides ReceiveCommand::RunAsync -> RunAsync
 R 169:47 calls ReceiveCommand::RunAsync -> ReceiveAsync (name-matched: Warehouse/Services.cs)
 R 170:25 calls ReceiveCommand::RunAsync -> Required
@@ -500,6 +510,7 @@ R 177:34 calls ReceiveCommand::RunAsync -> Explain (name-matched: Warehouse/Erro
 R 180:13 calls ReceiveCommand::RunAsync -> Say
 R 185:6 references Warehouse.Cli::OrderCommand -> CommandAttribute
 R 186:40 extends Warehouse.Cli::OrderCommand -> Command
+R 189:13 calls OrderCommand::OrderCommand -> Command
 R 193:41 overrides OrderCommand::RunAsync -> RunAsync
 R 195:62 calls OrderCommand::RunAsync -> ToList
 R 195:44 calls OrderCommand::RunAsync -> Select
@@ -523,6 +534,7 @@ R 225:78 calls CancelCommand::RunAsync -> Get
 R 226:13 calls CancelCommand::RunAsync -> Say
 R 231:6 references Warehouse.Cli::ReportCommand -> CommandAttribute
 R 232:41 extends Warehouse.Cli::ReportCommand -> Command
+R 235:13 calls ReportCommand::ReportCommand -> Command
 R 239:41 overrides ReportCommand::RunAsync -> RunAsync
 R 241:19 calls ReportCommand::RunAsync -> ThrowIfCancellationRequested
 R 242:34 calls ReportCommand::RunAsync -> Get
@@ -539,6 +551,7 @@ R 254:25 calls ReportCommand::RunAsync -> WriteLine
 R 254:61 calls ReportCommand::RunAsync -> Checksum (name-matched: Warehouse/Reports.cs)
 R 260:6 references Warehouse.Cli::TagsCommand -> CommandAttribute
 R 261:39 extends Warehouse.Cli::TagsCommand -> Command
+R 264:13 calls TagsCommand::TagsCommand -> Command
 R 268:41 overrides TagsCommand::RunAsync -> RunAsync
 R 270:48 calls TagsCommand::RunAsync -> ByTagAsync (name-matched: Warehouse/Repository.cs)
 R 270:67 calls TagsCommand::RunAsync -> Required
@@ -686,6 +699,7 @@ R 73:27 calls Report::RenderWith -> ToString
 R 76:32 overrides Report::ToString -> ToString
 R 76:46 calls Report::ToString -> RenderWith
 R 79:43 extends Warehouse.Reporting::InventoryReport -> Report
+R 85:13 calls InventoryReport::InventoryReport -> Report
 R 91:34 overrides InventoryReport::Headers -> Headers
 R 93:54 overrides InventoryReport::Rows -> Rows
 R 95:47 calls InventoryReport::Rows -> OrderBy
@@ -695,6 +709,7 @@ R 98:67 calls InventoryReport::Rows -> Describe (name-matched: Warehouse/Errors.
 R 102:45 calls InventoryReport::GrandTotal -> Aggregate
 R 102:38 calls InventoryReport::GrandTotal -> Rows
 R 105:41 extends Warehouse.Reporting::BacklogReport -> Report
+R 110:13 calls BacklogReport::BacklogReport -> Report
 R 112:34 overrides BacklogReport::Headers -> Headers
 R 114:52 overrides BacklogReport::Rows -> Rows
 R 117:18 calls BacklogReport::Rows -> Select
@@ -860,6 +875,7 @@ R 58:51 extends Warehouse.Data::IRepository -> IReadRepository
 R 70:54 implements Warehouse.Data::InMemoryRepository -> IRepository
 R 70:82 implements Warehouse.Data::InMemoryRepository -> IDisposable
 R 88:25 calls InMemoryRepository::InMemoryRepository -> Increment
+R 92:13 calls InMemoryRepository::InMemoryRepository -> InMemoryRepository
 R 100:53 calls InMemoryRepository::Instances -> Read
 R 104:49 calls InMemoryRepository::this -> TryGetValue
 R 104:93 calls InMemoryRepository::this -> NotFoundException (name-matched: Warehouse/Errors.cs)
@@ -894,6 +910,7 @@ R 182:23 calls InMemoryRepository::Write -> ExitWriteLock
 R 193:19 calls InMemoryRepository::Dispose -> Dispose
 R 194:16 calls InMemoryRepository::Dispose -> SuppressFinalize
 R 201:49 extends Specialized::ProductRepository -> InMemoryRepository
+R 204:17 calls ProductRepository::ProductRepository -> InMemoryRepository
 R 210:33 calls ProductRepository::ByTagAsync -> ListAsync
 R 210:55 calls ProductRepository::ByTagAsync -> Contains
 R 211:73 calls ProductRepository::ByTagAsync -> ToList
@@ -901,6 +918,7 @@ R 211:28 calls ProductRepository::ByTagAsync -> OrderBy
 R 216:33 calls ProductRepository::ByFamilyAsync -> ListAsync
 R 217:28 calls ProductRepository::ByFamilyAsync -> ToLookup
 R 222:47 extends Specialized::StockRepository -> InMemoryRepository
+R 225:17 calls StockRepository::StockRepository -> InMemoryRepository
 R 231:30 calls StockRepository::ForSkuAsync -> ListAsync
 R 236:35 calls StockRepository::AvailableAsync -> ForSkuAsync
 R 237:30 calls StockRepository::AvailableAsync -> TotalAvailable (name-matched: Warehouse/Models.cs)
