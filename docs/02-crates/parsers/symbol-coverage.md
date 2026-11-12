@@ -182,7 +182,7 @@ round to the nearest whole percent, with halves rounded up.
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 71% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
-| C++ | 80% | 28 | 50% | 10 | 0 |
+| C++ | 84% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
 | Lua | 82% | 14 | 60% | 10 | 0 |
@@ -278,7 +278,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 79% | 33% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
-| C++ | 88% | 94% | 42% | 90% | 60% | 25% | 50% |
+| C++ | 88% | 94% | 58% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 63% | 100% | 60% | 75% | 50% |
@@ -518,6 +518,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `enum`, `enum class` and their values | `enum_specifier` | `enum`; values as `constant` |
 | `using X = …`, `typedef` | `alias_declaration`, `type_definition` | `type_alias` |
 | `#include "x.h"`, `<vector>` | `preproc_include` | `imports` (path and stem) |
+| `#define MAX 4`, `#define SQ(x) …` | `preproc_def`, `preproc_function_def` | `constant` and `function` (as Rust's `macro_rules!`), with no parent: the preprocessor knows no namespace or class. An include guard (`#ifndef X` then `#define X` with no value) is no symbol |
 | base classes | `base_class_clause` | `extends` |
 | `f()`, `a.m()`, `p->m()`, `ns::f()`, `T()` | `call_expression`, `field_expression`, `qualified_identifier` | `calls` |
 | `new T(…)`, `new T`, `new ns::T{}`, `new T<U>(…)` | `new_expression` | `calls T`, like `T()`; `new std::T` is external; `new int[4]` names no constructor |
@@ -528,7 +529,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| `#define`, lambdas, locals | Not implemented | no arm for `preproc_def` or `lambda_expression`; locals are skipped |
+| Lambdas, locals | Not implemented | no arm for `lambda_expression`; locals are skipped |
 | Base-constructor calls of an out-of-line constructor whose class is defined in another file | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition it can't tell a base from a member |
 | `const int X` is a `variable` | Not implemented | a global `const` gets the same kind as a mutable variable; only enum values are `constant` |
 | A type used only in a declaration (`Widget w;`) | Not implemented | a declaration's type is not a reference |
@@ -1173,7 +1174,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Global / module-level variable: `variable`, in namespaces too
 - [ ] Local variable
 - [ ] Parameter
-- [ ] Macro: `#define` has no symbol
+- [x] Macro: `#define MAX 4` is a `constant` and `#define SQ(x) …` a `function`, with no parent; an include guard is no symbol
 
 **Relations**
 
