@@ -1,4 +1,4 @@
-# language=go files=7 symbols=463 relations=838 name_matched_across_files=250
+# language=go files=7 symbols=463 relations=917 name_matched_across_files=261
 
 == cmd/ledger/main.go (342 lines)
 S 1-342 module main
@@ -100,18 +100,24 @@ R 137:17 calls main::parseFlags -> Args
 R 142:6 calls main::usage -> Fprintln
 R 143:6 calls main::usage -> Fprintln
 R 145:7 calls main::usage -> Fprintf
+R 155:9 references main::lookup -> command
 R 160:18 calls main::newApp -> NewMemoryStore (name-matched: ledger/store.go)
 R 161:18 calls main::newApp -> NewRateTable (name-matched: ledger/money.go)
 R 162:8 calls main::newApp -> Set (name-matched: ledger/money.go)
+R 162:12 references main::newApp -> Rate (name-matched: ledger/money.go)
 R 163:8 calls main::newApp -> Set (name-matched: ledger/money.go)
+R 163:12 references main::newApp -> Rate (name-matched: ledger/money.go)
 R 165:36 calls main::newApp -> DefaultLogger (name-matched: ledger/service.go)
+R 167:12 references main::newApp -> quiet
 R 169:16 calls main::newApp -> NewService (name-matched: ledger/service.go)
+R 169:34 references main::newApp -> Config (name-matched: ledger/service.go)
 R 174:10 calls main::newApp -> WithLogger (name-matched: ledger/service.go)
 R 175:10 calls main::newApp -> WithHook (name-matched: ledger/service.go)
 R 175:26 calls main::newApp -> AuditHook (name-matched: ledger/service.go)
 R 176:10 calls main::newApp -> WithHook (name-matched: ledger/service.go)
 R 176:26 calls main::newApp -> LimitHook (name-matched: ledger/service.go)
 R 176:43 calls main::newApp -> Of (name-matched: ledger/money.go)
+R 178:8 references main::newApp -> app
 R 182:19 calls main::newApp -> NewReport (name-matched: ledger/report.go)
 R 185:12 calls main::newApp -> openChart
 R 204:71 calls main::openChart -> WithParent (name-matched: ledger/account.go)
@@ -162,6 +168,7 @@ R 292:5 calls main::runBalance -> len
 R 293:17 calls main::runBalance -> New
 R 295:22 calls main::runBalance -> Balance (name-matched: ledger/account.go)
 R 295:37 calls main::runBalance -> AccountID (name-matched: ledger/account.go)
+R 295:57 references main::runBalance -> Time
 R 299:6 calls main::runBalance -> Fprintln
 R 304:5 calls main::runTransfer -> len
 R 305:17 calls main::runTransfer -> New
@@ -172,6 +179,7 @@ R 311:71 calls main::runTransfer -> AccountID (name-matched: ledger/account.go)
 R 315:6 calls main::runTransfer -> Fprintln
 R 315:29 calls main::runTransfer -> Label (name-matched: ledger/service.go)
 R 320:18 calls main::runSheet -> BalanceSheet (name-matched: ledger/report.go)
+R 320:38 references main::runSheet -> Time
 R 324:18 calls main::runRates -> NewRateTable (name-matched: ledger/money.go)
 R 325:26 calls main::runRates -> Currencies (name-matched: ledger/money.go)
 R 326:7 calls main::runRates -> Fprintln
@@ -314,6 +322,7 @@ R 145:15 calls Account::Validate -> Negative (name-matched: ledger/money.go)
 R 146:12 calls Account::Validate -> Invalid (name-matched: ledger/errors.go)
 R 170:13 calls ledger::WithTags -> make
 R 172:21 calls ledger::WithTags -> len
+R 185:8 references ledger::NewAccount -> Account
 R 190:13 calls ledger::NewAccount -> Zero (name-matched: ledger/money.go)
 R 191:18 calls ledger::NewAccount -> Now
 R 194:3 calls ledger::NewAccount -> opt
@@ -350,16 +359,24 @@ R 306:17 calls Transaction::Validate -> Invalid (name-matched: ledger/errors.go)
 R 309:5 calls Transaction::Validate -> len
 R 309:31 calls Transaction::Validate -> Balanced
 R 310:9 calls Transaction::Validate -> Append (name-matched: ledger/errors.go)
+R 310:16 references Transaction::Validate -> UnbalancedError (name-matched: ledger/errors.go)
 R 310:61 calls Transaction::Validate -> Debits
 R 310:82 calls Transaction::Validate -> Credits
 R 312:15 calls Transaction::Validate -> ErrorOrNil (name-matched: ledger/errors.go)
+R 317:10 references Transaction::Reversal -> Transaction
+R 318:12 references Transaction::Reversal -> Meta
 R 321:29 calls Transaction::Reversal -> string
 R 325:17 calls Transaction::Reversal -> append
+R 325:37 references Transaction::Reversal -> Entry
 R 327:20 calls Transaction::Reversal -> Opposite
+R 343:10 references ledger::NewTx -> Builder
+R 343:22 references ledger::NewTx -> Transaction
 R 343:71 calls ledger::NewTx -> Now
 R 355:22 calls Builder::By -> Now
 R 361:11 calls Builder::Debit -> add
+R 361:15 references Builder::Debit -> Entry
 R 366:11 calls Builder::Credit -> add
+R 366:15 references Builder::Credit -> Entry
 R 373:14 calls Builder::add -> Negative (name-matched: ledger/money.go)
 R 374:11 calls Builder::add -> Invalid (name-matched: ledger/errors.go)
 R 377:17 calls Builder::add -> append
@@ -367,7 +384,10 @@ R 387:15 calls Builder::Build -> Validate
 R 388:15 calls Builder::Build -> Wrap (name-matched: ledger/errors.go)
 R 425:45 calls ClockFunc::Now -> f
 R 430:50 calls systemClock::Now -> Now
+R 433:25 references account -> systemClock
+R 442:66 references FixedClock::Advance -> FixedClock
 R 442:86 calls FixedClock::Advance -> Add (name-matched: ledger/money.go)
+R 448:16 references account -> FixedClock
 R 449:16 calls account -> ClockFunc
 
 == ledger/errors.go (475 lines)
@@ -485,6 +505,7 @@ R 122:25 calls Error::Error -> Error
 R 124:11 calls Error::Error -> String
 R 132:17 calls Error::Is -> sentinelFor
 R 143:50 calls Error::Temporary -> Retryable
+R 147:10 references ledger::newError -> Error
 R 152:17 calls ledger::newError -> Now (name-matched: ledger/account.go)
 R 158:9 calls ledger::NotFound -> newError
 R 163:9 calls ledger::Invalid -> newError
@@ -521,6 +542,8 @@ R 284:14 calls ledger::CodeOf -> Is
 R 286:14 calls ledger::CodeOf -> Is
 R 288:14 calls ledger::CodeOf -> Is
 R 290:14 calls ledger::CodeOf -> Is
+R 304:44 references ledger::Ok -> Result
+R 307:48 references ledger::Fail -> Result
 R 323:3 calls Result::Must -> panic
 R 330:16 calls ledger::Try -> fn
 R 332:10 calls ledger::Try -> Fail
@@ -532,6 +555,7 @@ R 346:48 calls ledger::Recover -> New
 R 348:11 calls ledger::Recover -> newError
 R 348:45 calls ledger::Recover -> Errorf
 R 352:9 calls ledger::Recover -> fn
+R 364:20 references errors -> RetryPolicy
 R 372:20 calls RetryPolicy::delay -> uint
 R 377:9 calls RetryPolicy::delay -> Jitter
 R 387:17 calls ledger::Retry -> Err
@@ -636,14 +660,21 @@ R 11:2 imports money -> unicode
 R 45:5 calls Currency::Valid -> len
 R 49:15 calls Currency::Valid -> IsUpper
 R 68:9 calls Currency::Symbol -> string
+R 79:38 references ledger::Zero -> Money
 R 83:11 calls ledger::Of -> pow10
 R 83:19 calls ledger::Of -> Exponent
+R 85:10 references ledger::Of -> Money
+R 87:9 references ledger::Of -> Money
 R 91:12 calls ledger::pow10 -> int64
+R 105:37 references Money::Neg -> Money
 R 110:12 calls Money::Abs -> Neg
 R 127:2 calls ledger::unify -> panic
 R 127:12 calls ledger::unify -> Sprintf
+R 132:9 references Money::Add -> Money
 R 132:51 calls Money::Add -> unify
+R 137:9 references Money::Sub -> Money
 R 137:51 calls Money::Sub -> unify
+R 142:9 references Money::Mul -> Money
 R 147:2 calls Money::Cmp -> unify
 R 158:46 calls Money::Less -> Cmp
 R 164:5 calls Money::Allocate -> len
@@ -652,6 +683,7 @@ R 170:16 calls Money::Allocate -> Invalid (name-matched: ledger/errors.go)
 R 175:15 calls Money::Allocate -> Invalid (name-matched: ledger/errors.go)
 R 177:12 calls Money::Allocate -> make
 R 177:26 calls Money::Allocate -> len
+R 181:15 references Money::Allocate -> Money
 R 184:48 calls Money::Allocate -> len
 R 188:48 calls Money::Allocate -> len
 R 199:15 calls Money::Split -> Invalid (name-matched: ledger/errors.go)
@@ -671,29 +703,36 @@ R 250:17 calls Money::UnmarshalJSON -> Unmarshal
 R 251:10 calls Money::UnmarshalJSON -> Wrap (name-matched: ledger/errors.go)
 R 253:17 calls Money::UnmarshalJSON -> ParseMoney
 R 263:8 calls ledger::ParseMoney -> Valid
+R 264:10 references ledger::ParseMoney -> Money
 R 264:19 calls ledger::ParseMoney -> Invalid (name-matched: ledger/errors.go)
 R 264:55 calls ledger::ParseMoney -> string
 R 266:14 calls ledger::ParseMoney -> ReplaceAll
 R 266:33 calls ledger::ParseMoney -> TrimSpace
+R 268:10 references ledger::ParseMoney -> Money
 R 268:19 calls ledger::ParseMoney -> Invalid (name-matched: ledger/errors.go)
 R 270:22 calls ledger::ParseMoney -> HasPrefix
 R 271:14 calls ledger::ParseMoney -> TrimPrefix
 R 272:28 calls ledger::ParseMoney -> Cut
 R 273:11 calls ledger::ParseMoney -> Exponent
 R 274:5 calls ledger::ParseMoney -> len
+R 275:10 references ledger::ParseMoney -> Money
 R 275:19 calls ledger::ParseMoney -> Invalid (name-matched: ledger/errors.go)
 R 277:18 calls ledger::ParseMoney -> Repeat
 R 277:34 calls ledger::ParseMoney -> len
 R 278:24 calls ledger::ParseMoney -> ParseInt
+R 280:10 references ledger::ParseMoney -> Money
 R 280:19 calls ledger::ParseMoney -> Wrap (name-matched: ledger/errors.go)
 R 282:11 calls ledger::ParseMoney -> int64
 R 284:24 calls ledger::ParseMoney -> ParseInt
+R 286:11 references ledger::ParseMoney -> Money
 R 286:20 calls ledger::ParseMoney -> Wrap (name-matched: ledger/errors.go)
 R 289:7 calls ledger::ParseMoney -> Of
 R 291:9 calls ledger::ParseMoney -> Neg
 R 298:12 calls ledger::MustParse -> ParseMoney
 R 300:3 calls ledger::MustParse -> panic
+R 315:10 references Rate::Convert -> Money
 R 315:19 calls Rate::Convert -> Invalid (name-matched: ledger/errors.go)
+R 318:10 references Rate::Convert -> Money
 R 318:19 calls Rate::Convert -> Invalid (name-matched: ledger/errors.go)
 R 320:25 calls Rate::Convert -> Mul
 R 320:12 calls Rate::Convert -> new
@@ -716,12 +755,21 @@ R 325:17 calls Rate::Convert -> NewInt
 R 327:6 calls Rate::Convert -> Add
 R 327:17 calls Rate::Convert -> NewInt
 R 330:8 calls Rate::Convert -> IsInt64
+R 331:10 references Rate::Convert -> Money
 R 331:19 calls Rate::Convert -> newError (name-matched: ledger/errors.go)
 R 331:58 calls Rate::Convert -> Errorf
+R 333:9 references Rate::Convert -> Money
 R 333:24 calls Rate::Convert -> Int64
+R 338:9 references Rate::Invert -> Rate
+R 350:10 references ledger::NewRateTable -> RateTable
 R 350:39 calls ledger::NewRateTable -> make
 R 357:12 calls RateTable::Set -> Invert
+R 365:10 references RateTable::Lookup -> Rate
+R 372:10 references RateTable::Lookup -> Rate
+R 376:10 references RateTable::Lookup -> Rate
+R 378:9 references RateTable::Lookup -> Rate
 R 383:16 calls RateTable::Convert -> Lookup
+R 385:10 references RateTable::Convert -> Money
 R 385:19 calls RateTable::Convert -> NotFound (name-matched: ledger/errors.go)
 R 385:39 calls RateTable::Convert -> AccountID (name-matched: ledger/account.go)
 R 385:49 calls RateTable::Convert -> string
@@ -731,6 +779,7 @@ R 397:9 calls RateTable::Currencies -> make
 R 397:29 calls RateTable::Currencies -> len
 R 399:9 calls RateTable::Currencies -> append
 R 401:7 calls RateTable::Currencies -> Slice
+R 432:9 references ledger::Percent -> Money
 R 432:22 calls ledger::Percent -> int64
 R 432:33 calls ledger::Percent -> Round
 R 432:39 calls ledger::Percent -> float64
@@ -814,12 +863,14 @@ R 54:10 calls ledger::Keys -> make
 R 54:23 calls ledger::Keys -> len
 R 56:10 calls ledger::Keys -> append
 R 58:7 calls ledger::Keys -> Slice
+R 86:10 references ledger::NewReport -> Report
 R 91:27 calls Report::rows -> Accounts
 R 95:10 calls Report::rows -> make
 R 95:25 calls Report::rows -> len
 R 97:23 calls Report::rows -> Balance
 R 99:16 calls Report::rows -> Wrap (name-matched: ledger/errors.go)
 R 101:10 calls Report::rows -> append
+R 101:23 references Report::rows -> Row
 R 105:15 calls Report::rows -> Depth
 R 115:17 calls Report::TrialBalance -> rows
 R 119:18 calls Report::TrialBalance -> NewWriter
@@ -835,6 +886,7 @@ R 135:6 calls Report::TrialBalance -> Fprintf
 R 135:47 calls Report::TrialBalance -> Format
 R 135:69 calls Report::TrialBalance -> Format
 R 136:11 calls Report::TrialBalance -> Cmp (name-matched: ledger/money.go)
+R 137:10 references Report::TrialBalance -> UnbalancedError (name-matched: ledger/errors.go)
 R 144:17 calls Report::BalanceSheet -> rows
 R 148:12 calls Report::BalanceSheet -> GroupBy
 R 149:14 calls Report::BalanceSheet -> NewWriter
@@ -855,6 +907,7 @@ R 167:46 calls Report::BalanceSheet -> Add (name-matched: ledger/money.go)
 R 167:12 calls Report::BalanceSheet -> section
 R 167:50 calls Report::BalanceSheet -> section
 R 168:12 calls Report::BalanceSheet -> Cmp (name-matched: ledger/money.go)
+R 169:10 references Report::BalanceSheet -> UnbalancedError (name-matched: ledger/errors.go)
 R 176:27 calls Report::IncomeStatement -> Accounts
 R 184:27 calls Report::IncomeStatement -> History (name-matched: ledger/account.go)
 R 190:24 calls Report::IncomeStatement -> NormalSide (name-matched: ledger/account.go)
@@ -871,10 +924,13 @@ R 224:23 calls Report::StatementFor -> Account
 R 228:26 calls Report::StatementFor -> Balance
 R 228:43 calls Report::StatementFor -> Add (name-matched: ledger/money.go)
 R 232:26 calls Report::StatementFor -> History (name-matched: ledger/account.go)
+R 236:9 references Report::StatementFor -> Statement
 R 238:22 calls Report::StatementFor -> NormalSide (name-matched: ledger/account.go)
 R 241:22 calls Report::StatementFor -> Add (name-matched: ledger/money.go)
 R 243:22 calls Report::StatementFor -> Sub (name-matched: ledger/money.go)
 R 245:14 calls Report::StatementFor -> append
+R 245:31 references Report::StatementFor -> StatementLine
+R 253:9 references Statement::WriteTo -> countingWriter
 R 254:6 calls Statement::WriteTo -> Fprintf
 R 255:6 calls Statement::WriteTo -> Fprintf
 R 257:7 calls Statement::WriteTo -> Fprintf
@@ -895,6 +951,8 @@ R 304:28 calls ledger::Largest -> Abs (name-matched: ledger/money.go)
 R 304:56 calls ledger::Largest -> Abs (name-matched: ledger/money.go)
 R 306:9 calls ledger::Largest -> len
 R 323:17 calls Report::Summarize -> rows
+R 325:10 references Report::Summarize -> Summary
+R 327:7 references Report::Summarize -> Summary
 R 327:25 calls Report::Summarize -> len
 R 327:44 calls Report::Summarize -> make
 R 329:43 calls Report::Summarize -> Add (name-matched: ledger/money.go)
@@ -907,6 +965,7 @@ R 356:9 calls ledger::Positive -> Filter
 R 356:63 calls ledger::Positive -> Negative (name-matched: ledger/money.go)
 R 356:90 calls ledger::Positive -> IsZero (name-matched: ledger/money.go)
 R 361:9 calls ledger::Net -> Reduce
+R 361:22 references ledger::Net -> Money (name-matched: ledger/money.go)
 R 361:75 calls ledger::Net -> Add (name-matched: ledger/money.go)
 
 == ledger/service.go (463 lines)
@@ -982,7 +1041,9 @@ R 30:11 calls HookFuncs::Before -> BeforeFunc
 R 36:5 calls HookFuncs::After -> AfterFunc
 R 61:2 extends ledger::Service -> Store (name-matched: ledger/account.go)
 R 82:38 calls ledger::WithHook -> append
+R 97:8 references ledger::NewService -> Service
 R 100:12 calls ledger::NewService -> NewSequentialIDs (name-matched: ledger/store.go)
+R 102:12 references ledger::NewService -> discard
 R 103:12 calls ledger::NewService -> make
 R 115:3 calls ledger::NewService -> opt
 R 121:42 calls ledger::DefaultLogger -> Default
@@ -1043,6 +1104,7 @@ R 260:6 calls Service::PostAll -> Add (name-matched: ledger/money.go)
 R 262:13 calls Service::PostAll -> Done
 R 264:12 calls Service::PostAll -> Recover (name-matched: ledger/errors.go)
 R 264:56 calls Service::PostAll -> Post
+R 265:16 references Service::PostAll -> batchResult
 R 271:9 calls Service::PostAll -> close
 R 275:15 calls Service::PostAll -> Done
 R 282:6 calls Service::PostAll -> Wait
@@ -1064,11 +1126,14 @@ R 324:10 calls Service::Reconcile -> Append (name-matched: ledger/errors.go)
 R 324:17 calls Service::Reconcile -> newError (name-matched: ledger/errors.go)
 R 324:60 calls Service::Reconcile -> Err (name-matched: ledger/errors.go)
 R 328:17 calls Service::Reconcile -> Balance (name-matched: ledger/account.go)
+R 328:29 references Service::Reconcile -> Time
 R 330:10 calls Service::Reconcile -> Append (name-matched: ledger/errors.go)
 R 335:24 calls Service::Reconcile -> convert
 R 337:11 calls Service::Reconcile -> Append (name-matched: ledger/errors.go)
 R 342:9 calls Service::Reconcile -> append
+R 342:21 references Service::Reconcile -> Reconciliation
 R 344:20 calls Service::Reconcile -> ErrorOrNil (name-matched: ledger/errors.go)
+R 350:10 references Service::convert -> Money (name-matched: ledger/money.go)
 R 350:19 calls Service::convert -> Invalid (name-matched: ledger/errors.go)
 R 352:21 calls Service::convert -> Convert (name-matched: ledger/money.go)
 R 361:14 calls ledger::Label -> Sprintf
@@ -1079,19 +1144,23 @@ R 369:24 calls ledger::Label -> Error (name-matched: ledger/errors.go)
 R 371:12 calls ledger::Label -> String (name-matched: ledger/account.go)
 R 373:14 calls ledger::Label -> Sprintf
 R 380:12 calls Service::Close -> Close
+R 387:9 references ledger::AuditHook -> HookFuncs
 R 389:11 calls ledger::AuditHook -> Require (name-matched: ledger/errors.go)
 R 389:19 calls ledger::AuditHook -> len
 R 393:7 calls ledger::AuditHook -> Printf
 R 393:41 calls ledger::AuditHook -> Explain (name-matched: ledger/errors.go)
 R 396:6 calls ledger::AuditHook -> Printf
 R 396:40 calls ledger::AuditHook -> Label
+R 403:9 references ledger::LimitHook -> HookFuncs
 R 404:18 calls ledger::LimitHook -> Debits (name-matched: ledger/account.go)
 R 404:34 calls ledger::LimitHook -> Cmp (name-matched: ledger/money.go)
+R 405:11 references ledger::LimitHook -> LimitError (name-matched: ledger/errors.go)
 R 415:19 calls Service::Each -> list
 R 420:13 calls Service::Each -> fn
 R 429:12 calls Service::Totals -> make
 R 430:11 calls Service::Totals -> Each
 R 431:17 calls Service::Totals -> Balance (name-matched: ledger/account.go)
+R 431:31 references Service::Totals -> Time
 R 436:20 calls Service::Totals -> convert
 R 440:35 calls Service::Totals -> Add (name-matched: ledger/money.go)
 R 449:21 calls Service::Snapshot -> Accounts (name-matched: ledger/account.go)
@@ -1167,6 +1236,7 @@ R 5:2 imports store -> sort
 R 6:2 imports store -> sync
 R 7:2 imports store -> sync/atomic
 R 8:2 imports store -> time
+R 21:10 references ledger::NewIndex -> Index
 R 21:29 calls ledger::NewIndex -> make
 R 26:8 calls Index::Put -> Lock
 R 27:14 calls Index::Put -> Unlock
@@ -1192,6 +1262,8 @@ R 96:21 calls Stack::Pop -> len
 R 101:39 calls Stack::Len -> len
 R 106:14 calls Stack::Drain -> Pop
 R 110:3 calls Stack::Drain -> fn
+R 121:48 references Pair::Swap -> Pair
+R 157:10 references ledger::NewMemoryStore -> MemoryStore
 R 159:13 calls ledger::NewMemoryStore -> NewIndex
 R 160:13 calls ledger::NewMemoryStore -> NewIndex
 R 161:13 calls ledger::NewMemoryStore -> make
@@ -1215,6 +1287,7 @@ R 218:20 calls MemoryStore::Open -> Clone (name-matched: ledger/account.go)
 R 219:29 calls MemoryStore::Open -> Add (name-matched: ledger/money.go)
 R 220:13 calls MemoryStore::Open -> Put
 R 221:4 calls MemoryStore::Open -> publish
+R 221:12 references MemoryStore::Open -> Event
 R 221:64 calls MemoryStore::Open -> Now (name-matched: ledger/account.go)
 R 227:7 calls MemoryStore::Account -> RLock
 R 228:13 calls MemoryStore::Account -> RUnlock
@@ -1245,13 +1318,16 @@ R 281:4 calls MemoryStore::Post -> rollback
 R 282:11 calls MemoryStore::Post -> Closed (name-matched: ledger/account.go)
 R 285:4 calls MemoryStore::Post -> rollback
 R 286:11 calls MemoryStore::Post -> Invalid (name-matched: ledger/errors.go)
+R 288:8 references MemoryStore::Post -> posting
 R 289:27 calls MemoryStore::Post -> append
 R 290:11 calls MemoryStore::Post -> Push
 R 292:15 calls MemoryStore::Post -> balanceLocked
+R 292:40 references MemoryStore::Post -> Time
 R 292:66 calls MemoryStore::Post -> IsZero (name-matched: ledger/money.go)
 R 292:82 calls MemoryStore::Post -> Negative (name-matched: ledger/money.go)
 R 293:7 calls MemoryStore::Post -> exceeds
 R 294:5 calls MemoryStore::Post -> rollback
+R 295:12 references MemoryStore::Post -> LimitError (name-matched: ledger/errors.go)
 R 295:72 calls MemoryStore::Post -> Abs (name-matched: ledger/money.go)
 R 301:19 calls MemoryStore::Post -> append
 R 302:8 calls MemoryStore::Post -> Put
@@ -1259,6 +1335,7 @@ R 303:24 calls MemoryStore::Post -> Accounts
 R 304:29 calls MemoryStore::Post -> Get
 R 305:29 calls MemoryStore::Post -> Add (name-matched: ledger/money.go)
 R 308:4 calls MemoryStore::Post -> publish
+R 308:12 references MemoryStore::Post -> Event
 R 308:55 calls MemoryStore::Post -> Now (name-matched: ledger/account.go)
 R 315:9 calls ledger::exceeds -> Negative (name-matched: ledger/money.go)
 R 316:20 calls ledger::exceeds -> Cmp (name-matched: ledger/money.go)
@@ -1280,6 +1357,7 @@ R 350:9 calls MemoryStore::History -> append
 R 358:7 calls MemoryStore::Balance -> RLock
 R 359:13 calls MemoryStore::Balance -> RUnlock
 R 360:25 calls MemoryStore::Balance -> Get
+R 361:10 references MemoryStore::Balance -> Money (name-matched: ledger/money.go)
 R 361:19 calls MemoryStore::Balance -> NotFound (name-matched: ledger/errors.go)
 R 363:11 calls MemoryStore::Balance -> balanceLocked
 R 368:24 calls MemoryStore::balanceLocked -> Get
@@ -1309,6 +1387,7 @@ R 424:15 calls MemoryStore::Stream -> Done
 R 425:16 calls MemoryStore::Stream -> Err (name-matched: ledger/errors.go)
 R 430:16 calls MemoryStore::Stream -> Fail (name-matched: ledger/errors.go)
 R 431:15 calls MemoryStore::Stream -> Done
+R 446:10 references ledger::NewSequentialIDs -> SequentialIDs
 R 451:11 calls SequentialIDs::Next -> Add (name-matched: ledger/money.go)
 R 453:11 calls SequentialIDs::Next -> len
 R 454:15 calls SequentialIDs::Next -> byte
