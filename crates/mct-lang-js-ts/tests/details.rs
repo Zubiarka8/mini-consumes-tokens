@@ -79,6 +79,22 @@ fn detail(parsed: &ParsedFile, name: &str) -> SymbolDetail {
         .normalized()
 }
 
+/// The detail of `parent`'s member `name`.
+fn member_detail(parsed: &ParsedFile, parent: &str, name: &str) -> SymbolDetail {
+    let symbol = parsed
+        .symbols
+        .iter()
+        .find(|s| s.name == name && s.parent.as_deref() == Some(parent))
+        .unwrap_or_else(|| panic!("no {parent}.{name}"));
+    parsed
+        .symbol_details
+        .iter()
+        .find(|d| d.symbol == symbol.id)
+        .cloned()
+        .unwrap_or_else(|| panic!("no detail for {parent}.{name}"))
+        .normalized()
+}
+
 /// `name:type(provenance)=default:kind` per parameter.
 fn params(detail: &SymbolDetail) -> Vec<String> {
     detail
@@ -167,7 +183,17 @@ fn a_class_header_skips_decorators_and_members_get_visibility_and_modifiers() {
         Some(Visibility::Private)
     );
     // A class member without a modifier is public by the language rule.
-    assert_eq!(detail(&parsed, "get").visibility, Some(Visibility::Public));
+    assert_eq!(
+        member_detail(&parsed, "Store", "get").visibility,
+        Some(Visibility::Public)
+    );
+    // An interface member is public: TS allows no keyword there.
+    let api_get = member_detail(&parsed, "Api", "get");
+    assert_eq!(api_get.visibility, Some(Visibility::Public));
+    assert_eq!(
+        api_get.signature.as_deref(),
+        Some("get(key: string): unknown")
+    );
 
     let handle = detail(&parsed, "handle");
     assert_eq!(
