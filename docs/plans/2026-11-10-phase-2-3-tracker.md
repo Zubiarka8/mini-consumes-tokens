@@ -387,6 +387,13 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [!] TS interface and enum members are indexed (`field`/`method` of
+          their type; JS/TS constructs 65 → 71%) on branch
+          `feat/ts-interface-enum-members`, tests green, but not ready to
+          merge: a bare name has type members as candidates (#395). On the
+          snapshot, 68 JS/TS relations go from resolved to ambiguous and
+          76 from unresolved to falsely resolved. Waiting for the
+          maintainer's decision on #395.
     - [x] Java and Kotlin annotations: `@Audited` on a declaration gives
           `references Audited` from the annotated symbol, restricted to an
           annotation type (Java `interface`, Kotlin `class`), as C#
