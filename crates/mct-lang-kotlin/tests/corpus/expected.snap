@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=484 relations=821 name_matched_across_files=113
+# language=kotlin files=5 symbols=484 relations=835 name_matched_across_files=113
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -430,6 +430,7 @@ R 60:42 calls StockLevel::release -> coerceAtLeast
 R 64:9 calls StockLevel::consume -> release
 R 82:55 calls Reservation::isExpired -> isAfter
 R 87:5 extends OutOfStockException -> RuntimeException
+R 87:5 calls OutOfStockException -> RuntimeException
 R 101:26 overrides InventoryListener::stockReserved -> stockReserved
 R 102:26 overrides InventoryListener::stockReleased -> stockReleased
 R 123:9 calls Inventory -> require
@@ -662,7 +663,9 @@ R 33:43 calls Currency::parse -> equals
 R 33:55 calls Currency::parse -> trim
 R 34:26 calls Currency::parse -> IllegalArgumentException
 R 40:5 extends CurrencyMismatchException -> IllegalArgumentException
+R 40:5 calls CurrencyMismatchException -> IllegalArgumentException
 R 44:5 extends MoneyFormatException -> IllegalArgumentException
+R 44:5 calls MoneyFormatException -> IllegalArgumentException
 R 49:79 implements Money -> Comparable
 R 51:37 calls Money -> setScale
 R 54:55 calls Money -> longValueExact
@@ -939,27 +942,35 @@ R 48:20 calls State::next -> setOf
 R 49:32 calls State::next -> emptySet
 R 52:55 calls State::canMoveTo -> next
 R 62:129 extends OrderEvent::Placed -> OrderEvent
+R 62:129 calls OrderEvent::Placed -> OrderEvent
 R 62:36 overrides Placed::orderId -> orderId
 R 62:67 overrides Placed::at -> at
 R 63:118 extends OrderEvent::Reserved -> OrderEvent
+R 63:118 calls OrderEvent::Reserved -> OrderEvent
 R 63:38 overrides Reserved::orderId -> orderId
 R 63:69 overrides Reserved::at -> at
 R 64:122 extends OrderEvent::Paid -> OrderEvent
+R 64:122 calls OrderEvent::Paid -> OrderEvent
 R 64:34 overrides Paid::orderId -> orderId
 R 64:65 overrides Paid::at -> at
 R 65:102 extends OrderEvent::Picked -> OrderEvent
+R 65:102 calls OrderEvent::Picked -> OrderEvent
 R 65:36 overrides Picked::orderId -> orderId
 R 65:67 overrides Picked::at -> at
 R 66:132 extends OrderEvent::Shipped -> OrderEvent
+R 66:132 calls OrderEvent::Shipped -> OrderEvent
 R 66:37 overrides Shipped::orderId -> orderId
 R 66:68 overrides Shipped::at -> at
 R 67:111 extends OrderEvent::Invoiced -> OrderEvent
+R 67:111 calls OrderEvent::Invoiced -> OrderEvent
 R 67:38 overrides Invoiced::orderId -> orderId
 R 67:69 overrides Invoiced::at -> at
 R 68:105 extends OrderEvent::Cancelled -> OrderEvent
+R 68:105 calls OrderEvent::Cancelled -> OrderEvent
 R 68:39 overrides Cancelled::orderId -> orderId
 R 68:70 overrides Cancelled::at -> at
 R 73:5 extends IllegalTransitionException -> IllegalStateException
+R 73:5 calls IllegalTransitionException -> IllegalStateException
 R 86:26 calls Order -> mutableListOf
 R 87:27 calls Order -> mutableListOf
 R 95:42 calls Order -> toList
@@ -1256,14 +1267,17 @@ R 177:37 calls PricingEngine::explain -> append
 R 178:31 calls PricingEngine::explain -> append
 R 178:13 calls PricingEngine::explain -> append
 R 191:65 extends Promotion::PercentOff -> Promotion
+R 191:65 calls Promotion::PercentOff -> Promotion
 R 192:22 overrides PercentOff::toRule -> toRule
 R 192:33 calls PercentOff::toRule -> DiscountRule
 R 195:107 extends Promotion::BuyXGetY -> Promotion
+R 195:107 calls Promotion::BuyXGetY -> Promotion
 R 196:22 overrides BuyXGetY::toRule -> toRule
 R 196:33 calls BuyXGetY::toRule -> DiscountRule
 R 197:34 calls BuyXGetY::toRule -> firstOrNull
 R 197:93 calls BuyXGetY::toRule -> zero (name-matched: money/Money.kt)
 R 203:27 extends Promotion::FreeShipping -> Promotion
+R 203:27 calls Promotion::FreeShipping -> Promotion
 R 204:22 overrides FreeShipping::toRule -> toRule
 R 210:27 calls Pricing -> mutableListOf
 R 213:9 calls PriceHistory::record -> require

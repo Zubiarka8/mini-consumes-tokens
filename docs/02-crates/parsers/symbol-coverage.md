@@ -180,7 +180,7 @@ round to the nearest whole percent, with halves rounded up.
 | Python | 69% | 29 | 85% | 10 | 0 |
 | JS/TS | 68% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
-| Kotlin | 70% | 35 | 65% | 10 | 0 |
+| Kotlin | 71% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
 | C++ | 79% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
@@ -276,7 +276,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 70% | 17% | 89% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
-| Kotlin | 72% | 79% | 33% | 81% | 80% | 50% | 50% |
+| Kotlin | 72% | 79% | 33% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 42% | 80% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
@@ -454,6 +454,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `@Audited`, `@a.b.Audited`, `@field:Inject(…)` on a class, function or property | `annotation` in `modifiers` | `references Audited` from the annotated symbol, to a `class` only |
 | `import a.b.c`, `import … as x` | `import` | `imports` (alias when present) |
 | `f()`, `obj.m()` | `call_expression`, `navigation_expression` | `calls` |
+| `: Base(4)`, `constructor(x: Int) : super(x)` | `constructor_invocation`, `constructor_delegation_call` | `calls Base` from the class, to a `class` only; `super(…)` only when the header names one supertype without `()`, and to `Any`, external, when it names none |
 | the receiver of `x.m()` | `call_expression` + `navigation_expression` receiver | qualified by `x`'s declared type: a parameter or `val x: T` (`T?` and `List<T>` name `T` and `List`), `= T(…)` (a capitalized callee), `T(…).m()`, a class property or a `val`/`var` constructor property (`this.f.m()`). A capitalized name (`Money.of()`, an object or companion) is its own qualifier. `this.m()` is qualified by the enclosing class when its body declares `m`; otherwise it is left as before, since `m` may be inherited; inside a lambda `this` is not the class. A local without a proven type (`it`, a lambda or `for` variable, `val x = f()`), a call result, `this@Label` or any other expression is a member call: ambiguous even with one candidate. A lowercase name that is no local (a package, a top-level property) is left as before. Inherited and extension methods are not found through the qualifier, so such a call is unresolved |
 
 #### Why the gaps exist
@@ -1046,7 +1047,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls
 - [x] Constructor call (`new X()` / `X()`): `calls X`
-- [ ] Super / base constructor call: neither `: Base(4)` in a class header nor `constructor() : this(0)` gives a call relation
+- [~] Super / base constructor call: `: Base(4)` in a class or object header, and `constructor(…) : super(…)` when the header names one supertype without `()`, give `calls Base` from the class (a constructor is no symbol), restricted to a class; `super()` with no supertype is external (`Any`). None for `this(…)` (the class calling itself) or for `super(…)` with several supertypes
 - [~] Imports: aliases use the alias name; some imports emit duplicate target names and a false external graph entry
 - [x] Class extends class: when the supertype has `()`
 - [x] Implements interface / trait: supertype without `()`
