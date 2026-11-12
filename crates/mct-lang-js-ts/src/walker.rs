@@ -119,13 +119,18 @@ impl<'a> Walker<'a> {
     /// Evidence for `object.method(…)` about to be pushed: the receiver's
     /// declared type, or a member call when the receiver is a local or an
     /// expression of unproven type. `this.m()` is qualified by the enclosing
-    /// class only when its body declares `m` (otherwise `m` may be
-    /// inherited), and a name that is no local is left as it was.
+    /// class only when its body declares `m`, as a method or a field
+    /// (otherwise `m` may be inherited), and a name that is no local is left
+    /// as it was.
     fn push_receiver(&mut self, object: Node, method: &str) {
         let this_class = self.this_class.and_then(|i| self.classes.get(i));
         let (qualifier, member) = match object.kind() {
             "this" => match this_class {
-                Some(class) if class.methods.contains(method) => (Some(class.name.clone()), false),
+                Some(class)
+                    if class.methods.contains(method) || class.fields.contains_key(method) =>
+                {
+                    (Some(class.name.clone()), false)
+                }
                 _ => return,
             },
             "super" => return,
@@ -182,6 +187,43 @@ impl<'a> Walker<'a> {
             location,
             parent,
         )
+    }
+
+    /// A constructor's parameter properties
+    /// (`constructor(private store: Store)`): each is a field of the class
+    /// at the parameter.
+    fn push_parameter_properties(&mut self, method: Node, type_name: Option<&str>) {
+        let is_constructor = method
+            .child_by_field_name("name")
+            .is_some_and(|n| text(n, self.source) == "constructor");
+        let (true, Some(class), Some(params)) = (
+            is_constructor,
+            type_name,
+            method.child_by_field_name("parameters"),
+        ) else {
+            return;
+        };
+        mct_tree_sitter::for_each_child(params, |param| {
+            if !matches!(param.kind(), "required_parameter" | "optional_parameter")
+                || !is_parameter_property(param, self.source)
+            {
+                return;
+            }
+            let Some(pattern) = param
+                .child_by_field_name("pattern")
+                .filter(|p| p.kind() == "identifier")
+            else {
+                return;
+            };
+            let id = self.push_symbol(
+                text(pattern, self.source).to_string(),
+                SymbolKind::Field,
+                location(param),
+                Some(class.to_string()),
+            );
+            self.details
+                .push(details::parameter_property_detail(param, id, self.source));
+        });
     }
 
     fn push_relation(
@@ -445,6 +487,9 @@ impl<'a> Walker<'a> {
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
                 self.push_decorators(node, id, depth);
+                if kind == SymbolKind::Method {
+                    self.push_parameter_properties(node, type_name);
+                }
                 if is_override_in_class(node) {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let supertypes = self.supertypes.last().cloned().unwrap_or_default();
@@ -1014,6 +1059,17 @@ fn is_override_in_class(method: Node) -> bool {
         .children(&mut cursor)
         .any(|c| c.kind() == "override_modifier");
     in_declaration && has_override
+}
+
+/// Whether a constructor parameter also declares a property of the class
+/// (`private store: Store`, `readonly id: string`): it carries an
+/// accessibility keyword or `readonly`.
+fn is_parameter_property(param: Node, source: &str) -> bool {
+    let mut cursor = param.walk();
+    let found = param.children(&mut cursor).any(|c| {
+        matches!(c.kind(), "accessibility_modifier" | "readonly") || text(c, source) == "readonly"
+    });
+    found
 }
 
 /// The base expression of the class declaration around `node` (`Base` for
