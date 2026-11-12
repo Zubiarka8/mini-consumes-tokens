@@ -685,8 +685,10 @@ impl<'a> Walker<'a> {
     /// A variable, constant or table field bound by an assignment. File-level
     /// targets are always indexed, whatever the value; inside a function a
     /// plain `local` name is, as a variable of that function, and a global's
-    /// first assignment is, as a variable of no scope. Assignments to fields
-    /// from within a function are not declarations.
+    /// first assignment is, as a variable of no scope. Inside a colon method
+    /// `function T:m()`, the first `self.x = …` is a field of `T`, unless `T`
+    /// already declares `x`; other assignments to fields from within a
+    /// function are not declarations.
     /// A computed `__…` slot (`Class.__index = Class`) is metatable wiring,
     /// not a field worth a symbol.
     fn push_assigned(
@@ -716,6 +718,14 @@ impl<'a> Walker<'a> {
                 SymbolKind::Variable
             };
             self.push_symbol(name, kind, span(var, end), parent);
+        } else if let Some(table) = self.self_table_of(var) {
+            let declared = self
+                .symbols
+                .iter()
+                .any(|s| s.name == name && s.parent.as_deref() == Some(table.as_str()));
+            if !declared {
+                self.push_symbol(name, SymbolKind::Field, span(var, end), Some(table));
+            }
         } else if is_local && var.kind() == "identifier" && owner != FILE_MODULE {
             let function = self.function_name(owner);
             self.push_symbol(name, SymbolKind::Variable, span(var, end), function);
@@ -945,6 +955,16 @@ impl<'a> Walker<'a> {
                 ..Default::default()
             });
         }
+    }
+
+    /// The table `T` whose implicit `self` `node` (`self.x`) is reached
+    /// through, inside a colon method `function T:m()`.
+    fn self_table_of(&self, node: Node) -> Option<String> {
+        let on_self = node.kind() == "dot_index_expression"
+            && node
+                .child_by_field_name("table")
+                .is_some_and(|t| t.kind() == "identifier" && text(t, self.source) == "self");
+        on_self.then(|| self.self_table.clone()).flatten()
     }
 
     fn push_receiver_evidence(&mut self, relation: usize, callee: Node) {

@@ -387,6 +387,14 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Lua instance fields: the first `self.x = …` in a colon method
+          `function T:m()` (or a closure inside it) is a `field` of `T`,
+          unless `T` already declares `x`. An explicit `self` parameter, a
+          `local self = setmetatable({}, T)` constructor or a plain function
+          declares none: `self`'s table is not known there. Test:
+          `tests/self_fields.rs`. Corpus: 410 -> 417 symbols, relations
+          unchanged. Repository snapshot: Lua fields 28 -> 35 (the corpus is
+          the only Lua), relations unchanged, dead code 122 -> 122.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

@@ -185,7 +185,7 @@ round to the nearest whole percent, with halves rounded up.
 | C++ | 84% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
-| Lua | 82% | 14 | 60% | 10 | 0 |
+| Lua | 86% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
 | PowerShell | 38% | 17 | 60% | 10 | 0 |
 
@@ -281,7 +281,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | C++ | 88% | 94% | 58% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
-| Lua | 90% | 75% | 63% | 100% | 60% | 75% | 50% |
+| Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
 | PowerShell | 42% | 25% | 25% | 67% | 80% | 50% | 33% |
 
@@ -614,6 +614,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `T.__index = T`, `local D = setmetatable({}, { __index = B })` at file level | `assignment_statement`, `function_call` | the table becomes `class`; `extends B` |
 | `Vec.__add = function(a, b)` | `assignment_statement` + `function_definition` | `method`, parent `Vec` |
 | file-level `x = 1`, `local x = 1`, `local x <const> = 1`, `M.x = 1` | `assignment_statement` | `variable`, `constant`, `field` of `M` |
+| `self.x = …` in `function T:m()` (and closures inside it) | `assignment_statement` + `dot_index_expression` on `self` | `field` of `T` at its first assignment, unless `T` already declares `x`; an explicit `self` parameter or a plain function gives none, since `self`'s table is unknown there |
 | `local x` inside a function, loop variables | `variable_declaration`, `for_numeric_clause` | `variable`, parent the function |
 | `require("x")` | `function_call` | `imports` |
 | `f()`, `M.f()`, `o:m()` | `function_call` | `calls` |
@@ -624,7 +625,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Nested table classes (`W.Widget.__index = W.Widget`) | Not implemented | only a file-level name is promoted to `class` |
-| Fields assigned in a method (`self.x = …`), parameters | Not implemented | `self.x` is assigned inside a function, where only `local` names become symbols |
+| Fields assigned through an explicit `self` or a local (`local self = setmetatable({}, T)`), parameters | Not implemented | only a colon method's implicit `self` has a known table; inside a function only `local` names otherwise become symbols |
 | Dead code skips table/module methods | By design | methods are excluded by [the shared allowlist decision](../../../crates/mct-index/src/dead_code.rs#L7); free global/local functions remain candidates |
 
 ### Bash
@@ -1337,7 +1338,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Fields, constants and variables**
 
-- [~] Field / instance attribute: a file-level `M.x = …` → `field` of `M`; `self.x = …` inside a method has no symbol
+- [x] Field / instance attribute: a file-level `M.x = …` and the first `self.x = …` in a colon method `T:m()` → `field` of `M` / `T`
 - [x] Global / module-level variable: globals and top-level `local` → `variable`, `<const>` → `constant`
 - [x] Local variable: `local x` and loop variables → `variable` owned by the function
 - [ ] Parameter
