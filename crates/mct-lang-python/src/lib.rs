@@ -293,9 +293,21 @@ impl<'a> Walker<'a> {
                     self.visit(function, owner, class_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
-                    self.push_argument_references(arguments, owner);
+                    self.push_value_references(arguments, owner, depth + 1);
                     self.visit_children(arguments, owner, class_name, depth + 1);
                 }
+            }
+            "assignment" => {
+                if let Some(right) = node.child_by_field_name("right") {
+                    self.push_value_references(right, owner, depth + 1);
+                }
+                self.visit_children(node, owner, class_name, depth + 1);
+            }
+            "return_statement" => {
+                if let Some(value) = node.named_child(0) {
+                    self.push_value_references(value, owner, depth + 1);
+                }
+                self.visit_children(node, owner, class_name, depth + 1);
             }
             // A lambda's parameters may shadow the enclosing function's names.
             "lambda" => {
@@ -550,27 +562,42 @@ impl<'a> Walker<'a> {
         true
     }
 
-    /// A function passed by name as an argument (`safely(score, x)`,
-    /// `sorted(rows, key=rank)`) is a use of it: a `References` relation,
-    /// recorded only when the name carries evidence (this file's `def`, an
-    /// import, a builtin), so a parameter or local is never resolved by its
-    /// name alone.
-    fn push_argument_references(&mut self, arguments: Node, owner: SymbolId) {
-        let mut cursor = arguments.walk();
-        let values = arguments
-            .named_children(&mut cursor)
-            .filter_map(|argument| match argument.kind() {
-                "identifier" => Some(argument),
-                "keyword_argument" => argument
-                    .child_by_field_name("value")
-                    .filter(|v| v.kind() == "identifier"),
-                _ => None,
-            });
-        for value in values {
-            if self.push_bare_evidence(value) {
-                let name = text(value, self.source).to_string();
-                self.push_relation(owner, RelationKind::References, name, location(value));
+    /// A function or class used by name as a value — an argument
+    /// (`safely(score, x)`, `key=rank`), an element of a tuple, list, set or
+    /// dict value (`isinstance(e, (A, B))`, `{"k": rank}`), the right side of
+    /// an assignment (`handler = rank`) or a returned value — is a use of
+    /// it: a `References` relation, recorded only when the name carries
+    /// evidence (this file's `def`, an import, a builtin), so a parameter or
+    /// local is never resolved by its name alone.
+    fn push_value_references(&mut self, value: Node, owner: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        match value.kind() {
+            "identifier" => {
+                if self.push_bare_evidence(value) {
+                    let name = text(value, self.source).to_string();
+                    self.push_relation(owner, RelationKind::References, name, location(value));
+                }
             }
+            "keyword_argument" | "pair" => {
+                if let Some(inner) = value.child_by_field_name("value") {
+                    self.push_value_references(inner, owner, depth + 1);
+                }
+            }
+            "argument_list"
+            | "expression_list"
+            | "tuple"
+            | "list"
+            | "set"
+            | "dictionary"
+            | "parenthesized_expression" => {
+                let mut cursor = value.walk();
+                for part in value.named_children(&mut cursor) {
+                    self.push_value_references(part, owner, depth + 1);
+                }
+            }
+            _ => {}
         }
     }
 
