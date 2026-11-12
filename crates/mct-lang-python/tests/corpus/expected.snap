@@ -1,4 +1,4 @@
-# language=python files=15 symbols=400 relations=1451 name_matched_across_files=365
+# language=python files=15 symbols=400 relations=1480 name_matched_across_files=374
 
 == library/cli.py (307 lines)
 S 1-307 module cli
@@ -339,12 +339,15 @@ R 153:9 references wrapper -> wraps
 R 178:15 calls translate_errors -> StorageError
 R 170:1 references translate_errors -> contextmanager
 R 183:8 calls error_response -> isinstance
+R 183:24 references error_response -> NotFoundError
 R 184:25 calls error_response -> to_dict
 R 185:8 calls error_response -> isinstance
+R 185:24 references error_response -> ValidationError
 R 186:25 calls error_response -> to_dict
 R 187:8 calls error_response -> isinstance
 R 188:25 calls error_response -> to_dict
 R 189:8 calls error_response -> isinstance
+R 189:24 references error_response -> LibraryError
 R 190:25 calls error_response -> to_dict
 R 191:9 calls error_response -> exception
 R 205:28 calls Timer::__enter__ -> perf_counter
@@ -372,6 +375,7 @@ R 263:38 calls safe_call -> getattr
 R 264:13 calls safe_call -> info
 R 271:15 calls chain_errors -> ValueError
 R 281:12 calls is_retryable -> isinstance
+R 281:28 references is_retryable -> LibraryError
 R 285:22 calls walk_causes -> set
 R 287:35 calls walk_causes -> id
 R 288:14 calls walk_causes -> add (name-matched: library/models.py)
@@ -487,7 +491,9 @@ R 100:34 calls Author::sort_key -> casefold
 R 100:63 calls Author::sort_key -> casefold
 R 85:1 references Author -> dataclass
 R 109:29 calls Book -> field
+R 109:51 references Book -> list
 R 112:22 calls Book -> field
+R 112:44 references Book -> set
 R 117:21 calls Book::__post_init__ -> normalize_isbn
 R 118:27 calls Book::__post_init__ -> strip
 R 119:19 calls Book::__post_init__ -> ValidationError (name-matched: library/errors.py)
@@ -669,7 +675,9 @@ R 38:23 calls fmt_name -> strip
 R 41:11 extends Row -> NamedTuple
 R 47:18 extends GenreStats -> TypedDict
 R 61:35 calls Report -> field
+R 61:57 references Report -> list
 R 62:24 calls Report -> field
+R 62:46 references Report -> list
 R 63:25 calls Report -> field
 R 82:43 calls Palette::pick -> len
 R 85:12 calls Report::add -> len
@@ -924,6 +932,7 @@ R 142:29 calls SqliteRepository::get -> execute
 R 145:21 calls SqliteRepository::get -> loads
 R 139:5 references SqliteRepository::get -> retry (name-matched: library/errors.py)
 R 149:21 calls SqliteRepository::put -> dumps
+R 149:42 references SqliteRepository::put -> _json_default
 R 150:14 calls SqliteRepository::put -> translate_errors (name-matched: library/errors.py)
 R 151:23 calls SqliteRepository::put -> execute
 R 147:5 references SqliteRepository::put -> retry (name-matched: library/errors.py)
@@ -934,8 +943,10 @@ R 163:91 calls SqliteRepository::scan -> fetchall
 R 163:30 calls SqliteRepository::scan -> execute
 R 165:29 calls SqliteRepository::scan -> loads
 R 169:8 calls _json_default -> isinstance
+R 169:26 references _json_default -> datetime
 R 170:22 calls _json_default -> isoformat
 R 171:8 calls _json_default -> isinstance
+R 171:26 references _json_default -> set
 R 172:16 calls _json_default -> sorted
 R 173:8 calls _json_default -> hasattr
 R 175:11 calls _json_default -> TypeError
@@ -1125,10 +1136,12 @@ R 105:12 calls SmsNotifier::deliver -> len
 R 107:16 calls SmsNotifier::deliver -> info
 R 108:16 calls SmsNotifier::deliver -> bool
 R 115:54 calls EventBus::__init__ -> defaultdict
+R 115:66 references EventBus::__init__ -> list
 R 119:36 calls register -> append
 R 128:17 calls EventBus::publish -> listener
 R 131:24 calls EventBus::publish -> exception
 R 139:46 calls HoldQueue::__init__ -> defaultdict
+R 139:58 references HoldQueue::__init__ -> list
 R 140:35 calls HoldQueue::__init__ -> count (name-matched: library/reports.py)
 R 143:25 calls HoldQueue::place -> int
 R 144:16 calls HoldQueue::place -> Hold (name-matched: library/models.py)
@@ -1211,6 +1224,7 @@ R 268:9 calls LendingService::place_hold -> audit (name-matched: library/errors.
 R 271:5 references LendingService::find_loans -> overload
 R 274:5 references LendingService::find_loans -> overload
 R 278:41 calls LendingService::find_loans -> isinstance
+R 278:60 references LendingService::find_loans -> Member (name-matched: library/models.py)
 R 278:73 calls LendingService::find_loans -> int
 R 279:16 calls LendingService::find_loans -> sorted
 R 279:38 calls LendingService::find_loans -> open_loans (name-matched: library/repository.py)
@@ -1238,6 +1252,7 @@ R 327:18 calls ReminderService::send_all -> _send_one
 R 327:76 calls ReminderService::send_all -> overdue
 R 329:33 calls ReminderService::send_all -> gather
 R 330:43 calls ReminderService::send_all -> isinstance
+R 330:57 references ReminderService::send_all -> BaseException
 R 332:20 calls ReminderService::send_all -> warning
 R 333:16 calls ReminderService::send_all -> sum
 R 336:40 calls ReminderService::stream -> overdue
@@ -1303,6 +1318,7 @@ R 12:1 references BookAdmin -> register (name-matched: library/cli.py)
 R 33:18 extends PlainAdmin -> ModelAdmin
 R 32:1 references PlainAdmin -> register (name-matched: library/cli.py)
 R 37:12 calls admin -> register (name-matched: library/cli.py)
+R 37:21 references admin -> CopyRecord (name-matched: web/django_site/lending/models.py)
 
 == web/django_site/lending/apps.py (12 lines)
 S 1-12 module apps
@@ -1398,6 +1414,7 @@ R 54:19 calls BookRecord -> CharField
 R 55:20 calls BookRecord -> CharField
 R 56:20 calls BookRecord -> CharField
 R 57:22 calls BookRecord -> ManyToManyField
+R 57:38 references BookRecord -> AuthorRecord
 R 58:24 calls BookRecord -> PositiveSmallIntegerField
 R 60:28 calls BookRecord -> as_manager
 R 64:27 calls BookRecord::Meta -> Index (name-matched: library/models.py)
@@ -1411,10 +1428,12 @@ R 81:16 calls BookRecord::get_absolute_url -> reverse
 R 84:18 extends CopyRecord -> Model
 R 85:18 extends CopyRecord::Status -> TextChoices
 R 90:19 calls CopyRecord -> ForeignKey
+R 90:30 references CopyRecord -> BookRecord
 R 91:22 calls CopyRecord -> CharField
 R 92:21 calls CopyRecord -> CharField
 R 98:18 extends LoanRecord -> TimeStampedModel
 R 99:19 calls LoanRecord -> ForeignKey
+R 99:30 references LoanRecord -> CopyRecord
 R 100:21 calls LoanRecord -> ForeignKey
 R 103:18 calls LoanRecord -> DateTimeField
 R 104:23 calls LoanRecord -> DateTimeField
@@ -1477,9 +1496,13 @@ R 20:44 calls urls -> as_view
 R 21:9 calls urls -> path
 R 21:49 calls urls -> as_view
 R 22:9 calls urls -> path
+R 22:38 references urls -> checkout (name-matched: library/services.py)
 R 29:9 calls urls -> path
+R 29:18 references urls -> my_loans (name-matched: web/django_site/lending/views.py)
 R 30:9 calls urls -> path
+R 30:26 references urls -> overdue (name-matched: library/services.py)
 R 31:9 calls urls -> path
+R 31:33 references urls -> waive_fee (name-matched: web/django_site/lending/views.py)
 R 37:5 calls urls -> path
 R 38:5 calls urls -> path
 R 38:20 calls urls -> include
@@ -1585,6 +1608,7 @@ R 70:23 calls StatsView::get -> F
 R 72:16 calls StatsView::get -> JsonResponse
 R 72:40 calls StatsView::get -> list
 R 78:12 calls checkout -> get_object_or_404
+R 78:30 references checkout -> BookRecord (name-matched: web/django_site/lending/models.py)
 R 78:47 calls checkout -> normalize_isbn (name-matched: library/models.py)
 R 79:12 calls checkout -> CheckoutForm (name-matched: web/django_site/lending/forms.py)
 R 80:17 calls checkout -> is_valid
@@ -1604,6 +1628,7 @@ R 99:12 calls checkout -> redirect
 R 75:1 references checkout -> login_required (name-matched: web/flask_app.py)
 R 76:1 references checkout -> require_POST
 R 106:12 calls waive_fee -> get_object_or_404
+R 106:30 references waive_fee -> LoanRecord (name-matched: web/django_site/lending/models.py)
 R 107:47 calls waive_fee -> now (name-matched: library/services.py)
 R 108:10 calls waive_fee -> save (name-matched: web/django_site/lending/models.py)
 R 109:14 calls waive_fee -> success
@@ -1718,7 +1743,9 @@ R 75:17 calls checked -> abort
 R 76:20 calls checked -> view
 R 72:9 references checked -> wraps
 R 85:25 calls page_args -> get
+R 85:53 references page_args -> int
 R 86:25 calls page_args -> get
+R 86:69 references page_args -> int
 R 87:12 calls page_args -> max
 R 87:26 calls page_args -> min
 R 87:30 calls page_args -> max
@@ -1780,6 +1807,7 @@ R 180:14 calls format_isbn -> normalize_isbn (name-matched: library/models.py)
 R 181:16 calls format_isbn -> join
 R 178:1 references format_isbn -> app_template_filter
 R 186:23 calls inject_genres -> list
+R 186:28 references inject_genres -> Genre (name-matched: library/models.py)
 R 184:1 references inject_genres -> app_context_processor
 R 196:18 calls list_books -> page_args
 R 197:41 calls list_books -> page (name-matched: library/repository.py)
@@ -1826,6 +1854,7 @@ R 259:8 calls register_api -> add_url_rule
 R 260:8 calls register_api -> add_url_rule
 R 261:8 calls register_api -> add_url_rule
 R 264:1 calls flask_app -> register_api
+R 264:19 references flask_app -> LoanAPI
 R 273:11 calls create_app -> Flask
 R 274:16 calls create_app -> from_mapping
 R 280:20 calls create_app -> update
