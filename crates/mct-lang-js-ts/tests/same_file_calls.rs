@@ -19,7 +19,9 @@ use mct_lang_js_ts::JsTsParser;
 const SOURCE: &str = r#"import { imported } from "./m";
 function helper() {}
 const handler = () => helper();
+let state = make();
 helper();
+state();
 imported();
 parseInt("1");
 function outer(helper) {
@@ -52,7 +54,9 @@ fn a_bare_call_to_a_name_the_file_declares_targets_this_file() {
         targets,
         [
             row(RelationKind::Calls, "helper", &here),
+            row(RelationKind::Calls, "make", &None),
             row(RelationKind::Calls, "helper", &here),
+            row(RelationKind::Calls, "state", &here),
             row(RelationKind::Calls, "imported", &None),
             row(RelationKind::Calls, "parseInt", &None),
             row(RelationKind::Calls, "helper", &None),
