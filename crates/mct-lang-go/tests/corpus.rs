@@ -216,14 +216,29 @@ fn cross_file_calls_are_extracted() {
 }
 
 #[test]
+fn package_values_and_struct_fields_are_symbols() {
+    use SymbolKind::{Field, Variable};
+    let c = corpus();
+    for (path, name) in [
+        ("errors.go", "ErrNotFound"),
+        ("errors.go", "DefaultRetry"),
+        ("account.go", "SystemClock"),
+        ("errors.go", "codeNames"),
+    ] {
+        assert_eq!(
+            c.symbol_parent(path, name, Variable),
+            Some("ledger"),
+            "{name}"
+        );
+    }
+    assert_eq!(c.symbol_parent("money.go", "Units", Field), Some("Money"));
+}
+
+#[test]
 fn declarations_without_a_symbol_are_the_documented_limits() {
     let c = corpus();
-    // package-level const/var and struct fields are not symbols…
-    for name in ["ErrNotFound", "DefaultRetry", "SystemClock", "codeNames"] {
-        assert!(c.symbols_named(name).is_empty(), "{name} became a symbol");
-    }
-    assert!(c.symbols_named("Units").is_empty());
-    // …so a call in a package-level initializer belongs to the file module.
+    // A call in a package-level initializer belongs to the file module,
+    // not to the variable it initializes.
     c.relation("errors.go", "errors", RelationKind::Calls, "New");
     // Embedding and structural interface satisfaction leave no relation.
     assert!(!c.has_relation("Service", RelationKind::Implements, "Store"));

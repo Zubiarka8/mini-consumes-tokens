@@ -10,6 +10,8 @@
 //! structs satisfy it. Revisit alongside the general LSP/type-resolution
 //! decision (see `checklist.md`).
 
+use std::collections::HashSet;
+
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
@@ -76,6 +78,7 @@ impl LanguageParser for GoParser {
         walker.globals = receivers::globals(root, &file.contents);
         walker.structs = receivers::structs(root, &file.contents);
         walker.std_imports = stdlib::StdImports::of(root, &file.contents);
+        walker.packages = repo_packages(root, &file.contents);
         let file_loc = file_location(root);
         let file_module_id = walker.push_symbol(module_name, SymbolKind::Module, file_loc, None);
         if let Some(ref pkg) = package_name {
@@ -128,6 +131,9 @@ struct Walker<'a> {
     details: Vec<mct_core::SymbolDetail>,
     /// The standard packages this file imports and never rebinds.
     std_imports: stdlib::StdImports,
+    /// The names this file's unaliased repository imports bind (see
+    /// `repo_packages`).
+    packages: HashSet<String>,
 }
 
 impl<'a> Walker<'a> {
@@ -223,11 +229,12 @@ impl<'a> Walker<'a> {
                 match node.child_by_field_name("type") {
                     Some(type_node) if type_node.kind() == "struct_type" => {
                         self.push_symbol(
-                            name,
+                            name.clone(),
                             SymbolKind::Struct,
                             location(node),
                             package_name.map(str::to_string),
                         );
+                        self.push_fields(type_node, &name);
                     }
                     Some(type_node) if type_node.kind() == "interface_type" => {
                         self.push_symbol(
@@ -290,6 +297,12 @@ impl<'a> Walker<'a> {
                     package_name.map(str::to_string),
                 );
             }
+            "const_declaration" | "var_declaration"
+                if node.parent().is_some_and(|p| p.kind() == "source_file") =>
+            {
+                self.push_package_values(node, package_name);
+                self.visit_children(node, owner, package_name, depth + 1);
+            }
             "import_declaration" => {
                 let mut specs = Vec::new();
                 collect_import_specs(node, &mut specs);
@@ -298,6 +311,12 @@ impl<'a> Walker<'a> {
                         let raw = text(path_node, self.source);
                         let clean = raw.trim_matches(|c| c == '"' || c == '`').to_string();
                         self.push_package_import(owner, &clean, location(spec));
+                        // The path names a package, never a same-named
+                        // field or variable (`import "log"`).
+                        self.push_target(RelationTarget {
+                            kind: Some(SymbolKind::Module),
+                            ..Default::default()
+                        });
                         self.push_relation(owner, RelationKind::Imports, clean, location(spec));
                     }
                 }
@@ -306,7 +325,8 @@ impl<'a> Walker<'a> {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some(name_node) = callee_identifier(function) {
                         if !self.push_std_package(function) {
-                            self.push_receiver(function, text(name_node, self.source));
+                            let name = text(name_node, self.source);
+                            self.push_call_evidence(function, name, package_name);
                         }
                         // location(name_node), not location(node): a chained
                         // call (`a.F(x).F(y)`) has its outer and inner
@@ -353,6 +373,69 @@ impl<'a> Walker<'a> {
 
     /// A function's or method's parameters and body, with its receiver's,
     /// parameters' and locals' declared types known while the body is walked.
+    /// Each named field of `struct_type` is a `Field` of `parent`; an
+    /// embedded field (`*Base`) names a type, not a field of its own.
+    fn push_fields(&mut self, struct_type: Node, parent: &str) {
+        let Some(list) = struct_type
+            .named_children(&mut struct_type.walk())
+            .find(|c| c.kind() == "field_declaration_list")
+        else {
+            return;
+        };
+        for field in list.named_children(&mut list.walk()) {
+            if field.kind() == "field_declaration" {
+                self.push_names(field, "", SymbolKind::Field, Some(parent));
+            }
+        }
+    }
+
+    /// Each name of a package-level `const` / `var` declaration, grouped
+    /// (`const ( … )`, `var ( … )`) or not, is a `Constant` / `Variable` of
+    /// the package.
+    fn push_package_values(&mut self, declaration: Node, package_name: Option<&str>) {
+        let (keyword, kind) = if declaration.kind() == "const_declaration" {
+            ("const", SymbolKind::Constant)
+        } else {
+            ("var", SymbolKind::Variable)
+        };
+        let mut specs = Vec::new();
+        for child in declaration.named_children(&mut declaration.walk()) {
+            match child.kind() {
+                "const_spec" | "var_spec" => specs.push(child),
+                "var_spec_list" => specs.extend(
+                    child
+                        .named_children(&mut child.walk())
+                        .filter(|c| c.kind() == "var_spec"),
+                ),
+                _ => {}
+            }
+        }
+        for spec in specs {
+            self.push_names(spec, keyword, kind, package_name);
+        }
+    }
+
+    /// One `kind` symbol per declared name of `spec`, skipping `_`.
+    fn push_names(&mut self, spec: Node, keyword: &str, kind: SymbolKind, parent: Option<&str>) {
+        let names: Vec<Node> = spec
+            .children_by_field_name("name", &mut spec.walk())
+            .collect();
+        for name_node in names {
+            let name = text(name_node, self.source);
+            if name == "_" {
+                continue;
+            }
+            let detail = details::value_detail(spec, keyword, name, self.next_id, self.source);
+            self.details.push(detail);
+            self.push_symbol(
+                name.to_string(),
+                kind,
+                location(name_node),
+                parent.map(str::to_string),
+            );
+        }
+    }
+
     fn visit_function(&mut self, node: Node, id: SymbolId, package_name: Option<&str>, depth: u32) {
         let mut locals = receivers::Types::new();
         receivers::locals(node, self.source, &mut locals, depth + 1);
@@ -378,14 +461,8 @@ impl<'a> Walker<'a> {
     /// before. A struct this file declares with an embedded field and
     /// without `M` may have `M` promoted from that field, so its type is no
     /// qualifier there: a member call.
-    fn push_receiver(&mut self, function: Node, method: &str) {
+    fn push_receiver(&mut self, operand: Node, method: &str) {
         use receivers::Ty;
-        if function.kind() != "selector_expression" {
-            return;
-        }
-        let Some(operand) = function.child_by_field_name("operand") else {
-            return;
-        };
         let ty = match operand.kind() {
             "identifier" => self.declared(text(operand, self.source)).cloned(),
             // `s.repo.M()`: the field's type, when this file declares the
@@ -429,13 +506,74 @@ impl<'a> Walker<'a> {
                 }
             }
             Some(Ty::Unnamed) => (None, true),
-            Some(Ty::Unknown) | None => return,
+            Some(Ty::Unknown) | None => return self.push_value_call(operand),
         };
         self.relation_targets.push(RelationTarget {
             relation: self.relations.len(),
             qualifier,
             member,
             ..Default::default()
+        });
+    }
+
+    /// The evidence of a call about to be pushed. Go has no implicit
+    /// receiver, so a bare `f()` names a package-level declaration of
+    /// `package_name`, unless `f` is a local (a closure). A selector call
+    /// is a receiver's method (`push_receiver`).
+    fn push_call_evidence(&mut self, function: Node, name: &str, package_name: Option<&str>) {
+        match function.kind() {
+            "identifier" if !self.locals.contains_key(name) => {
+                if let Some(package) = package_name {
+                    self.push_target(RelationTarget {
+                        qualifier: Some(package.to_string()),
+                        ..Default::default()
+                    });
+                }
+            }
+            "selector_expression" => {
+                if let Some(operand) = function.child_by_field_name("operand") {
+                    self.push_receiver(operand, name);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// `v.M()` where nothing proves `v`'s type. A declared name, an index,
+    /// a call result or a field is a value, so `M` is a method, never a
+    /// package-level name. An undeclared name is an imported package when
+    /// an unaliased repository import binds it: `M` is declared in that
+    /// package. Any other name proves nothing.
+    fn push_value_call(&mut self, operand: Node) {
+        let target = if operand.kind() != "identifier" {
+            RelationTarget {
+                kind: Some(SymbolKind::Method),
+                ..Default::default()
+            }
+        } else {
+            let name = text(operand, self.source);
+            if self.declared(name).is_some() {
+                RelationTarget {
+                    kind: Some(SymbolKind::Method),
+                    ..Default::default()
+                }
+            } else if self.packages.contains(name) {
+                RelationTarget {
+                    qualifier: Some(name.to_string()),
+                    ..Default::default()
+                }
+            } else {
+                return;
+            }
+        };
+        self.push_target(target);
+    }
+
+    /// `target` for the relation about to be pushed.
+    fn push_target(&mut self, target: RelationTarget) {
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            ..target
         });
     }
 
@@ -517,6 +655,31 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
+}
+
+/// The names a file's unaliased repository imports bind: `store` for
+/// `import "example.com/app/store"`. Code can name such a package by its
+/// directory only if its `package` clause uses that name, so the name is
+/// the package's. A name an aliased import also binds is left out.
+fn repo_packages(root: Node, source: &str) -> HashSet<String> {
+    let mut specs = Vec::new();
+    for declaration in root.named_children(&mut root.walk()) {
+        if declaration.kind() == "import_declaration" {
+            collect_import_specs(declaration, &mut specs);
+        }
+    }
+    let mut aliases = HashSet::new();
+    let mut packages = HashSet::new();
+    for spec in specs {
+        if let Some(alias) = spec.child_by_field_name("name") {
+            aliases.insert(text(alias, source).to_string());
+        } else if let Some(path) = spec.child_by_field_name("path") {
+            let path = text(path, source).trim_matches(|c| c == '"' || c == '`');
+            packages.extend(Walker::package_dir_name(path));
+        }
+    }
+    packages.retain(|name| !aliases.contains(name));
+    packages
 }
 
 fn collect_import_specs<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {

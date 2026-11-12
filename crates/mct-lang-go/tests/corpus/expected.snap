@@ -1,11 +1,31 @@
-# language=go files=7 symbols=291 relations=835 name_matched_across_files=255
+# language=go files=7 symbols=463 relations=835 name_matched_across_files=249
 
 == cmd/ledger/main.go (342 lines)
 S 1-342 module main
 S 1-342 module main
+S 24-24 constant main::exitOK
+S 25-25 constant main::exitUsage
+S 26-26 constant main::exitFailure
+S 30-30 variable main::version
+S 31-31 variable main::started
 S 34-40 struct main::options
+S 35-35 field options::currency
+S 36-36 field options::author
+S 37-37 field options::verbose
+S 38-38 field options::timeout
+S 39-39 field options::args
 S 43-48 struct main::command
+S 44-44 field command::name
+S 45-45 field command::help
+S 46-46 field command::run
+S 47-47 field command::hooks
 S 51-57 struct main::app
+S 52-52 field app::opts
+S 53-53 field app::store
+S 54-54 field app::service
+S 55-55 field app::report
+S 56-56 field app::out
+S 59-59 variable main::commands
 S 71-73 function main::init
 S 75-77 function main::main
 S 79-119 function main::run
@@ -72,7 +92,7 @@ R 128:5 calls main::parseFlags -> DurationVar
 R 129:22 calls main::parseFlags -> usage
 R 129:31 calls main::parseFlags -> Output
 R 130:15 calls main::parseFlags -> Parse
-R 133:25 calls main::parseFlags -> Currency (name-matched: ledger/money.go)
+R 133:25 calls main::parseFlags -> Currency (name-matched: ledger/account.go)
 R 133:42 calls main::parseFlags -> ToUpper
 R 134:20 calls main::parseFlags -> Valid (name-matched: ledger/money.go)
 R 135:20 calls main::parseFlags -> Errorf
@@ -170,13 +190,31 @@ S 15-15 type_alias ledger::TxID
 S 18-18 type_alias ledger::Tags
 S 22-22 type_alias ledger::Amount
 S 25-25 type_alias ledger::Kind
+S 28-28 constant ledger::Asset
+S 29-29 constant ledger::Liability
+S 30-30 constant ledger::Equity
+S 31-31 constant ledger::Income
+S 32-32 constant ledger::Expense
+S 36-36 variable ledger::kindNames
 S 45-50 method Kind::String
 S 54-59 method Kind::NormalSide
 S 62-69 function ledger::ParseKind
 S 72-72 type_alias ledger::Side
+S 75-75 constant ledger::Debit
+S 76-76 constant ledger::Credit
 S 80-80 method Side::Opposite
 S 82-87 method Side::String
 S 90-101 struct ledger::Account
+S 91-91 field Account::ID
+S 92-92 field Account::Name
+S 93-93 field Account::Kind
+S 94-94 field Account::Currency
+S 95-95 field Account::Parent
+S 96-96 field Account::Limit
+S 97-97 field Account::Tags
+S 98-98 field Account::Opened
+S 99-99 field Account::Closed
+S 100-100 field Account::version
 S 104-109 method Account::IsOpen
 S 112-112 method Account::Version
 S 115-115 method Account::Path
@@ -191,10 +229,22 @@ S 167-176 function ledger::WithTags
 S 179-181 function ledger::OpenedAt
 S 184-200 function ledger::NewAccount
 S 203-208 struct ledger::Entry
+S 204-204 field Entry::Account
+S 205-205 field Entry::Side
+S 206-206 field Entry::Amount
+S 207-207 field Entry::Memo
 S 212-217 method Entry::Signed
 S 220-225 struct ledger::Meta
+S 221-221 field Meta::Created
+S 222-222 field Meta::Author
+S 223-223 field Meta::Source
 S 228-242 method Meta::Describe
 S 245-252 struct ledger::Transaction
+S 247-247 field Transaction::ID
+S 248-248 field Transaction::Date
+S 249-249 field Transaction::Summary
+S 250-250 field Transaction::Entries
+S 251-251 field Transaction::Reverts
 S 255-263 method Transaction::Debits
 S 266-274 method Transaction::Credits
 S 277-279 method Transaction::Balanced
@@ -202,6 +252,8 @@ S 283-293 method Transaction::Accounts
 S 296-313 method Transaction::Validate
 S 316-333 method Transaction::Reversal
 S 336-339 struct ledger::Builder
+S 337-337 field Builder::tx
+S 338-338 field Builder::err
 S 342-344 function ledger::NewTx
 S 347-350 method Builder::On
 S 353-357 method Builder::By
@@ -227,7 +279,9 @@ S 422-422 type_alias ledger::ClockFunc
 S 425-425 method ClockFunc::Now
 S 428-428 struct ledger::systemClock
 S 430-430 method systemClock::Now
+S 433-433 variable ledger::SystemClock
 S 436-436 struct ledger::FixedClock
+S 436-436 field FixedClock::At
 S 439-439 method FixedClock::Now
 S 442-442 method FixedClock::Advance
 R 4:2 imports account -> fmt
@@ -318,10 +372,31 @@ R 449:16 calls account -> ClockFunc
 S 1-475 module errors
 S 1-475 module ledger
 S 21-21 type_alias ledger::ErrorCode
+S 25-25 constant ledger::CodeUnknown
+S 26-26 constant ledger::CodeNotFound
+S 27-27 constant ledger::CodeInvalid
+S 28-28 constant ledger::CodeConflict
+S 29-29 constant ledger::CodeUnbalanced
+S 30-30 constant ledger::CodeClosed
+S 31-31 constant ledger::CodeLimit
+S 32-32 constant ledger::CodeTimeout
+S 33-33 constant ledger::codeSentinel
+S 36-36 variable ledger::codeNames
 S 48-53 method ErrorCode::String
 S 57-64 method ErrorCode::Retryable
+S 68-68 variable ledger::ErrNotFound
+S 69-69 variable ledger::ErrInvalid
+S 70-70 variable ledger::ErrConflict
+S 71-71 variable ledger::ErrUnbalanced
+S 72-72 variable ledger::ErrClosed
+S 73-73 variable ledger::ErrLimit
 S 77-95 function ledger::sentinelFor
 S 100-106 struct ledger::Error
+S 101-101 field Error::Code
+S 102-102 field Error::Op
+S 103-103 field Error::Account
+S 104-104 field Error::Cause
+S 105-105 field Error::When
 S 109-125 method Error::Error
 S 128-128 method Error::Unwrap
 S 131-140 method Error::Is
@@ -332,13 +407,20 @@ S 162-164 function ledger::Invalid
 S 167-169 function ledger::Conflict
 S 172-174 function ledger::Closed
 S 177-181 struct ledger::LimitError
+S 178-178 field LimitError::Account
+S 179-179 field LimitError::Limit
+S 180-180 field LimitError::Wanted
 S 183-186 method LimitError::Error
 S 189-189 method LimitError::Is
 S 192-196 struct ledger::UnbalancedError
+S 193-193 field UnbalancedError::Transaction
+S 194-194 field UnbalancedError::Debits
+S 195-195 field UnbalancedError::Credits
 S 198-201 method UnbalancedError::Error
 S 204-204 method UnbalancedError::Is
 S 207-207 method UnbalancedError::Difference
 S 211-213 struct ledger::MultiError
+S 212-212 field MultiError::errs
 S 216-226 method MultiError::Append
 S 229-229 method MultiError::Len
 S 233-238 method MultiError::ErrorOrNil
@@ -347,6 +429,8 @@ S 258-258 method MultiError::Unwrap
 S 261-275 method MultiError::Codes
 S 278-294 function ledger::CodeOf
 S 298-301 struct ledger::Result
+S 299-299 field Result::Value
+S 300-300 field Result::Err
 S 304-304 function ledger::Ok
 S 307-307 function ledger::Fail
 S 310-310 method Result::Unwrap
@@ -355,6 +439,11 @@ S 321-326 method Result::Must
 S 329-335 function ledger::Try
 S 339-353 function ledger::Recover
 S 356-361 struct ledger::RetryPolicy
+S 357-357 field RetryPolicy::Attempts
+S 358-358 field RetryPolicy::Initial
+S 359-359 field RetryPolicy::Max
+S 360-360 field RetryPolicy::Jitter
+S 364-364 variable ledger::DefaultRetry
 S 371-380 method RetryPolicy::delay
 S 384-407 function ledger::Retry
 S 411-416 function ledger::Describe
@@ -480,10 +569,18 @@ R 472:45 calls ledger::Guard -> Errorf
 S 1-447 module money
 S 1-447 module ledger
 S 15-15 type_alias ledger::Currency
+S 19-19 constant ledger::EUR
+S 20-20 constant ledger::USD
+S 21-21 constant ledger::GBP
+S 22-22 constant ledger::JPY
+S 23-23 constant ledger::CHF
+S 27-27 variable ledger::exponents
 S 36-41 method Currency::Exponent
 S 44-54 method Currency::Valid
 S 57-69 method Currency::Symbol
 S 73-76 struct ledger::Money
+S 74-74 field Money::Units
+S 75-75 field Money::Currency
 S 79-79 function ledger::Zero
 S 82-88 function ledger::Of
 S 90-96 function ledger::pow10
@@ -506,9 +603,15 @@ S 245-259 method Money::UnmarshalJSON
 S 262-294 function ledger::ParseMoney
 S 297-303 function ledger::MustParse
 S 307-310 struct ledger::Rate
+S 308-308 field Rate::From
+S 308-308 field Rate::To
+S 309-309 field Rate::Num
+S 309-309 field Rate::Den
 S 313-334 method Rate::Convert
 S 337-339 method Rate::Invert
 S 343-346 struct ledger::RateTable
+S 344-344 field RateTable::base
+S 345-345 field RateTable::rates
 S 349-351 function ledger::NewRateTable
 S 354-360 method RateTable::Set
 S 363-379 method RateTable::Lookup
@@ -642,21 +745,46 @@ S 34-40 function ledger::Reduce
 S 43-50 function ledger::GroupBy
 S 53-60 function ledger::Keys
 S 63-69 struct ledger::Row
+S 64-64 field Row::Account
+S 65-65 field Row::Name
+S 66-66 field Row::Kind
+S 67-67 field Row::Depth
+S 68-68 field Row::Balance
 S 72-78 struct ledger::Report
+S 73-73 field Report::store
+S 74-74 field Report::clock
+S 75-75 field Report::rates
+S 76-76 field Report::Title
+S 77-77 field Report::Width
 S 82-87 function ledger::NewReport
 S 90-110 method Report::rows
 S 114-140 method Report::TrialBalance
 S 143-172 method Report::BalanceSheet
 S 175-205 method Report::IncomeStatement
 S 208-213 struct ledger::Statement
+S 209-209 field Statement::Account
+S 210-210 field Statement::Lines
+S 211-211 field Statement::Opening
+S 212-212 field Statement::Closing
 S 216-220 struct ledger::StatementLine
+S 217-217 field StatementLine::Date
+S 218-218 field StatementLine::Entry
+S 219-219 field StatementLine::Running
 S 223-249 method Report::StatementFor
 S 252-262 method Statement::WriteTo
 S 266-270 struct ledger::countingWriter
+S 267-267 field countingWriter::w
+S 268-268 field countingWriter::n
+S 269-269 field countingWriter::err
 S 272-280 method countingWriter::Write
 S 283-298 method Report::Convert
 S 301-310 function ledger::Largest
 S 313-319 struct ledger::Summary
+S 314-314 field Summary::Accounts
+S 315-315 field Summary::Transactions
+S 316-316 field Summary::ByKind
+S 317-317 field Summary::Oldest
+S 318-318 field Summary::Newest
 S 322-335 method Report::Summarize
 S 338-345 method Summary::Format
 S 348-350 function ledger::Names
@@ -684,13 +812,13 @@ R 54:10 calls ledger::Keys -> make
 R 54:23 calls ledger::Keys -> len
 R 56:10 calls ledger::Keys -> append
 R 58:7 calls ledger::Keys -> Slice
-R 91:27 calls Report::rows -> Accounts (name-matched: ledger/account.go)
+R 91:27 calls Report::rows -> Accounts
 R 95:10 calls Report::rows -> make
 R 95:25 calls Report::rows -> len
-R 97:23 calls Report::rows -> Balance (name-matched: ledger/account.go)
+R 97:23 calls Report::rows -> Balance
 R 99:16 calls Report::rows -> Wrap (name-matched: ledger/errors.go)
 R 101:10 calls Report::rows -> append
-R 105:15 calls Report::rows -> Depth (name-matched: ledger/account.go)
+R 105:15 calls Report::rows -> Depth
 R 115:17 calls Report::TrialBalance -> rows
 R 119:18 calls Report::TrialBalance -> NewWriter
 R 120:11 calls Report::TrialBalance -> Flush
@@ -725,7 +853,7 @@ R 167:46 calls Report::BalanceSheet -> Add (name-matched: ledger/money.go)
 R 167:12 calls Report::BalanceSheet -> section
 R 167:50 calls Report::BalanceSheet -> section
 R 168:12 calls Report::BalanceSheet -> Cmp (name-matched: ledger/money.go)
-R 176:27 calls Report::IncomeStatement -> Accounts (name-matched: ledger/account.go)
+R 176:27 calls Report::IncomeStatement -> Accounts
 R 184:27 calls Report::IncomeStatement -> History (name-matched: ledger/account.go)
 R 190:24 calls Report::IncomeStatement -> NormalSide (name-matched: ledger/account.go)
 R 191:15 calls Report::IncomeStatement -> Add (name-matched: ledger/money.go)
@@ -737,8 +865,8 @@ R 200:22 calls Report::IncomeStatement -> Add (name-matched: ledger/money.go)
 R 203:6 calls Report::IncomeStatement -> Fprintf
 R 203:67 calls Report::IncomeStatement -> Format
 R 203:54 calls Report::IncomeStatement -> Sub (name-matched: ledger/money.go)
-R 224:23 calls Report::StatementFor -> Account (name-matched: ledger/account.go)
-R 228:26 calls Report::StatementFor -> Balance (name-matched: ledger/account.go)
+R 224:23 calls Report::StatementFor -> Account
+R 228:26 calls Report::StatementFor -> Balance
 R 228:43 calls Report::StatementFor -> Add (name-matched: ledger/money.go)
 R 232:26 calls Report::StatementFor -> History (name-matched: ledger/account.go)
 R 238:22 calls Report::StatementFor -> NormalSide (name-matched: ledger/account.go)
@@ -786,6 +914,8 @@ S 14-17 interface ledger::Hook
 S 15-15 method Hook::Before
 S 16-16 method Hook::After
 S 20-23 struct ledger::HookFuncs
+S 21-21 field HookFuncs::BeforeFunc
+S 22-22 field HookFuncs::AfterFunc
 S 26-31 method HookFuncs::Before
 S 34-38 method HookFuncs::After
 S 41-43 interface ledger::Logger
@@ -793,7 +923,19 @@ S 42-42 method Logger::Printf
 S 45-45 struct ledger::discard
 S 47-47 method discard::Printf
 S 50-56 struct ledger::Config
+S 51-51 field Config::Author
+S 52-52 field Config::Retry
+S 53-53 field Config::Workers
+S 54-54 field Config::MaxEntries
+S 55-55 field Config::Rates
 S 60-70 struct ledger::Service
+S 62-62 field Service::cfg
+S 63-63 field Service::ids
+S 64-64 field Service::clock
+S 65-65 field Service::log
+S 66-66 field Service::hooks
+S 68-68 field Service::mu
+S 69-69 field Service::pending
 S 73-73 type_alias ledger::ServiceOption
 S 76-78 function ledger::WithLogger
 S 81-83 function ledger::WithHook
@@ -808,8 +950,15 @@ S 182-186 method Service::release
 S 191-226 method Service::Transfer
 S 229-242 method Service::Revert
 S 245-249 struct ledger::batchResult
+S 246-246 field batchResult::index
+S 247-247 field batchResult::tx
+S 248-248 field batchResult::err
 S 254-293 method Service::PostAll
 S 296-301 struct ledger::Reconciliation
+S 297-297 field Reconciliation::Account
+S 298-298 field Reconciliation::Ledger
+S 299-299 field Reconciliation::External
+S 300-300 field Reconciliation::Checked
 S 304-304 method Reconciliation::Diff
 S 307-307 method Reconciliation::Matches
 S 310-345 method Service::Reconcile
@@ -853,7 +1002,7 @@ R 159:8 calls Service::Post -> reserve
 R 160:10 calls Service::Post -> Conflict (name-matched: ledger/errors.go)
 R 160:35 calls Service::Post -> Errorf
 R 162:10 calls Service::Post -> release
-R 164:9 calls Service::Post -> Retry (name-matched: ledger/errors.go)
+R 164:9 calls Service::Post -> Retry
 R 166:10 calls Service::Post -> Printf
 R 168:18 calls Service::Post -> Post
 R 173:7 calls Service::reserve -> Lock
@@ -861,8 +1010,8 @@ R 174:13 calls Service::reserve -> Unlock
 R 183:7 calls Service::release -> Lock
 R 184:2 calls Service::release -> delete
 R 185:7 calls Service::release -> Unlock
-R 192:16 calls Service::Transfer -> Account (name-matched: ledger/account.go)
-R 196:16 calls Service::Transfer -> Account (name-matched: ledger/account.go)
+R 192:16 calls Service::Transfer -> Account
+R 196:16 calls Service::Transfer -> Account
 R 203:16 calls Service::Transfer -> Invalid (name-matched: ledger/errors.go)
 R 205:29 calls Service::Transfer -> Convert (name-matched: ledger/money.go)
 R 207:16 calls Service::Transfer -> Wrap (name-matched: ledger/errors.go)
@@ -910,7 +1059,7 @@ R 319:17 calls Service::Reconcile -> Now (name-matched: ledger/account.go)
 R 323:14 calls Service::Reconcile -> Done
 R 324:10 calls Service::Reconcile -> Append (name-matched: ledger/errors.go)
 R 324:17 calls Service::Reconcile -> newError (name-matched: ledger/errors.go)
-R 324:60 calls Service::Reconcile -> Err
+R 324:60 calls Service::Reconcile -> Err (name-matched: ledger/errors.go)
 R 328:17 calls Service::Reconcile -> Balance (name-matched: ledger/account.go)
 R 330:10 calls Service::Reconcile -> Append (name-matched: ledger/errors.go)
 R 335:24 calls Service::Reconcile -> convert
@@ -952,6 +1101,9 @@ R 456:17 calls Service::Snapshot -> Balance (name-matched: ledger/account.go)
 S 1-463 module store
 S 1-463 module ledger
 S 13-17 struct ledger::Index
+S 14-14 field Index::mu
+S 15-15 field Index::items
+S 16-16 field Index::order
 S 20-22 function ledger::NewIndex
 S 25-32 method Index::Put
 S 35-40 method Index::Get
@@ -959,15 +1111,33 @@ S 43-56 method Index::Delete
 S 59-63 method Index::Len
 S 66-79 method Index::Each
 S 82-84 struct ledger::Stack
+S 83-83 field Stack::items
 S 87-87 method Stack::Push
 S 90-98 method Stack::Pop
 S 101-101 method Stack::Len
 S 104-112 method Stack::Drain
 S 115-118 struct ledger::Pair
+S 116-116 field Pair::First
+S 117-117 field Pair::Second
 S 121-121 method Pair::Swap
 S 124-128 struct ledger::posting
+S 125-125 field posting::tx
+S 126-126 field posting::date
+S 127-127 field posting::entry
 S 132-137 struct ledger::Event
+S 133-133 field Event::Kind
+S 134-134 field Event::Account
+S 135-135 field Event::Tx
+S 136-136 field Event::At
 S 141-150 struct ledger::MemoryStore
+S 142-142 field MemoryStore::mu
+S 143-143 field MemoryStore::clock
+S 144-144 field MemoryStore::accounts
+S 145-145 field MemoryStore::txs
+S 146-146 field MemoryStore::postings
+S 147-147 field MemoryStore::subs
+S 148-148 field MemoryStore::version
+S 149-149 field MemoryStore::closed
 S 153-163 function ledger::NewMemoryStore
 S 166-172 method MemoryStore::Subscribe
 S 176-183 method MemoryStore::publish
@@ -985,6 +1155,8 @@ S 385-389 method MemoryStore::Len
 S 393-412 method MemoryStore::Walk
 S 416-436 method MemoryStore::Stream
 S 439-442 struct ledger::SequentialIDs
+S 440-440 field SequentialIDs::prefix
+S 441-441 field SequentialIDs::n
 S 445-447 function ledger::NewSequentialIDs
 S 450-458 method SequentialIDs::Next
 R 4:2 imports store -> context
@@ -1067,7 +1239,7 @@ R 277:4 calls MemoryStore::Post -> rollback
 R 278:11 calls MemoryStore::Post -> NotFound (name-matched: ledger/errors.go)
 R 280:12 calls MemoryStore::Post -> IsOpen (name-matched: ledger/account.go)
 R 281:4 calls MemoryStore::Post -> rollback
-R 282:11 calls MemoryStore::Post -> Closed (name-matched: ledger/errors.go)
+R 282:11 calls MemoryStore::Post -> Closed (name-matched: ledger/account.go)
 R 285:4 calls MemoryStore::Post -> rollback
 R 286:11 calls MemoryStore::Post -> Invalid (name-matched: ledger/errors.go)
 R 289:27 calls MemoryStore::Post -> append
@@ -1124,14 +1296,14 @@ R 397:9 calls MemoryStore::Walk -> append
 R 400:7 calls MemoryStore::Walk -> RUnlock
 R 403:14 calls MemoryStore::Walk -> Done
 R 404:11 calls MemoryStore::Walk -> newError (name-matched: ledger/errors.go)
-R 404:49 calls MemoryStore::Walk -> Err
+R 404:49 calls MemoryStore::Walk -> Err (name-matched: ledger/errors.go)
 R 407:13 calls MemoryStore::Walk -> fn
 R 417:9 calls MemoryStore::Stream -> make
 R 419:9 calls MemoryStore::Stream -> close
 R 420:12 calls MemoryStore::Stream -> Walk
 R 422:16 calls MemoryStore::Stream -> Ok (name-matched: ledger/errors.go)
 R 424:15 calls MemoryStore::Stream -> Done
-R 425:16 calls MemoryStore::Stream -> Err
+R 425:16 calls MemoryStore::Stream -> Err (name-matched: ledger/errors.go)
 R 430:16 calls MemoryStore::Stream -> Fail (name-matched: ledger/errors.go)
 R 431:15 calls MemoryStore::Stream -> Done
 R 451:11 calls SequentialIDs::Next -> Add (name-matched: ledger/money.go)
