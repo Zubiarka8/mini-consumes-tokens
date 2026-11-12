@@ -26,11 +26,9 @@
 //! hook/event-handler calls remain `Calls`. There is no dedicated render
 //! relation, JSX element/attribute symbol, or framework-specific resolution.
 //!
-//! An interface's property and method signatures are `Field`/`Method`
-//! symbols of the interface, and an enum's members are `Field`s of the enum.
-//! Other known limits: a TS `namespace` is a `Module` symbol whose functions
-//! stay top-level (no parent). An object literal is not a type, so its
-//! methods are `Function`s.
+//! Other known limits: interface members are not symbols, and a TS
+//! `namespace` is a `Module` symbol whose functions stay top-level (no
+//! parent). An object literal is not a type, so its methods are `Function`s.
 //!
 //! CommonJS (`require`/`module.exports`) and ES modules (`import`/`export`)
 //! are handled by two independent sets of match arms on the node kind found —

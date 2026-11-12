@@ -112,14 +112,10 @@ fn header(source: &str, start: usize, end: usize, prefix: &str) -> Option<String
 }
 
 /// A class member's visibility: its TS accessibility keyword, `#name`
-/// (private), or public by default; public in an interface. `None`
-/// elsewhere.
+/// (private), or public by default. `None` outside a class body.
 fn member_visibility(decl: Node, source: &str) -> Option<Visibility> {
-    match decl.parent().map(|p| p.kind()) {
-        Some("class_body") => {}
-        // An interface member has no accessibility keyword: always public.
-        Some("interface_body") => return Some(Visibility::Public),
-        _ => return None,
+    if decl.parent().map(|p| p.kind()) != Some("class_body") {
+        return None;
     }
     let mut cursor = decl.walk();
     let keyword = decl
