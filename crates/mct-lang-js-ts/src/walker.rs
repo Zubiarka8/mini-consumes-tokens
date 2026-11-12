@@ -12,7 +12,6 @@ mod details;
 mod exports;
 mod globals;
 mod imports;
-mod members;
 mod receivers;
 
 use globals::FileGlobals;
@@ -387,7 +386,6 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.push_interface_members(body, &name);
                     self.visit_children(body, owner, Some(&name), depth + 1);
                 }
             }
@@ -412,16 +410,13 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(
-                    name.clone(),
+                    name,
                     SymbolKind::Enum,
                     location(node),
                     type_name.map(str::to_string),
                 );
                 self.details
                     .push(details::type_detail(node, id, self.source));
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.push_enum_members(body, &name);
-                }
             }
             // `namespace Legacy { … }`: a symbol of its own, but its members
             // stay top-level (owner and parent unchanged).
