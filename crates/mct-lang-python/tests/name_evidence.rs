@@ -5,7 +5,9 @@
 //! it stays unresolved). `v.f()` on a value (a call result, a subscript, a
 //! parameter or local no import binds) is a member call: a method of a type
 //! the syntax doesn't prove, never a module-level name or a class
-//! attribute. A module-level name may hold a module, so it proves nothing.
+//! attribute. A module-level name may hold a module, so it proves nothing, unless
+//! the file binds it once, at module level, to a builtin literal
+//! (`TABLE = {}`): then its methods are the builtin's, `external`.
 //! A `from m import x` names an `x` of module `m`, even where a class body
 //! assigns a class attribute `x`, which rebinds nothing outside that body.
 
@@ -23,6 +25,9 @@ from .logger import log
 from .auth import permission_required
 
 MODULE = load_module()
+TABLE = {"a": 1}
+TWICE = {}
+TWICE = load_module()
 
 
 def run(member, text):
@@ -36,6 +41,16 @@ def run(member, text):
     Cart.create()
     F("price")
     MODULE.inspect()
+    TABLE.items()
+    TWICE.keys()
+
+
+class Store:
+    def __init__(self):
+        self.data = {}
+
+    def rows(self):
+        return self.data.values()
 
 
 class Cart:
@@ -92,16 +107,19 @@ fn a_name_carries_what_its_syntax_proves() {
         "2 Imports F module models",
         "3 Imports log module logger",
         "4 Imports permission_required module auth",
-        "10 Calls helper path shop/run.py",
-        "11 Calls log module logger",
-        "13 Calls title member",
-        "14 Calls strip member",
-        "15 Calls close member",
-        "15 Calls load path shop/run.py",
-        "16 Calls pop member",
-        "17 Calls create qualifier Cart",
-        "18 Calls F module models",
-        "19 Calls inspect -",
+        "13 Calls helper path shop/run.py",
+        "14 Calls log module logger",
+        "16 Calls title member",
+        "17 Calls strip member",
+        "18 Calls close member",
+        "18 Calls load path shop/run.py",
+        "19 Calls pop member",
+        "20 Calls create qualifier Cart",
+        "21 Calls F module models",
+        "22 Calls inspect -",
+        "23 Calls items external",
+        "24 Calls keys -",
+        "32 Calls values -",
     ];
     for row in expected {
         assert!(rows.iter().any(|r| r == row), "{row} not in {rows:#?}");
@@ -127,5 +145,5 @@ fn a_class_attribute_hides_an_import_only_in_its_class_body() {
             format!("{} {}", r.location.line, module.as_deref().unwrap_or("-"))
         })
         .collect();
-    assert_eq!(decorators, ["25 -", "30 auth", "35 auth"]);
+    assert_eq!(decorators, ["38 -", "43 auth", "48 auth"]);
 }
