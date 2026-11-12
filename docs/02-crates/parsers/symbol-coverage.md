@@ -1337,7 +1337,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls
 - [x] Imports: `require`
-- [x] Class extends class: `setmetatable({}, { __index = Base })` and `setmetatable(Cat, { __index = Animal })` → `extends Base`
+- [x] Class extends class: `setmetatable({}, { __index = Base })` → `extends Base`; `setmetatable(Cat, { __index = Animal })` → `extends Animal`
 
 **Features: Search and lookup**
 
