@@ -266,6 +266,18 @@ From `rules.md` and the two messages:
         repository: 62 C++ calls become external. The 10 that had a target
         were all wrong (`std::to_string(…)` → the `Quantity.to_string`
         method). Dead code unchanged. Test: `mct-lang-cpp/tests/std_calls.rs`.
+  - [x] Rust: `u64::from(x)`, `try_from`, `into`, `try_into` on a primitive
+        type no item, `use` or glob of the file shadows is a member call,
+        ambiguous even with one candidate. Core's blanket impls
+        (`impl<T> From<T> for T`, `TryFrom<U> for T where U: Into<T>`) always
+        implement the trait for the primitive too, and a primitive has no
+        inherent method, so a repository `impl From<Id> for u64` is one
+        candidate among several. Inside a macro's arguments the same
+        evidence applies. This repository: 95 calls get the flag; the 11 that
+        were resolved, all to the corpus's `impl From<ProductId> for u64`,
+        were all wrong (`u64::from(l.on_hand)`, `u64::from(*byte)`) and are
+        now ambiguous; the other 84 had no candidate. Dead code unchanged
+        (124). Test: `mct-lang-rust/tests/primitive_conversions.rs`.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
