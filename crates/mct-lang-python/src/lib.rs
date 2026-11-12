@@ -550,7 +550,7 @@ impl<'a> Walker<'a> {
                 let method = text(method, self.source);
                 match self.frames.last() {
                     Some(frame) => frame.receiver(object, method, &self.scope, &self.classes),
-                    None => receivers::module_receiver(object, &self.scope, &self.classes),
+                    None => receivers::value_receiver(object, &self.scope, &self.classes),
                 }
             }
             "attribute" => {
