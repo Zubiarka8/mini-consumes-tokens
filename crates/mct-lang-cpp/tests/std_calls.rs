@@ -20,7 +20,7 @@ fn a_call_through_std_is_external() {
     std::fs::create_dir_all(root.join("src")).unwrap();
     std::fs::write(
         root.join("src/app.cpp"),
-        "#include <algorithm>\nusing namespace std;\n\nvoid run(int* a, int* b) {\n    std::sort(a, b);\n    ::std::move(a);\n    std::to_string<int>(1);\n    sort(a, b);\n    util::sort(a, b);\n}\n",
+        "#include <algorithm>\nusing namespace std;\n\nvoid run(int* a, int* b) {\n    std::sort(a, b); std /* comment */ ::sort(a, b);\n    ::std::move(a);\n    std::to_string<int>(1);\n    sort(a, b);\n    util::sort(a, b);\n}\n",
     )
     .unwrap();
     std::fs::write(
@@ -52,6 +52,7 @@ fn a_call_through_std_is_external() {
     assert_eq!(
         hits,
         [
+            "src/app.cpp:5 sort External",
             "src/app.cpp:5 sort External",
             "src/app.cpp:6 move External",
             "src/app.cpp:7 to_string External",
