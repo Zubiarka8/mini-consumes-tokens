@@ -675,7 +675,7 @@ fn find_type_identifiers(node: Node) -> Vec<Node> {
 fn collect_type_identifiers<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
     match node.kind() {
         "type_identifier" => out.push(node),
-        "type_arguments" => {}
+        "type_arguments" | "annotation" | "marker_annotation" => {}
         "scoped_type_identifier" => {
             let mut cursor = node.walk();
             if let Some(last) = node
