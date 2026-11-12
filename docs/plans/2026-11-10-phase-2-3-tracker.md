@@ -246,6 +246,16 @@ From `rules.md` and the two messages:
         namespaced. The one with a target was wrong (`count()` in
         `omni-app/web/api.php`, ambiguous between two `count` methods).
         Dead code unchanged. Test: `mct-lang-php/tests/builtins.rs`.
+  - [x] C++: a call through `std::` (`std::sort(…)`, `::std::move(…)`,
+        `std::make_unique<T>(…)`) is external, since a program may not add
+        declarations to namespace `std`. A file that opens `namespace std`
+        (a `std::hash` specialization) and a bare call after
+        `using namespace std;` prove nothing. A qualified template call is
+        now named without its arguments (`make_unique`, not
+        `make_unique<Writer>`), as an unqualified one already was. This
+        repository: 62 C++ calls become external. The 10 that had a target
+        were all wrong (`std::to_string(…)` → the `Quantity.to_string`
+        method). Dead code unchanged. Test: `mct-lang-cpp/tests/std_calls.rs`.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
