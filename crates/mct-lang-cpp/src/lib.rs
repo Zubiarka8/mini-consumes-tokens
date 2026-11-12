@@ -75,6 +75,7 @@ impl LanguageParser for CppParser {
             module_location.end_line = Some(end.row as u32);
         }
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
+        walker.opens_std = opens_std(root, &file.contents, 0);
         walker.visit_children(root, Ctx::file(module_id), 0);
         Ok(walker.finish())
     }
@@ -185,6 +186,9 @@ struct Walker<'a> {
     namespaces: HashSet<&'a str>,
     /// The bases of each enclosing class definition, innermost last.
     supertypes: Vec<Vec<Supertype>>,
+    /// Whether this file opens namespace `std` (to specialize a template),
+    /// so a `std::` call may reach a declaration of the file's own.
+    opens_std: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -199,6 +203,7 @@ impl<'a> Walker<'a> {
             next_id: 0,
             namespaces: HashSet::new(),
             supertypes: Vec::new(),
+            opens_std: false,
         }
     }
 
@@ -464,12 +469,24 @@ impl<'a> Walker<'a> {
                         // call_expression both start at `a`, which would make
                         // two same-named chained calls collide into one
                         // indistinguishable row.
+                        let relation = self.relations.len();
                         self.push_relation(
                             ctx.owner,
                             RelationKind::Calls,
                             text(name_node, self.source).to_string(),
                             location(name_node),
                         );
+                        // D9: only the standard library declares in `std`.
+                        if self.relations.len() > relation
+                            && !self.opens_std
+                            && is_std_qualified(function, self.source)
+                        {
+                            self.relation_targets.push(RelationTarget {
+                                relation,
+                                external: true,
+                                ..Default::default()
+                            });
+                        }
                     }
                     self.visit(function, ctx, depth + 1);
                 }
@@ -754,8 +771,60 @@ fn callee_identifier(function: Node) -> Option<Node> {
     match function.kind() {
         "identifier" | "operator_name" | "destructor_name" | "field_identifier" => Some(function),
         "field_expression" => function.child_by_field_name("field"),
-        "qualified_identifier" => Some(qualified_tail(function)),
-        "template_function" => function.child_by_field_name("name").map(qualified_tail),
+        "qualified_identifier" => template_name(qualified_tail(function)),
+        "template_function" => function
+            .child_by_field_name("name")
+            .map(qualified_tail)
+            .and_then(template_name),
         _ => None,
     }
+}
+
+/// `f` for `f<T>` (the tail of `std::to_string<int>`), any other name as is.
+fn template_name(node: Node) -> Option<Node> {
+    if node.kind() == "template_function" {
+        return node.child_by_field_name("name");
+    }
+    Some(node)
+}
+
+/// Whether a callee is written through namespace `std` (`std::sort`,
+/// `::std::move`, `std::chrono::now`), which a program may not add
+/// declarations to ([namespace.std]).
+fn is_std_qualified(function: Node, source: &str) -> bool {
+    let callee = if function.kind() == "template_function" {
+        function.child_by_field_name("name").unwrap_or(function)
+    } else {
+        function
+    };
+    if callee.kind() != "qualified_identifier" {
+        return false;
+    }
+    let scope = callee.child_by_field_name("scope").or_else(|| {
+        callee
+            .child_by_field_name("name")
+            .filter(|name| name.kind() == "qualified_identifier")
+            .and_then(|name| name.child_by_field_name("scope"))
+    });
+    scope.is_some_and(|scope| text(scope, source) == "std")
+}
+
+/// Whether the file opens namespace `std` anywhere (`namespace std {`, or
+/// `namespace std::chrono {`), as a `std::hash` specialization does.
+fn opens_std(node: Node, source: &str, depth: u32) -> bool {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return false;
+    }
+    if node.kind() == "namespace_definition"
+        && node
+            .child_by_field_name("name")
+            .is_some_and(|name| text(name, source).split("::").any(|s| s.trim() == "std"))
+    {
+        return true;
+    }
+    let mut cursor = node.walk();
+    let found = node
+        .named_children(&mut cursor)
+        .any(|child| opens_std(child, source, depth + 1));
+    found
 }
