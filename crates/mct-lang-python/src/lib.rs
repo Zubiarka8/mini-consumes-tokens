@@ -68,6 +68,12 @@ impl LanguageParser for PythonParser {
         let mut walker = Walker::new(&file.contents, &file.relative_path);
         walker.scope = ModuleScope::collect(root, &file.contents);
         walker.classes = receivers::class_names(root, &file.contents, &walker.scope);
+        walker.attributes = receivers::AttributeFacts::collect(
+            root,
+            &file.contents,
+            &walker.scope,
+            &walker.classes,
+        );
         let mut module_location = location(root);
         // The root node of a file ending in a newline ends at column 0 of
         // the (empty) line after the last one; the file's last line is the
@@ -107,6 +113,8 @@ struct Walker<'a> {
     supertypes: Vec<Vec<Supertype>>,
     /// Class names a receiver can be typed by (D5).
     classes: HashSet<String>,
+    /// What the file states about attribute types (D5).
+    attributes: receivers::AttributeFacts,
     /// The enclosing classes' own methods, innermost last (D5).
     class_scopes: Vec<receivers::ClassScope>,
     /// The enclosing functions' bindings, innermost last (D5).
@@ -374,8 +382,13 @@ impl<'a> Walker<'a> {
                 }
                 let supertypes = class_supertypes(node, self.source);
                 self.supertypes.push(supertypes);
-                self.class_scopes
-                    .push(receivers::ClassScope::of(node, self.source));
+                self.class_scopes.push(receivers::ClassScope::of(
+                    node,
+                    self.source,
+                    &self.scope,
+                    &self.classes,
+                    &self.attributes,
+                ));
                 // A class body is its own scope: the enclosing function's
                 // names are not its bindings.
                 self.frames.push(receivers::Frame::default());
@@ -453,14 +466,30 @@ impl<'a> Walker<'a> {
         ) else {
             return false;
         };
-        if object.kind() != "identifier" {
-            return false;
-        }
-        let object = text(object, self.source);
-        let method = text(method, self.source);
-        let receiver = match self.frames.last() {
-            Some(frame) => frame.receiver(object, method, &self.scope, &self.classes),
-            None => receivers::module_receiver(object, &self.scope, &self.classes),
+        let receiver = match object.kind() {
+            "identifier" => {
+                let object = text(object, self.source);
+                let method = text(method, self.source);
+                match self.frames.last() {
+                    Some(frame) => frame.receiver(object, method, &self.scope, &self.classes),
+                    None => receivers::module_receiver(object, &self.scope, &self.classes),
+                }
+            }
+            "attribute" => {
+                let (Some(inner), Some(attr)) = (
+                    object.child_by_field_name("object"),
+                    object.child_by_field_name("attribute"),
+                ) else {
+                    return false;
+                };
+                if inner.kind() != "identifier" {
+                    return false;
+                }
+                self.frames.last().and_then(|frame| {
+                    frame.attribute_receiver(text(inner, self.source), text(attr, self.source))
+                })
+            }
+            _ => return false,
         };
         let target = match receiver {
             Some(receivers::Receiver::Class(class)) => RelationTarget {
