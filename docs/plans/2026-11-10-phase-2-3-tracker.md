@@ -428,6 +428,18 @@ From `rules.md` and the two messages:
         an MCP signature change, so issue #371 first.
 - [ ] False positives in impact analysis and dead code (D7 #331 covers part
       of this).
+  - [x] Python: a function or class passed by name as an argument
+        (`safely(score_verdicts, …)`, `sorted(rows, key=rank)`,
+        `isinstance(exc, NotFoundError)`) is a `references` relation, recorded
+        only with the evidence a bare call to the name gets (this file's
+        `def`/`class`, an import, a builtin); a parameter or local records
+        nothing. This repository: 165 new Python relations, 123 external
+        (builtins such as `str`, `int`, `list`), 24 resolved, all to the
+        right definition (`urls.py`'s `checkout` → `views.py`, not
+        `LendingService.checkout`), and 18 unresolved (imported constants
+        and stdlib classes, which have no indexed candidate). Dead code
+        124 → 122 (`score_verdicts`, `score_subgroups`). Test:
+        `mct-lang-python/tests/function_values.rs`.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
