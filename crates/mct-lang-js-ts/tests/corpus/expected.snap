@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=275 relations=1005 name_matched_across_files=191
+# language=javascript_typescript files=7 symbols=295 relations=1005 name_matched_across_files=203
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -75,11 +75,11 @@ R 261:31 calls writeReport -> stringify
 R 268:41 calls main -> slice
 R 269:19 calls main -> parseArgs
 R 270:15 calls main -> createApi
-R 271:24 calls main -> now
+R 271:24 calls main -> now (name-matched: src/api/client.ts)
 R 272:23 calls main -> seedStock
 R 273:27 calls main -> seedCustomers
 R 274:24 calls main -> seedOrders
-R 282:20 calls main -> now
+R 282:20 calls main -> now (name-matched: src/api/client.ts)
 R 284:3 calls main -> writeReport
 R 284:20 calls main -> join
 R 285:11 calls main -> log
@@ -102,6 +102,8 @@ S 1-300 module client
 S 12-19 interface Problem
 S 21-37 class ApiError
 S 22-28 method ApiError::constructor
+S 23-23 field ApiError::problem
+S 24-24 field ApiError::requestId
 S 30-32 method ApiError::isRetryable
 S 34-36 method ApiError::isConflict
 S 39-42 interface Page
@@ -114,6 +116,9 @@ S 85-112 class RateLimiter
 S 86-86 field RateLimiter::#tokens
 S 87-87 field RateLimiter::#last
 S 89-96 method RateLimiter::constructor
+S 90-90 field RateLimiter::capacity
+S 91-91 field RateLimiter::refillPerSecond
+S 92-92 field RateLimiter::now
 S 98-102 method RateLimiter::#refill
 S 104-111 method RateLimiter::take
 S 115-120 function withTimeout
@@ -171,7 +176,7 @@ R 76:7 calls sleep -> reject
 R 92:60 calls RateLimiter::constructor -> now
 R 95:18 calls RateLimiter::constructor -> now
 R 99:20 calls RateLimiter::#refill -> now
-R 100:25 calls RateLimiter::#refill -> min
+R 100:25 calls RateLimiter::#refill -> min (name-matched: src/money.ts)
 R 104:17 references RateLimiter::take -> Promise
 R 105:10 calls RateLimiter::take -> #refill
 R 107:13 calls RateLimiter::take -> sleep
@@ -305,6 +310,9 @@ S 41-46 interface StockLevel
 S 48-48 function available
 S 50-62 class OutOfStockError
 S 51-57 method OutOfStockError::constructor
+S 52-52 field OutOfStockError::sku
+S 53-53 field OutOfStockError::requested
+S 54-54 field OutOfStockError::available
 S 59-61 method OutOfStockError::shortfall
 S 68-70 interface StockSource
 S 73-91 class Observable
@@ -317,6 +325,9 @@ S 94-94 field StockCache::#levels
 S 95-95 field StockCache::#loadedAt
 S 96-96 field StockCache::#inflight
 S 98-104 method StockCache::constructor
+S 99-99 field StockCache::source
+S 100-100 field StockCache::ttlMs
+S 101-101 field StockCache::now
 S 106-108 method StockCache::get
 S 110-123 method StockCache::levels
 S 125-128 method StockCache::available
@@ -337,6 +348,7 @@ S 256-292 class PickListBuilder
 S 257-257 field PickListBuilder::#tasks
 S 258-258 field PickListBuilder::#missing
 S 260-260 method PickListBuilder::constructor
+S 260-260 field PickListBuilder::levels
 S 262-276 method PickListBuilder::add
 S 278-282 method PickListBuilder::#bestLocation
 S 284-291 method PickListBuilder::build
@@ -544,6 +556,8 @@ S 262-264 function gross
 S 267-270 function distributeDiscount
 S 273-295 class MoneyRange
 S 274-281 method MoneyRange::constructor
+S 275-275 field MoneyRange::min
+S 276-276 field MoneyRange::max
 S 283-285 method MoneyRange::contains
 S 287-289 method MoneyRange::width
 S 291-294 method MoneyRange::parse
@@ -629,7 +643,7 @@ R 181:25 references Money::split -> Money
 R 182:31 calls Money::split -> isInteger
 R 183:17 calls Money::split -> RangeError
 R 185:24 calls Money::split -> trunc
-R 187:18 calls Money::split -> from
+R 187:18 calls Money::split -> from (name-matched: src/order.ts)
 R 188:13 calls Money::split -> ofMinor
 R 193:35 references Money::allocate -> Money
 R 194:27 calls Money::allocate -> reduce
@@ -735,6 +749,8 @@ S 100-102 function isEvent
 S 104-121 function describe
 S 123-130 class IllegalTransitionError
 S 124-129 method IllegalTransitionError::constructor
+S 125-125 field IllegalTransitionError::from
+S 126-126 field IllegalTransitionError::to
 S 136-136 type_alias Listener
 S 138-256 class Order
 S 139-139 field Order::#state
@@ -743,6 +759,10 @@ S 141-141 field Order::#pending
 S 142-142 field Order::#listeners
 S 143-143 field Order::trackingNumber
 S 145-150 method Order::constructor
+S 146-146 field Order::id
+S 147-147 field Order::number
+S 148-148 field Order::customerId
+S 149-149 field Order::currency
 S 152-160 method Order::place
 S 162-169 method Order::fromJSON
 S 171-173 method Order::state
@@ -832,7 +852,7 @@ R 156:46 calls Order::place -> randomUUID
 R 157:11 calls Order::place -> forEach
 R 157:35 calls Order::place -> #addLine
 R 158:11 calls Order::place -> #record
-R 158:66 calls Order::place -> now
+R 158:66 calls Order::place -> now (name-matched: src/api/client.ts)
 R 162:25 references Order::fromJSON -> OrderJson
 R 162:37 references Order::fromJSON -> Order
 R 163:23 calls Order::fromJSON -> Order
@@ -850,22 +870,22 @@ R 184:23 calls Order::isLarge -> compareTo (name-matched: src/money.ts)
 R 191:38 references Order::reserve -> Reserved
 R 192:10 calls Order::reserve -> #moveTo
 R 193:17 calls Order::reserve -> #record
-R 193:73 calls Order::reserve -> now
+R 193:73 calls Order::reserve -> now (name-matched: src/api/client.ts)
 R 196:34 references Order::pay -> Money (name-matched: src/money.ts)
 R 196:42 references Order::pay -> Paid
 R 197:17 calls Order::pay -> equals (name-matched: src/money.ts)
 R 198:17 calls Order::pay -> Error
 R 200:10 calls Order::pay -> #moveTo
 R 201:17 calls Order::pay -> #record
-R 201:69 calls Order::pay -> now
+R 201:69 calls Order::pay -> now (name-matched: src/api/client.ts)
 R 204:50 references Order::ship -> Shipped
 R 205:10 calls Order::ship -> #moveTo
 R 207:17 calls Order::ship -> #record
-R 207:72 calls Order::ship -> now
+R 207:72 calls Order::ship -> now (name-matched: src/api/client.ts)
 R 210:27 references Order::cancel -> Cancelled
 R 211:10 calls Order::cancel -> #moveTo
 R 212:17 calls Order::cancel -> #record
-R 212:74 calls Order::cancel -> now
+R 212:74 calls Order::cancel -> now (name-matched: src/api/client.ts)
 R 215:21 references Order::onEvent -> Listener
 R 216:21 calls Order::onEvent -> push
 R 218:41 calls Order::onEvent -> filter
@@ -904,7 +924,7 @@ R 284:71 references stalePayments -> Order
 R 284:81 references stalePayments -> Date
 R 284:107 references stalePayments -> Order
 R 285:27 calls stalePayments -> getTime
-R 285:21 calls stalePayments -> now
+R 285:21 calls stalePayments -> now (name-matched: src/api/client.ts)
 R 286:33 references waitedMinutes -> Order
 R 287:35 calls waitedMinutes -> getTime
 R 287:19 calls waitedMinutes -> placedAt
@@ -1201,7 +1221,7 @@ R 82:22 calls PickSession::handleScan -> formatLocation (name-matched: src/inven
 R 83:19 calls PickSession::handleScan -> #emit
 R 86:19 calls PickSession::handleScan -> #emit
 R 88:17 calls PickSession::handleScan -> push
-R 88:48 calls PickSession::handleScan -> min
+R 88:48 calls PickSession::handleScan -> min (name-matched: src/money.ts)
 R 89:10 calls PickSession::handleScan -> #advance
 R 95:12 calls PickSession::skip -> #emit
 R 96:12 calls PickSession::skip -> #advance
@@ -1215,7 +1235,7 @@ R 116:21 calls PickSession::close -> clear
 R 121:40 extends ScanErrorBoundary -> Component
 R 129:16 calls ScanErrorBoundary::componentDidCatch -> onError
 R 133:10 calls ScanErrorBoundary::retry -> setState
-R 156:22 calls onKeyDown -> now
+R 156:22 calls onKeyDown -> now (name-matched: src/api/client.ts)
 R 163:9 calls onKeyDown -> onScan
 R 175:14 calls start -> addEventListener
 R 178:14 calls stop -> removeEventListener

@@ -9,13 +9,13 @@ use std::collections::{HashMap, HashSet};
 use mct_core::MAX_TRAVERSAL_DEPTH;
 use tree_sitter::Node;
 
-use super::text;
+use super::{is_parameter_property, text};
 
 /// Name -> declared type, `None` when unproven.
 pub(super) type Types = HashMap<String, Option<String>>;
 
-/// What a class body declares: its methods, which `this.m()` reaches, and
-/// its fields' declared types, which `this.f.m()` reaches.
+/// What a class body declares: its methods and fields, which `this.m()`
+/// reaches, and its fields' declared types, which `this.f.m()` reaches.
 #[derive(Debug, Default)]
 pub(super) struct ClassScope {
     pub(super) name: String,
@@ -151,13 +151,9 @@ pub(super) fn class_scope(
             if name == "constructor" {
                 if let Some(params) = member.child_by_field_name("parameters") {
                     mct_tree_sitter::for_each_child(params, |param| {
-                        let is_property = param.kind() == "required_parameter"
-                            && (0..param.child_count()).any(|i| {
-                                param.child(i).is_some_and(|c| {
-                                    matches!(c.kind(), "accessibility_modifier" | "readonly")
-                                        || text(c, source) == "readonly"
-                                })
-                            });
+                        let is_property =
+                            matches!(param.kind(), "required_parameter" | "optional_parameter")
+                                && is_parameter_property(param, source);
                         if !is_property {
                             return;
                         }

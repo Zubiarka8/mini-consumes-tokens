@@ -95,6 +95,26 @@ pub(super) fn field_detail(node: Node, symbol: SymbolId, source: &str) -> Symbol
     }
 }
 
+/// A constructor parameter property (`private readonly store: Store`): its
+/// text without the default value, its accessibility keyword (public when
+/// only `readonly` is written) and its modifiers.
+pub(super) fn parameter_property_detail(
+    param: Node,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let end = param
+        .child_by_field_name("value")
+        .map_or(param.end_byte(), |v| v.start_byte());
+    SymbolDetail {
+        symbol,
+        signature: header(source, start(param), end, ""),
+        visibility: Some(accessibility(param, source).unwrap_or(Visibility::Public)),
+        modifiers: modifiers_of(param),
+        ..Default::default()
+    }
+}
+
 /// Where the declaration's own text starts: after its decorators.
 fn start(node: Node) -> usize {
     let mut cursor = node.walk();
@@ -117,16 +137,8 @@ fn member_visibility(decl: Node, source: &str) -> Option<Visibility> {
     if decl.parent().map(|p| p.kind()) != Some("class_body") {
         return None;
     }
-    let mut cursor = decl.walk();
-    let keyword = decl
-        .children(&mut cursor)
-        .find(|c| c.kind() == "accessibility_modifier");
-    if let Some(keyword) = keyword {
-        return match slice(keyword, source) {
-            "private" => Some(Visibility::Private),
-            "protected" => Some(Visibility::Protected),
-            _ => Some(Visibility::Public),
-        };
+    if let Some(visibility) = accessibility(decl, source) {
+        return Some(visibility);
     }
     let private_name = decl
         .child_by_field_name("name")
@@ -136,6 +148,19 @@ fn member_visibility(decl: Node, source: &str) -> Option<Visibility> {
         Visibility::Private
     } else {
         Visibility::Public
+    })
+}
+
+/// The visibility a TS accessibility keyword on `node` writes, if any.
+fn accessibility(node: Node, source: &str) -> Option<Visibility> {
+    let mut cursor = node.walk();
+    let keyword = node
+        .children(&mut cursor)
+        .find(|c| c.kind() == "accessibility_modifier")?;
+    Some(match slice(keyword, source) {
+        "private" => Visibility::Private,
+        "protected" => Visibility::Protected,
+        _ => Visibility::Public,
     })
 }
 

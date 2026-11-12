@@ -387,6 +387,22 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] TS constructor parameter properties: `constructor(private
+          readonly store: Store, public size = 0, protected owner?: User)`
+          gives a `field` of the class per parameter with an accessibility
+          keyword or `readonly`, at the parameter, with its visibility and
+          `readonly`; a plain parameter declares nothing. `this.f()` is now
+          qualified by the class when its body declares `f` as a field or
+          parameter property, as it already was for a method. Test:
+          `tests/parameter_properties.rs`. Corpus: 275 -> 295 symbols.
+          Repository snapshot (JS/TS, 24218 relations): 3 `this.now()` calls
+          now resolve to their own class's field; 1 unresolved call
+          (`Array.from` in a minified bundle that binds `Array`) and 2
+          resolved bare calls (`to(e)` in `review-dist/review.js`) now also
+          match a new corpus field by name, the existing name-only fallback
+          for calls with no target (#395); 33 unresolved calls (mostly
+          `performance.now()` and bare `now()`) become ambiguous the same
+          way. Dead code 122 -> 122.
     - [x] JS/TS decorators: `@sealed`, `@ns.track` and `@Component({…})`
           give `calls` from the decorated class, field or method (a
           parameter's from its method), since the runtime calls the
