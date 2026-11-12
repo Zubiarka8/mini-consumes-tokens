@@ -429,6 +429,18 @@ From `rules.md` and the two messages:
           method in another directory (`dict.values()` to
           `Repository.values`, `open(…).close()`), 59 in the same directory
           (`ctx.echo(…)` to `Context.echo`). Dead code 122 -> 122.
+    - [x] Python module builtin literals: `X.m()` on a name the file binds
+          once, at module level, to a builtin literal (`TABLE = {}`), that no
+          import, `import *` or `def`/`class` can bind, is `external`, as on
+          a local `rows = []`. Test: `tests/name_evidence.rs`. Repository
+          snapshot (Python, 7323 relations): 8 unresolved -> external and 9
+          ambiguous -> external (`STACK_CONFIG.keys()`, `SCENARIOS.get(…)`;
+          each receiver checked as a module dict literal), nothing else
+          changed. Dead code 122 -> 122.
+    - [!] Python `self.x` fields: blocked on #412. As fields, calls with no
+          evidence resolve to them by name (6 wrong of 19 new resolutions,
+          `CSV_CONFIG.items()` to `Page.items`). Draft branch
+          `feat/python-self-fields`.
     - [x] Lua instance fields: the first `self.x = …` in a colon method
           `function T:m()` (or a closure inside it) is a `field` of `T`,
           unless `T` already declares `x`. An explicit `self` parameter, a
