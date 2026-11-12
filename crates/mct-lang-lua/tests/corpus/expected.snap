@@ -1,4 +1,4 @@
-# language=lua files=5 symbols=410 relations=375 name_matched_across_files=58
+# language=lua files=5 symbols=417 relations=375 name_matched_across_files=58
 
 == gateway/ratelimit.lua (302 lines)
 S 1-302 module ratelimit
@@ -28,6 +28,8 @@ S 97-97 variable take::err
 S 103-103 variable take::now
 S 104-104 variable take::bucket
 S 105-105 variable take::allowed
+S 108-108 field Limiter::allowed
+S 110-110 field Limiter::rejected
 S 117-117 variable take::retry_after
 S 122-128 method Limiter::remaining
 S 123-123 variable remaining::class
@@ -338,6 +340,8 @@ S 66-68 method M::new_cache
 S 70-72 method Cache::key
 S 74-90 method Cache::get
 S 75-75 variable get::raw
+S 77-77 field Cache::hits
+S 80-80 field Cache::misses
 S 81-81 variable get::levels
 S 81-81 variable get::err
 S 85-85 variable get::ok
@@ -668,6 +672,7 @@ S 111-113 method Order::is_large
 S 115-119 method Order::record
 S 116-116 variable record::event
 S 121-127 method Order::move_to
+S 125-125 field Order::state
 S 129-135 method Order::reserve
 S 130-130 variable reserve::ok
 S 130-130 variable reserve::err
@@ -677,12 +682,14 @@ S 141-141 variable pay::err
 S 148-155 method Order::ship
 S 149-149 variable ship::ok
 S 149-149 variable ship::err
+S 153-153 field Order::tracking_number
 S 157-163 method Order::cancel
 S 158-158 variable cancel::ok
 S 158-158 variable cancel::err
 S 166-171 method Order::drain
 S 167-167 variable drain::_
 S 167-167 variable drain::event
+S 170-170 field Order::events
 S 173-187 method Order::to_json
 S 174-174 variable to_json::lines
 S 175-175 variable to_json::i
