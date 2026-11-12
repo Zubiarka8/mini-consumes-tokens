@@ -607,6 +607,63 @@ impl<'a> Walker<'a> {
         );
     }
 
+    /// A `calls` relation from `class` for each `constructor(…) : super(…)`
+    /// in its body: to the superclass, when the header names exactly one
+    /// supertype without `()` (`class B : Base`), or to `kotlin.Any`,
+    /// external, when it names none but delegated interfaces. Several such
+    /// supertypes give none: the parser can't tell which is the class. A
+    /// `this(…)` delegation calls the class itself, so it gives none either.
+    fn push_super_delegation_calls(&mut self, class_node: Node, class: SymbolId) {
+        let Some(body) = find_child(class_node, "class_body") else {
+            return;
+        };
+        let mut bare = Vec::new();
+        let mut has_constructor_call = false;
+        if let Some(delegations) = find_child(class_node, "delegation_specifiers") {
+            let mut cursor = delegations.walk();
+            for spec in delegations.named_children(&mut cursor) {
+                match spec.named_child(0).map(|t| (t.kind(), t)) {
+                    Some(("user_type", t)) => bare.extend(last_identifier_child(t)),
+                    Some(("constructor_invocation", _)) => has_constructor_call = true,
+                    _ => {}
+                }
+            }
+        }
+        if has_constructor_call || bare.len() > 1 {
+            return;
+        }
+        let mut cursor = body.walk();
+        let keywords: Vec<Node> = body
+            .named_children(&mut cursor)
+            .filter(|member| member.kind() == "secondary_constructor")
+            .filter_map(|ctor| find_child(ctor, "constructor_delegation_call"))
+            .filter_map(|call| call.child(0).filter(|k| k.kind() == "super"))
+            .collect();
+        let (target, kind, external) = match bare.first() {
+            Some(superclass) => (
+                text(*superclass, self.source).to_string(),
+                Some(SymbolKind::Class),
+                false,
+            ),
+            None => ("Any".to_string(), None, true),
+        };
+        // At the keyword, so two constructors' calls stay distinct.
+        for keyword in keywords {
+            self.relation_targets.push(RelationTarget {
+                relation: self.relations.len(),
+                kind,
+                external,
+                ..Default::default()
+            });
+            self.push_relation(
+                class,
+                RelationKind::Calls,
+                target.clone(),
+                location(keyword),
+            );
+        }
+    }
+
     fn visit_children(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
@@ -665,6 +722,20 @@ impl<'a> Walker<'a> {
                                             type_id,
                                         );
                                     }
+                                    // …and calls its constructor, from the
+                                    // class: a constructor is no symbol.
+                                    if let Some(type_id) = target
+                                        .named_child(0)
+                                        .filter(|t| t.kind() == "user_type")
+                                        .and_then(last_identifier_child)
+                                    {
+                                        self.push_type_relation(
+                                            id,
+                                            RelationKind::Calls,
+                                            Some(SymbolKind::Class),
+                                            type_id,
+                                        );
+                                    }
                                 }
                                 // A bare type name, no call. An interface's
                                 // supertypes are interfaces it extends; a
@@ -689,6 +760,7 @@ impl<'a> Walker<'a> {
                     }
                 }
 
+                self.push_super_delegation_calls(node, id);
                 self.supertypes.push(direct_supertypes(node, self.source));
                 self.classes
                     .push(receivers::class_scope(&name, node, self.source));
