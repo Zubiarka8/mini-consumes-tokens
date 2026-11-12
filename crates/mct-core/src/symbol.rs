@@ -140,6 +140,10 @@ pub struct RelationTarget {
     /// (`x.f()`): only a method can be the target, and even a single such
     /// candidate is reported ambiguous rather than resolved.
     pub member: bool,
+    /// The syntax rules out a field as the target (`TABLE.items()`: a
+    /// receiver of unproven type, where a same-named field elsewhere is only
+    /// a name coincidence). Any other kind stays a candidate.
+    pub not_field: bool,
     /// Language id the target is declared in, when the source names another
     /// language explicitly (an HTML `class` naming a CSS rule). `None` means
     /// the source file's own language — spelling alone never links two
