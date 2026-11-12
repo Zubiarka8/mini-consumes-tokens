@@ -358,8 +358,9 @@ From `rules.md` and the two messages:
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
       - `dead-code` and `find_dead_code`: the same `(path, name, line)` set,
         whole and scoped (`src/util`, `src/util/`, `./src/util`);
-      - `duplicates` and `find_duplicate_code`: the same group,
-        candidate and below-threshold counts;
+      - `duplicates` and `find_duplicate_code`: the same members in the
+        fixture's duplicate group, and matching group, candidate and
+        below-threshold counts;
       - `status` and `get_indexing_status`: the same text, apart from the
         tool's `Last verified unchanged …` line for its own process.
       On this repository: 124 dead-code candidates from both (the tool pages
