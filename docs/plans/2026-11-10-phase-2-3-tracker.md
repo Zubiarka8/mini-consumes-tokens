@@ -387,6 +387,14 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Java `this(…)` and `super(…)` give `calls`, restricted to a
+          constructor (a `method`) declared in the enclosing class or in
+          the class `extends` names; `super()` with no `extends`
+          (`Object`) or on a JDK-imported superclass is external. On the
+          snapshot: 9 new Java relations (`Orders` → `Jdbc.Jdbc`
+          resolved; 8 `java.lang` exceptions unresolved, since an
+          unimported `java.lang` name is not proven external); dead code
+          unchanged at 122.
     - [x] JS/TS `super(…)` gives `calls Base` for the base a class
           declaration names, with the same global and import evidence as
           `new Base()`. On the snapshot: 7 new JS/TS relations (6 `Error`

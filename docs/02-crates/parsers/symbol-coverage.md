@@ -179,7 +179,7 @@ round to the nearest whole percent, with halves rounded up.
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 69% | 29 | 85% | 10 | 0 |
 | JS/TS | 68% | 33 | 80% | 10 | 1 |
-| Java | 80% | 27 | 65% | 10 | 0 |
+| Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 70% | 35 | 65% | 10 | 0 |
 | C# | 76% | 34 | 55% | 10 | 0 |
 | C++ | 79% | 28 | 50% | 10 | 0 |
@@ -275,7 +275,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 70% | 17% | 89% | 80% | 50% | 100% |
-| Java | 80% | 90% | 38% | 88% | 80% | 25% | 67% |
+| Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 79% | 33% | 81% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 42% | 80% | 60% | 25% | 50% |
@@ -433,7 +433,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Anonymous-class methods | Bug | in a method or a field initializer, generic traversal assigns them to the enclosing class instead of an anonymous owner (waiting on the naming decision, see the phase 2–3 tracker) |
-| Lambdas, `super()`/`this()`, annotations on parameters and locals | Not implemented | no arm for `lambda_expression` or `explicit_constructor_invocation`; only declaration `modifiers` are read for annotations |
+| Lambdas, annotations on parameters and locals | Not implemented | no arm for `lambda_expression`; only declaration `modifiers` are read for annotations |
 | Separate file/type import evidence | By design | [push_type_import](../../../crates/mct-lang-java/src/lib.rs#L325) explicitly targets the declaring file module, alongside the imported symbol; repeated names alone are not a defect |
 | Dead code only checks types | By design | methods are explicitly excluded in [dead_code.rs](../../../crates/mct-index/src/dead_code.rs#L7) |
 | Maven/Gradle dependencies | By design | explicitly excluded in [Dependency detection](../../../internal/checklist.md#dependency-manifest-detection); the scope decision mentions Gradle's DSL |
@@ -978,7 +978,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls: a method invocation only resolves to a `method`, never to a same-named field
 - [x] Constructor call (`new X()` / `X()`): `calls X`
-- [ ] Super / base constructor call: `super()` and `this()` give no relation
+- [x] Super / base constructor call: `this(…)` and `super(…)` give `calls` restricted to a constructor declared in the enclosing class or its superclass; `super()` without `extends` (`Object`) or on a JDK-imported superclass is external
 - [x] Imports: repeated target names can carry distinct file/type resolution evidence; repetition alone is not a parser defect
 - [x] Class extends class
 - [x] Implements interface / trait
