@@ -593,8 +593,7 @@ impl<'a> Walker<'a> {
             | "dictionary"
             | "parenthesized_expression" => {
                 let mut cursor = value.walk();
-                let parts: Vec<Node> = value.named_children(&mut cursor).collect();
-                for part in parts {
+                for part in value.named_children(&mut cursor) {
                     self.push_value_references(part, owner, depth + 1);
                 }
             }

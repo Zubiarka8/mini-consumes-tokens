@@ -87,3 +87,32 @@ fn a_function_passed_as_an_argument_is_referenced_with_evidence() {
         ]
     );
 }
+
+#[test]
+fn nested_calls_preserve_evidence_for_each_argument() {
+    let source = "from app.util import parse\ndef score(x): return x\ndef run():\n    consume(score, wrap(parse), again=score, builtin=str)\n";
+    let parsed = mct_corpus::parse_source(&PythonParser, "app/run.py", "Python", source);
+    assert_eq!(
+        references(&parsed),
+        [
+            "score:4 path=app/run.py",
+            "score:4 path=app/run.py",
+            "str:4 external",
+            "parse:4 module=util",
+        ]
+    );
+}
+
+#[test]
+fn nested_values_keep_evidence_and_ignore_unknown_names() {
+    let source = "from app.util import parse\ndef score(x): return x\ndef run(unknown):\n    return [score, (parse, {\"key\": [str, unknown]})]\n";
+    let parsed = mct_corpus::parse_source(&PythonParser, "app/run.py", "Python", source);
+    assert_eq!(
+        references(&parsed),
+        [
+            "score:4 path=app/run.py",
+            "parse:4 module=util",
+            "str:4 external",
+        ]
+    );
+}

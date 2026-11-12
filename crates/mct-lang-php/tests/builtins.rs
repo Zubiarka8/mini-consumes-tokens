@@ -1,7 +1,8 @@
 //! D9 for PHP: a call that can only reach one of PHP's core functions is
-//! external. A global core function can't be declared again ("Cannot
-//! redeclare"), so `\strlen()`, and a bare `strlen()` in a file with no
-//! namespace, never reach a function of the repository. A bare call inside a
+//! external when core functions are enabled. An enabled global core function
+//! can't be declared again ("Cannot redeclare"), so `\strlen()`, and a bare
+//! `strlen()` in a file with no namespace, never reach a repository function.
+//! A bare call inside a
 //! namespace may reach a namespaced function of that name, an imported
 //! function is the import's, and a file that declares the name itself (a
 //! polyfill) proves nothing.
