@@ -450,7 +450,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `val`/`var` property in a class | `property_declaration` | `field` |
 | `class C(val x: Int)` | `class_parameter` | `field` |
 | `enum class` entries | `enum_entry` | `field` |
-| `: Base()`, `: Iface` | `constructor_invocation`, `user_type` | `extends` to a `class` (with `()`); without `()`, `extends` to an `interface` from an interface, else `implements` |
+| `: Base()`, `: Iface`, `: p.Base<T>()` | `constructor_invocation`, `user_type` | `extends` to a `class` (with `()`); without `()`, `extends` to an `interface` from an interface, else `implements`. A qualified type names its last segment (`Base`, not `p`) |
 | `@Audited`, `@a.b.Audited`, `@field:Inject(…)` on a class, function or property | `annotation` in `modifiers` | `references Audited` from the annotated symbol, to a `class` only |
 | `import a.b.c`, `import … as x` | `import` | `imports` (alias when present) |
 | `f()`, `obj.m()` | `call_expression`, `navigation_expression` | `calls` |
