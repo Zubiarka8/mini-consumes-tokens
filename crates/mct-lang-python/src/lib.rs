@@ -557,7 +557,7 @@ impl<'a> Walker<'a> {
     /// name alone.
     fn push_argument_references(&mut self, arguments: Node, owner: SymbolId) {
         let mut cursor = arguments.walk();
-        let values: Vec<Node> = arguments
+        let values = arguments
             .named_children(&mut cursor)
             .filter_map(|argument| match argument.kind() {
                 "identifier" => Some(argument),
@@ -565,8 +565,7 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("value")
                     .filter(|v| v.kind() == "identifier"),
                 _ => None,
-            })
-            .collect();
+            });
         for value in values {
             if self.push_bare_evidence(value) {
                 let name = text(value, self.source).to_string();
