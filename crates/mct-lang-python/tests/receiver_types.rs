@@ -246,3 +246,45 @@ fn an_attribute_typed_otherwise_anywhere_in_the_file_proves_nothing() {
         ["find"]
     );
 }
+
+#[test]
+fn conflicting_annotated_values_do_not_prove_attribute_types() {
+    let source = r#"from shop.catalogue import Catalogue, Shelf
+
+class Store:
+    catalogue: Catalogue = Shelf()
+    names: list = Catalogue()
+    safe: Catalogue = Catalogue()
+
+    def __init__(self):
+        self.other: Catalogue = Shelf()
+
+    def go(self):
+        self.catalogue.find()
+        self.names.find()
+        self.other.find()
+        self.safe.find()
+"#;
+    assert_eq!(
+        attribute_calls(&parsed("shop/conflict.py", source), source),
+        ["find", "find", "find", "find q=Catalogue"]
+    );
+}
+
+#[test]
+fn annotations_on_a_rebound_receiver_do_not_type_the_class_attribute() {
+    let source = r#"from shop.catalogue import Catalogue
+
+class Store:
+    def configure(self, other):
+        self = other
+        self.catalogue: Catalogue = Catalogue()
+
+    def go(self):
+        self.catalogue.find()
+"#;
+    assert_eq!(
+        attribute_calls(&parsed("shop/rebound.py", source), source),
+        ["find"]
+    );
+}
