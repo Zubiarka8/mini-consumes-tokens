@@ -236,10 +236,12 @@ From `rules.md` and the two messages:
   - [x] PHP: a call that can only reach a global core function
         (`\strlen()`, or a bare `strlen()` in a file with no namespace and
         no `use function` of it) is external, since a global core function
-        can't be declared again. The list has only PHP 7.0 `Core`,
-        `standard`, `date`, `pcre`, `spl` and `json` functions and the
+        is enabled. The list has only PHP 7.0 `Core`,
+        `standard`, `date`, `pcre` and `spl` functions and the
         call-like keywords (`isset`, `empty`). Not proven: a bare call in a
-        namespace, and a name the file declares itself (a polyfill). This
+        namespace, and a name the file declares itself (a polyfill). PHP 8
+        `disable_functions` can permit a core function to be redefined in
+        another file; runtime configuration is not visible to the parser. This
         repository: 2 calls become external, almost all of its PHP is
         namespaced. The one with a target was wrong (`count()` in
         `omni-app/web/api.php`, ambiguous between two `count` methods).
