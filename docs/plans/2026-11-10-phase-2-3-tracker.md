@@ -387,6 +387,15 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] JS/TS decorators: `@sealed`, `@ns.track` and `@Component({…})`
+          give `calls` from the decorated class, field or method (a
+          parameter's from its method), since the runtime calls the
+          decorator with what it decorates. TypeScript puts a method's
+          decorators before it in the class body and JavaScript inside it;
+          both are the method's. The callee helpers are shared with
+          `call_expression`. Test: `tests/decorators.rs`. Corpus and
+          repository snapshot unchanged (no decorator): JS/TS relations
+          24218, dead code 122.
     - [x] Kotlin file-level declarations: `typealias` is a `type_alias`,
           `const val` a `constant`, any other `val`/`var` a `variable` (each
           name of `val (a, b) = …` too), all with no parent; an extension
