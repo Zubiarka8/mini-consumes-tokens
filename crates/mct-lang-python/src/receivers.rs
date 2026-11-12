@@ -393,6 +393,12 @@ impl Frame {
         attributes.get(attr).cloned()
     }
 
+    /// Whether this function binds `name` itself (a parameter or a local),
+    /// `self` aside.
+    pub(crate) fn binds(&self, name: &str) -> bool {
+        !self.opaque && self.bindings.contains_key(name)
+    }
+
     fn is_self(&self, object: &str) -> bool {
         self.self_name.as_deref() == Some(object) && !self.bindings.contains_key(object)
     }

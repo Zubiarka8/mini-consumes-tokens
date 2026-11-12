@@ -1,7 +1,12 @@
-# language=python files=15 symbols=400 relations=1507 name_matched_across_files=383
+# language=python files=15 symbols=570 relations=1507 name_matched_across_files=389
 
 == library/cli.py (307 lines)
 S 1-307 module cli
+S 26-26 variable toml_reader
+S 28-28 variable EXIT_OK
+S 29-29 variable EXIT_USAGE
+S 30-30 variable EXIT_ERROR
+S 32-32 variable _COMMANDS
 S 35-44 function command
 S 38-42 function register
 S 47-64 class Context
@@ -10,29 +15,39 @@ S 56-57 method Context::echo
 S 59-61 method Context::debug
 S 63-64 method Context::emit_json
 S 67-86 class Command
+S 70-70 field Command::name
+S 71-71 field Command::help
 S 73-74 method Command::configure
 S 76-77 method Command::run
 S 79-86 method Command::__call__
 S 90-119 class AddBookCommand
+S 91-91 field AddBookCommand::help
 S 93-99 method AddBookCommand::configure
 S 102-104 method AddBookCommand::parse_author
 S 106-119 method AddBookCommand::run
 S 123-135 class AddCopyCommand
+S 124-124 field AddCopyCommand::help
 S 126-130 method AddCopyCommand::configure
 S 132-135 method AddCopyCommand::run
 S 139-153 class JoinCommand
+S 140-140 field JoinCommand::help
 S 142-147 method JoinCommand::configure
 S 149-153 method JoinCommand::run
 S 157-175 class CheckoutCommand
+S 158-158 field CheckoutCommand::help
 S 160-163 method CheckoutCommand::configure
 S 165-175 method CheckoutCommand::run
 S 179-189 class ReturnCommand
+S 180-180 field ReturnCommand::help
 S 182-184 method ReturnCommand::configure
 S 186-189 method ReturnCommand::run
 S 193-213 class ReportCommand
+S 194-194 field ReportCommand::help
+S 196-196 field ReportCommand::KINDS
 S 202-205 method ReportCommand::configure
 S 207-213 method ReportCommand::run
 S 217-227 class RemindCommand
+S 218-218 field RemindCommand::help
 S 220-222 method RemindCommand::configure
 S 224-227 method RemindCommand::run
 S 230-237 function load_config
@@ -138,7 +153,7 @@ R 150:18 calls JoinCommand::run -> Member (name-matched: library/models.py)
 R 150:94 calls JoinCommand::run -> upper
 R 151:31 calls JoinCommand::run -> put (name-matched: library/repository.py)
 R 152:13 calls JoinCommand::run -> echo
-R 152:62 calls JoinCommand::run -> title
+R 152:62 calls JoinCommand::run -> title (name-matched: library/models.py)
 R 138:1 references JoinCommand -> command
 R 157:23 extends CheckoutCommand -> Command
 R 161:17 calls CheckoutCommand::configure -> configure
@@ -233,18 +248,31 @@ R 307:14 calls cli -> main
 
 == library/errors.py (320 lines)
 S 1-320 module errors
+S 15-15 variable log
+S 17-17 variable F
+S 19-19 variable _AUDIT
 S 22-40 class LibraryError
+S 25-25 field LibraryError::code
+S 26-26 field LibraryError::retryable
 S 28-31 method LibraryError::__init__
 S 33-37 method LibraryError::to_dict
 S 39-40 method LibraryError::__str__
 S 43-44 class ValidationError
+S 44-44 field ValidationError::code
 S 47-53 class NotFoundError
+S 48-48 field NotFoundError::code
 S 50-53 method NotFoundError::__init__
 S 56-58 class ConflictError
+S 57-57 field ConflictError::code
+S 58-58 field ConflictError::retryable
 S 61-68 class LimitExceededError
+S 62-62 field LimitExceededError::code
 S 64-68 method LimitExceededError::__init__
 S 71-73 class StorageError
+S 72-72 field StorageError::code
+S 73-73 field StorageError::retryable
 S 76-94 class AuditRecord
+S 79-79 field AuditRecord::__slots__
 S 81-86 method AuditRecord::__init__
 S 88-90 method AuditRecord::__repr__
 S 92-94 method AuditRecord::as_line
@@ -398,36 +426,81 @@ R 320:16 calls ErrorCatalog::lookup -> next
 
 == library/models.py (326 lines)
 S 1-326 module models
+S 17-17 variable ISBN_PATTERN
+S 18-18 variable DEFAULT_LOAN_DAYS
+S 19-19 variable MAX_RENEWALS
+S 21-21 variable T
+S 22-22 variable K
 S 25-44 class Genre
+S 28-28 field Genre::FICTION
+S 29-29 field Genre::NON_FICTION
+S 30-30 field Genre::CHILDREN
+S 31-31 field Genre::REFERENCE
+S 32-32 field Genre::PERIODICAL
 S 35-36 method Genre::loanable
 S 39-44 method Genre::parse
 S 47-53 class MembershipTier
+S 48-48 field MembershipTier::BASIC
+S 49-49 field MembershipTier::PLUS
+S 50-50 field MembershipTier::PATRON
 S 52-53 method MembershipTier::max_loans
 S 56-61 function normalize_isbn
 S 64-67 function isbn10_checksum
 S 70-72 function isbn13_checksum
 S 75-82 function is_valid_isbn
 S 86-100 class Author
+S 89-89 field Author::family_name
+S 90-90 field Author::given_names
+S 91-91 field Author::born
 S 94-97 method Author::display_name
 S 99-100 method Author::sort_key
 S 104-143 class Book
+S 107-107 field Book::isbn
+S 108-108 field Book::title
+S 109-109 field Book::authors
+S 110-110 field Book::genre
+S 111-111 field Book::published
+S 112-112 field Book::tags
+S 114-114 field Book::registry
 S 116-120 method Book::__post_init__
 S 123-127 method Book::byline
 S 129-132 method Book::matches
 S 135-143 method Book::from_row
 S 147-160 class Copy
+S 150-150 field Copy::barcode
+S 151-151 field Copy::isbn
+S 152-152 field Copy::shelf
+S 153-153 field Copy::condition
+S 154-154 field Copy::withdrawn
 S 156-160 method Copy::withdraw
 S 164-186 class Member
+S 165-165 field Member::member_id
+S 166-166 field Member::name
+S 167-167 field Member::email
+S 168-168 field Member::tier
+S 169-169 field Member::joined
+S 170-170 field Member::blocked_until
+S 172-172 field Member::EMAIL_RE
 S 174-176 method Member::__post_init__
 S 178-180 method Member::is_blocked
 S 182-186 method Member::block
 S 190-222 class Loan
+S 191-191 field Loan::barcode
+S 192-192 field Loan::member_id
+S 193-193 field Loan::start
+S 194-194 field Loan::due
+S 195-195 field Loan::returned
+S 196-196 field Loan::renewals
 S 199-201 method Loan::open
 S 204-205 method Loan::is_open
 S 207-210 method Loan::days_overdue
 S 212-218 method Loan::renew
 S 220-222 method Loan::close
 S 226-232 class Hold
+S 229-229 field Hold::priority
+S 230-230 field Hold::placed
+S 231-231 field Hold::member_id
+S 232-232 field Hold::isbn
 S 235-260 class Page
 S 238-242 method Page::__init__
 S 244-245 method Page::__iter__
@@ -583,16 +656,33 @@ R 325:51 calls group_by_genre -> casefold
 
 == library/reports.py (320 lines)
 S 1-320 module reports
+S 21-21 variable _RENDERERS
+S 22-22 variable _REPORT_COUNT
 S 25-34 function renderer
 S 28-32 function register
 S 37-38 function fmt_name
 S 41-44 class Row
+S 42-42 field Row::label
+S 43-43 field Row::value
+S 44-44 field Row::note
 S 47-51 class GenreStats
+S 48-48 field GenreStats::genre
+S 49-49 field GenreStats::titles
+S 50-50 field GenreStats::copies
+S 51-51 field GenreStats::on_loan
 S 56-111 class Report
+S 59-59 field Report::title
+S 60-60 field Report::columns
+S 61-61 field Report::rows
+S 62-62 field Report::notes
+S 63-63 field Report::created
+S 65-65 field Report::MAX_ROWS
 S 67-82 class Report::Style
 S 70-72 method Style::__init__
 S 74-75 method Style::rule
 S 77-82 class Style::Palette
+S 78-78 field Palette::header
+S 79-79 field Palette::zebra
 S 81-82 method Palette::pick
 S 84-91 method Report::add
 S 93-96 method Report::extend
@@ -826,9 +916,12 @@ R 320:21 calls ScheduledReport::run -> _build
 
 == library/repository.py (316 lines)
 S 1-316 module repository
+S 20-20 variable E
+S 21-21 variable KeyT
 S 24-25 class HasKey
 S 25-25 method HasKey::key
 S 28-62 class Repository
+S 31-31 field Repository::kind
 S 34-35 method Repository::get
 S 38-39 method Repository::put
 S 42-43 method Repository::delete
@@ -845,6 +938,7 @@ S 83-89 method MemoryRepository::put_if_version
 S 91-92 method MemoryRepository::version
 S 94-97 method MemoryRepository::delete
 S 99-102 method MemoryRepository::scan
+S 105-105 variable SCHEMA
 S 128-165 class SqliteRepository
 S 131-137 method SqliteRepository::__init__
 S 140-145 method SqliteRepository::get
@@ -1014,6 +1108,8 @@ R 316:23 calls UnitOfWork::rollback -> clear
 
 == library/services.py (417 lines)
 S 1-417 module services
+S 44-44 variable logger
+S 46-46 variable Listener
 S 48-48 type_alias Pair
 S 51-52 class Clock
 S 52-52 method Clock::now
@@ -1031,6 +1127,7 @@ S 90-98 class EmailNotifier
 S 91-94 method EmailNotifier::__init__
 S 96-98 method EmailNotifier::deliver
 S 101-108 class SmsNotifier
+S 102-102 field SmsNotifier::MAX_LENGTH
 S 104-108 method SmsNotifier::deliver
 S 111-132 class EventBus
 S 114-115 method EventBus::__init__
@@ -1069,6 +1166,7 @@ S 324-333 method ReminderService::send_all
 S 335-338 method ReminderService::stream
 S 340-341 method ReminderService::run
 S 344-368 class UpgradePolicy
+S 347-347 field UpgradePolicy::thresholds
 S 349-350 method UpgradePolicy::__init__
 S 352-360 method UpgradePolicy::suggest
 S 362-368 method UpgradePolicy::apply
@@ -1113,7 +1211,7 @@ R 27:5 imports services -> audit (name-matched: library/errors.py)
 R 28:5 imports services -> audited (name-matched: library/errors.py)
 R 29:5 imports services -> retry (name-matched: library/errors.py)
 R 31:7 imports services -> models (name-matched: library/models.py)
-R 32:5 imports services -> DEFAULT_LOAN_DAYS
+R 32:5 imports services -> DEFAULT_LOAN_DAYS (name-matched: library/models.py)
 R 33:5 imports services -> Book (name-matched: library/models.py)
 R 34:5 imports services -> Copy (name-matched: library/models.py)
 R 35:5 imports services -> Hold (name-matched: library/models.py)
@@ -1170,7 +1268,7 @@ R 183:37 calls LendingService::__init__ -> EmailNotifier
 R 184:27 calls LendingService::__init__ -> EventBus
 R 185:22 calls LendingService::__init__ -> HoldQueue
 R 186:24 calls LendingService::__init__ -> RateLimiter (name-matched: library/errors.py)
-R 188:27 references LendingService::__init__ -> DEFAULT_LOAN_DAYS
+R 188:27 references LendingService::__init__ -> DEFAULT_LOAN_DAYS (name-matched: library/models.py)
 R 190:5 references LendingService::loan_days -> property
 R 197:19 calls LendingService::loan_days -> ValidationError (name-matched: library/errors.py)
 R 194:5 references LendingService::loan_days -> setter
@@ -1303,10 +1401,18 @@ S 1-16 module __init__
 == web/django_site/lending/admin.py (37 lines)
 S 1-37 module admin
 S 7-9 class CopyInline
+S 8-8 field CopyInline::model
+S 9-9 field CopyInline::extra
 S 13-29 class BookAdmin
+S 14-14 field BookAdmin::list_display
+S 15-15 field BookAdmin::list_filter
+S 16-16 field BookAdmin::search_fields
+S 17-17 field BookAdmin::inlines
+S 18-18 field BookAdmin::actions
 S 21-22 method BookAdmin::copy_count
 S 25-29 method BookAdmin::mark_lost
 S 33-34 class PlainAdmin
+S 34-34 field PlainAdmin::date_hierarchy
 R 1:13 imports admin -> contrib
 R 1:28 imports admin -> admin
 R 1:35 imports admin -> messages
@@ -1337,6 +1443,9 @@ R 37:21 references admin -> CopyRecord (name-matched: web/django_site/lending/mo
 == web/django_site/lending/apps.py (12 lines)
 S 1-12 module apps
 S 4-12 class LendingConfig
+S 5-5 field LendingConfig::default_auto_field
+S 6-6 field LendingConfig::name
+S 7-7 field LendingConfig::verbose_name
 S 9-12 method LendingConfig::ready
 R 1:13 imports apps -> apps
 R 1:25 imports apps -> AppConfig
@@ -1347,8 +1456,12 @@ R 12:23 imports LendingConfig::ready -> signals (name-matched: web/django_site/l
 S 1-22 module forms
 S 8-18 class BookForm
 S 9-12 class BookForm::Meta
+S 10-10 field Meta::model
+S 11-11 field Meta::fields
+S 12-12 field Meta::widgets
 S 14-18 method BookForm::clean_isbn
 S 21-22 class CheckoutForm
+S 22-22 field CheckoutForm::barcode
 R 1:6 imports forms -> django
 R 1:20 imports forms -> forms
 R 3:14 imports forms -> models (name-matched: library/models.py)
@@ -1366,25 +1479,54 @@ R 22:21 calls CheckoutForm -> CharField
 
 == web/django_site/lending/models.py (121 lines)
 S 1-121 module models
+S 15-15 variable LOAN_PERIOD
 S 18-25 class TimeStampedModel
+S 21-21 field TimeStampedModel::created_at
+S 22-22 field TimeStampedModel::updated_at
 S 24-25 class TimeStampedModel::Meta
+S 25-25 field Meta::abstract
 S 28-37 class AuthorRecord
+S 29-29 field AuthorRecord::name
+S 30-30 field AuthorRecord::born
 S 32-34 class AuthorRecord::Meta
+S 33-33 field Meta::ordering
+S 34-34 field Meta::verbose_name
 S 36-37 method AuthorRecord::__str__
 S 40-48 class BookQuerySet
 S 41-42 method BookQuerySet::available
 S 44-45 method BookQuerySet::in_genre
 S 47-48 method BookQuerySet::popular
 S 51-81 class BookRecord
+S 52-52 field BookRecord::GENRE_CHOICES
+S 54-54 field BookRecord::isbn
+S 55-55 field BookRecord::title
+S 56-56 field BookRecord::genre
+S 57-57 field BookRecord::authors
+S 58-58 field BookRecord::published
+S 60-60 field BookRecord::objects
 S 62-70 class BookRecord::Meta
+S 64-64 field Meta::indexes
+S 65-65 field Meta::constraints
 S 72-73 method BookRecord::__str__
 S 75-78 method BookRecord::clean
 S 80-81 method BookRecord::get_absolute_url
 S 84-95 class CopyRecord
 S 85-88 class CopyRecord::Status
+S 86-86 field Status::ON_SHELF
+S 87-87 field Status::ON_LOAN
+S 88-88 field Status::LOST
+S 90-90 field CopyRecord::book
+S 91-91 field CopyRecord::barcode
+S 92-92 field CopyRecord::status
 S 94-95 method CopyRecord::__str__
 S 98-121 class LoanRecord
+S 99-99 field LoanRecord::copy
+S 100-100 field LoanRecord::member
+S 103-103 field LoanRecord::due
+S 104-104 field LoanRecord::returned
 S 106-108 class LoanRecord::Meta
+S 107-107 field Meta::get_latest_by
+S 108-108 field Meta::permissions
 S 111-112 method LoanRecord::is_overdue
 S 114-116 method LoanRecord::fee
 S 118-121 method LoanRecord::save
@@ -1486,6 +1628,9 @@ R 17:1 references audit_book_delete -> receiver
 
 == web/django_site/lending/urls.py (42 lines)
 S 1-42 module urls
+S 16-16 variable book_patterns
+S 27-27 variable loan_patterns
+S 36-36 variable urlpatterns
 R 1:13 imports urls -> contrib
 R 1:28 imports urls -> admin (name-matched: web/django_site/lending/admin.py)
 R 2:13 imports urls -> urls
@@ -1531,12 +1676,26 @@ R 41:64 calls urls -> as_view
 == web/django_site/lending/views.py (125 lines)
 S 1-125 module views
 S 27-41 class BookListView
+S 28-28 field BookListView::model
+S 29-29 field BookListView::paginate_by
+S 30-30 field BookListView::template_name
 S 32-36 method BookListView::get_queryset
 S 38-41 method BookListView::get_context_data
 S 44-47 class BookDetailView
+S 45-45 field BookDetailView::model
+S 46-46 field BookDetailView::slug_field
+S 47-47 field BookDetailView::slug_url_kwarg
 S 50-53 class BookCreateView
+S 51-51 field BookCreateView::model
+S 52-52 field BookCreateView::form_class
+S 53-53 field BookCreateView::permission_required
 S 56-60 class BookUpdateView
+S 57-57 field BookUpdateView::model
+S 58-58 field BookUpdateView::form_class
+S 59-59 field BookUpdateView::slug_field
+S 60-60 field BookUpdateView::slug_url_kwarg
 S 63-72 class StatsView
+S 64-64 field StatsView::http_method_names
 S 66-72 method StatsView::get
 S 77-99 function checkout
 S 105-110 function waive_fee
@@ -1548,7 +1707,7 @@ R 5:13 imports views -> conf
 R 5:25 imports views -> settings
 R 6:13 imports views -> contrib
 R 6:28 imports views -> messages
-R 7:26 imports views -> decorators
+R 7:26 imports views -> decorators (name-matched: web/flask_app.py)
 R 7:44 imports views -> login_required (name-matched: web/flask_app.py)
 R 7:60 imports views -> permission_required
 R 8:26 imports views -> mixins
@@ -1558,7 +1717,7 @@ R 9:13 imports views -> db
 R 9:23 imports views -> transaction
 R 10:16 imports views -> models (name-matched: library/models.py)
 R 10:30 imports views -> Count
-R 10:37 imports views -> F
+R 10:37 imports views -> F (name-matched: library/errors.py)
 R 11:13 imports views -> http
 R 11:25 imports views -> HttpRequest
 R 11:38 imports views -> HttpResponse
@@ -1625,7 +1784,7 @@ R 68:32 calls StatsView::get -> values (name-matched: library/repository.py)
 R 69:29 calls StatsView::get -> Count
 R 69:48 calls StatsView::get -> Count
 R 70:34 calls StatsView::get -> desc
-R 70:23 calls StatsView::get -> F
+R 70:23 calls StatsView::get -> F (name-matched: library/errors.py)
 R 72:16 calls StatsView::get -> JsonResponse
 R 72:40 calls StatsView::get -> list
 R 78:12 calls checkout -> get_object_or_404
@@ -1671,6 +1830,10 @@ R 122:1 references my_loans -> login_required (name-matched: web/flask_app.py)
 
 == web/flask_app.py (365 lines)
 S 1-365 module flask_app
+S 43-43 variable log
+S 45-45 variable F
+S 47-47 variable DEFAULT_PAGE_SIZE
+S 48-48 variable MAX_PAGE_SIZE
 S 56-65 function login_required
 S 60-63 function guarded
 S 68-80 function staff_only
@@ -1679,6 +1842,9 @@ S 73-76 function checked
 S 83-87 function page_args
 S 90-94 function lending_service
 S 97-103 function book_payload
+S 110-110 variable auth
+S 111-111 variable catalogue_bp
+S 112-112 variable api
 S 116-123 function login
 S 127-129 function logout
 S 133-134 function load_member
@@ -1692,12 +1858,15 @@ S 185-186 function inject_genres
 S 195-198 function list_books
 S 202-206 function get_book
 S 209-240 class LoanAPI
+S 212-212 field LoanAPI::init_every_request
+S 213-213 field LoanAPI::decorators
 S 215-216 method LoanAPI::__init__
 S 218-219 method LoanAPI::_service
 S 221-228 method LoanAPI::get
 S 230-236 method LoanAPI::post
 S 238-240 method LoanAPI::delete
 S 243-253 class GenreAPI
+S 246-246 field GenreAPI::methods
 S 248-253 method GenreAPI::get
 S 256-261 function register_api
 S 272-332 function create_app
@@ -1710,6 +1879,7 @@ S 311-313 function add_headers
 S 316-319 function close_services
 S 322-326 function seed
 S 329-330 function shell_context
+S 340-340 variable app
 S 344-345 function about
 S 349-354 function search
 S 357-359 function route_table

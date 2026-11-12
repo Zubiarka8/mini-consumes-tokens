@@ -20,7 +20,7 @@ language it covers and what is missing.
 Use this page:
 
 - before relying on a tool result for a language, to know what can be in it.
-  For example, `find_symbol` never returns a Python module variable,
+  For example, `find_symbol` never returns a Python `self.x` attribute,
   because those are not indexed;
 - when adding a language. The [language crate template](../../06-templates/lang-crate-base.md)
   asks for inventory entries and a checklist here;
@@ -119,7 +119,7 @@ table emits none yet:
 |---|---|---|---|---|
 | Rust | `fn` (free, method, trait, `extern` block), `struct`, `union`, `enum`, `trait`, `type`, associated `type`, `const`, `static` | `pub` → public, `pub(crate)` → crate, `pub(super)`/`pub(in …)` → restricted, `pub(self)` or no keyword → private; none recorded in a trait or `impl Trait for T`, where the trait decides | `async`, `const`, `unsafe`, `extern` (functions); `unsafe` (traits) | closures bound by `let`, enum variants, fields, macro-generated items; parameter defaults (Rust has none) |
 | JS/TS | `function` (and generator), methods, functions or arrows assigned to `const`/`let`/`var` or to a class field, classes, interfaces, type aliases, enums, class fields | class members: `private`/`protected`/`public` keyword, `#name` → private, otherwise public (the language default); none outside a class | `async`, generator (`*`), `static`, `readonly`, `abstract`, `override`, `const` (enums) | CommonJS/`export default` function values, interface members, abstract method signatures, object-literal properties. Types come from TS annotations (`syntax`) or, without one, from a JSDoc `@param {T} name` / `@returns {T}` right above (`doc`); a destructured parameter has no name for JSDoc to match |
-| Python | `def` (functions and methods), `class`, PEP 695 `type` | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas, assigned attributes. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
+| Python | `def` (functions and methods), `class`, PEP 695 `type`, module-level and class-body assignments | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas, `self.x` attributes. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
 | Java | methods, constructors, classes, records, interfaces, annotation types, enums, each declarator of a field declaration | `public`/`protected`/`private`; none → package, but public in an interface or annotation type (the language default) | `abstract`, `static`, `final`, `sealed`, `@Override` → override | record accessors (synthesized, not written), enum constants, `throws` (kept in the signature only). The explicit `Type this` parameter is the receiver; `T...` is variadic |
 | Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes, member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
 | C# | methods, constructors, destructors, operators, conversion operators, local functions, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
@@ -177,7 +177,7 @@ round to the nearest whole percent, with halves rounded up.
 | Language | Constructs | Checks | Features | Checks | Unverified |
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
-| Python | 69% | 29 | 85% | 10 | 0 |
+| Python | 81% | 29 | 85% | 10 | 0 |
 | JS/TS | 80% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
@@ -273,7 +273,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Language | Functions | Types / OOP | Data | Relations | Search | Quality | Structure |
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
-| Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
+| Python | 78% | 88% | 50% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 70% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
@@ -353,14 +353,20 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | the receiver of `x.m()`, `self.attr.m()` | `call` + `attribute` `object` | qualified by the type the code states for `x`: `self.m()`/`cls.m()` when the class body defines `m`, a parameter annotated with a class, a local bound once to `T(…)` or `x: T = …`, `T.m()` on a class the file defines or imports, or `self.attr.m()` when the enclosing class annotates `attr` (`attr: T` in its body, `self.attr: T = …` in a method), defines no method or class `attr`, and nothing in the file states another type for an attribute of that name or sets attributes dynamically (`setattr`, `__dict__`, `vars`, `__setattr__`, `__getattr__`). A builtin container or `str` type (`opts: dict`, `rows = []`, `title: str`) makes the call external. Any other receiver is left to name resolution |
 | a function or class used by name as a value: an argument (`safely(score, x)`, `key=rank`), a tuple, list, set or dict value element (`isinstance(e, (A, B))`), an assignment's right side (`model = BookRecord`) or a returned name (`return wrapper`) | `argument_list`, `keyword_argument`, `tuple`, `list`, `set`, `pair`, `assignment` `right`, `return_statement` | `references`, only when the name has the evidence a bare call to it gets (this file's `def`/`class`, an import, a builtin); a parameter, local or unbound name records nothing |
 | a bare call to a `def`/`class` of the same file (`count()` → `def count`) | `call`, `identifier` | `calls`, kept to this file when only a `def`/`class` outside a class body binds the name |
+| `MAX = 3`, `a, b = …`, `timeout: int = 30` at module level | `assignment` | `variable`; `constant` when annotated `Final`. The first binding of a name only; `_` and attribute or subscript targets are skipped. Signature is the name, or `name: annotation` |
+| `currency = "EUR"`, `sku: str` in a class body | `assignment` | `field`, parent the class |
+| a call, decorator or base class naming something the file neither imports nor binds (`helper()`, `@cached`, `class C(Base)`) | `call`, `decorator`, `argument_list` | carries this file as evidence, so a same-file definition wins. A name the file binds at class level only hides an import inside that class body |
+| `from pkg.util import x` | `import_from_statement` | the `imports` row for `x` carries `util` as module evidence; `from . import x` carries none |
+| `v.m()` on a local or a non-name value whose type the code doesn't state (`path.stat()`, `rows.index(x)`, `f().close()`) | `call`, `attribute` | `calls` that must be a method; a single method candidate stays `ambiguous`, so a builtin's method never resolves to a repo function |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Module variables and constants, class attributes, `self.x`, dataclass fields | Not implemented | no arm for `assignment` or `expression_statement`; recorded as a known limit in `corpus-progress.md` |
+| `self.x` attributes | Not implemented | assignments inside a method are not walked as fields; module variables, constants and class-body attributes (dataclass fields too) are |
+| A name used in a file with `from m import *` gets no evidence | By design | the star import could bind any name, so the call is left to name resolution (`library/cli.py` `int(…)` still matches a fixture variable named `int`) |
 | Lambdas | Not implemented | no arm for `lambda` |
-| Enum subclasses | Not implemented | ordinary class traversal emits `class` plus `extends Enum`; assigned enum values are not symbols |
+| Enum subclasses | Not implemented | ordinary class traversal emits `class` plus `extends Enum`; assigned enum values are `field`, as any class attribute |
 | Nested functions have no parent | Not implemented | the parent is set only for class members |
 | Getter and setter as two rows | Not implemented | both are emitted as methods; the shared `field` kind could model a combined property, as in C# |
 | Exact-text search in strings | Not implemented | the parser does not fill `literals` |
@@ -844,18 +850,18 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Class: `class`
 - [x] Abstract class: `class` (abstract flag not stored)
-- [~] Enum: an `Enum` subclass is a `class`, not an `enum`; assigned members have no symbol
-- [ ] Enum members: assignments in an `Enum` subclass have no symbol
-- [~] Record / data class: `@dataclass` is a `class`; its fields have no symbol
+- [~] Enum: an `Enum` subclass is a `class`, not an `enum`; assigned members are `field`
+- [~] Enum members: assignments in an `Enum` subclass are `field` rows of the class, not `constant`
+- [x] Record / data class: `@dataclass` is a `class`; its annotated fields are `field`
 - [x] Nested / inner class: parent is the outer class
 - [x] Type alias: PEP 695 `type X = …`
 - [x] Module / namespace / package: file `module`
 
 **Fields, constants and variables**
 
-- [ ] Field / instance attribute: `self.x`, class attributes, `__slots__` and annotations have no symbol
-- [ ] Constant (module or global): `UPPER = 1` is a plain assignment, no symbol
-- [ ] Global / module-level variable: module assignments have no symbol
+- [~] Field / instance attribute: class-body assignments and annotations are `field`; `self.x` and `__slots__` have no symbol
+- [x] Constant (module or global): `X: Final = 1` is `constant`; an unannotated `UPPER = 1` is `variable`, since Python has no constant syntax
+- [x] Global / module-level variable: module assignments are `variable`
 - [ ] Local variable
 - [ ] Parameter
 
