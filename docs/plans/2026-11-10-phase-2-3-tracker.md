@@ -265,7 +265,13 @@ From `rules.md` and the two messages:
       has 2 for Java (`items.add`, `List.of` under `import java.util.List`
       next to a same-package `shop.List`, checked with `javac` and
       `javap`), both correct; before the fix, 1 wrong and 1 missing. D9
-      cases for the other languages wait on their fixes. D5 has 2 for
+      has 3 for C++ (`std::sort` and `std::to_string` next to `util::sort`
+      and `Quantity::to_string`, plus the qualified `util::sort` that must
+      stay resolved, checked with `clang++`), all correct; before the fix,
+      2 wrong (`std::sort` → `util::sort`, `std::to_string` →
+      `Quantity::to_string`). No PHP or Go case: there is no `php` or Go
+      toolchain here to run their truth. D9 cases for the other languages
+      wait on their fixes. D5 has 2 for
       Python (`cat.find` on `cat: Catalogue` next to `Shelf.find`,
       `opts.get` on a `dict` next to `View.get`, run with CPython), both
       correct; before the fix, 1 wrong and 1 ambiguous. Rust's D5 label

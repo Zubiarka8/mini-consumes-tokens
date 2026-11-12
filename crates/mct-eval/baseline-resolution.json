@@ -1,6 +1,6 @@
 {
   "suite": "resolution-app",
-  "catalog_tokens": 12167,
+  "catalog_tokens": 12169,
   "cases": {
     "java: an inherited call is not a same-named field": {
       "score": 0.0,
@@ -50,6 +50,11 @@
     "stdlib: a JDK single-type import shadows a same-package type": {
       "score": 1.0,
       "tokens": 297,
+      "wrong": 0
+    },
+    "stdlib: a call through std:: is the standard library's, never a same-named repository function": {
+      "score": 1.0,
+      "tokens": 329,
       "wrong": 0
     },
     "stdlib: a standard global is the host's, never another file's alias": {
