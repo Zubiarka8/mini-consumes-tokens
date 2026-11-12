@@ -521,7 +521,7 @@ R 247:29 calls cli::cmd_export -> delta (name-matched: include/inventory/model.h
 R 253:5 calls cli::cmd_help -> print_usage
 R 268:24 calls cli::make_context -> move
 R 269:25 calls cli::make_context -> make_product_repository (name-matched: include/inventory/storage.hpp)
-R 270:24 calls cli::make_context -> make_unique<inv::FileStore>
+R 270:24 calls cli::make_context -> make_unique
 R 271:33 calls cli::make_context -> make_service
 R 271:84 calls cli::make_context -> get
 R 278:19 calls cli::run -> parse_options
@@ -755,7 +755,7 @@ R 261:13 calls inv::service::seed_demo -> set_rule
 R 261:29 calls inv::service::seed_demo -> id (name-matched: include/inventory/model.hpp)
 R 262:13 calls inv::service::seed_demo -> set_rule
 R 262:28 calls inv::service::seed_demo -> id (name-matched: include/inventory/model.hpp)
-R 268:26 calls inv::service::attach_logging -> make_unique<LoggingListener>
+R 268:26 calls inv::service::attach_logging -> make_unique
 R 269:13 calls inv::service::attach_logging -> subscribe
 R 269:39 calls inv::service::attach_logging -> get
 R 269:79 calls inv::service::attach_logging -> notify
@@ -763,7 +763,7 @@ R 280:34 extends inv::service::FlatPricing -> PricingStrategy
 R 283:12 overrides FlatPricing::price -> price
 R 297:74 calls inv::service::tiered_price -> push_back
 R 300:29 calls inv::service::tiered_price -> back
-R 306:17 calls inv::service::make_service -> make_unique<InventoryService>
+R 306:17 calls inv::service::make_service -> make_unique
 
 == src/storage.cpp (302 lines)
 S 1-302 module storage
@@ -866,9 +866,9 @@ R 163:19 calls FileStore::FileStore -> StorageError (name-matched: include/inven
 R 163:70 calls FileStore::FileStore -> string
 R 163:91 calls FileStore::FileStore -> message
 R 164:16 calls FileStore::FileStore -> next_path
-R 165:20 calls FileStore::FileStore -> make_unique<Writer>
+R 165:20 calls FileStore::FileStore -> make_unique
 R 173:106 calls FileStore::next_path -> count
-R 173:37 calls FileStore::next_path -> duration_cast<std::chrono::seconds>
+R 173:37 calls FileStore::next_path -> duration_cast
 R 173:86 calls FileStore::next_path -> time_since_epoch
 R 173:80 calls FileStore::next_path -> now
 R 174:52 calls FileStore::next_path -> to_string (name-matched: include/inventory/model.hpp)
@@ -876,7 +876,7 @@ R 179:32 calls FileStore::append -> write_line
 R 179:43 calls FileStore::append -> encode
 R 180:5 calls FileStore::append -> rotate_if_needed
 R 185:16 calls FileStore::rotate_if_needed -> next_path
-R 186:20 calls FileStore::rotate_if_needed -> make_unique<Writer>
+R 186:20 calls FileStore::rotate_if_needed -> make_unique
 R 195:47 calls FileStore::load_all -> directory_iterator
 R 196:26 calls FileStore::load_all -> extension
 R 196:19 calls FileStore::load_all -> path (name-matched: include/inventory/storage.hpp)
@@ -899,14 +899,14 @@ R 210:47 calls FileStore::compact -> directory_iterator
 R 211:26 calls FileStore::compact -> remove
 R 211:39 calls FileStore::compact -> path (name-matched: include/inventory/storage.hpp)
 R 213:16 calls FileStore::compact -> next_path
-R 214:20 calls FileStore::compact -> make_unique<Writer>
+R 214:20 calls FileStore::compact -> make_unique
 R 216:39 calls FileStore::compact -> append
 R 221:29 calls FileStore::encode -> value (name-matched: include/inventory/model.hpp)
 R 221:48 calls FileStore::encode -> encode_location
 R 221:100 calls FileStore::encode -> kind_name (name-matched: include/inventory/model.hpp)
 R 222:29 calls FileStore::encode -> delta (name-matched: include/inventory/model.hpp)
 R 223:93 calls FileStore::encode -> count
-R 223:25 calls FileStore::encode -> duration_cast<std::chrono::seconds>
+R 223:25 calls FileStore::encode -> duration_cast
 R 223:73 calls FileStore::encode -> time_since_epoch
 R 224:16 calls FileStore::encode -> str
 R 228:25 calls FileStore::decode -> split
@@ -931,7 +931,7 @@ R 260:60 calls inv::restore_snapshot -> put (name-matched: include/inventory/sto
 R 260:72 calls inv::restore_snapshot -> id (name-matched: include/inventory/model.hpp)
 R 261:11 calls inv::restore_snapshot -> clear (name-matched: include/inventory/storage.hpp)
 R 262:53 calls inv::restore_snapshot -> put (name-matched: include/inventory/storage.hpp)
-R 266:39 calls inv::make_product_repository -> make_unique<MemoryRepository<ProductId, Product>>
+R 266:39 calls inv::make_product_repository -> make_unique
 R 267:11 calls inv::make_product_repository -> StorageError (name-matched: include/inventory/storage.hpp)
 R 267:59 calls inv::make_product_repository -> string
 R 275:44 calls Location::label -> setw
