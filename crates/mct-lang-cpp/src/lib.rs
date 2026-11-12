@@ -800,11 +800,13 @@ fn is_std_qualified(function: Node, source: &str) -> bool {
     if callee.kind() != "qualified_identifier" {
         return false;
     }
-    let written = text(callee, source);
-    let written = written.strip_prefix("::").unwrap_or(written).trim_start();
-    written
-        .strip_prefix("std")
-        .is_some_and(|rest| rest.trim_start().starts_with("::"))
+    let scope = callee.child_by_field_name("scope").or_else(|| {
+        callee
+            .child_by_field_name("name")
+            .filter(|name| name.kind() == "qualified_identifier")
+            .and_then(|name| name.child_by_field_name("scope"))
+    });
+    scope.is_some_and(|scope| text(scope, source) == "std")
 }
 
 /// Whether the file opens namespace `std` anywhere (`namespace std {`, or
