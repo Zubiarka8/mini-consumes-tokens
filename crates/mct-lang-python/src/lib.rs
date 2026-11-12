@@ -319,6 +319,7 @@ impl<'a> Walker<'a> {
             }
             "assignment" => {
                 self.push_bindings(node, depth);
+                self.push_self_fields(node, depth);
                 if let Some(right) = node.child_by_field_name("right") {
                     self.push_value_references(right, owner, depth + 1);
                 }
@@ -361,27 +362,70 @@ impl<'a> Walker<'a> {
             target_names(left, &mut names, depth);
         }
         for name_node in names {
-            let name = text(name_node, self.source);
-            let key = (scope.map(str::to_string), name.to_string());
-            if name == "_" || self.declared.contains(&key) {
+            if text(name_node, self.source) != "_" {
+                self.push_binding(name_node, kind, scope, annotation_text);
+            }
+        }
+    }
+
+    /// The fields `self.x = …` declares in a method: each `x` of an
+    /// attribute target on the method's own receiver, unless the class
+    /// already declares `x` or defines a method `x`.
+    fn push_self_fields(&mut self, assignment: Node, depth: u32) {
+        let mut targets = Vec::new();
+        if let Some(left) = assignment.child_by_field_name("left") {
+            attribute_targets(left, &mut targets, depth);
+        }
+        let annotation = assignment
+            .child_by_field_name("type")
+            .map(|t| text(t, self.source));
+        for target in targets {
+            let (Some(object), Some(attr)) = (
+                target.child_by_field_name("object"),
+                target.child_by_field_name("attribute"),
+            ) else {
+                continue;
+            };
+            let Some((class, methods)) = self
+                .frames
+                .last()
+                .and_then(|frame| frame.self_class(text(object, self.source)))
+            else {
+                continue;
+            };
+            if methods.contains(text(attr, self.source)) {
                 continue;
             }
-            let signature = match annotation_text {
-                Some(ty) => format!("{name}: {ty}"),
-                None => name.to_string(),
-            };
-            let id = self.push_symbol(
-                name.to_string(),
-                kind,
-                location(name_node),
-                scope.map(str::to_string),
-            );
-            self.details.push(mct_core::SymbolDetail {
-                symbol: id,
-                signature: Some(signature),
-                ..Default::default()
-            });
+            let class = class.to_string();
+            self.push_binding(attr, SymbolKind::Field, Some(&class), annotation);
         }
+    }
+
+    /// One binding `name_node` of `parent` (`None`: the module), unless the
+    /// file already declares that name there. The signature is the name as
+    /// written, with its annotation.
+    fn push_binding(
+        &mut self,
+        name_node: Node,
+        kind: SymbolKind,
+        parent: Option<&str>,
+        annotation: Option<&str>,
+    ) {
+        let name = text(name_node, self.source);
+        let parent = parent.map(str::to_string);
+        if self.declared.contains(&(parent.clone(), name.to_string())) {
+            return;
+        }
+        let signature = match annotation {
+            Some(ty) => format!("{name}: {ty}"),
+            None => name.to_string(),
+        };
+        let id = self.push_symbol(name.to_string(), kind, location(name_node), parent);
+        self.details.push(mct_core::SymbolDetail {
+            symbol: id,
+            signature: Some(signature),
+            ..Default::default()
+        });
     }
 
     /// Creates the symbol for a `function_definition`/`class_definition`
@@ -550,7 +594,7 @@ impl<'a> Walker<'a> {
                 let method = text(method, self.source);
                 match self.frames.last() {
                     Some(frame) => frame.receiver(object, method, &self.scope, &self.classes),
-                    None => receivers::module_receiver(object, &self.scope, &self.classes),
+                    None => receivers::value_receiver(object, &self.scope, &self.classes),
                 }
             }
             "attribute" => {
@@ -949,8 +993,6 @@ fn class_supertypes(class: Node, source: &str) -> Vec<Supertype> {
     supertypes
 }
 
-/// Name of a callable/base-class expression: a bare identifier, or the
-/// trailing attribute of a dotted access (`module.Class`, `obj.method`).
 /// Where an assignment binds: `Some(None)` at module level, `Some(class)`
 /// in a class body (an `if` or `try` block inside either too), `None`
 /// inside a function or lambda.
@@ -1010,6 +1052,26 @@ fn target_names<'a>(target: Node<'a>, out: &mut Vec<Node<'a>>, depth: u32) {
     }
 }
 
+/// The attribute targets of an assignment: `a.x`, and each one of
+/// `a.x, a.y` / `(a.x, a.y)` / `[a.x, a.y]`.
+fn attribute_targets<'a>(target: Node<'a>, out: &mut Vec<Node<'a>>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    match target.kind() {
+        "attribute" => out.push(target),
+        "pattern_list" | "tuple_pattern" | "list_pattern" => {
+            let mut cursor = target.walk();
+            for child in target.named_children(&mut cursor) {
+                attribute_targets(child, out, depth + 1);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Name of a callable/base-class expression: a bare identifier, or the
+/// trailing attribute of a dotted access (`module.Class`, `obj.method`).
 fn expr_name(node: Node, source: &str) -> Option<String> {
     match node.kind() {
         "identifier" => Some(text(node, source).to_string()),

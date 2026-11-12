@@ -4,8 +4,9 @@
 //! `a, b = …` and of a chained `x = y = …` counts, once, and the signature
 //! is the target as written with its annotation. A name the file already
 //! declares (`f = wrap(f)`), `_`, an attribute or subscript target, an
-//! augmented assignment, and any binding inside a function declare
-//! nothing. Python has no visibility syntax.
+//! augmented assignment, and a local inside a function declare nothing
+//! (`self.x` in a method is a field: `tests/self_fields.rs`). Python has no
+//! visibility syntax.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -99,6 +100,7 @@ fn module_and_class_bindings_are_symbols() {
             "14 Variable verbose - `verbose`",
             "26 Field currency Cart `currency`",
             "27 Field items Cart `items: list[str]`",
+            "31 Field total Cart `total`",
             "36 Field sku Item `sku: str`",
             "37 Field price Item `price: int`",
         ]
