@@ -399,6 +399,17 @@ impl Frame {
         !self.opaque && self.bindings.contains_key(name)
     }
 
+    /// The class whose fields `object.x = …` declares, and the methods its
+    /// body defines: `Some` when `object` is this method's never-rebound
+    /// receiver.
+    pub(crate) fn self_class(&self, object: &str) -> Option<(&str, &HashSet<String>)> {
+        if self.opaque || !self.is_self(object) {
+            return None;
+        }
+        let (class, methods, _) = self.class.as_ref()?;
+        Some((class, methods))
+    }
+
     fn is_self(&self, object: &str) -> bool {
         self.self_name.as_deref() == Some(object) && !self.bindings.contains_key(object)
     }

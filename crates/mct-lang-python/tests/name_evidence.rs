@@ -5,11 +5,14 @@
 //! it stays unresolved). `v.f()` on a value (a call result, a subscript, a
 //! parameter or local no import binds) is a member call: a method of a type
 //! the syntax doesn't prove, never a module-level name or a class
-//! attribute. A module-level name may hold a module, so it proves nothing,
-//! unless the file binds it once, at module level, to a builtin literal
+//! attribute. A module-level name may hold a module, so it proves nothing, unless
+//! the file binds it once, at module level, to a builtin literal
 //! (`TABLE = {}`): then its methods are the builtin's, `external`.
 //! A `from m import x` names an `x` of module `m`, even where a class body
 //! assigns a class attribute `x`, which rebinds nothing outside that body.
+//! Whatever else it proves, `v.f()` with no proven receiver class rules out
+//! a field `f` (`not-field`): a field of some class matches it by name only.
+//! `self.f()` keeps it, since `self` may hold a callable field `f`.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -43,6 +46,17 @@ def run(member, text):
     MODULE.inspect()
     TABLE.items()
     TWICE.keys()
+
+
+class Store:
+    def __init__(self):
+        self.data = {}
+
+    def rows(self):
+        return self.data.values()
+
+    def emit(self):
+        return self.handler()
 
 
 class Cart:
@@ -84,6 +98,7 @@ fn evidence(parsed: &ParsedFile) -> Vec<String> {
                     (Some(path), _, _) => format!("path {path}"),
                     (_, Some(module), _) => format!("module {module}"),
                     (_, _, Some(class)) => format!("qualifier {class}"),
+                    _ if t.not_field => "not-field".to_string(),
                     _ => "?".to_string(),
                 },
             };
@@ -108,9 +123,11 @@ fn a_name_carries_what_its_syntax_proves() {
         "19 Calls pop member",
         "20 Calls create qualifier Cart",
         "21 Calls F module models",
-        "22 Calls inspect -",
+        "22 Calls inspect not-field",
         "23 Calls items external",
-        "24 Calls keys -",
+        "24 Calls keys not-field",
+        "32 Calls values not-field",
+        "35 Calls handler -",
     ];
     for row in expected {
         assert!(rows.iter().any(|r| r == row), "{row} not in {rows:#?}");
@@ -136,5 +153,5 @@ fn a_class_attribute_hides_an_import_only_in_its_class_body() {
             format!("{} {}", r.location.line, module.as_deref().unwrap_or("-"))
         })
         .collect();
-    assert_eq!(decorators, ["30 -", "35 auth", "40 auth"]);
+    assert_eq!(decorators, ["41 -", "46 auth", "51 auth"]);
 }

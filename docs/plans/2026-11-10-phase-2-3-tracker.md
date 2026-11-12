@@ -437,10 +437,19 @@ From `rules.md` and the two messages:
           ambiguous -> external (`STACK_CONFIG.keys()`, `SCENARIOS.get(…)`;
           each receiver checked as a module dict literal), nothing else
           changed. Dead code 122 -> 122.
-    - [!] Python `self.x` fields: blocked on #412. As fields, calls with no
-          evidence resolve to them by name (6 wrong of 19 new resolutions,
-          `CSV_CONFIG.items()` to `Page.items`). Draft branch
-          `feat/python-self-fields`.
+    - [x] Python `self.x` fields (#412, ADR-036): the first `self.x = …` in
+          a method is a `field` of the class. `RelationTarget::not_field`
+          (migration 17) lets a parser rule out a field as the target;
+          Python sets it on `v.m()` and `@v.m` whose receiver class is not
+          proven, unless `v` is the method's own `self`. Tests:
+          `tests/self_fields.rs`, `tests/name_evidence.rs`,
+          `schema::tests::not_field_migration_rules_out_only_fields`.
+          Repository snapshot (Python, 7323 relations): 117 new fields, 3
+          unresolved -> resolved, each a `self.f()` call on a field holding a
+          callable (`self._key(item)`, `self._build()`); the 6 wrong matches
+          of the draft (`CSV_CONFIG.items()` to `Page.items`,
+          `@admin.action` to `AuditRecord.action`) stay unresolved. Other
+          languages unchanged. Dead code 122 -> 122.
     - [x] Go embedding: an embedded struct field (`Base`, `*Base`,
           `pkg.Base`, `List[T]`) and an interface element naming one type
           (`Reader`, `io.Writer`, which must be an interface) are an

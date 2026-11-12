@@ -347,11 +347,16 @@ fn an_index_from_before_the_table_gains_it_and_reparses_on_a_normal_reindex() {
     }
     // Rewind to the schema before the table existed, as an older binary left it.
     let conn = rusqlite::Connection::open(&db).unwrap();
-    // Tables of later migrations go too: an index at 13 never had them.
+    // Tables and columns of later migrations go too: an index at 13 never
+    // had them. The view reads `not_field`, so it goes first; migration 15
+    // drops the placeholder and recreates it.
     conn.execute_batch(
         "DROP TABLE symbol_entry_points;
          DROP TABLE symbol_parameters;
-         DROP TABLE symbol_details;",
+         DROP TABLE symbol_details;
+         DROP VIEW relation_candidates;
+         ALTER TABLE relations DROP COLUMN not_field;
+         CREATE VIEW relation_candidates AS SELECT NULL AS relation_id, NULL AS symbol_id;",
     )
     .unwrap();
     conn.pragma_update(None, "user_version", 13).unwrap();

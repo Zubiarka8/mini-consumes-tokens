@@ -608,6 +608,72 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         ),
+        // A parser may rule out a field as a relation's target (issue #412):
+        // `TABLE.items()` on a receiver of unproven type can reach a method
+        // or a callable, but a same-named field of an unrelated class is only
+        // a name coincidence. `not_field` is 0 on existing rows, which keeps
+        // their candidates; every file is reparsed so parsers that set it
+        // can.
+        M::up(concat!(
+            r#"
+            ALTER TABLE relations ADD COLUMN not_field INTEGER NOT NULL DEFAULT 0;
+            DROP VIEW relation_candidates;
+            "#,
+            r#"CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                    UNION ALL
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                )
+                CROSS JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<')
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.not_field = 0 OR s.kind <> 'field')
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module')
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'variable'
+                       OR s.parent IS NULL
+                       OR NOT EXISTS (SELECT 1 FROM symbols p
+                                      WHERE p.file_id = s.file_id AND p.name = s.parent
+                                        AND p.kind IN ('function', 'method'))
+                       OR EXISTS (SELECT 1 FROM symbols p
+                                  WHERE p.file_id = s.file_id AND p.name = s.parent
+                                    AND p.kind NOT IN ('function', 'method', 'variable',
+                                                       'constant', 'field')))
+                  "#,
+            shadowed_module_predicate!(),
+            r#";
+            UPDATE files SET content_hash = '';
+            "#,
+        )),
     ])
 }
 
@@ -788,6 +854,50 @@ mod tests {
                 r.get(0)
             })?;
         assert_eq!(hash, "h1", "no reparse needed");
+        Ok(())
+    }
+
+    /// ADR-036: an existing row keeps its field candidate and every file is
+    /// queued for reparse; a row with `not_field` keeps every other kind.
+    #[test]
+    fn not_field_migration_rules_out_only_fields() -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, 16)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at) VALUES
+                 (1, 'shop/page.py', 'python', 'h1', 0),
+                 (2, 'shop/report.py', 'python', 'h2', 0);
+             INSERT INTO symbols (id, file_id, name, kind, parent, line, column, byte_len) VALUES
+                 (1, 1, 'Page', 'class', NULL, 1, 1, 1),
+                 (2, 1, 'items', 'field', 'Page', 2, 1, 1),
+                 (3, 1, 'Cart', 'class', NULL, 3, 1, 1),
+                 (4, 1, 'items', 'method', 'Cart', 4, 1, 1),
+                 (5, 2, 'report', 'function', NULL, 1, 1, 1);
+             INSERT INTO relations (id, from_symbol_id, kind, to_name, line, column, byte_len,
+                                    targets_parsed) VALUES
+                 (1, 5, 'calls', 'items', 2, 1, 1, 1);",
+        )?;
+        migrations().to_version(&mut conn, 17)?;
+        let candidates = |conn: &Connection| -> rusqlite::Result<Vec<i64>> {
+            let mut stmt = conn.prepare(
+                "SELECT symbol_id FROM relation_candidates WHERE relation_id = 1 ORDER BY 1",
+            )?;
+            let ids = stmt.query_map([], |r| r.get(0))?.collect();
+            ids
+        };
+        assert_eq!(candidates(&conn)?, [2, 4], "an existing row is unchanged");
+        let hash: String =
+            conn.query_row("SELECT content_hash FROM files WHERE id = 1", [], |r| {
+                r.get(0)
+            })?;
+        assert_eq!(hash, "", "every file is reparsed");
+        conn.execute("UPDATE relations SET not_field = 1 WHERE id = 1", [])?;
+        assert_eq!(
+            candidates(&conn)?,
+            [4],
+            "the field is ruled out, the method kept"
+        );
         Ok(())
     }
 
