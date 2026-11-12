@@ -784,6 +784,9 @@ impl ReferencedSymbols {
 /// - a name with homonyms is counted by name as soon as one relation to it
 ///   is not resolved to a single symbol — that relation keeps every homonym
 ///   alive — and per resolved target only when none is.
+///
+/// `resolved_names` is `MATERIALIZED`: both halves of the `UNION` read it,
+/// and inlined it would run its candidate lookups once per half.
 pub fn referenced_symbols(conn: &Connection, kinds: &[&str]) -> Result<ReferencedSymbols> {
     let kinds_sql = vec!["?"; kinds.len()].join(", ");
     let sql = format!(
@@ -791,7 +794,7 @@ pub fn referenced_symbols(conn: &Connection, kinds: &[&str]) -> Result<Reference
              SELECT name FROM symbols GROUP BY name
              HAVING COUNT(*) > 1 AND SUM(kind IN ({kinds_sql})) > 0
          ),
-         resolved_names AS (
+         resolved_names AS MATERIALIZED (
              SELECT h.name FROM homonyms h
              WHERE NOT EXISTS (
                  SELECT 1 FROM relations r
