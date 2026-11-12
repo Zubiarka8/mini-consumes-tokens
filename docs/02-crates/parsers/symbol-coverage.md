@@ -557,6 +557,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `type T struct` | `type_spec` | `struct` |
 | `ID string` in a struct, `x, Y int` | `field_declaration` | `field` per name, parent the struct; signature `ID string` (no tag). An embedded field (`*Base`) is none: the struct `extends` its type |
 | an embedded type: `Base`, `*Base`, `pkg.Base`, `List[T]` in a struct; `Reader`, `io.Writer` in an interface | `field_declaration` without a name, `type_elem` of one type | `extends` from the struct or interface; in an interface the target must be an `interface`. A bare name is qualified by the package, `pkg.T` through a standard package is external, through an unaliased repository import qualified by `pkg`. A union or `~T` element is a type set and gives none |
+| `Cart{…}`, `&Cart{…}`, `store.Basket{…}`, `Box[int]{…}` | `composite_literal` | `references` the type, with an embedded type's evidence; a slice, map or elided-type literal references nothing |
 | package-level `const X = 1`, `const ( … )` | `const_declaration`, `const_spec` | `constant` per name, parent the package; signature `const X` or `const X T` |
 | package-level `var x T`, `var ( … )` | `var_declaration`, `var_spec`, `var_spec_list` | `variable` per name, parent the package; signature `var x T`. A call in the value belongs to the file module. `_` and a `const`/`var` inside a function are none |
 | `type I interface { M() }` | `type_spec` | `interface`; each method as `method` |
@@ -572,7 +573,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Implicit interface satisfaction | By design | explicitly deferred pending type resolution in [Go crate docs](../../../crates/mct-lang-go/src/lib.rs#L3) and [open decision 3](../../../internal/checklist.md#open-decisions) |
-| Composite literals (`T{}`) and conversions as uses | Not implemented | `composite_literal` gives no relation; conversions appear as calls |
+| Conversions and declared types as uses | Not implemented | a conversion `T(x)` appears as a call; a type named only in a declaration (`var w T`, a parameter or field type) gives no relation |
 | Closures, locals | Not implemented | no arm for `func_literal` or short variable declarations |
 
 ### PHP
@@ -1253,13 +1254,13 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a struct used only in a composite literal (`util.Widget{}`) gets no reference
+- [~] Every use: `find_references`: a composite literal (`util.Widget{}`) references its type; a type named only in a declaration (`var w Widget`) gets no reference
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
 **Features: Code quality**
 
-- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only in a composite literal is reported
+- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only as a declared type is reported
 - [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
 
 **Features: Structure**
@@ -1504,9 +1505,10 @@ the other documents.
    these calls. The imported helper is **not** reported as dead code, because
    the import counts as a use. A qualified `util::helper_fn()` inside a macro,
    with only `mod util;` and no helper import, **is** a false positive.
-7. **C++ and Go:** using a type only to declare a variable (`Widget w;`) or
-   in a composite literal (`util.Widget{}`) gives no relation. The type is
-   reported as dead code even though it is used.
+7. **C++ and Go:** using a type only to declare a variable (`Widget w;`,
+   `var w Widget`) gives no relation. The type is reported as dead code even
+   though it is used. A Go composite literal (`util.Widget{}`) references
+   its type.
 8. **C#:** a static class used only as a qualifier (`Helpers.HelperFn()`)
    gives no relation to the class. The class is reported as dead code.
 9. **Dead code in Java, C# and Lua:** methods are never candidates. Java has no free functions, so its candidates are types.
