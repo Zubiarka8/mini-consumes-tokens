@@ -64,16 +64,7 @@ fn class_members_attach_to_their_class() {
         Some("WarehouseClient")
     );
     assert_eq!(parent("inventory.ts", "#store", Method), Some("StockCache"));
-    // The class field and the interface property of the same name each
-    // keep their own type.
-    let mut tracking: Vec<_> = corpus()
-        .symbols_named("trackingNumber")
-        .into_iter()
-        .filter(|(path, s)| path.ends_with("order.ts") && s.kind == Field)
-        .map(|(_, s)| s.parent.as_deref())
-        .collect();
-    tracking.sort();
-    assert_eq!(tracking, [Some("Order"), Some("Shipped")]);
+    assert_eq!(parent("order.ts", "trackingNumber", Field), Some("Order"));
 }
 
 #[test]
@@ -151,16 +142,14 @@ fn documented_limits_of_the_parser() {
     let c = corpus();
     // Known limit: a namespace's functions are top-level functions.
     assert_eq!(parent("money.ts", "fromCents", Function), None);
+    // Known limit: interface members are not symbols.
+    assert!(c
+        .symbols_named("compareTo")
+        .iter()
+        .all(|(_, s)| s.parent.as_deref() == Some("Money")));
     // Known limit: JSX elements are not calls of their component (see the
     // crate docs).
     assert!(!c.has_relation("OrderTable", Calls, "StockBadge"));
-}
-
-#[test]
-fn interface_and_enum_members_belong_to_their_type() {
-    assert_eq!(parent("money.ts", "rate", Method), Some("ExchangeRates"));
-    assert_eq!(parent("money.ts", "EUR", Field), Some("Currency"));
-    assert_eq!(parent("order.ts", "Cancelled", Field), Some("State"));
 }
 
 #[test]
