@@ -387,6 +387,10 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] JS/TS `super(…)` gives `calls Base` for the base a class
+          declaration names, with the same global and import evidence as
+          `new Base()`. On the snapshot: 7 new JS/TS relations (6 `Error`
+          external, `Observable` resolved); dead code unchanged at 122.
     - [x] Java and Kotlin annotations: `@Audited` on a declaration gives
           `references Audited` from the annotated symbol, restricted to an
           annotation type (Java `interface`, Kotlin `class`), as C#

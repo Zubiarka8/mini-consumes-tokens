@@ -178,7 +178,7 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 69% | 29 | 85% | 10 | 0 |
-| JS/TS | 65% | 33 | 80% | 10 | 1 |
+| JS/TS | 68% | 33 | 80% | 10 | 1 |
 | Java | 80% | 27 | 65% | 10 | 0 |
 | Kotlin | 70% | 35 | 65% | 10 | 0 |
 | C# | 76% | 34 | 55% | 10 | 0 |
@@ -274,7 +274,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
-| JS/TS | 81% | 70% | 17% | 78% | 80% | 50% | 100% |
+| JS/TS | 81% | 70% | 17% | 89% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 88% | 80% | 25% | 67% |
 | Kotlin | 72% | 79% | 33% | 81% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
@@ -386,6 +386,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | ES `import`, CommonJS `require` | `import_statement`, `named_imports`, `namespace_import`, `call_expression` | `imports` |
 | `export`, `module.exports.x = …` | `export_statement`, `assignment_expression` | `references`; a function value becomes `function` |
 | `f()`, `new X()` | `call_expression`, `new_expression`, `member_expression` | `calls` |
+| `super(…)` in a class declaration | `call_expression` with a `super` function | `calls` the base the `extends` clause names (`Base`, `ns.Base`), with the same global and import evidence as `new Base()`; none for `extends mix(A)` or inside a class expression |
 | the receiver of `x.m()` | `call_expression` + `member_expression` `object` | qualified by `x`'s declared type: a TS annotation (`x: T`, `const x: T`), `= new T()`, `new T().m()`, a class field or parameter property (`this.f.m()`). `this.m()` is qualified by the enclosing class when its body declares `m`; otherwise it is left as before, since `m` may be inherited. A local without a proven type, a call result or any other expression is a member call: ambiguous even with one candidate, and only a `method` can be its target, so a function reached through a module object (`core.f()` on a loaded module) is unresolved. A name that is no local (a top-level object, an import) is left as before. Inherited and interface methods are not found through the qualifier (interface members are not indexed), so such a call is unresolved |
 | a same-file function used as a value (`onclick: toggle`, `.map(card)`, `return wrapped`, `{ toggle }`) | `identifier`, `shorthand_property_identifier` | `references`; a parameter, pattern or non-function `let`/`const` of the same name in an enclosing function hides it, and a function's use of its own name is skipped |
 | JSX `<Button />` | `jsx_opening_element`, `jsx_self_closing_element` | `references` (DOM tags excluded) |
@@ -402,7 +403,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Interface members, enum members | Not implemented | `src/lib.rs:29` calls interface members a known limit, not a decision; `walker.rs` skips both bodies |
 | Top-level `const`/`let`/`var` with a non-function value | Not implemented | `variable_declarator` is used only when the value is a function |
 | Constructor parameter properties (`constructor(public x)`) | Not implemented | no arm for `required_parameter` with an accessibility modifier |
-| Decorators, `super()` calls | Not implemented | no arm for `decorator`; `super` is not a call target |
+| Decorators | Not implemented | no arm for `decorator` |
 | Overload signatures | Not implemented | only the implementation is a `method_definition` |
 | Repeated code, exact-text search | Not implemented | no token source and no literals for JS/TS |
 | A global is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
@@ -917,7 +918,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Calls
 - [x] Standard globals: an unbound `Math.max()`/`JSON.parse()`/`parseInt()`/`new Map()` is `external`
 - [x] Constructor call (`new X()` / `X()`): `calls X`
-- [ ] Super / base constructor call: `super()` gives no relation
+- [x] Super / base constructor call: `super(…)` gives `calls Base` for the base a class declaration names; none for a mixin call or inside a class expression
 - [x] Imports
 - [x] Class extends class
 - [x] Implements interface / trait
