@@ -57,6 +57,26 @@ pub fn call(n: u32) -> u32 {
 }
 ";
 
+const INNER_SHADOW: &str = "\
+pub fn nested() {
+    mod u64 {}
+}
+
+pub fn call(n: u32) -> u64 {
+    u64::from(n)
+}
+";
+
+const INNER_IMPORT: &str = "\
+pub fn nested() {
+    use std::u64;
+}
+
+pub fn call(n: u32) -> u64 {
+    u64::from(n)
+}
+";
+
 #[test]
 fn a_conversion_on_a_primitive_is_never_resolved_to_one_impl() {
     let root = std::env::temp_dir().join(format!("mct-rs-prim-{}", std::process::id()));
@@ -64,6 +84,8 @@ fn a_conversion_on_a_primitive_is_never_resolved_to_one_impl() {
     std::fs::write(root.join("src/id.rs"), ID).unwrap();
     std::fs::write(root.join("src/use_id.rs"), USE).unwrap();
     std::fs::write(root.join("src/shadow.rs"), SHADOW).unwrap();
+    std::fs::write(root.join("src/inner_shadow.rs"), INNER_SHADOW).unwrap();
+    std::fs::write(root.join("src/inner_import.rs"), INNER_IMPORT).unwrap();
     let index = mct_corpus::open_fixture_indexed(&root, Arc::new(RustParser));
     let mut hits: Vec<String> = index
         .find_references("from")
@@ -82,6 +104,8 @@ fn a_conversion_on_a_primitive_is_never_resolved_to_one_impl() {
     assert_eq!(
         hits,
         [
+            "src/inner_import.rs:6:10 calls Ambiguous",
+            "src/inner_shadow.rs:6:10 calls Ambiguous",
             "src/shadow.rs:8:10 calls Resolved",
             "src/use_id.rs:4:11 calls Ambiguous",
             "src/use_id.rs:4:25 calls Ambiguous",
