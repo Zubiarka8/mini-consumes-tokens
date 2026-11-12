@@ -494,14 +494,18 @@ From `rules.md` and the two messages:
       `--reviewed`, and the tool always does (`crates/mct-cli/src/reviewed.rs`).
 - [~] Evaluation suite covering every language: precision, coverage,
       performance and tokens.
-  - [x] `suite-resolution.json` has a labelled case for C#, JavaScript and
-        Bash, each with a repository target and an external one, the truth
-        run with `dotnet run`, Node and `bash`. JavaScript is 1.00. C# is
+  - [x] `suite-resolution.json` has labelled cases for C#, JavaScript and
+        Bash, with separate cases for a repository target and an external one
+        per language. Truth was run with `dotnet run`, Node and `bash`.
+        JavaScript is 1.00. C# is
         0.50: `_notifier.Notify` reaches `INotifier.Notify`, and `id.Trim()`
         on a `string` is unresolved, not external. Bash is 0.00:
         `log_info` after `source "$(dirname "$0")/../lib/log.sh"` is
         ambiguous between `log.sh` and `other.sh`, and the builtin `printf`
-        is unresolved. Nothing is wrong. These scores are the baseline.
+        is unresolved. Nothing is wrong. These language-level scores summarize
+        two separately baselined cases each, so an improvement in one cannot
+        hide a regression in the other. Case-average accuracy changes when cases
+        are split; compare label coverage across versions instead.
         None of the three misses is provable from one file, so none is
         forced:
         - `printf` can be redefined by a function in any script that
