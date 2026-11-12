@@ -178,7 +178,7 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 69% | 29 | 85% | 10 | 0 |
-| JS/TS | 74% | 33 | 80% | 10 | 1 |
+| JS/TS | 80% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
@@ -274,7 +274,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
-| JS/TS | 81% | 70% | 33% | 100% | 80% | 50% | 100% |
+| JS/TS | 81% | 70% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
@@ -382,12 +382,13 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `interface` | `interface_declaration` | `interface` (members skipped) |
 | `enum` | `enum_declaration` | `enum` (members skipped) |
 | `type X = …` | `type_alias_declaration` | `type_alias` |
+| module-level `const X = 1`, `let x`, `var y` (exported or not) | `lexical_declaration`, `variable_declaration` under `program` | `const` is `constant`, `let`/`var` `variable`, with no parent and the declaration without its value as signature; a function value stays `function`; a destructuring pattern and a `require(…)` binding (an import, as an ES `import` is) declare nothing |
 | `namespace N {}` | `internal_module` | `module`; its functions keep no parent |
 | `extends`, `implements` | `extends_clause`, `implements_clause` | `extends`, `implements` |
 | ES `import`, CommonJS `require` | `import_statement`, `named_imports`, `namespace_import`, `call_expression` | `imports`; each bound name (default, `* as ns`, `{ x }`) names the module its specifier ends in (`pkg` for `@scope/pkg`, `core` for `../core/index.ts`), so a same-named definition in another module never matches it |
 | `export`, `module.exports.x = …` | `export_statement`, `assignment_expression` | `references`; a function value becomes `function` |
 | `f()`, `new X()` | `call_expression`, `new_expression`, `member_expression` | `calls` |
-| a bare call `f()` or a same-file function used as a value, with no import or global evidence | `call_expression` `identifier` | targets this file when nothing around it binds `f` and the file declares `f` outside any type (a function or class), or when an enclosing local binds `f` and the file declares no `f` of its own (the local has no symbol, so the call stays unresolved instead of matching another file's `f`). A local shadowing a file-level `f` gives no evidence |
+| a bare call `f()` or a same-file function used as a value, with no import or global evidence | `call_expression` `identifier` | targets this file when nothing around it binds `f` and the file declares `f` outside any type (a function, class or module-level binding), or when an enclosing local binds `f` and the file declares no `f` of its own (the local has no symbol, so the call stays unresolved instead of matching another file's `f`). A local shadowing a file-level `f` gives no evidence |
 | `super(…)` in a class declaration | `call_expression` with a `super` function | `calls` the base the `extends` clause names (`Base`, `ns.Base`), with the same global and import evidence as `new Base()`; none for `extends mix(A)` or inside a class expression |
 | `@sealed`, `@ns.track`, `@Component({…})` on a class, field, method or parameter | `decorator` | `calls sealed` / `track` / `Component`, as the decorator function is called with what it decorates; from the decorated class, field or method, and from the method for a parameter's |
 | the receiver of `x.m()` | `call_expression` + `member_expression` `object` | qualified by `x`'s declared type: a TS annotation (`x: T`, `const x: T`), `= new T()`, `new T().m()`, a class field or parameter property (`this.f.m()`). `this.m()` is qualified by the enclosing class when its body declares `m` as a method, field or parameter property; otherwise it is left as before, since `m` may be inherited. A local without a proven type, a call result or any other expression is a member call: ambiguous even with one candidate, and only a `method` can be its target, so a function reached through a module object (`core.f()` on a loaded module) is unresolved. A name that is no local (a top-level object, an import) is left as before. Inherited and interface methods are not found through the qualifier (interface members are not indexed), so such a call is unresolved |
@@ -404,7 +405,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Interface members, enum members | Not implemented | `src/lib.rs:29` calls interface members a known limit, not a decision; `walker.rs` skips both bodies |
-| Top-level `const`/`let`/`var` with a non-function value | Not implemented | `variable_declarator` is used only when the value is a function |
 | Overload signatures | Not implemented | only the implementation is a `method_definition` |
 | Repeated code, exact-text search | Not implemented | no token source and no literals for JS/TS |
 | A global is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
@@ -914,8 +914,8 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Field / instance attribute: `field`, `#private` and `static` too
 - [x] Constructor-promoted field: `constructor(private x)` / `readonly x` → `field`
-- [ ] Constant (module or global): `const X = 1` has no symbol (only function values do)
-- [ ] Global / module-level variable: `let`/`var` with a non-function value has no symbol
+- [x] Constant (module or global): module-level `const X = 1` → `constant`
+- [x] Global / module-level variable: module-level `let`/`var` → `variable`
 - [ ] Local variable
 - [ ] Parameter
 
