@@ -387,6 +387,13 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] C++ `#define`: an object-like macro is a `constant` and a
+          function-like one a `function` (as Rust's `macro_rules!`), with no
+          parent, since the preprocessor knows no namespace or class. An
+          include guard (`#ifndef X` then `#define X` with no value) is no
+          symbol. Test: `tests/macros.rs`. Corpus unchanged (no macro).
+          Repository snapshot: C++ constants 16 → 17 (`CONFIG` in the
+          depgraph fixture), relations unchanged at 542, dead code at 122.
     - [x] Kotlin qualified supertypes: `class C : store.Basket<T>()` and
           `: store.Sized` gave `extends`/`implements store` (the package),
           and an `override` looked for the member in `store`. Every
