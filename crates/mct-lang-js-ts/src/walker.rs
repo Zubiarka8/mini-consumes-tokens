@@ -600,6 +600,21 @@ impl<'a> Walker<'a> {
                                 );
                             }
                         }
+                        // `super(…)` runs the extended class's constructor,
+                        // like `new Base()`.
+                        "super" => {
+                            if let Some(base) = named_superclass(node) {
+                                if let Some(name) = rightmost_name(base) {
+                                    self.mark_global(base, false);
+                                    self.push_relation(
+                                        owner,
+                                        RelationKind::Calls,
+                                        text(name, self.source).to_string(),
+                                        location(function),
+                                    );
+                                }
+                            }
+                        }
                         "member_expression" => {
                             if let Some(property) = function.child_by_field_name("property") {
                                 // location(property), not location(node): a
@@ -933,6 +948,44 @@ fn is_override_in_class(method: Node) -> bool {
         .children(&mut cursor)
         .any(|c| c.kind() == "override_modifier");
     in_declaration && has_override
+}
+
+/// The base expression of the class declaration around `node` (`Base` for
+/// `extends Base`, `ns.Base` for `extends ns.Base<T>`). `None` inside a class expression,
+/// which records no class, or for a base the source doesn't name
+/// (`extends mix(A)` returns a class the parser can't know).
+fn named_superclass(node: Node) -> Option<Node> {
+    let mut body = node.parent();
+    while let Some(n) = body {
+        if n.kind() == "class_body" {
+            break;
+        }
+        body = n.parent();
+    }
+    let class = body?.parent()?;
+    if !matches!(
+        class.kind(),
+        "class_declaration" | "abstract_class_declaration"
+    ) {
+        return None;
+    }
+    let mut cursor = class.walk();
+    let heritage = class
+        .children(&mut cursor)
+        .find(|c| c.kind() == "class_heritage")?;
+    // TS wraps the base in `extends_clause`; JS's heritage holds it directly.
+    let mut cursor = heritage.walk();
+    let first = heritage.named_children(&mut cursor).next()?;
+    let base = if first.kind() == "extends_clause" {
+        let mut cursor = first.walk();
+        let value = first
+            .named_children(&mut cursor)
+            .find(|v| v.kind() != "type_arguments")?;
+        value
+    } else {
+        first
+    };
+    matches!(base.kind(), "identifier" | "member_expression").then_some(base)
 }
 
 fn rightmost_name(node: Node) -> Option<Node> {
