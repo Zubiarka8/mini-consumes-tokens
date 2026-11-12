@@ -387,6 +387,20 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] JS/TS call and import evidence: a bare call `f()` (and a
+          same-file function used as a value) with no import or global
+          evidence targets this file when nothing around it binds `f` and the
+          file declares `f` outside any type, or when an enclosing local
+          binds `f` and the file declares no `f` (the local has no symbol, so
+          the call stays unresolved). Each ES import binding names the module
+          its specifier ends in, as a call through it already did. Test:
+          `tests/same_file_calls.rs`. Corpus unchanged. Repository snapshot
+          (JS/TS, 24218 relations): 2219 ambiguous -> resolved, 329
+          ambiguous -> unresolved, 73 resolved -> unresolved (calls to
+          locals that matched another file's name, among them
+          `const { duplicateBrief } = await ai()` whose name match was right
+          by coincidence, with no evidence); none newly ambiguous or newly
+          resolved from unresolved. Dead code 122 -> 122.
     - [x] TS constructor parameter properties: `constructor(private
           readonly store: Store, public size = 0, protected owner?: User)`
           gives a `field` of the class per parameter with an accessibility
