@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=484 relations=835 name_matched_across_files=113
+# language=kotlin files=5 symbols=488 relations=835 name_matched_across_files=113
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -70,6 +70,7 @@ S 184-184 method Response::ok
 S 185-185 method Response::created
 S 186-186 method Response::notFound
 S 187-187 method Response::badRequest
+S 191-191 type_alias Handler
 S 194-213 class Router
 S 195-195 field Router::routes
 S 197-197 method Router::get
@@ -550,6 +551,7 @@ R 306:9 calls Inventory::recomputeReorderPoint -> setReorderPoint
 == money/Money.kt (303 lines)
 S 1-303 module Money
 S 1-303 module com.example.warehouse.money
+S 16-16 type_alias Rate
 S 19-36 class Currency
 S 19-19 field Currency::scale
 S 19-19 field Currency::symbol
@@ -612,6 +614,7 @@ S 195-202 method CachingRates::rate
 S 204-204 method CachingRates::clear
 S 212-212 method Iterable::sum
 S 214-214 method Iterable::maxOrNull
+S 216-217 field Money::isPositive
 S 219-219 method String::toMoney
 S 221-221 method Int::eur
 S 223-223 method BigDecimal::eur
@@ -1136,6 +1139,7 @@ S 127-128 method PricingBuilder::build
 S 131-138 class VolumeBuilder
 S 133-133 field VolumeBuilder::thresholds
 S 135-137 method Int::to
+S 140-140 variable NO_DISCOUNT
 S 142-143 function pricing
 S 149-181 class PricingEngine
 S 150-150 field PricingEngine::rule
