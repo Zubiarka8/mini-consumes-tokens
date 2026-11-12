@@ -451,6 +451,25 @@ impl<'a> Walker<'a> {
                 // (`struct { ... } x;`) can all contain calls or symbols.
                 self.visit_children(node, ctx, depth + 1);
             }
+            // A macro: object-like is a `constant`, function-like a
+            // `function` (as Rust's `macro_rules!`). The preprocessor knows
+            // no namespace or class, so it has no parent. An include guard
+            // only stops a second inclusion and is no symbol.
+            "preproc_def" | "preproc_function_def" if !is_include_guard(node, self.source) => {
+                if let Some(name) = node.child_by_field_name("name") {
+                    let kind = if node.kind() == "preproc_function_def" {
+                        SymbolKind::Function
+                    } else {
+                        SymbolKind::Constant
+                    };
+                    self.push_symbol(
+                        text(name, self.source).to_string(),
+                        kind,
+                        location(node),
+                        None,
+                    );
+                }
+            }
             "preproc_include" => {
                 if let Some(path_node) = node.child_by_field_name("path") {
                     let raw = text(path_node, self.source);
@@ -861,6 +880,31 @@ fn has_override_specifier(func_declarator: Node, source: &str) -> bool {
         .children(&mut cursor)
         .any(|c| c.kind() == "virtual_specifier" && text(c, source) == "override");
     found
+}
+
+/// Whether `node` is `#define X` with no value as the first item of the
+/// `#ifndef X` block: the include guard idiom.
+fn is_include_guard(node: Node, source: &str) -> bool {
+    if node.kind() != "preproc_def" || node.child_by_field_name("value").is_some() {
+        return false;
+    }
+    let Some(block) = node
+        .parent()
+        .filter(|p| p.kind() == "preproc_ifdef")
+        .filter(|p| p.child(0).is_some_and(|c| c.kind() == "#ifndef"))
+    else {
+        return false;
+    };
+    let Some(guarded) = block.child_by_field_name("name") else {
+        return false;
+    };
+    let first_item = block
+        .named_children(&mut block.walk())
+        .find(|c| c.kind() != "comment" && c.id() != guarded.id());
+    first_item.is_some_and(|c| c.id() == node.id())
+        && node
+            .child_by_field_name("name")
+            .is_some_and(|n| text(n, source) == text(guarded, source))
 }
 
 fn qualified_tail(node: Node) -> Node {
