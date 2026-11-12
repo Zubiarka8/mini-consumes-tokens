@@ -95,6 +95,24 @@ pub(super) fn field_detail(node: Node, symbol: SymbolId, source: &str) -> Symbol
     }
 }
 
+/// A module-level binding (`const MAX: number = 5`): its `keyword` and
+/// declarator without the value.
+pub(super) fn binding_detail(
+    declarator: Node,
+    keyword: &str,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let end = declarator
+        .child_by_field_name("value")
+        .map_or(declarator.end_byte(), |v| v.start_byte());
+    SymbolDetail {
+        symbol,
+        signature: header(source, declarator.start_byte(), end, &format!("{keyword} ")),
+        ..Default::default()
+    }
+}
+
 /// A constructor parameter property (`private readonly store: Store`): its
 /// text without the default value, its accessibility keyword (public when
 /// only `readonly` is written) and its modifiers.

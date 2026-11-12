@@ -1,7 +1,9 @@
-# language=javascript_typescript files=7 symbols=295 relations=1005 name_matched_across_files=203
+# language=javascript_typescript files=7 symbols=307 relations=1005 name_matched_across_files=203
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
+S 23-68 constant fixtures
+S 70-76 constant DEFAULTS
 S 82-116 function parseArgs
 S 118-129 function printHelp
 S 135-174 function createApi
@@ -11,6 +13,7 @@ S 180-188 function seedStock
 S 190-197 function seedCustomers
 S 199-210 function randomBasket
 S 213-222 function mulberry32
+S 224-224 constant TARGET_STATES
 S 226-242 function advance
 S 244-257 function seedOrders
 S 259-262 function writeReport
@@ -509,6 +512,7 @@ R 297:66 references splitLines -> available
 == src/money.ts (333 lines)
 S 1-333 module money
 S 7-12 enum Currency
+S 15-20 constant SCALE
 S 22-22 type_alias MoneyJson
 S 24-24 type_alias RoundingMode
 S 26-29 interface Comparable
@@ -518,6 +522,7 @@ S 34-34 field CurrencyMismatchError::actual
 S 36-41 method CurrencyMismatchError::constructor
 S 45-50 class MoneyFormatError
 S 46-49 method MoneyFormatError::constructor
+S 52-52 constant formatters
 S 54-62 function formatterFor
 S 65-71 function roundHalfEven
 S 73-82 function round
@@ -562,6 +567,7 @@ S 283-285 method MoneyRange::contains
 S 287-289 method MoneyRange::width
 S 291-294 method MoneyRange::parse
 S 298-300 interface ExchangeRates
+S 302-309 constant identityRates
 S 303-308 function rate
 S 311-314 function convert
 S 317-319 function auditLine
@@ -732,6 +738,7 @@ S 1-311 module order
 S 11-11 type_alias OrderId
 S 13-13 function asOrderId
 S 15-23 enum State
+S 25-33 constant NEXT
 S 35-37 function canMoveTo
 S 39-41 function isTerminal
 S 43-48 interface Line
@@ -956,7 +963,9 @@ S 14-14 type_alias SortKey
 S 16-20 interface Filters
 S 22-27 type_alias Action
 S 29-36 interface TableState
+S 38-44 constant initialState
 S 46-70 function reducer
+S 72-72 constant LARGE_ORDER
 S 74-83 function compareBy
 S 85-93 function applyFilters
 S 99-119 function useOrders
@@ -1138,6 +1147,9 @@ R 292:28 references OrderTable -> cancelSelected
 
 == src/ui/PickBoard.jsx (339 lines)
 S 1-339 module PickBoard
+S 13-13 constant SCAN_PREFIX_LOCATION
+S 14-14 constant SCAN_PREFIX_ITEM
+S 15-15 constant IDLE_MS
 S 18-28 function classifyScan
 S 34-118 class PickSession
 S 35-35 field PickSession::#nextId

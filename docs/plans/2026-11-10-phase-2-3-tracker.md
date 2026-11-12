@@ -387,6 +387,25 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
+          `let`/`var` a `variable` (exported or not, each name of
+          `let a = 0, b`), with no parent and the declaration without its
+          value as signature. A function value stays a `function`; a
+          destructuring pattern and a `require(…)` binding (an import) declare
+          nothing; nor does a binding inside a function or block. A bare call
+          to such a binding targets this file, as one to a function does.
+          Test: `tests/top_level_variables.rs`. Corpus: 295 -> 307 symbols.
+          Repository snapshot (JS/TS, 24218 relations, 215 constants and 585
+          variables added): 68 unresolved -> resolved (named imports such as
+          `{ store } from "./core.js"` and same-file calls such as
+          `badgeVariants(…)`); 1292 resolved -> ambiguous, of which 1255 are
+          within one minified bundle (a top-level `var e` beside a nested
+          `function e`), 22 bundle calls to a minifier-reused local that
+          matched another bundle by name, and 15 named imports of a binding
+          named like its file (`{ drafts } from "./drafts"`, now ambiguous
+          with the module symbol it matched before); 57 unresolved ->
+          ambiguous, 30 ambiguous -> resolved. Dead code 122 -> 122
+          (constants and variables are not dead-code candidates).
     - [x] JS/TS call and import evidence: a bare call `f()` (and a
           same-file function used as a value) with no import or global
           evidence targets this file when nothing around it binds `f` and the
