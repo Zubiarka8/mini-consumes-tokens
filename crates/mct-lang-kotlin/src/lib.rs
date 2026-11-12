@@ -452,13 +452,17 @@ fn extension_receiver(function_declaration: Node, source: &str) -> Option<String
             break;
         }
         if child.kind() == "user_type" {
-            // `Collection<Order>` → `Collection`: the type the function
-            // extends, as other symbols name it.
-            let name = text(child, source);
-            return Some(name.split('<').next().unwrap_or(name).trim().to_string());
+            return Some(receiver_type_name(child, source));
         }
     }
     None
+}
+
+/// The type an extension's receiver names, as other symbols name it:
+/// `Collection<Order>` → `Collection`.
+fn receiver_type_name(user_type: Node, source: &str) -> String {
+    let name = text(user_type, source);
+    name.split('<').next().unwrap_or(name).trim().to_string()
 }
 
 /// The parameter name inside a primary-constructor `class_parameter`
@@ -898,10 +902,27 @@ impl<'a> Walker<'a> {
                             self.push_property_overrides(id, node, name_node);
                         }
                     }
+                } else if node.parent().is_some_and(|p| p.kind() == "source_file") {
+                    self.push_file_properties(node);
                 }
                 // Always recurse: initializer expressions (`val x = Foo()`)
                 // may contain calls even for locals we don't index as Field.
                 self.visit_children(node, owner, type_name, depth + 1);
+            }
+            // `typealias Ids = List<Long>`: the grammar puts the alias's
+            // name in the `type` field.
+            "type_alias" => {
+                if let Some(name_node) = node.child_by_field_name("type") {
+                    let id = self.push_symbol(
+                        text(name_node, self.source).to_string(),
+                        SymbolKind::TypeAlias,
+                        location(node),
+                        type_name.map(str::to_string),
+                    );
+                    self.details
+                        .push(details::type_detail(node, id, self.source));
+                    self.push_annotations(node, id);
+                }
             }
             "import" => {
                 let mut cursor = node.walk();
@@ -953,6 +974,44 @@ impl<'a> Walker<'a> {
                 self.visit_children(node, owner, type_name, depth + 1);
             }
             _ => self.visit_children(node, owner, type_name, depth + 1),
+        }
+    }
+
+    /// A file-level `val`/`var`: a `constant` when it is `const`, else a
+    /// `variable`, with no parent; each name of `val (a, b) = …` is one.
+    /// An extension property (`val Money.isPositive`) is a `field` of its
+    /// receiver type, as an extension function is a method of it.
+    fn push_file_properties(&mut self, node: Node) {
+        let receiver = find_child(node, "user_type").map(|t| receiver_type_name(t, self.source));
+        let is_const = find_child(node, "modifiers").is_some_and(|modifiers| {
+            modifiers
+                .named_children(&mut modifiers.walk())
+                .any(|m| m.kind() == "property_modifier" && text(m, self.source) == "const")
+        });
+        let kind = match (&receiver, is_const) {
+            (Some(_), _) => SymbolKind::Field,
+            (None, true) => SymbolKind::Constant,
+            (None, false) => SymbolKind::Variable,
+        };
+        let declarations: Vec<Node> = match find_child(node, "multi_variable_declaration") {
+            Some(multi) => multi
+                .named_children(&mut multi.walk())
+                .filter(|d| d.kind() == "variable_declaration")
+                .collect(),
+            None => find_child(node, "variable_declaration")
+                .into_iter()
+                .collect(),
+        };
+        for name_node in declarations.iter().filter_map(|d| d.named_child(0)) {
+            let id = self.push_symbol(
+                text(name_node, self.source).to_string(),
+                kind,
+                location(node),
+                receiver.clone(),
+            );
+            self.details
+                .push(details::property_detail(node, id, self.source));
+            self.push_annotations(node, id);
         }
     }
 
