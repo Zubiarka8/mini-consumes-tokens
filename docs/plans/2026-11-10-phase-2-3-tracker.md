@@ -341,10 +341,33 @@ From `rules.md` and the two messages:
         decided not to add signatures. Their rows are relation sites, not
         definitions, often hundreds per call, and `build_context_pack`
         already gives every related symbol's signature once.
-- [~] **2.5 Benchmarks.** SQLite size and coverage measured for each parser
-      PR (in each PR body). Init time is within noise on this machine and is
-      not claimed. Query latency, peak memory and response tokens before and
-      after are not measured yet.
+- [x] **2.5 Benchmarks.** SQLite size and coverage measured for each parser
+      PR (in each PR body). Before and after the whole stack (`main` at
+      e000eb65 against #383), on one machine with other work running, so
+      only differences larger than the run-to-run spread are claimed:
+  - [x] `mct-eval` main suite (33 cases, 20 timed calls each, two runs per
+        version): accuracy 1.000 and MRR 0.917 for both. Response tokens
+        7,012 → 7,134 (+1.7%), all from the signatures of 2.4; 16 cases are
+        byte-identical. `find_symbol` cases go from 0.003–0.026 ms to
+        0.035–0.127 ms p50 (the signature lookup), every other case moves
+        less than 0.2 ms.
+  - [x] This repository's snapshot, fresh `init`, three interleaved runs:
+        SQLite 24.4 → 26.2 MB (+7.5%). Peak RSS (87–100 MB against
+        100–101 MB) and time (5.9–7.9 s against 6.6–7.3 s) overlap.
+  - [x] `mct call`, seven interleaved runs (the median includes the startup
+        incremental check): `find_symbol`, `find_callers`,
+        `impact_analysis`, `build_context_pack` and `get_project_overview`
+        within 0.01 s of `main` (0.16–0.30 s), peak RSS +0.2–0.6 MB. Response
+        bytes grow with signatures: `find_symbol` 156 → 179,
+        `find_callers` 448 → 484, `impact_analysis` 8,314 → 8,840.
+  - [x] `find_dead_code` was the one regression: 0.33 → 0.79 s median,
+        bisected to the per-symbol counting of #322 (0.29–0.49 s before
+        that commit, 0.68–0.95 s at it). Both halves of its `UNION` read
+        `resolved_names`, which ran its candidate lookups twice;
+        materializing it gives 0.63 s with an identical report. Detected
+        117 → 122: −2 from #382, and +7 whose only same-named relations
+        resolve elsewhere (a Python `renderer`, an HTML `style.css`, a Rust
+        `escape_field` in `toon.rs`), which #322 no longer counts.
 
 ## Block 3: phase 3, all languages
 
