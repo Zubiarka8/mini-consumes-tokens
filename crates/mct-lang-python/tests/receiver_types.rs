@@ -1,8 +1,9 @@
 //! D5: `x.m()` whose receiver type the code states is qualified by that
 //! type, never resolved by the name alone. Proven: `self.m()` / `cls.m()`
 //! when the class itself defines `m`, a parameter annotated with a class
-//! (`cat: Catalogue`), a local bound once to `T(…)`, and `T.m()` on a class
-//! the file defines or imports. A receiver typed by a builtin (`opts: dict`,
+//! (`cat: Catalogue`), a local bound once to `T(…)`, `T.m()` on a class the
+//! file defines or imports, and `self.attr.m()` when the class annotates
+//! `attr` and nothing in the file states another type for it. A receiver typed by a builtin (`opts: dict`,
 //! `rows = []`) is external. Any other receiver is left as it was.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
@@ -149,5 +150,141 @@ fn a_typed_receiver_reaches_its_own_class_only() {
             "find shop/ledger.py:27 Resolved",
             "get shop/ledger.py:28 External",
         ]
+    );
+}
+
+/// `self.attr.m()`: the class annotates `attr`, in its body or in a method.
+const STORE: &str = r#"from shop.catalogue import Catalogue
+
+
+class Store:
+    catalogue: Catalogue
+
+    def __init__(self, names):
+        self.names: list = names
+        self.catalogue = Catalogue()
+
+    def lookup(self, title):
+        self.catalogue.find(title)
+        self.names.append(title)
+        self.missing.find(title)
+
+    @staticmethod
+    def helper(self):
+        self.catalogue.find("x")
+
+    def rebound(self, other):
+        self = other
+        self.catalogue.find("x")
+
+
+def outside(store):
+    store.catalogue.find("y")
+"#;
+
+#[test]
+fn an_attribute_the_class_annotates_types_the_call() {
+    assert_eq!(
+        attribute_calls(&parsed("shop/store.py", STORE), STORE),
+        [
+            "find q=Catalogue",
+            "append external",
+            "find",
+            "find",
+            "find",
+            "find",
+        ]
+    );
+}
+
+/// Nothing is proven when the file states another type for `attr`, the
+/// class reads `attr` through a method, or attributes are set dynamically.
+const MIXED: &str = r#"from shop.catalogue import Catalogue, Shelf
+
+
+class Base:
+    catalogue: Catalogue
+    shelf: Catalogue
+    view: Catalogue
+
+    def go(self):
+        self.catalogue.find("a")
+        self.shelf.find("b")
+        self.view.find("c")
+
+    def view(self):
+        return None
+
+
+class Child(Base):
+    catalogue: Shelf
+
+
+def swap(base):
+    base.shelf = Shelf()
+"#;
+
+const DYNAMIC: &str = r#"from shop.catalogue import Catalogue
+
+
+class Store:
+    catalogue: Catalogue
+
+    def go(self, name, value):
+        setattr(self, name, value)
+        self.catalogue.find("a")
+"#;
+
+#[test]
+fn an_attribute_typed_otherwise_anywhere_in_the_file_proves_nothing() {
+    assert_eq!(
+        attribute_calls(&parsed("shop/mixed.py", MIXED), MIXED),
+        ["find", "find", "find"]
+    );
+    assert_eq!(
+        attribute_calls(&parsed("shop/dynamic.py", DYNAMIC), DYNAMIC),
+        ["find"]
+    );
+}
+
+#[test]
+fn conflicting_annotated_values_do_not_prove_attribute_types() {
+    let source = r#"from shop.catalogue import Catalogue, Shelf
+
+class Store:
+    catalogue: Catalogue = Shelf()
+    names: list = Catalogue()
+    safe: Catalogue = Catalogue()
+
+    def __init__(self):
+        self.other: Catalogue = Shelf()
+
+    def go(self):
+        self.catalogue.find()
+        self.names.find()
+        self.other.find()
+        self.safe.find()
+"#;
+    assert_eq!(
+        attribute_calls(&parsed("shop/conflict.py", source), source),
+        ["find", "find", "find", "find q=Catalogue"]
+    );
+}
+
+#[test]
+fn annotations_on_a_rebound_receiver_do_not_type_the_class_attribute() {
+    let source = r#"from shop.catalogue import Catalogue
+
+class Store:
+    def configure(self, other):
+        self = other
+        self.catalogue: Catalogue = Catalogue()
+
+    def go(self):
+        self.catalogue.find()
+"#;
+    assert_eq!(
+        attribute_calls(&parsed("shop/rebound.py", source), source),
+        ["find"]
     );
 }

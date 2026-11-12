@@ -86,6 +86,16 @@ From `rules.md` and the two messages:
         `Repository.values`); `Path.home()` lost a wrong target; 644
         unresolved or ambiguous builtin calls became external. No right
         resolution was lost; dead code unchanged.
+  - [x] Python `self.attr.m()`: qualified by the type the enclosing class
+        annotates for `attr` (`attr: T` in its body, `self.attr: T = …` in
+        a method), external for a builtin type, when the class defines no
+        method or class `attr`, every type the file states for an attribute
+        `attr` (annotations, `x.attr = U(…)`, literals) agrees, and the file
+        sets no attribute dynamically (`setattr`, `__dict__`, `vars`,
+        `__setattr__`, `__getattr__`). This repository: 3 unresolved calls
+        became external (`str.casefold`/`str.strip` on `str` attributes of
+        the Python corpus); no qualifier or other language changed; dead
+        code unchanged (124).
   - [!] Whether Kotlin (#327) and C# (#328) adopt Go's rule for a receiver
         with no stated type. Today that loses 12 (Kotlin) and 25 (C#) right
         resolutions. Waiting for the maintainer.
