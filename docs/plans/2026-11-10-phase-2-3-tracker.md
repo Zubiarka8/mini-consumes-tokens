@@ -387,6 +387,12 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Kotlin qualified supertypes: `class C : store.Basket<T>()` and
+          `: store.Sized` gave `extends`/`implements store` (the package),
+          and an `override` looked for the member in `store`. Every
+          supertype now takes the type's last segment, as the constructor
+          call already did. The repository snapshot has no qualified
+          supertype: Kotlin relations unchanged at 806, dead code at 122.
     - [x] C++ mem-initializers: one that names a base of the class
           (`B() : A(1)`, `ns::A<int>{2}`) gives `calls A` from the
           constructor, and one that names the class itself (a delegating
