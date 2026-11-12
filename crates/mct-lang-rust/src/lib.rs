@@ -382,7 +382,7 @@ impl<'a> Walker<'a> {
                         name.to_string(),
                         location(node),
                     );
-                    self.qualify(relation, self.std_target(name, node.start_byte()));
+                    self.qualify(relation, self.bare_target(name, node.start_byte()));
                 }
             }
             // Attribute arguments (`#[cfg(test)]`, `#[serde(default)]`) are
@@ -872,6 +872,10 @@ impl<'a> Walker<'a> {
                     ..Default::default()
                 }
             }
+            "identifier" => RelationTarget {
+                module: self.imported_from(name, function.start_byte()),
+                ..Default::default()
+            },
             "scoped_identifier" | "scoped_type_identifier" => {
                 match function.child_by_field_name("path") {
                     Some(path) => self.path_target(text(path, self.source), path.start_byte()),
@@ -908,8 +912,8 @@ impl<'a> Walker<'a> {
     /// A stated type as receiver evidence: the type, plus the crate its
     /// `use` reaches it in as module evidence (`serde_json` for
     /// `use serde_json::Value`, so a same-named type of this repository is
-    /// never the target). A path inside this crate adds none: its type may
-    /// sit in an inline `mod` of any file. A type this file both declares
+    /// never the target; see [`Self::import_crate`] for when a path proves
+    /// none). A type this file both declares
     /// and imports, imports from two crates, or imports under an alias (its
     /// methods' parent has the real name) proves nothing.
     fn type_evidence(&self, ty: String) -> Option<(String, Option<String>)> {
@@ -919,8 +923,10 @@ impl<'a> Walker<'a> {
         match self.scope.import_crates.get(&ty).map(Vec::as_slice) {
             None => Some((ty, None)),
             Some(_) if self.scope.declared.contains(&ty) => None,
-            Some(modules) if modules.windows(2).all(|w| w[0] == w[1]) => {
-                let module = modules.first().cloned().flatten();
+            Some(roots) if roots.windows(2).all(|w| w[0] == w[1]) => {
+                let module = roots
+                    .first()
+                    .and_then(|root| self.import_crate(root.as_deref()));
                 Some((ty, module))
             }
             Some(_) => None,
@@ -1030,12 +1036,76 @@ impl<'a> Walker<'a> {
                 .any(|scope| scope.contains(&at))
     }
 
-    /// [`Self::std_name`] as relation evidence.
-    fn std_target(&self, name: &str, at: usize) -> RelationTarget {
+    /// What a bare name written at `at` proves about its target: external
+    /// when it can only be the standard library's ([`Self::std_name`]), and
+    /// otherwise the crate a `use` reaching it there brings it in from
+    /// ([`Self::imported_from`]).
+    fn bare_target(&self, name: &str, at: usize) -> RelationTarget {
+        if self.std_name(name, at) {
+            return RelationTarget {
+                external: true,
+                ..Default::default()
+            };
+        }
         RelationTarget {
-            external: self.std_name(name, at),
+            module: self.imported_from(name, at),
             ..Default::default()
         }
+    }
+
+    /// The crate a bare `name` written at `at` comes from, when every `use`
+    /// of it whose block reaches `at` names that same crate (`serde` for
+    /// `use serde::Serialize`): the target then lives under it, never in a
+    /// same-named item elsewhere in this repository. A name this file
+    /// declares, binds locally or also imports from `std`, and an alias (the
+    /// real item has another name), prove nothing; see
+    /// [`Self::import_crate`] for the paths that do.
+    fn imported_from(&self, name: &str, at: usize) -> Option<String> {
+        let local = name.starts_with(|c: char| c.is_ascii_lowercase())
+            && (self.bound.contains(name) || self.local_fns.contains(name));
+        if local
+            || self.scope.declared.contains(name)
+            || self.scope.aliases.contains(name)
+            || self.scope.std_imports.contains(name)
+        {
+            return None;
+        }
+        let roots = self.scope.import_crates.get(name)?;
+        let reaches = self.scope.other_imports.get(name)?;
+        let mut here = roots
+            .iter()
+            .zip(reaches)
+            .filter(|(_, reach)| reach.contains(&at))
+            .map(|(root, _)| root);
+        let first = here.next()?;
+        if !here.all(|root| root == first) {
+            return None;
+        }
+        self.import_crate(first.as_deref())
+    }
+
+    /// The crate a `use` path starting at `root` proves its item lives
+    /// under. The crate name, unlike a module of the path, still holds when
+    /// the item is re-exported (`use app::server::Args` for an `Args` of
+    /// `app/src/query.rs`). It proves nothing for:
+    /// - a `crate::`/`self::`/`super::` path (`root` is none): the item may
+    ///   sit in an inline `mod` of any file;
+    /// - a path from a module this file declares or imports
+    ///   (`mod support; use support::Query;`, valid since Rust 2018), which
+    ///   a `#[path]` may place anywhere;
+    /// - a test, example, bench, binary or build script: it may import its
+    ///   own package's library by the package's name, which no path of this
+    ///   repository needs to spell (`use app::f` in `tests/` of a package at
+    ///   the root, or of one in a directory named otherwise).
+    fn import_crate(&self, root: Option<&str>) -> Option<String> {
+        let root = root?;
+        let local_root = self.scope.declared.contains(root)
+            || self.scope.other_imports.contains_key(root)
+            || self.scope.std_imports.contains(root);
+        if local_root || may_import_own_package(self.path) {
+            return None;
+        }
+        Some(root.to_string())
     }
 
     /// The trait an `impl Trait for T` or a supertrait bound names — its last
@@ -1050,7 +1120,7 @@ impl<'a> Walker<'a> {
             Some(path) if base.kind() == "scoped_type_identifier" => {
                 self.path_target(text(path, self.source), path.start_byte())
             }
-            _ => self.std_target(&name, name_node.start_byte()),
+            _ => self.bare_target(&name, name_node.start_byte()),
         };
         if !target.external {
             target.kind = Some(SymbolKind::Trait);
@@ -1222,7 +1292,7 @@ impl<'a> Walker<'a> {
                         name.to_string(),
                         location(child),
                     );
-                    self.qualify(relation, self.std_target(name, child.start_byte()));
+                    self.qualify(relation, self.bare_target(name, child.start_byte()));
                 }
             }
         }
@@ -1265,7 +1335,7 @@ impl<'a> Walker<'a> {
                     name.to_string(),
                     location(path),
                 );
-                self.qualify(relation, self.std_target(name, path.start_byte()));
+                self.qualify(relation, self.bare_target(name, path.start_byte()));
             }
             _ => self.visit(path, owner, impl_type, depth + 1),
         }
@@ -1294,6 +1364,20 @@ impl<'a> Walker<'a> {
 /// Whether a path is rooted in the standard library (`std::`, `core::`,
 /// `alloc::`, optionally with a leading `::`) — the one case this parser can
 /// prove a target lies outside the repository.
+/// Whether a file at `path` is a crate target that may import its own
+/// package's library by name: anything under `tests/`, `examples/`,
+/// `benches/` or `src/bin/`, a `main.rs` or a `build.rs`.
+fn may_import_own_package(path: &str) -> bool {
+    let segments: Vec<&str> = path.split(['/', '\\']).collect();
+    let file = segments.last().copied().unwrap_or_default();
+    let dirs = &segments[..segments.len().saturating_sub(1)];
+    matches!(file, "main.rs" | "build.rs")
+        || dirs
+            .iter()
+            .any(|dir| matches!(*dir, "tests" | "examples" | "benches"))
+        || dirs.windows(2).any(|pair| pair == ["src", "bin"])
+}
+
 fn is_std_path(path: &str) -> bool {
     let root = path
         .trim_start_matches("::")
@@ -1401,7 +1485,8 @@ struct FileScope {
     other_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
     /// The crate each of those imports reaches its item in (`serde_json` in
     /// `use serde_json::Value`; none for a `crate::`/`self::`/`super::`
-    /// path), once per import of the name.
+    /// path), once per import of the name, in the same order as
+    /// `other_imports`.
     import_crates: HashMap<String, Vec<Option<String>>>,
     /// Names a `use … as name` gives another crate's or module's item.
     aliases: HashSet<String>,
