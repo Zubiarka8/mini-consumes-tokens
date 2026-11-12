@@ -33,10 +33,13 @@ fn parsed() -> ParsedFile {
     mct_corpus::parse_source(&JsTsParser, "src/config.ts", "TypeScript", SOURCE)
 }
 
+/// `(name, kind, line, parent, signature)` of a binding.
+type Binding = (String, SymbolKind, u32, Option<String>, Option<String>);
+
 #[test]
 fn a_module_level_binding_is_a_constant_or_variable() {
     let parsed = parsed();
-    let bindings: Vec<(String, SymbolKind, u32, Option<String>, Option<String>)> = parsed
+    let bindings: Vec<Binding> = parsed
         .symbols
         .iter()
         .filter(|s| matches!(s.kind, SymbolKind::Constant | SymbolKind::Variable))
