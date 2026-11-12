@@ -323,6 +323,7 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::type_detail(node, id, self.source));
+                self.push_decorators(node, id, depth);
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
                     if child.kind() == "class_heritage" {
@@ -443,6 +444,7 @@ impl<'a> Walker<'a> {
                     self.push_symbol(name, kind, location(node), type_name.map(str::to_string));
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
+                self.push_decorators(node, id, depth);
                 if is_override_in_class(node) {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let supertypes = self.supertypes.last().cloned().unwrap_or_default();
@@ -473,7 +475,7 @@ impl<'a> Walker<'a> {
                 let name = text(name_node, self.source).to_string();
                 let overrides = is_override_in_class(node);
                 self.visit_part(node, "type", owner, depth);
-                match node.child_by_field_name("value") {
+                let id = match node.child_by_field_name("value") {
                     Some(value)
                         if matches!(value.kind(), "arrow_function" | "function_expression") =>
                     {
@@ -498,6 +500,7 @@ impl<'a> Walker<'a> {
                             );
                         }
                         self.visit_function_like_body(value, id, depth);
+                        id
                     }
                     _ => {
                         let id = self.push_symbol(
@@ -519,8 +522,10 @@ impl<'a> Walker<'a> {
                                 &supertypes,
                             );
                         }
+                        id
                     }
-                }
+                };
+                self.push_decorators(node, id, depth);
             }
             // `const foo = () => {...}` / `const foo = function() {...}` —
             // the arrow-function-assigned-to-variable pattern, analogous to
@@ -591,13 +596,7 @@ impl<'a> Walker<'a> {
                                     }
                                 }
                             } else {
-                                self.mark_global(function, false);
-                                self.push_relation(
-                                    owner,
-                                    RelationKind::Calls,
-                                    name.to_string(),
-                                    location(function),
-                                );
+                                self.push_identifier_call(function, owner);
                             }
                         }
                         // `super(…)` runs the extended class's constructor,
@@ -615,28 +614,7 @@ impl<'a> Walker<'a> {
                                 }
                             }
                         }
-                        "member_expression" => {
-                            if let Some(property) = function.child_by_field_name("property") {
-                                // location(property), not location(node): a
-                                // chained call (`a.f(x).f(y)`) has its outer
-                                // and inner call_expression both start at `a`,
-                                // which would make two same-named chained
-                                // calls collide into one indistinguishable row.
-                                if let Some(object) = function.child_by_field_name("object") {
-                                    let evidence = self.relation_targets.len();
-                                    self.mark_global(object, true);
-                                    if self.relation_targets.len() == evidence {
-                                        self.push_receiver(object, text(property, self.source));
-                                    }
-                                }
-                                self.push_relation(
-                                    owner,
-                                    RelationKind::Calls,
-                                    text(property, self.source).to_string(),
-                                    location(property),
-                                );
-                            }
-                        }
+                        "member_expression" => self.push_member_call(function, owner),
                         _ => {}
                     }
                     // A bare callee is already the `Calls` above, not a value.
@@ -741,11 +719,99 @@ impl<'a> Walker<'a> {
                     );
                 }
             }
+            // A class's, field's or method's decorators are calls from that
+            // symbol (`push_decorators`); a parameter's are from its method.
+            "decorator" => {
+                let decorates_parameter = node.parent().is_some_and(|p| {
+                    matches!(p.kind(), "required_parameter" | "optional_parameter")
+                });
+                if decorates_parameter {
+                    self.push_decorator(node, owner, depth);
+                }
+            }
             "export_statement" => self.visit_export_statement(node, owner, type_name, depth),
             "assignment_expression" => {
                 self.visit_assignment_expression(node, owner, type_name, depth)
             }
             _ => self.visit_children(node, owner, type_name, depth + 1),
+        }
+    }
+
+    /// `calls f` for a callee written as a bare name, `f`.
+    fn push_identifier_call(&mut self, function: Node, owner: SymbolId) {
+        self.mark_global(function, false);
+        self.push_relation(
+            owner,
+            RelationKind::Calls,
+            text(function, self.source).to_string(),
+            location(function),
+        );
+    }
+
+    /// `calls m` for a callee written as a member, `x.m`, with the
+    /// receiver's evidence.
+    fn push_member_call(&mut self, function: Node, owner: SymbolId) {
+        let Some(property) = function.child_by_field_name("property") else {
+            return;
+        };
+        // location(property), not location(node): a chained call
+        // (`a.f(x).f(y)`) has its outer and inner call_expression both start
+        // at `a`, which would make two same-named chained calls collide into
+        // one indistinguishable row.
+        if let Some(object) = function.child_by_field_name("object") {
+            let evidence = self.relation_targets.len();
+            self.mark_global(object, true);
+            if self.relation_targets.len() == evidence {
+                self.push_receiver(object, text(property, self.source));
+            }
+        }
+        self.push_relation(
+            owner,
+            RelationKind::Calls,
+            text(property, self.source).to_string(),
+            location(property),
+        );
+    }
+
+    /// The decorators of the class, field or method `node`, each a call from
+    /// `id`: its own (a JS method's, any field's, an unexported class's) and
+    /// the ones just before it in an `export` (a class's) or, in
+    /// TypeScript, in the class body (a method's).
+    fn push_decorators(&mut self, node: Node, id: SymbolId, depth: u32) {
+        let mut decorators: Vec<Node> = Vec::new();
+        if node
+            .parent()
+            .is_some_and(|p| matches!(p.kind(), "class_body" | "export_statement"))
+        {
+            let mut before = node.prev_named_sibling();
+            while let Some(d) = before.filter(|d| d.kind() == "decorator") {
+                decorators.push(d);
+                before = d.prev_named_sibling();
+            }
+            decorators.reverse();
+        }
+        decorators.extend(
+            node.named_children(&mut node.walk())
+                .filter(|c| c.kind() == "decorator"),
+        );
+        for decorator in decorators {
+            self.push_decorator(decorator, id, depth);
+        }
+    }
+
+    /// A decorator is a function called with what it decorates: `@f` and
+    /// `@x.f` call `f`, and `@f(…)` is the call it spells.
+    fn push_decorator(&mut self, decorator: Node, owner: SymbolId, depth: u32) {
+        let Some(expression) = decorator.named_child(0) else {
+            return;
+        };
+        match expression.kind() {
+            "identifier" => self.push_identifier_call(expression, owner),
+            "member_expression" => {
+                self.push_member_call(expression, owner);
+                self.visit(expression, owner, None, depth + 1);
+            }
+            _ => self.visit(expression, owner, None, depth + 1),
         }
     }
 
