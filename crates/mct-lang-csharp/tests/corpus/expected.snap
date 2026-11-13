@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=454 relations=679 name_matched_across_files=156
+# language=csharp files=6 symbols=476 relations=679 name_matched_across_files=156
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -51,6 +51,8 @@ S 147-147 field ConflictException::Expected
 S 149-149 field ConflictException::Actual
 S 151-151 field ConflictException::Code
 S 155-158 struct Warehouse.Errors::FieldError
+S 155-155 field FieldError::Field
+S 155-155 field FieldError::Problem
 S 157-157 method FieldError::ToString
 S 161-197 struct Warehouse.Errors::Result
 S 163-163 field Result::_value
@@ -80,6 +82,9 @@ S 261-267 method ErrorCollector::ThrowIfAny
 S 271-322 class Warehouse.Errors::ErrorCatalog
 S 273-273 field ErrorCatalog::Entries
 S 275-278 class ErrorCatalog::Entry
+S 275-275 field Entry::Code
+S 275-275 field Entry::Title
+S 275-275 field Entry::Severity
 S 277-277 method Entry::Render
 S 280-290 class ErrorCatalog::Http
 S 282-289 method Http::StatusFor
@@ -209,6 +214,8 @@ S 53-62 method Sku::TryParse
 S 64-64 method Sku::ToString
 S 66-66 method Sku::operator string
 S 70-103 struct Warehouse.Models::Price
+S 70-70 field Price::Amount
+S 70-70 field Price::Currency
 S 72-72 field Price::Zero
 S 74-74 method Price::Validated
 S 76-80 method Price::operator +
@@ -248,6 +255,9 @@ S 185-190 method Product::Reprice
 S 192-199 method Product::Tag
 S 201-201 method Product::Discontinue
 S 205-225 class Warehouse.Models::Location
+S 205-205 field Location::Aisle
+S 205-205 field Location::Rack
+S 205-205 field Location::Shelf
 S 207-215 method Location::Parse
 S 217-219 method Location::CompareTo
 S 221-222 method Location::Distance
@@ -263,6 +273,9 @@ S 246-254 method StockLine::Reserve
 S 256-260 method StockLine::Release
 S 262-267 method StockLine::Ship
 S 271-274 class Warehouse.Models::OrderLine
+S 271-271 field OrderLine::Sku
+S 271-271 field OrderLine::Quantity
+S 271-271 field OrderLine::UnitPrice
 S 273-273 field OrderLine::Total
 S 277-318 class Warehouse.Models::Order
 S 279-279 field Order::_lines
@@ -585,8 +598,17 @@ S 33-38 interface Warehouse.Reporting::IRenderer
 S 35-35 field IRenderer::Name
 S 37-37 method IRenderer::Render
 S 41-48 class Warehouse.Reporting::InventoryRow
+S 42-42 field InventoryRow::Sku
+S 43-43 field InventoryRow::Name
+S 44-44 field InventoryRow::Quantity
+S 45-45 field InventoryRow::Value
 S 47-47 method InventoryRow::Cells
 S 50-53 class Warehouse.Reporting::BacklogRow
+S 50-50 field BacklogRow::Id
+S 50-50 field BacklogRow::Customer
+S 50-50 field BacklogRow::Status
+S 50-50 field BacklogRow::Lines
+S 50-50 field BacklogRow::Total
 S 52-52 method BacklogRow::Cells
 S 56-77 class Warehouse.Reporting::Report
 S 59-59 method Report::Report

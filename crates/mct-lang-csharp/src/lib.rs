@@ -410,9 +410,15 @@ impl<'a> Walker<'a> {
             }
             // `new T(…)` calls T's constructor: recorded as a call to the
             // type's bare name, as `T(…)` is in languages without `new`.
+            // A type is never a field, so a same-named field is no target.
             "object_creation_expression" => {
                 if let Some(type_node) = node.child_by_field_name("type") {
                     if let Some(name) = type_base_name(type_node, self.source) {
+                        self.relation_targets.push(RelationTarget {
+                            relation: self.relations.len(),
+                            not_field: true,
+                            ..Default::default()
+                        });
                         self.push_relation(owner, RelationKind::Calls, name, location(type_node));
                     }
                 }
@@ -451,6 +457,9 @@ impl<'a> Walker<'a> {
             }
         }
         if let Some(params) = find_child(node, "parameter_list") {
+            if node.kind() == "record_declaration" {
+                self.push_positional_properties(node, params, &name);
+            }
             self.visit_children(params, id, Some(&name), depth + 1);
         }
         let Some(body) = node.child_by_field_name("body") else {
@@ -480,6 +489,39 @@ impl<'a> Walker<'a> {
         self.locals = outer_locals;
         self.classes.pop();
         self.supertypes.pop();
+    }
+
+    /// A record's positional parameters (`record Point(int X)`): each is a
+    /// public property the compiler generates, so a `Field` of the record,
+    /// unless the body declares a member of that name, which replaces it.
+    /// A class or struct primary-constructor parameter is no member.
+    fn push_positional_properties(&mut self, record: Node, params: Node, record_name: &str) {
+        let declared = record
+            .child_by_field_name("body")
+            .map(|body| member_names(body, self.source))
+            .unwrap_or_default();
+        let mut cursor = params.walk();
+        let parameters: Vec<Node> = params
+            .named_children(&mut cursor)
+            .filter(|p| p.kind() == "parameter")
+            .collect();
+        for param in parameters {
+            let Some(name_node) = param.child_by_field_name("name") else {
+                continue;
+            };
+            let name = text(name_node, self.source).to_string();
+            if declared.contains(&name) {
+                continue;
+            }
+            let id = self.push_symbol(
+                name,
+                SymbolKind::Field,
+                location(param),
+                Some(record_name.to_string()),
+            );
+            self.details
+                .push(details::positional_property_detail(param, id, self.source));
+        }
     }
 
     /// `base_list` is unified in this grammar — C# doesn't syntactically
@@ -780,6 +822,33 @@ fn type_base_name(node: Node, source: &str) -> Option<String> {
             .and_then(|n| type_base_name(n, source)),
         _ => None,
     }
+}
+
+/// Names of the properties and fields `body` declares directly.
+fn member_names(body: Node, source: &str) -> std::collections::HashSet<String> {
+    let mut names = std::collections::HashSet::new();
+    let mut cursor = body.walk();
+    for member in body.named_children(&mut cursor) {
+        match member.kind() {
+            "property_declaration" => {
+                if let Some(name) = member.child_by_field_name("name") {
+                    names.insert(text(name, source).to_string());
+                }
+            }
+            "field_declaration" => {
+                if let Some(variables) = find_child(member, "variable_declaration") {
+                    let mut inner = variables.walk();
+                    for declarator in variables.named_children(&mut inner) {
+                        if let Some(name) = declarator.child_by_field_name("name") {
+                            names.insert(text(name, source).to_string());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    names
 }
 
 /// `IFoo`: an `I`, an upper-case letter, then a lower-case one — the .NET
