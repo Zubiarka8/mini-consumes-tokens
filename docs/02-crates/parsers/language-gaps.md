@@ -22,7 +22,7 @@ On 2026-10-30, the combined `cargo test` run for all 17 language crates and
 | PHP | Registered; symbols and relations | No Composer manifest reader | Some imports and computed includes are not resolved. |
 | Lua | Registered; symbols, relations and duplicate analysis | `*.rockspec` declarations (scope, constraints, platform tables, module maps) with installed and pinned state read from project-local trees and `luarocks.lock`, through `get_indexing_status` and `get_dependency_graph` | Module files whose name differs from their module (custom `package.path` templates) are not linked; `dofile`/`loadfile` stay unresolved; the version LuaRocks would select at run time is not predicted. See section 5. |
 | Bash | Registered; functions, top-level variables and relations | No package manifest reader | Dynamic commands and some source paths are not resolved. |
-| PowerShell | Registered; functions, top-level variables and relations | No package manifest reader | Classes and methods are not indexed; some source paths are unresolved. |
+| PowerShell | Registered; functions, classes, enums, top-level variables and relations | No package manifest reader | Class bases and `[Type]` uses are no relations; some source paths are unresolved. |
 | HTML | Registered; selected elements and relations | No language-specific package manifest | Elements without IDs and inline script/style contents are not indexed as separate symbols. |
 | CSS | Registered; rules, selectors and imports | Bootstrap and Tailwind source fixtures; packages may be declared in `package.json` | Framework fixtures test the generic parser; some Tailwind syntax is unsupported. |
 | XML | Registered; selected elements | No dialect-specific dependency manifest reader | No relations are emitted. |
@@ -303,7 +303,7 @@ Only Rust, Python and Lua have a token source, so `mct-cli duplicates` reports e
 - No token source.
 
 ### PowerShell
-- No classes, methods or fields. This is deliberate and documented in the module docs of `crates/mct-lang-powershell/src/lib.rs`.
+- Classes (properties as `field`, methods and constructors as `method`) and enums (members as `field`) are indexed, but a class's bases and a type literal (`[Location]::new()`) give no relation.
 - Computed dot-source paths (`$PSScriptRoot`-based) and bare module names (`Import-Module Pester`) do not resolve.
 - `Variable` symbols are top-level scope-prefixed assignments only.
 - No token source.

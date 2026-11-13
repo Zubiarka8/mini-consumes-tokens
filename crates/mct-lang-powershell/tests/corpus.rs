@@ -185,19 +185,34 @@ fn calls_in_begin_process_end_blocks_are_extracted() {
 }
 
 #[test]
-fn classes_and_enums_have_no_symbol() {
-    // Known limit: `class Location { … }`, its methods and `enum
-    // StorageZone` are out of the plugin's scope (see the crate docs).
+fn classes_and_enums_are_symbols() {
+    // `class Location { … }` and its members, and `enum StorageZone` with
+    // its members. The method `StorageZone()` shares the enum's name.
     let c = corpus();
-    for name in [
-        "Location",
-        "CycleCount",
-        "StorageZone",
-        "Difference",
-        "NeedsReview",
-    ] {
-        assert!(c.symbols_named(name).is_empty(), "{name} became a symbol");
-    }
+    let kinds = |name: &str| {
+        let mut kinds: Vec<(SymbolKind, Option<String>)> = c
+            .symbols_named(name)
+            .into_iter()
+            .map(|(_, s)| (s.kind, s.parent.clone()))
+            .collect();
+        kinds.sort_by_key(|k| format!("{k:?}"));
+        kinds
+    };
+    let of = |kind, parent: &str| (kind, Some(parent.to_string()));
+    let module = "Warehouse.Inventory";
+    assert_eq!(kinds("Location")[..1], [of(SymbolKind::Class, module)]);
+    assert_eq!(kinds("CycleCount"), [of(SymbolKind::Class, module)]);
+    assert_eq!(
+        kinds("StorageZone"),
+        [
+            of(SymbolKind::Enum, module),
+            of(SymbolKind::Method, "Location")
+        ]
+    );
+    assert_eq!(kinds("Frozen"), [of(SymbolKind::Field, "StorageZone")]);
+    assert_eq!(kinds("Difference"), [of(SymbolKind::Method, "CycleCount")]);
+    assert_eq!(kinds("NeedsReview"), [of(SymbolKind::Method, "CycleCount")]);
+    assert_eq!(kinds("Sku"), [of(SymbolKind::Field, "CycleCount")]);
 }
 
 #[test]
