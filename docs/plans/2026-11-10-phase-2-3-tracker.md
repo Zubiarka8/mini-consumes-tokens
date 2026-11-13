@@ -766,6 +766,21 @@ From `rules.md` and the two messages:
           `List`, external). Repository snapshot (C#, with `init
           --force`): 767 -> 764, the same 3 edges plus the depgraph
           fixture's `imports M`; no new resolution. Dead code 123 -> 123.
+    - [x] Go aliased imports: an aliased domain-rooted import (`db
+          "example.com/app/database"`) proves the package lives under the
+          path's last directory, whatever its `package` clause says. So
+          `db.F()` (when nothing local declares `db`), a declared type
+          `db.Conn`, an embedded `db.Conn` and a literal `db.Conn{}` pin
+          their target to `database/` (`RelationTarget::module`), never a
+          same-named declaration elsewhere. A blank or dot import binds no
+          name. Test: `tests/aliased_imports.rs` (resolution and dead
+          code); `call_evidence`, `composite_literals`,
+          `declaration_types` and `embedding` pinned "an aliased import
+          proves nothing" and now show the directory evidence. Corpus: no
+          changes (its one aliased package has no directory in the
+          corpus). Repository snapshot (Go, with `init --force`): no
+          changes. Dead code 123 -> 123. Go feature score 60% -> 70%;
+          areas Search 60% -> 70%, Quality 25% -> 50%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no

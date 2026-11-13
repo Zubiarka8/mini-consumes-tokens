@@ -183,7 +183,7 @@ round to the nearest whole percent, with halves rounded up.
 | Kotlin | 83% | 35 | 65% | 10 | 0 |
 | C# | 87% | 34 | 60% | 10 | 0 |
 | C++ | 89% | 28 | 50% | 10 | 0 |
-| Go | 78% | 18 | 60% | 10 | 0 |
+| Go | 78% | 18 | 70% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
@@ -279,7 +279,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 94% | 96% | 50% | 88% | 70% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
-| Go | 83% | 90% | 60% | 80% | 60% | 25% | 83% |
+| Go | 83% | 90% | 60% | 80% | 70% | 50% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
@@ -557,7 +557,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `func (r *T) M()` | `method_declaration` | `method`, parent `T` (pointer and generic receivers unwrapped) |
 | `type T struct` | `type_spec` | `struct` |
 | `ID string` in a struct, `x, Y int` | `field_declaration` | `field` per name, parent the struct; signature `ID string` (no tag). An embedded field (`*Base`) is none: the struct `extends` its type |
-| an embedded type: `Base`, `*Base`, `pkg.Base`, `List[T]` in a struct; `Reader`, `io.Writer` in an interface | `field_declaration` without a name, `type_elem` of one type | `extends` from the struct or interface; in an interface the target must be an `interface`. A bare name is qualified by the package, `pkg.T` through a standard package is external, through an unaliased repository import qualified by `pkg`. A union or `~T` element is a type set and gives none |
+| an embedded type: `Base`, `*Base`, `pkg.Base`, `List[T]` in a struct; `Reader`, `io.Writer` in an interface | `field_declaration` without a name, `type_elem` of one type | `extends` from the struct or interface; in an interface the target must be an `interface`. A bare name is qualified by the package, `pkg.T` through a standard package is external, through an unaliased repository import qualified by `pkg`, through an aliased one declared under the import path's last directory. A union or `~T` element is a type set and gives none |
 | `Cart{…}`, `&Cart{…}`, `store.Basket{…}`, `Box[int]{…}` | `composite_literal` | `references` the type, with an embedded type's evidence; a slice, map or elided-type literal references nothing |
 | package-level `const X = 1`, `const ( … )` | `const_declaration`, `const_spec` | `constant` per name, parent the package; signature `const X` or `const X T` |
 | package-level `var x T`, `var ( … )` | `var_declaration`, `var_spec`, `var_spec_list` | `variable` per name, parent the package; signature `var x T`. A call in the value belongs to the file module. `_` and a `const`/`var` inside a function are none |
@@ -566,7 +566,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `import "x"`, grouped imports | `import_declaration`, `import_spec_list`, `import_spec` | `imports` (path and stem), each naming a `module` only, never a same-named field or variable |
 | `f()`, `pkg.F()`, `x.M()`, `F[T]()` | `call_expression`, `selector_expression`, `type_instantiation_expression` | `calls` |
 | a bare `f()` | `call_expression` `function` `identifier` | qualified by this file's package (Go has no implicit receiver), unless `f` is a local of the enclosing function |
-| `pkg.F()` | `selector_expression` `operand` `identifier` | qualified by `pkg` when an unaliased domain-rooted import's path ends in `pkg`, no alias binds `pkg` and nothing local declares it: code can name a package by its directory only if its `package` clause uses that name |
+| `pkg.F()` | `selector_expression` `operand` `identifier` | qualified by `pkg` when an unaliased domain-rooted import's path ends in `pkg`, no alias binds `pkg` and nothing local declares it: code can name a package by its directory only if its `package` clause uses that name. Through an aliased domain-rooted import (`db "…/database"`), and when nothing local declares `db`, `F` must be declared under the path's last directory (`database/`), whatever its `package` clause says; a blank or dot import binds no name |
 | the receiver of `x.M()` | `call_expression` + `selector_expression` `operand` | qualified by `x`'s declared named type: the method receiver, a parameter, `var x T`, `x := T{…}`, `x := &T{…}`, `x := new(T)`, a package-level `var` (`*T`, `Stack[T]` and `pkg.T` name `T`, `Stack` and `T`), `T{…}.M()`, `x.(T).M()`, or a field of a struct this file declares (`s.repo.M()`). A declared type without a name (`interface{ … }`, a slice, a variadic parameter) makes a member call: ambiguous even with one candidate. So does a struct this file declares with an embedded field and without a method `M` in this file, since `M` may be promoted. Where the syntax does not state the type of a value (`x := f()`, a `range` variable, a multi-value assignment, a call result, an index expression, a field of a struct declared in another file) the target must be a method, never a package-level name or a field; a name nothing declares (an imported package) is left to the `pkg.F()` row, else to name resolution, and a unique name is reported as `name` evidence. A promoted method on a struct declared in another file is not found through the qualifier, so such a call is unresolved |
 
 #### Why the gaps exist
@@ -574,7 +574,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Implicit interface satisfaction | By design | explicitly deferred pending type resolution in [Go crate docs](../../../crates/mct-lang-go/src/lib.rs#L3) and [open decision 3](../../../internal/checklist.md#open-decisions) |
-| Conversions and types of aliased imports as uses | Not implemented | a conversion `T(x)` appears as a call; a declared type of an aliased or unknown package (`var c db.Conn` with `db "…/database"`) gives no relation, since nothing proves which package `db` is |
+| Conversions and types of unknown packages as uses | Not implemented | a conversion `T(x)` appears as a call; a declared type of a package no import binds (`var c x.Conn`) gives no relation. A type of an aliased import (`var c db.Conn` with `db "…/database"`) references a type under `database/` |
 | Closures inside a function, locals | Not implemented | only a package-level `var f = func…` is a symbol; no arm for short variable declarations |
 
 ### PHP
@@ -1261,13 +1261,13 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a composite literal (`util.Widget{}`) and a declared type (`var w Widget`, a parameter, result or field type, through `*T`, `[]T`, `map[K]V`, `chan T` and generic arguments) reference their type; a type of an aliased import (`db.Conn`) gets no reference
+- [x] Every use: `find_references`: a composite literal (`util.Widget{}`) and a declared type (`var w Widget`, a parameter, result or field type, through `*T`, `[]T`, `map[K]V`, `chan T` and generic arguments) reference their type, through an aliased import (`db.Conn`) one under the import path's last directory
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
 **Features: Code quality**
 
-- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only as a declared type through an aliased import (`var c db.Conn`) is reported
+- [x] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only as a declared type through an aliased import (`var c db.Conn`) is referenced, so not reported
 - [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
 
 **Features: Structure**
