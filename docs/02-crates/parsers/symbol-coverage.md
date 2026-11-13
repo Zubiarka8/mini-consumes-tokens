@@ -187,7 +187,7 @@ round to the nearest whole percent, with halves rounded up.
 | PHP | 88% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
-| PowerShell | 79% | 17 | 50% | 10 | 0 |
+| PowerShell | 81% | 18 | 50% | 10 | 0 |
 
 ## Language by language
 
@@ -283,7 +283,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
-| PowerShell | 90% | 100% | 50% | 75% | 60% | 50% | 33% |
+| PowerShell | 90% | 100% | 50% | 80% | 60% | 50% | 33% |
 
 ### Rust
 
@@ -666,7 +666,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `function Verb-Noun {}` | `function_statement` | `function`, parent the file |
 | top-level `$x = …`, `$script:x = …` | `assignment_expression` | `variable` (scope prefix stripped); not inside a `class` body, and not for `$x.Name = …` or `$x[0] = …` |
-| `class Animal : Base { … }` | `class_statement` | `class`, parent the file; the bases are no relation |
+| `class Dog : Animal, IComparable { … }` | `class_statement` | `class`, parent the file; the first base `extends` (a `class` target) unless named like `IFoo`, the rest `implements` (an `interface` target) |
 | `[string] $Name` in a class | `class_property_definition` | `field` of the class; calls in its value belong to the class |
 | `[string] Speak() { … }`, `Animal() { … }` | `class_method_definition` | `method` of the class (a constructor is named after it); it owns its body's calls |
 | `enum Color { Red; Green = 2 }` | `enum_statement`, `enum_member` | `enum`, parent the file; each member a `field` of it |
@@ -679,7 +679,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Class bases, `[Type]` uses | Not implemented | a class's `: Base, IFoo` names and a type literal other than `[T]::new(…)` (`[StorageZone]::Frozen`, `[Location] $x`) are no relations |
+| `[Type]` uses | Not implemented | a type literal other than `[T]::new(…)` (`[StorageZone]::Frozen`, `[Location] $x`) is no relation |
 | `: base(…)` constructors, `??`, ternary | Grammar | tree-sitter-powershell 0.26.4 rejects these forms; simple bare identifier comma lists are recovered, not an unconditional gap (`errors/REGISTRY.md` ERR-002) |
 | Variables inside functions, computed import paths | By design | explicit static/scope limits in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L16) |
 
@@ -1453,7 +1453,8 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Calls: every literal command or cmdlet
 - [x] Imports: dot-sourcing and `Import-Module`
 - [x] Constructor call (`new X()` / `X()`): `[X]::new(…)` and `New-Object X` give `calls X`, restricted to a class
-- [ ] Class extends class: a class's bases (`: Base, IFoo`) give no relation
+- [~] Class extends class: heuristic, as in C#: the first base is `extends` unless it is named like `IFoo`
+- [~] Implements interface / trait: heuristic, as above; the rest of the bases are `implements`
 
 **Features: Search and lookup**
 
