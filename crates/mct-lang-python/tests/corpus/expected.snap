@@ -8,7 +8,7 @@ S 29-29 variable EXIT_USAGE
 S 30-30 variable EXIT_ERROR
 S 32-32 variable _COMMANDS
 S 35-44 function command
-S 38-42 function register
+S 38-42 function command::register
 S 47-64 class Context
 S 50-54 method Context::__init__
 S 51-51 field Context::catalogue
@@ -294,11 +294,11 @@ S 97-101 function audit
 S 104-110 function audit_trail
 S 113-116 function clear_audit
 S 119-143 function retry
-S 122-141 function decorator
-S 124-139 function wrapper
+S 122-141 function retry::decorator
+S 124-139 function decorator::wrapper
 S 146-167 function audited
-S 152-165 function decorator
-S 154-163 function wrapper
+S 152-165 function audited::decorator
+S 154-163 function decorator::wrapper
 S 171-178 function translate_errors
 S 181-192 function error_response
 S 195-212 class Timer
@@ -378,20 +378,20 @@ R 100:9 calls audit -> debug (name-matched: library/cli.py)
 R 105:15 calls audit_trail -> list
 R 114:9 calls clear_audit -> len
 R 115:12 calls clear_audit -> clear
-R 127:28 calls wrapper -> range
-R 129:28 calls wrapper -> fn
-R 134:25 calls wrapper -> warning
-R 136:30 calls wrapper -> sleep
-R 123:9 references wrapper -> wraps
-R 141:16 references decorator -> wrapper
+R 127:28 calls decorator::wrapper -> range
+R 129:28 calls decorator::wrapper -> fn
+R 134:25 calls decorator::wrapper -> warning
+R 136:30 calls decorator::wrapper -> sleep
+R 123:9 references decorator::wrapper -> wraps
+R 141:16 references retry::decorator -> wrapper
 R 143:12 references retry -> decorator
-R 155:21 calls wrapper -> getattr
-R 156:23 calls wrapper -> str
-R 158:26 calls wrapper -> fn
-R 160:17 calls wrapper -> audit
-R 162:13 calls wrapper -> audit
-R 153:9 references wrapper -> wraps
-R 165:16 references decorator -> wrapper
+R 155:21 calls decorator::wrapper -> getattr
+R 156:23 calls decorator::wrapper -> str
+R 158:26 calls decorator::wrapper -> fn
+R 160:17 calls decorator::wrapper -> audit
+R 162:13 calls decorator::wrapper -> audit
+R 153:9 references decorator::wrapper -> wraps
+R 165:16 references audited::decorator -> wrapper
 R 167:12 references audited -> decorator
 R 178:15 calls translate_errors -> StorageError
 R 170:1 references translate_errors -> contextmanager
@@ -690,7 +690,7 @@ S 1-320 module reports
 S 21-21 variable _RENDERERS
 S 22-22 variable _REPORT_COUNT
 S 25-34 function renderer
-S 28-32 function register
+S 28-32 function renderer::register
 S 37-38 function fmt_name
 S 41-44 class Row
 S 42-42 field Row::label
@@ -803,7 +803,7 @@ R 18:7 imports reports -> repository (name-matched: library/repository.py)
 R 18:25 imports reports -> Catalogue (name-matched: library/repository.py)
 R 19:7 imports reports -> services (name-matched: library/services.py)
 R 19:23 imports reports -> LendingService (name-matched: library/services.py)
-R 30:19 calls register -> ValidationError (name-matched: library/errors.py)
+R 30:19 calls renderer::register -> ValidationError (name-matched: library/errors.py)
 R 34:12 references renderer -> register
 R 38:16 calls fmt_name -> join
 R 38:31 calls fmt_name -> lower
@@ -1193,7 +1193,7 @@ S 111-132 class EventBus
 S 114-115 method EventBus::__init__
 S 115-115 field EventBus::_listeners
 S 117-122 method EventBus::subscribe
-S 118-120 function register
+S 118-120 function subscribe::register
 S 124-132 method EventBus::publish
 S 135-166 class HoldQueue
 S 138-140 method HoldQueue::__init__
@@ -1227,7 +1227,7 @@ S 272-272 method LendingService::find_loans
 S 275-275 method LendingService::find_loans
 S 277-279 method LendingService::find_loans
 S 281-287 method LendingService::overdue
-S 284-285 function late
+S 284-285 function overdue::late
 S 289-299 method LendingService::bulk_checkout
 S 302-341 class ReminderService
 S 305-308 method ReminderService::__init__
@@ -1248,11 +1248,11 @@ S 362-368 method UpgradePolicy::apply
 S 371-373 function first_available
 S 376-377 function book_pairs
 S 380-393 function make_counter
-S 384-387 function increment
-S 389-391 function reset
+S 384-387 function make_counter::increment
+S 389-391 function make_counter::reset
 S 396-409 function wire_default_listeners
-S 400-402 function on_open
-S 405-407 function on_close
+S 400-402 function wire_default_listeners::on_open
+S 405-407 function wire_default_listeners::on_close
 S 412-417 function build_services
 R 10:8 imports services -> asyncio
 R 11:8 imports services -> heapq
@@ -1317,7 +1317,7 @@ R 107:16 calls SmsNotifier::deliver -> info
 R 108:16 calls SmsNotifier::deliver -> bool
 R 115:54 calls EventBus::__init__ -> defaultdict
 R 115:66 references EventBus::__init__ -> list
-R 119:36 calls register -> append
+R 119:36 calls subscribe::register -> append
 R 122:16 references EventBus::subscribe -> register
 R 128:17 calls EventBus::publish -> listener
 R 131:24 calls EventBus::publish -> exception
@@ -1411,7 +1411,7 @@ R 278:73 calls LendingService::find_loans -> int
 R 279:16 calls LendingService::find_loans -> sorted
 R 279:38 calls LendingService::find_loans -> open_loans (name-matched: library/repository.py)
 R 282:26 calls LendingService::overdue -> now
-R 285:25 calls late -> days_overdue (name-matched: library/models.py)
+R 285:25 calls overdue::late -> days_overdue (name-matched: library/models.py)
 R 287:57 calls LendingService::overdue -> open_loans (name-matched: library/repository.py)
 R 287:82 calls LendingService::overdue -> late
 R 292:22 calls LendingService::bulk_checkout -> iter_batches (name-matched: library/repository.py)
@@ -1456,12 +1456,12 @@ R 377:27 calls book_pairs -> combinations
 R 377:40 calls book_pairs -> sorted
 R 393:23 references make_counter -> reset
 R 397:20 calls wire_default_listeners -> make_counter
-R 401:9 calls on_open -> increment
-R 402:16 calls on_open -> info
-R 399:5 references on_open -> subscribe
-R 406:20 calls on_close -> get (name-matched: library/models.py)
-R 407:13 calls on_close -> audit (name-matched: library/errors.py)
-R 404:5 references on_close -> subscribe
+R 401:9 calls wire_default_listeners::on_open -> increment
+R 402:16 calls wire_default_listeners::on_open -> info
+R 399:5 references wire_default_listeners::on_open -> subscribe
+R 406:20 calls wire_default_listeners::on_close -> get (name-matched: library/models.py)
+R 407:13 calls wire_default_listeners::on_close -> audit (name-matched: library/errors.py)
+R 404:5 references wire_default_listeners::on_close -> subscribe
 R 409:13 references wire_default_listeners -> on_open
 R 409:22 references wire_default_listeners -> on_close
 R 413:30 calls build_services -> Catalogue (name-matched: library/repository.py)
@@ -1910,10 +1910,10 @@ S 45-45 variable F
 S 47-47 variable DEFAULT_PAGE_SIZE
 S 48-48 variable MAX_PAGE_SIZE
 S 56-65 function login_required
-S 60-63 function guarded
+S 60-63 function login_required::guarded
 S 68-80 function staff_only
-S 71-78 function decorate
-S 73-76 function checked
+S 71-78 function staff_only::decorate
+S 73-76 function decorate::checked
 S 83-87 function page_args
 S 90-94 function lending_service
 S 97-103 function book_payload
@@ -1946,15 +1946,15 @@ S 246-246 field GenreAPI::methods
 S 248-253 method GenreAPI::get
 S 256-261 function register_api
 S 272-332 function create_app
-S 288-289 function home
-S 292-293 function health
-S 296-299 function not_found
-S 302-304 function library_error
-S 307-308 function start_timer
-S 311-313 function add_headers
-S 316-319 function close_services
-S 322-326 function seed
-S 329-330 function shell_context
+S 288-289 function create_app::home
+S 292-293 function create_app::health
+S 296-299 function create_app::not_found
+S 302-304 function create_app::library_error
+S 307-308 function create_app::start_timer
+S 311-313 function create_app::add_headers
+S 316-319 function create_app::close_services
+S 322-326 function create_app::seed
+S 329-330 function create_app::shell_context
 S 340-340 variable app
 S 344-345 function about
 S 349-354 function search
@@ -2000,17 +2000,17 @@ R 41:30 imports flask_app -> LendingService (name-matched: library/services.py)
 R 41:46 imports flask_app -> build_services (name-matched: library/services.py)
 R 43:15 calls flask_app -> getLogger
 R 45:5 calls flask_app -> TypeVar
-R 61:14 calls guarded -> get
-R 62:20 calls guarded -> redirect
-R 62:29 calls guarded -> url_for
-R 63:16 calls guarded -> view
-R 59:5 references guarded -> wraps
+R 61:14 calls login_required::guarded -> get
+R 62:20 calls login_required::guarded -> redirect
+R 62:29 calls login_required::guarded -> url_for
+R 63:16 calls login_required::guarded -> view
+R 59:5 references login_required::guarded -> wraps
 R 65:12 references login_required -> guarded
-R 74:36 calls checked -> get
-R 75:17 calls checked -> abort
-R 76:20 calls checked -> view
-R 72:9 references checked -> wraps
-R 78:16 references decorate -> checked
+R 74:36 calls decorate::checked -> get
+R 75:17 calls decorate::checked -> abort
+R 76:20 calls decorate::checked -> view
+R 72:9 references decorate::checked -> wraps
+R 78:16 references staff_only::decorate -> checked
 R 80:12 references staff_only -> decorate
 R 85:25 calls page_args -> get
 R 85:53 references page_args -> int
@@ -2134,35 +2134,35 @@ R 283:9 calls create_app -> register_blueprint
 R 284:9 calls create_app -> register_blueprint
 R 285:9 calls create_app -> add_url_rule
 R 285:52 calls create_app -> as_view
-R 289:16 calls home -> redirect
-R 289:25 calls home -> url_for
-R 287:5 references home -> route
-R 293:42 calls health -> len
-R 293:74 calls health -> all
-R 293:46 calls health -> lending_service
-R 291:5 references health -> route
-R 297:25 calls not_found -> startswith
-R 298:20 calls not_found -> jsonify
-R 299:16 calls not_found -> render_template
-R 295:5 references not_found -> errorhandler
-R 303:24 calls library_error -> error_response (name-matched: library/errors.py)
-R 304:16 calls library_error -> jsonify
-R 301:5 references library_error -> errorhandler
-R 308:40 calls start_timer -> get
-R 308:40 calls start_timer -> get
-R 306:5 references start_timer -> before_request
-R 310:5 references add_headers -> after_request
-R 317:21 calls close_services -> pop (name-matched: library/services.py)
-R 319:21 calls close_services -> close (name-matched: library/models.py)
-R 315:5 references close_services -> teardown_appcontext
-R 324:32 calls seed -> load_fixture (name-matched: library/repository.py)
-R 325:31 calls seed -> all
-R 326:17 calls seed -> info
-R 326:35 calls seed -> describe_book (name-matched: library/models.py)
-R 321:5 references seed -> command (name-matched: library/cli.py)
-R 330:36 references shell_context -> lending_service
-R 330:61 references shell_context -> Book (name-matched: library/models.py)
-R 328:5 references shell_context -> shell_context_processor
+R 289:16 calls create_app::home -> redirect
+R 289:25 calls create_app::home -> url_for
+R 287:5 references create_app::home -> route
+R 293:42 calls create_app::health -> len
+R 293:74 calls create_app::health -> all
+R 293:46 calls create_app::health -> lending_service
+R 291:5 references create_app::health -> route
+R 297:25 calls create_app::not_found -> startswith
+R 298:20 calls create_app::not_found -> jsonify
+R 299:16 calls create_app::not_found -> render_template
+R 295:5 references create_app::not_found -> errorhandler
+R 303:24 calls create_app::library_error -> error_response (name-matched: library/errors.py)
+R 304:16 calls create_app::library_error -> jsonify
+R 301:5 references create_app::library_error -> errorhandler
+R 308:40 calls create_app::start_timer -> get
+R 308:40 calls create_app::start_timer -> get
+R 306:5 references create_app::start_timer -> before_request
+R 310:5 references create_app::add_headers -> after_request
+R 317:21 calls create_app::close_services -> pop (name-matched: library/services.py)
+R 319:21 calls create_app::close_services -> close (name-matched: library/models.py)
+R 315:5 references create_app::close_services -> teardown_appcontext
+R 324:32 calls create_app::seed -> load_fixture (name-matched: library/repository.py)
+R 325:31 calls create_app::seed -> all
+R 326:17 calls create_app::seed -> info
+R 326:35 calls create_app::seed -> describe_book (name-matched: library/models.py)
+R 321:5 references create_app::seed -> command (name-matched: library/cli.py)
+R 330:36 references create_app::shell_context -> lending_service
+R 330:61 references create_app::shell_context -> Book (name-matched: library/models.py)
+R 328:5 references create_app::shell_context -> shell_context_processor
 R 340:7 calls flask_app -> create_app
 R 345:12 calls about -> render_template
 R 345:69 calls about -> get

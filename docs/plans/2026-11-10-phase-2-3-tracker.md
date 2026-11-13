@@ -619,6 +619,13 @@ From `rules.md` and the two messages:
           symbols; 5 `new Price(…)` calls ambiguous -> resolved, 3 ambiguous
           calls lose a field candidate. Repository snapshot (C#, 692
           relations): no changes. Dead code 123 -> 123.
+    - [x] Python nested functions: a `def` inside a function or method is a
+          `function` whose parent is that function or method, as a Rust
+          nested fn is. A `def` in a class body stays a `method` of the
+          class. Test: `tests/nested_functions.rs`. Corpus: 1506 relations,
+          no resolution changes (17 candidates now name their enclosing
+          function). Repository snapshot (Python, 7323 relations): no
+          changes. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

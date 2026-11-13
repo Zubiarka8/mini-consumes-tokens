@@ -21,7 +21,8 @@ fn flask_routes_hooks_and_method_views() {
         c.relation(path, "return_copy", References, decorator);
     }
     // Routes, error handlers and hooks registered inside the app factory
-    // are nested functions, not methods, and keep their decorator.
+    // are nested functions of the factory, not methods, and keep their
+    // decorator.
     for (name, decorator) in [
         ("home", "route"),
         ("not_found", "errorhandler"),
@@ -29,7 +30,11 @@ fn flask_routes_hooks_and_method_views() {
         ("close_services", "teardown_appcontext"),
         ("seed", "command"),
     ] {
-        assert_eq!(c.symbol(path, name, Function).parent, None, "{name}");
+        assert_eq!(
+            c.symbol(path, name, Function).parent.as_deref(),
+            Some("create_app"),
+            "{name}"
+        );
         c.relation(path, name, References, decorator);
     }
     // The decorator factory's inner function is a plain function too.

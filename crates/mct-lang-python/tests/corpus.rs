@@ -94,9 +94,9 @@ fn methods_and_nested_classes_hang_off_their_class() {
 fn nested_functions_and_closures_are_functions_not_methods() {
     use SymbolKind::Function;
     let c = corpus();
-    // Inside a method body a `def` is a plain function.
+    // Inside a method body a `def` is a plain function of that method.
     let late = c.symbol("services.py", "late", Function);
-    assert_eq!(late.parent, None);
+    assert_eq!(late.parent.as_deref(), Some("overdue"));
     for name in ["increment", "reset", "on_open", "on_close", "register"] {
         assert!(
             c.symbols_named(name)
