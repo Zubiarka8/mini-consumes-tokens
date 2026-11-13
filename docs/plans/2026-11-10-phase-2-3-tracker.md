@@ -692,6 +692,19 @@ From `rules.md` and the two messages:
           `tests/nested_qualifier.rs`. Corpus: no class is used as a
           qualifier in its own file, no new relations (375). Repository
           snapshot (Lua, 410 relations, with `init --force`): no changes.
+    - [x] C++ declaration types: the type of a declaration, a field, a
+          parameter or a return type (`Point p;`, `Point make(Count n)`)
+          references the class, struct, enum or alias the same file
+          declares once, pinned to this file and that kind; a `std::` type
+          is an external reference. A template parameter (`T`) and a
+          "parameter" of a prototype-like local (`std::lock_guard g(m_);`)
+          give nothing. A type declared only in another file gives no
+          relation: an unpinned by-name match reached 104 methods on the
+          corpus (`fs::path` -> `FileStore::path`), so it waits for a
+          type-only target (#440). Test: `tests/type_uses.rs`. Corpus
+          snapshot: 515 -> 809 relations. Repository snapshot (C++, with
+          `init --force`): 542 -> 838 relations, 118 resolved (all to a
+          type of the same file), 178 external. Dead code 123 -> 123.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
