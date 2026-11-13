@@ -182,7 +182,7 @@ round to the nearest whole percent, with halves rounded up.
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 71% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
-| C++ | 79% | 28 | 50% | 10 | 0 |
+| C++ | 80% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
 | Lua | 82% | 14 | 60% | 10 | 0 |
@@ -278,7 +278,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 79% | 33% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
-| C++ | 88% | 94% | 42% | 80% | 60% | 25% | 50% |
+| C++ | 88% | 94% | 42% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 63% | 100% | 60% | 75% | 50% |
@@ -521,6 +521,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | base classes | `base_class_clause` | `extends` |
 | `f()`, `a.m()`, `p->m()`, `ns::f()`, `T()` | `call_expression`, `field_expression`, `qualified_identifier` | `calls` |
 | `new T(…)`, `new T`, `new ns::T{}`, `new T<U>(…)` | `new_expression` | `calls T`, like `T()`; `new std::T` is external; `new int[4]` names no constructor |
+| `B() : A(1)`, `B() : ns::A<int>{2}`, `B(int) : B()` | `field_initializer` | `calls A` from the constructor when the initializer names a base of the class, and `calls B` when it names the class itself (a delegating constructor), restricted to a constructor declared in that class; `std::` bases are external. Any other name is a member and calls nothing. The bases come from the class definition in the same file |
 | `std::f()`, `::std::f()`, `std::f<T>()`, `std::chrono::f()` | `call_expression`, `qualified_identifier`, `template_function` | `calls` named `f` (template arguments dropped), external: a program may not add declarations to namespace `std` ([namespace.std]). Not proven in a file that opens `namespace std` itself (a `std::hash` specialization), nor for a bare `f()` after `using namespace std;` |
 
 #### Why the gaps exist
@@ -528,7 +529,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | `#define`, lambdas, locals | Not implemented | no arm for `preproc_def` or `lambda_expression`; locals are skipped |
-| Base-constructor calls | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; telling the two apart needs the class's base list |
+| Base-constructor calls of an out-of-line constructor whose class is defined in another file | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition it can't tell a base from a member |
 | `const int X` is a `variable` | Not implemented | a global `const` gets the same kind as a mutable variable; only enum values are `constant` |
 | A type used only in a declaration (`Widget w;`) | Not implemented | a declaration's type is not a reference |
 | Header and source files are two rows | By design | [crate docs](../../../crates/mct-lang-cpp/src/lib.rs#L3) explicitly choose independent header/source rows and correlate matching names and parents |
@@ -1178,7 +1179,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls
 - [x] Constructor call (`new X()` / `X()`): `X()` and `new X()` → `calls X`
-- [ ] Super / base constructor call: `B() : A(1) {}` gives no constructor-call relation to `A`
+- [~] Super / base constructor call: a mem-initializer that names a base of the class (`B() : A(1)`) gives `calls A`, and one that names the class itself (a delegating constructor) gives `calls B`, restricted to a constructor declared in that class; `std::` bases are external. The bases come from the class definition in the same file, so an out-of-line `B::B() : A(1)` in a `.cpp` whose class is in a header gives none
 - [x] Imports: quoted and angle-bracket `#include`
 - [x] Class extends class: every base, any access, as `extends`
 

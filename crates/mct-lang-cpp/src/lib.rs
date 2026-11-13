@@ -16,7 +16,7 @@ use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
     SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mct_tree_sitter::{find_child, first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
@@ -186,6 +186,10 @@ struct Walker<'a> {
     namespaces: HashSet<&'a str>,
     /// The bases of each enclosing class definition, innermost last.
     supertypes: Vec<Vec<Supertype>>,
+    /// The base names of each class defined in this file, by its
+    /// unqualified name, for an out-of-line constructor's mem-initializers.
+    /// `None` when two classes of that name list different bases.
+    class_bases: HashMap<&'a str, Option<Vec<String>>>,
     /// Whether this file opens namespace `std` (to specialize a template),
     /// so a `std::` call may reach a declaration of the file's own.
     opens_std: bool,
@@ -203,6 +207,7 @@ impl<'a> Walker<'a> {
             next_id: 0,
             namespaces: HashSet::new(),
             supertypes: Vec::new(),
+            class_bases: HashMap::new(),
             opens_std: false,
         }
     }
@@ -361,6 +366,10 @@ impl<'a> Walker<'a> {
                 };
                 let (name, parent, kind) =
                     self.function_identity(func_declarator.child_by_field_name("declarator"), ctx);
+                let constructor_of = parent
+                    .as_deref()
+                    .is_some_and(|p| p.rsplit("::").next() == Some(name.as_str()))
+                    .then(|| name.clone());
                 let id = self.push_symbol(name, kind, location(node), parent);
                 self.details.push(details::function_detail(
                     node,
@@ -386,6 +395,11 @@ impl<'a> Walker<'a> {
                     })
                     .collect();
                 for child in rest {
+                    if child.kind() == "field_initializer_list" {
+                        if let Some(class) = &constructor_of {
+                            self.push_constructor_initializer_calls(id, child, class, ctx);
+                        }
+                    }
                     self.visit_children(child, inner, depth + 1);
                 }
             }
@@ -515,6 +529,74 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// A mem-initializer of constructor `id` of `class` that names a base
+    /// of the class runs that base's constructor ([class.base.init]), and
+    /// one that names the class delegates to another of its constructors:
+    /// either is `calls`, as `Base(1)` would be, restricted to a
+    /// constructor declared in that class. Any other name is a
+    /// member. The bases are the enclosing class's for an in-class
+    /// constructor, or those of the class defined earlier in this file for
+    /// an out-of-line one; without that definition nothing tells a base
+    /// from a member, so the initializers give no call.
+    fn push_constructor_initializer_calls(
+        &mut self,
+        id: SymbolId,
+        list: Node<'a>,
+        class: &str,
+        ctx: Ctx<'a>,
+    ) {
+        let bases: Vec<String> = if ctx.in_type() {
+            self.supertypes
+                .last()
+                .map(|s| s.iter().map(|b| b.name.clone()).collect())
+                .unwrap_or_default()
+        } else {
+            match self.class_bases.get(class) {
+                Some(Some(bases)) => bases.clone(),
+                _ => return,
+            }
+        };
+        let mut cursor = list.walk();
+        let initializers: Vec<Node<'a>> = list
+            .named_children(&mut cursor)
+            .filter(|c| c.kind() == "field_initializer")
+            .collect();
+        for initializer in initializers {
+            let Some(written) = initializer.named_child(0) else {
+                continue;
+            };
+            let tail = qualified_tail(written);
+            let name_node = if tail.kind() == "template_method" {
+                tail.child_by_field_name("name").unwrap_or(tail)
+            } else {
+                tail
+            };
+            if name_node.kind() != "field_identifier" {
+                continue;
+            }
+            let name = text(name_node, self.source);
+            if name == class || bases.iter().any(|b| b == name) {
+                let relation = self.relations.len();
+                self.push_call(id, name_node, written);
+                // Unless it is external, the target is a constructor,
+                // declared in that class.
+                if self.relations.len() > relation
+                    && self
+                        .relation_targets
+                        .last()
+                        .is_none_or(|t| t.relation != relation)
+                {
+                    self.relation_targets.push(RelationTarget {
+                        relation,
+                        qualifier: Some(name.to_string()),
+                        kind: Some(SymbolKind::Method),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+    }
+
     fn visit_class(&mut self, node: Node<'a>, ctx: Ctx<'a>, depth: u32) {
         let body = node.child_by_field_name("body");
         let name_node = node.child_by_field_name("name");
@@ -578,6 +660,15 @@ impl<'a> Walker<'a> {
         }
         // Members hang off the class's own unqualified name.
         let scope_name = name_node.map_or("", |n| last_segment_text(n, self.source));
+        let base_names: Vec<String> = supertypes.iter().map(|s| s.name.clone()).collect();
+        self.class_bases
+            .entry(scope_name)
+            .and_modify(|known| {
+                if known.as_ref() != Some(&base_names) {
+                    *known = None;
+                }
+            })
+            .or_insert_with(|| Some(base_names));
         self.supertypes.push(supertypes);
         self.visit_children(body, ctx.with_scope(scope_name, true), depth + 1);
         self.supertypes.pop();

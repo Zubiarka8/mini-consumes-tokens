@@ -389,6 +389,18 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] C++ mem-initializers: one that names a base of the class
+          (`B() : A(1)`, `ns::A<int>{2}`) gives `calls A` from the
+          constructor, and one that names the class itself (a delegating
+          constructor) gives `calls B`, both restricted to a constructor
+          declared in that class; `std::` bases are external. The bases come
+          from the class definition in the same file, so an out-of-line
+          constructor of a class defined in another file still gives none
+          (checklist line stays `[~]`). Corpus snapshot: 4 new relations.
+          Repository snapshot: C++ relations 538 → 542 (2 resolved to
+          `StorageError::StorageError`, 1 ambiguous between two `Product`
+          constructors, 1 `std::runtime_error` unresolved because the file
+          opens `namespace std`); dead code unchanged at 122.
     - [x] Kotlin `: Base(4)` in a class or object header and
           `constructor(…) : super(…)` give `calls Base` from the class (a
           Kotlin constructor is no symbol), restricted to a class; `super(…)`

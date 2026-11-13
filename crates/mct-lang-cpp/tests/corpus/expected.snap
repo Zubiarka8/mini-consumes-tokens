@@ -1,4 +1,4 @@
-# language=cpp files=5 symbols=423 relations=511 name_matched_across_files=156
+# language=cpp files=5 symbols=423 relations=515 name_matched_across_files=156
 
 == include/inventory/model.hpp (342 lines)
 S 1-342 module model
@@ -178,6 +178,7 @@ R 192:19 calls Builder::tag -> push_back
 R 192:34 calls Builder::tag -> move
 R 217:38 calls Product::sku -> make_sku
 R 234:40 extends inv::PerishableProduct -> Product
+R 237:11 calls PerishableProduct::PerishableProduct -> Product
 R 237:28 calls PerishableProduct::PerishableProduct -> move
 R 239:10 overrides PerishableProduct::perishable -> perishable
 R 240:17 overrides PerishableProduct::describe -> describe
@@ -328,11 +329,14 @@ R 13:1 imports storage -> shared_mutex
 R 14:1 imports storage -> stdexcept
 R 15:1 imports storage -> unordered_map
 R 20:29 extends inv::StorageError -> runtime_error
+R 22:59 calls StorageError::StorageError -> runtime_error
 R 26:25 extends inv::NotFound -> StorageError
+R 29:11 calls NotFound::NotFound -> StorageError
 R 29:29 calls NotFound::NotFound -> string
 R 29:66 calls NotFound::NotFound -> string
 R 30:9 overrides NotFound::code -> code
 R 33:25 extends inv::Conflict -> StorageError
+R 36:11 calls Conflict::Conflict -> StorageError
 R 36:24 calls Conflict::Conflict -> format_conflict
 R 37:9 overrides Conflict::code -> code
 R 61:22 calls Repository::require -> find
