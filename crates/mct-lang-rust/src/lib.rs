@@ -134,6 +134,9 @@ struct Walker<'a> {
     receivers: HashMap<String, (String, Option<String>)>,
     /// Declaration details of the items recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
+    /// Each `implements` relation of an `impl Tr for T`, with `T`'s base
+    /// name: `finish` makes `T` its owner when this file declares it.
+    impl_relations: Vec<(usize, String)>,
 }
 
 impl<'a> Walker<'a> {
@@ -156,6 +159,7 @@ impl<'a> Walker<'a> {
             self_type: None,
             receivers: HashMap::new(),
             details: Vec::new(),
+            impl_relations: Vec::new(),
         }
     }
 
@@ -689,7 +693,7 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 if let Some(trait_node) = node.child_by_field_name("trait") {
-                    match self.trait_reference(trait_node) {
+                    let relation = match self.trait_reference(trait_node) {
                         Some((trait_name, target)) => {
                             let relation = self.push_relation(
                                 owner,
@@ -698,6 +702,7 @@ impl<'a> Walker<'a> {
                                 location(node),
                             );
                             self.qualify(relation, target);
+                            relation
                         }
                         None => {
                             let trait_name = text(trait_node, self.source).to_string();
@@ -706,8 +711,11 @@ impl<'a> Walker<'a> {
                                 RelationKind::Implements,
                                 trait_name,
                                 location(node),
-                            );
+                            )
                         }
+                    };
+                    if let Some(relation) = relation {
+                        self.impl_relations.push((relation, type_base(&type_name)));
                     }
                 }
                 if let Some(body) = node.child_by_field_name("body") {
@@ -1388,7 +1396,20 @@ impl<'a> Walker<'a> {
         self.push_symbol(name, kind, location(node), parent)
     }
 
-    fn finish(self) -> ParsedFile {
+    fn finish(mut self) -> ParsedFile {
+        // `impl Tr for T` is `T implements Tr` when this file declares one
+        // `T`; with none or two the file module stays the owner.
+        for (relation, type_name) in std::mem::take(&mut self.impl_relations) {
+            let mut types = self.symbols.iter().filter(|s| {
+                s.name == type_name && matches!(s.kind, SymbolKind::Struct | SymbolKind::Enum)
+            });
+            if let (Some(ty), None) = (types.next(), types.next()) {
+                let id = ty.id;
+                if let Some(r) = self.relations.get_mut(relation) {
+                    r.from = id;
+                }
+            }
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,

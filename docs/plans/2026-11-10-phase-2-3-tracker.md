@@ -643,6 +643,15 @@ From `rules.md` and the two messages:
           relations, with `init --force`): no resolution or owner changes;
           582 resolved and 2222 ambiguous relations now name an enclosing
           function among their candidates. Dead code 123 -> 123.
+    - [x] Rust impl owner: `impl Tr for T` is now `T implements Tr` when
+          the file declares one struct, union or enum `T` (before or after
+          the `impl`, generic arguments and path ignored). A `T` from
+          another file, or two of that name here, leaves the file module as
+          owner. Test: `tests/impl_owner.rs`. Corpus: 19 `implements`
+          change owner, from the module to their type. Repository snapshot
+          (Rust, 96923 relations, with `init --force`): 136 `implements`
+          change owner (126 to a struct, 10 to an enum), no target or
+          resolution changes. Dead code 123 -> 123.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
