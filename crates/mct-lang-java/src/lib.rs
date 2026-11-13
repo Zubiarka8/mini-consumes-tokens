@@ -138,10 +138,10 @@ impl<'a> Walker<'a> {
         mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
-    /// `relation` from the type `from` to the supertype `type_id` names,
-    /// which can only be a type of `target_kind`: never a constructor or
-    /// method spelled like it.
-    fn push_supertype(
+    /// `relation` from `from` to the type `type_id` names (a supertype or
+    /// an annotation type), which can only be a type of `target_kind`:
+    /// never a constructor or method spelled like it.
+    fn push_type_relation(
         &mut self,
         from: SymbolId,
         relation: RelationKind,
@@ -159,6 +159,25 @@ impl<'a> Walker<'a> {
             text(type_id, self.source).to_string(),
             location(type_id),
         );
+    }
+
+    /// A `references` relation from `from` to the annotation type each
+    /// annotation on `declaration` names (JLS §9.7): `Audited` for `@Audited`
+    /// or `@shop.meta.Audited(…)`. Annotation types are indexed as
+    /// interfaces, so a same-named method or class is never the target.
+    fn push_annotations(&mut self, declaration: Node, from: SymbolId) {
+        let Some(modifiers) = find_child(declaration, "modifiers") else {
+            return;
+        };
+        let mut cursor = modifiers.walk();
+        let names: Vec<Node> = modifiers
+            .children(&mut cursor)
+            .filter(|m| matches!(m.kind(), "marker_annotation" | "annotation"))
+            .filter_map(|m| m.child_by_field_name("name").and_then(last_identifier))
+            .collect();
+        for name in names {
+            self.push_type_relation(from, RelationKind::References, SymbolKind::Interface, name);
+        }
     }
 
     /// Each component of `record R(T a, U b)` declares an implicit accessor
@@ -330,6 +349,7 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::type_detail(node, id, self.source));
+                self.push_annotations(node, id);
 
                 // JLS §8.1.4, §8.1.5, §9.1.3: a class extends a class,
                 // implements interfaces, and an interface extends interfaces.
@@ -352,7 +372,7 @@ impl<'a> Walker<'a> {
                 ];
                 for (clause, relation, target_kind) in supertypes {
                     for type_id in clause.map(find_type_identifiers).unwrap_or_default() {
-                        self.push_supertype(id, relation, target_kind, type_id);
+                        self.push_type_relation(id, relation, target_kind, type_id);
                     }
                 }
                 if node.kind() == "record_declaration" {
@@ -416,6 +436,7 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::method_detail(node, id, self.source));
+                self.push_annotations(node, id);
                 if node.kind() == "method_declaration" && has_override_annotation(node, self.source)
                 {
                     self.push_overrides(node, id);
@@ -451,6 +472,7 @@ impl<'a> Walker<'a> {
                                 id,
                                 self.source,
                             ));
+                            self.push_annotations(node, id);
                         }
                         // The initializer runs like an initializer block:
                         // its calls and anonymous classes are the type's.
