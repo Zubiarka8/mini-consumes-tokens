@@ -77,7 +77,7 @@ S 197-197 method Router::get
 S 199-199 method Router::post
 S 201-203 method Router::add
 S 205-212 method Router::handle
-S 216-225 class Scope
+S 216-225 enum Scope
 S 216-216 field Scope::claim
 S 217-217 field Scope::ORDERS_READ
 S 218-218 field Scope::ORDERS_WRITE
@@ -552,7 +552,7 @@ R 306:9 calls Inventory::recomputeReorderPoint -> setReorderPoint
 S 1-303 module Money
 S 1-303 module com.example.warehouse.money
 S 16-16 type_alias Rate
-S 19-36 class Currency
+S 19-36 enum Currency
 S 19-19 field Currency::scale
 S 19-19 field Currency::symbol
 S 20-20 field Currency::EUR
@@ -813,7 +813,7 @@ S 27-27 field Line::quantity
 S 27-27 field Line::unitPrice
 S 32-32 field Line::subtotal
 S 34-34 method Line::withQuantity
-S 38-53 class State
+S 38-53 enum State
 S 39-39 field State::NEW
 S 39-39 field State::RESERVED
 S 39-39 field State::PAID
@@ -1106,7 +1106,7 @@ S 40-40 field PricingContext::date
 S 43-50 interface DiscountRule
 S 44-44 method DiscountRule::discount
 S 46-49 method DiscountRule::then
-S 53-62 class VatCategory
+S 53-62 enum VatCategory
 S 53-53 field VatCategory::percent
 S 54-54 field VatCategory::GENERAL
 S 55-55 field VatCategory::FOOD
