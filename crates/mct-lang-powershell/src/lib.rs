@@ -33,7 +33,9 @@
 //!   (constructors included, named after the class) `Method`s; an `enum` is
 //!   an `Enum` whose members are `Field`s. A method owns the commands its
 //!   body runs. A command invocation names a function, cmdlet or executable,
-//!   never a method, so its target must be a `Function`.
+//!   never a method, so its target must be a `Function`. `[T]::new(…)` and
+//!   `New-Object T` construct a class: `calls T`, whose target must be a
+//!   `Class` (a dotted or generic `T` is a .NET type, and gives none).
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
@@ -380,6 +382,11 @@ impl<'a> Walker<'a> {
                                 );
                             }
                         } else {
+                            if cmd_text.eq_ignore_ascii_case("New-Object") {
+                                if let Some(class) = new_object_class(node, self.source) {
+                                    self.push_construction(owner, class);
+                                }
+                            }
                             let relation = self.relations.len();
                             self.push_relation(
                                 owner,
@@ -400,8 +407,30 @@ impl<'a> Walker<'a> {
                 // are still picked up.
                 self.visit_children(node, owner, scope_name, module_id, depth + 1);
             }
+            "invokation_expression" => {
+                if let Some(class) = static_new_class(node, self.source) {
+                    self.push_construction(owner, class);
+                }
+                self.visit_children(node, owner, scope_name, module_id, depth + 1);
+            }
             _ => self.visit_children(node, owner, scope_name, module_id, depth + 1),
         }
+    }
+
+    /// `calls` the class `name_node` names, which only a `Class` can answer.
+    fn push_construction(&mut self, owner: SymbolId, name_node: Node) {
+        let relation = self.relations.len();
+        self.push_relation(
+            owner,
+            RelationKind::Calls,
+            text(name_node, self.source).to_string(),
+            location(name_node),
+        );
+        self.relation_targets.push(RelationTarget {
+            relation,
+            kind: Some(SymbolKind::Class),
+            ..Default::default()
+        });
     }
 
     /// `class Name : Base, IFoo { … }`: the first `simple_name` is the
@@ -537,6 +566,46 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
+}
+
+/// The class `[T]::new(…)` constructs: a `T` of one plain identifier, as a
+/// script class is named; a dotted or generic type is .NET's.
+fn static_new_class<'a>(node: Node<'a>, source: &str) -> Option<Node<'a>> {
+    let literal = node.named_child(0).filter(|n| n.kind() == "type_literal")?;
+    let member = find_child(node, "member_name").and_then(|m| find_child(m, "simple_name"))?;
+    if !text(member, source).eq_ignore_ascii_case("new") {
+        return None;
+    }
+    let type_name = find_child(find_child(literal, "type_spec")?, "type_name")?;
+    if type_name.named_child_count() != 1 {
+        return None;
+    }
+    type_name
+        .named_child(0)
+        .filter(|n| n.kind() == "type_identifier")
+        .filter(|n| simple_identifier(text(*n, source)))
+}
+
+/// The class `New-Object T` constructs: a first argument of one plain
+/// identifier, unless a `-ComObject` parameter (any `-c…` abbreviation)
+/// makes it a COM ProgID.
+fn new_object_class<'a>(command: Node<'a>, source: &str) -> Option<Node<'a>> {
+    let elements = command.child_by_field_name("command_elements")?;
+    let mut cursor = elements.walk();
+    let com = elements
+        .named_children(&mut cursor)
+        .filter(|c| c.kind() == "command_parameter")
+        .any(|c| {
+            text(c, source)
+                .get(..2)
+                .is_some_and(|p| p.eq_ignore_ascii_case("-c"))
+        });
+    if com {
+        return None;
+    }
+    first_command_argument_node(command)
+        .filter(|arg| arg.kind() == "generic_token")
+        .filter(|arg| simple_identifier(text(*arg, source)))
 }
 
 /// A `command`'s `command_name` field is either the literal name directly

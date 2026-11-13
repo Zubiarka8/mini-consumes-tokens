@@ -1,4 +1,4 @@
-# language=powershell files=5 symbols=103 relations=261 name_matched_across_files=62
+# language=powershell files=5 symbols=103 relations=266 name_matched_across_files=62
 
 == Deploy-Warehouse.ps1 (301 lines)
 S 1-301 module Deploy-Warehouse
@@ -346,14 +346,19 @@ R 15:16 calls Warehouse.Inventory -> Join-Path
 R 16:16 calls Warehouse.Inventory -> Join-Path
 R 91:27 calls Warehouse.Inventory::Import-CycleCount -> Test-Path
 R 95:13 calls Warehouse.Inventory::Import-CycleCount -> Import-Csv
+R 100:23 calls Warehouse.Inventory::Import-CycleCount -> CycleCount
+R 102:32 calls Warehouse.Inventory::Import-CycleCount -> Location
 R 109:13 calls Warehouse.Inventory::Import-CycleCount -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 131:9 calls Warehouse.Inventory::Split-CycleCount -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 144:13 calls Warehouse.Inventory::Submit-CycleCount -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 148:13 calls Warehouse.Inventory::Submit-CycleCount -> Invoke-WarehouseApi (name-matched: Warehouse.Api.psm1)
+R 170:16 calls Warehouse.Inventory::Move-WarehouseStock -> Location
+R 171:16 calls Warehouse.Inventory::Move-WarehouseStock -> Location
 R 176:9 calls Warehouse.Inventory::Move-WarehouseStock -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 178:14 calls Warehouse.Inventory::Move-WarehouseStock -> Get-WarehouseStock (name-matched: Warehouse.Api.psm1)
 R 183:9 calls Warehouse.Inventory::Move-WarehouseStock -> Invoke-WarehouseApi (name-matched: Warehouse.Api.psm1)
 R 195:27 calls Warehouse.Inventory::Get-PickingRoute -> ForEach-Object
+R 195:45 calls Warehouse.Inventory::Get-PickingRoute -> Location
 R 196:15 calls Warehouse.Inventory::Get-PickingRoute -> Sort-Object
 R 200:9 calls Warehouse.Inventory::Get-PickingRoute -> ForEach-Object
 R 215:14 calls Warehouse.Inventory::Get-ReorderReport -> Get-WarehouseStock (name-matched: Warehouse.Api.psm1)

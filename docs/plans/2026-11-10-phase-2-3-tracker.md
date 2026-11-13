@@ -581,6 +581,14 @@ From `rules.md` and the two messages:
           `tests/classes.rs`. Corpus: 82 -> 103 symbols, 261 relations
           unchanged. Repository snapshot (PowerShell, 817 relations): no
           classes, no changes. Dead code 123 -> 123.
+    - [x] PowerShell constructor calls: `[Location]::new(…)` and
+          `New-Object Location` (`-TypeName` too) give `calls Location`,
+          and only a `class` can be the target. A dotted or generic type
+          (.NET's), another static member (`[math]::Abs`) and `New-Object
+          -ComObject` give none. Test: `tests/constructor_calls.rs`.
+          Corpus: 261 -> 266 relations, the 5 constructions of `Location`
+          and `CycleCount`. Repository snapshot (PowerShell, 817
+          relations): no changes. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its
