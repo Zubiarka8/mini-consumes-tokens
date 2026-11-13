@@ -752,6 +752,20 @@ From `rules.md` and the two messages:
           lambdas, no changes. Repository snapshot (C#, with `init
           --force`): no changes. Dead code 123 -> 123. C# scores 84% ->
           87% and 83% -> 94%.
+    - [x] C# `using` aliases: `using Alias = Target;` imports no symbol
+          called like the alias (the namespace import only; a tuple target
+          nothing), `new Alias()` constructs the target (external under
+          `System`/`Microsoft`) and `Alias.M()` is qualified by and
+          references the target. `new M.Alias()` and a `global using`
+          alias are left as before. The alias as a `type_alias` symbol
+          is a model limit: a prototype turned a resolved `new Money()`
+          in another file ambiguous, since a symbol cannot be kept out of
+          other files' name matching (#446). Test:
+          `tests/using_alias.rs`. Corpus 751 -> 749 relations (wrong
+          `imports Money`, `imports Table` gone; `new Table()` calls
+          `List`, external). Repository snapshot (C#, with `init
+          --force`): 767 -> 764, the same 3 edges plus the depgraph
+          fixture's `imports M`; no new resolution. Dead code 123 -> 123.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
