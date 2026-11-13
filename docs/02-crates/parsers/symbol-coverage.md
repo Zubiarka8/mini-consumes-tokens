@@ -467,7 +467,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Infix and operator calls (`a + b`) | Not implemented | [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L16) describe a known limit, not an explicit decision to omit them |
 | One-line member without separator (`class A { fun f() {} }`) | Worked around | tree-sitter-kotlin-ng reports a missing separator; the parser reparses with a `;` in the blank before each such `}` and keeps the result only when it is clean ([`reparse_with_terminated_lines`](../../../crates/mct-lang-kotlin/src/lib.rs)) |
 | Duplicate import names | Bug | path/stem or symbol import evidence can leave an extra external entry; not every import produces two rows |
-| An annotated `annotation class` or `enum class` (`@DslMarker annotation class D`, `@X\nenum class E`) has no symbol | Grammar | tree-sitter-kotlin-ng 1.1.0 parses `annotation`/`enum` there as an identifier of an annotated infix expression, with no syntax error; other modifiers (`data`, `open`, `sealed`, `inline`) parse as declarations |
+| A file-level annotated `annotation class` or one-entry `enum class` (`@DslMarker annotation class D`, `@X enum class E { A }`) | Worked around | tree-sitter-kotlin-ng 1.1.0 parses `annotation`/`enum` there as an identifier of an annotated infix expression, with no syntax error. The parser reparses with those annotations blanked ([`reparse_annotated_soft_modifiers`](../../../crates/mct-lang-kotlin/src/lib.rs)), so the class is indexed from its modifier on; its own annotations give no relation |
 
 ### C#
 

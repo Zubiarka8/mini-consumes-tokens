@@ -396,11 +396,14 @@ From `rules.md` and the two messages:
           959 (14 resolved, 54 unresolved, 43 of them `@Override`, which
           nothing in the repository declares), Kotlin 789 → 792
           (3 unresolved). Dead code unchanged at 122.
-    - [ ] Kotlin: `@X annotation class D` and `@X enum class E` have no
-          symbol, because tree-sitter-kotlin-ng 1.1.0 parses them as an
-          annotated infix expression without a syntax error (the corpus's
-          `PricingDsl` is lost this way). Needs a targeted recovery like
-          the one-line-member reparse.
+    - [x] Kotlin: `@X annotation class D` and `@X enum class E { A }` at
+          file level had no symbol, because tree-sitter-kotlin-ng 1.1.0
+          parses them as an annotated infix expression without a syntax
+          error. The parser reparses with those annotations blanked (same
+          offsets), so the class is indexed; its own annotations give no
+          relation. Corpus: `PricingDsl` indexed (symbols 483 → 484).
+          Snapshot: both `@PricingDsl` references unresolved → resolved;
+          dead code unchanged at 122.
     - [x] C++ `new T(…)`, `new T`, `new ns::T{}` and `new T<U>(…)` give
           `calls T`, as `T()` does; `new std::T` is external and
           `new int[4]` gives nothing. No change on the snapshot (538 C++
