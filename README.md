@@ -6,7 +6,7 @@ A local MCP server that indexes your code into a symbol graph. Your AI coding ag
 
 ![CI](https://img.shields.io/github/actions/workflow/status/Zubiarka8/mini-consumes-tokens/ci.yml?branch=main&label=CI)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Version](https://img.shields.io/badge/version-0.3.1-informational.svg)
+![Version](https://img.shields.io/badge/version-0.3.2-informational.svg)
 
 [Quick start](#how-to-install) · [Why install it](#why-install-it) · [FAQ](#faq) · [Documentation](#documentation) · [Commands](COMMANDS.md) · [Changelog](CHANGELOG.md) · [Website](https://zubiarka8.github.io/mini-consumes-tokens/)
 
