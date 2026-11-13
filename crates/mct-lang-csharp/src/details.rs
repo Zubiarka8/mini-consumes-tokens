@@ -70,6 +70,28 @@ pub(crate) fn member_detail(node: Node, symbol: SymbolId, source: &str) -> Symbo
     }
 }
 
+/// A record's positional parameter, a generated public property: its type
+/// and name (`int Y`), without attributes or default.
+pub(crate) fn positional_property_detail(
+    param: Node,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let name = param.child_by_field_name("name").map(|n| slice(n, source));
+    let ty = param.child_by_field_name("type").map(|t| slice(t, source));
+    let signature = match (ty, name) {
+        (Some(ty), Some(name)) => Some(format!("{ty} {name}")),
+        (None, Some(name)) => Some(name.to_string()),
+        _ => None,
+    };
+    SymbolDetail {
+        symbol,
+        signature,
+        visibility: Some(Visibility::Public),
+        ..Default::default()
+    }
+}
+
 /// One declarator of a field or event field declaration (`int a, b;`):
 /// the shared header up to the type, then the declarator's name.
 pub(crate) fn field_detail(
