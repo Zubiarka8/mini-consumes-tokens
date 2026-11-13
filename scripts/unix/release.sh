@@ -21,7 +21,7 @@
 #          only, no tag, no release.
 # publish  Fetches origin/main, checks its version, CHANGELOG section and CI,
 #          tags it v<x.y.z>, pushes the tag and waits for the Release run,
-#          then checks the release has its five archives. Pushing the tag is
+#          then checks the release has its twelve assets. Pushing the tag is
 #          what publishes the GitHub Release.
 #
 # Needs gh, authenticated, for dry-run and publish. Exit status: 0 ok,
@@ -164,8 +164,8 @@ publish() {
 
   local assets
   assets="$(gh release view "$tag" -R "$REPO" --json assets --jq '.assets | length')"
-  [ "$assets" = 5 ] || fail "release $tag has $assets archive(s), expected 5"
-  echo "published https://github.com/$REPO/releases/tag/$tag with 5 archives"
+  [ "$assets" = 12 ] || fail "release $tag has $assets asset(s), expected 12"
+  echo "published https://github.com/$REPO/releases/tag/$tag with 12 assets"
 }
 
 case "$cmd" in
