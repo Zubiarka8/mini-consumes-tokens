@@ -178,7 +178,7 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 90% | 29 | 85% | 10 | 0 |
-| JS/TS | 86% | 33 | 80% | 10 | 1 |
+| JS/TS | 88% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 80% | 35 | 65% | 10 | 0 |
 | C# | 84% | 34 | 55% | 10 | 0 |
@@ -274,7 +274,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 94% | 100% | 50% | 100% | 80% | 100% | 83% |
-| JS/TS | 81% | 90% | 67% | 100% | 80% | 50% | 100% |
+| JS/TS | 88% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 96% | 50% | 88% | 60% | 25% | 67% |
@@ -379,8 +379,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Source | Grammar node | Indexed as |
 |---|---|---|
-| `function f`, generators | `function_declaration`, `generator_function_declaration` | `function` |
-| `const f = () => …`, `= function …` | `variable_declarator` + `arrow_function`/`function_expression` | `function` |
+| `function f`, generators | `function_declaration`, `generator_function_declaration` | `function`; inside a function or method body, with that function or method as parent |
+| `const f = () => …`, `= function …` | `variable_declarator` + `arrow_function`/`function_expression` | `function`; inside a function or method body, with that function or method as parent |
 | `class` / `abstract class` | `class_declaration`, `abstract_class_declaration` | `class` |
 | class methods, `constructor`, `get`/`set` | `method_definition` | `method` |
 | class fields (`#private`, `static`) | `field_definition`, `public_field_definition` | `field`; an arrow-function value becomes `method` |
@@ -904,7 +904,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, also `module.exports.x = function`
-- [~] Nested function (named, inside a function): `function` with no parent
+- [x] Nested function (named, inside a function): `function` owned by the enclosing function or method
 - [x] Lambda / closure assigned to a name: arrow and function expressions become `function`; a class-field arrow becomes `method`
 - [x] Method: `method`
 - [x] Constructor: `constructor` as `method`
