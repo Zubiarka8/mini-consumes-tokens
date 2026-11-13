@@ -1,4 +1,4 @@
-# language=php files=6 symbols=418 relations=1042 name_matched_across_files=488
+# language=php files=6 symbols=420 relations=1042 name_matched_across_files=488
 
 == library/Domain.php (492 lines)
 S 1-492 module Domain
@@ -1251,6 +1251,8 @@ S 265-274 method Application::register
 S 276-290 method Application::run
 S 293-306 function seed
 S 308-344 function bootstrap
+S 346-346 variable clock
+S 347-347 variable out
 S 349-356 function main
 S 358-358 function format
 R 15:1 imports console -> Support (name-matched: library/Support.php)

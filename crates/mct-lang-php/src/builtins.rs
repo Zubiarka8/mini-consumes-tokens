@@ -335,6 +335,23 @@ pub(crate) fn is_core_function(name: &str) -> bool {
         .is_ok()
 }
 
+/// Whether `$name` is one of PHP's superglobals, which every scope sees and
+/// no script declares. Variable names are case-sensitive.
+pub(crate) fn is_superglobal(name: &str) -> bool {
+    matches!(
+        name,
+        "GLOBALS"
+            | "_SERVER"
+            | "_GET"
+            | "_POST"
+            | "_FILES"
+            | "_COOKIE"
+            | "_SESSION"
+            | "_REQUEST"
+            | "_ENV"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
