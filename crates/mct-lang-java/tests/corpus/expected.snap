@@ -1,4 +1,4 @@
-# language=java files=6 symbols=432 relations=1046 name_matched_across_files=149
+# language=java files=6 symbols=432 relations=1055 name_matched_across_files=149
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -426,6 +426,7 @@ R 100:29 calls StockLevel::release -> max (name-matched: com/example/warehouse/m
 R 104:13 calls StockLevel::consume -> release
 R 116:31 calls Reservation::isExpired -> isAfter
 R 121:53 extends Inventory::OutOfStockException -> RuntimeException
+R 127:13 calls OutOfStockException::OutOfStockException -> RuntimeException
 R 152:24 calls Listener::noop -> Listener
 R 153:18 references Listener::stockReserved -> Override
 R 154:29 overrides Listener::stockReserved -> stockReserved
@@ -694,7 +695,9 @@ R 95:28 calls RateSource::withFallback -> getLogger
 R 95:85 calls RateSource::withFallback -> getMessage
 R 96:37 calls RateSource::withFallback -> eurRates
 R 103:39 extends ExchangeRates::RateSourceException -> Exception
+R 105:13 calls RateSourceException::RateSourceException -> Exception
 R 110:40 extends ExchangeRates::UnknownRateException -> IllegalStateException
+R 112:13 calls UnknownRateException::UnknownRateException -> IllegalStateException
 R 121:6 references ExchangeRates::FixedRates -> ThreadSafe
 R 122:39 implements ExchangeRates::FixedRates -> ExchangeRates
 R 126:54 calls FixedRates::FixedRates -> EnumMap
@@ -1013,7 +1016,9 @@ R 339:26 calls Range::contains -> compareTo
 R 339:55 calls Range::contains -> compareTo
 R 343:24 calls Range::width -> minus
 R 348:59 extends Money::CurrencyMismatchException -> IllegalArgumentException
+R 353:13 calls CurrencyMismatchException::CurrencyMismatchException -> IllegalArgumentException
 R 368:54 extends Money::MoneyFormatException -> IllegalArgumentException
+R 370:13 calls MoneyFormatException::MoneyFormatException -> IllegalArgumentException
 
 == com/example/warehouse/order/Order.java (336 lines)
 S 1-336 module Order
@@ -1191,6 +1196,7 @@ R 149:101 implements Order::Shipped -> OrderEvent
 R 152:85 implements Order::Invoiced -> OrderEvent
 R 155:79 implements Order::Cancelled -> OrderEvent
 R 159:66 extends Order::IllegalTransitionException -> IllegalStateException
+R 164:13 calls IllegalTransitionException::IllegalTransitionException -> IllegalStateException
 R 186:42 calls Order -> ArrayList
 R 187:50 calls Order -> ArrayList
 R 200:19 calls Order::place -> isEmpty
@@ -1380,7 +1386,9 @@ R 57:18 overrides Repository::close -> close
 R 61:6 references Repository::Transactional -> Retention
 R 62:6 references Repository::Transactional -> Target
 R 70:37 extends Repository::NotFoundException -> RuntimeException
+R 72:13 calls NotFoundException::NotFoundException -> RuntimeException
 R 77:40 extends Repository::PersistenceException -> RuntimeException
+R 81:13 calls PersistenceException::PersistenceException -> RuntimeException
 R 81:25 calls PersistenceException::PersistenceException -> getMessage
 R 93:36 calls Page::of -> size
 R 94:24 calls Page::of -> Page
@@ -1446,6 +1454,7 @@ R 210:27 calls Jdbc::update -> PersistenceException
 R 215:38 calls Jdbc::prepare -> prepareStatement
 R 217:20 calls Jdbc::prepare -> setObject
 R 224:32 extends Repository::Orders -> Jdbc
+R 234:13 calls Orders::Orders -> Jdbc
 R 238:10 references Orders::mapper -> Override
 R 239:36 overrides Orders::mapper -> mapper
 R 241:27 calls Orders::mapper -> UnsupportedOperationException
