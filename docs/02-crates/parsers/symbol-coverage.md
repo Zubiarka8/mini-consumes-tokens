@@ -673,13 +673,14 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `. .\lib.ps1`, `Import-Module X` | `command` | `imports` (path and stem) |
 | any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls`; only a `function` can be its target, never a method of the same name |
 | `[Location]::new(…)`, `New-Object Location` | `invokation_expression`, `type_literal`; `command` | `calls Location`, whose target must be a `class`; none for a dotted or generic type, another static member or `New-Object -ComObject` |
+| any other `[T]` (`[StorageZone]::Frozen`, `[Location] $x`, `[OutputType([CycleCount])]`) | `type_literal` | `references T` when this file declares one class or enum `T` (any case), pinned to this file and that kind; none otherwise |
 | simple bare identifier comma lists (`Write-Output alpha,beta`) | `command_elements`, `generic_token` | accepted through [targeted recovery](../../../crates/mct-lang-powershell/src/lib.rs#L117); extraction retains original text and locations |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
-| `[Type]` uses | Not implemented | a type literal other than `[T]::new(…)` (`[StorageZone]::Frozen`, `[Location] $x`) is no relation |
+| `[T]` of a class from another file | Not implemented | a script class is visible elsewhere only through `using module`, which the parser does not read; `[string]` and other .NET types give no relation |
 | `: base(…)` constructors, `??`, ternary | Grammar | tree-sitter-powershell 0.26.4 rejects these forms; simple bare identifier comma lists are recovered, not an unconditional gap (`errors/REGISTRY.md` ERR-002) |
 | Variables inside functions, computed import paths | By design | explicit static/scope limits in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L16) |
 
@@ -1460,7 +1461,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a class or enum named only in a type literal other than `[X]::new(…)` (`[StorageZone]::Frozen`, `[Location] $x`) gets no reference
+- [~] Every use: `find_references`: a type literal (`[StorageZone]::Frozen`, `[Location] $x`) references a class or enum of its own file; one of another file (through `using module`) gets no reference
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gap as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 

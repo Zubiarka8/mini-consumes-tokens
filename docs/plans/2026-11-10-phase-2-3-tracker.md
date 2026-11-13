@@ -652,6 +652,17 @@ From `rules.md` and the two messages:
           (Rust, 96923 relations, with `init --force`): 136 `implements`
           change owner (126 to a struct, 10 to an enum), no target or
           resolution changes. Dead code 123 -> 123.
+    - [x] PowerShell type literals: a `[T]` other than `[T]::new()`'s
+          (`[StorageZone]::Frozen`, `[Location] $x`, `[OutputType([T])]`,
+          a method's return and parameter types) is `references T` when
+          this file declares one class or enum `T` (any case), pinned to
+          this file and to that kind, so a method named like the type is
+          never a candidate. A script class is visible in another file
+          only through `using module`, so other names (`[string]`,
+          `[IO.File]`) give no relation. Test: `tests/type_literals.rs`.
+          Corpus: 266 -> 274 relations. Repository snapshot (PowerShell,
+          with `init --force`): 822 -> 830 relations, all 8 resolved.
+          Dead code 123 -> 123.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
