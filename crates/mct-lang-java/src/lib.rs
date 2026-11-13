@@ -580,6 +580,27 @@ impl<'a> Walker<'a> {
                     self.supertypes.pop();
                 }
             }
+            // `this(…)` / `super(…)` call a constructor of the enclosing class
+            // or of its superclass: a method named after it, declared in it.
+            "explicit_constructor_invocation" => {
+                let target = match node.child_by_field_name("constructor").map(|c| c.kind()) {
+                    Some("this") => type_name.map(|t| (t.to_string(), false)),
+                    Some("super") => self.superclass_of_enclosing(node),
+                    _ => None,
+                };
+                // The target is a constructor, declared in that class.
+                if let Some((name, external)) = target {
+                    self.relation_targets.push(RelationTarget {
+                        relation: self.relations.len(),
+                        qualifier: (!external).then(|| name.clone()),
+                        kind: (!external).then_some(SymbolKind::Method),
+                        external,
+                        ..Default::default()
+                    });
+                    self.push_relation(owner, RelationKind::Calls, name, location(node));
+                }
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             // An initializer block has its own locals, like a method body.
             "static_initializer" | "block"
                 if node.kind() == "static_initializer"
@@ -592,6 +613,44 @@ impl<'a> Walker<'a> {
             }
             _ => self.visit_children(node, owner, type_name, depth + 1),
         }
+    }
+
+    /// The superclass of the class declaration around `node` and whether it
+    /// is outside the repository: `Basket` for `extends store.Basket<T>`,
+    /// `Object` (external) with no `extends`, external for a name bound by
+    /// a single-type JDK import. `None` outside a class declaration.
+    fn superclass_of_enclosing(&self, node: Node) -> Option<(String, bool)> {
+        let mut class = node.parent();
+        while let Some(n) = class {
+            match n.kind() {
+                "class_declaration" => break,
+                "class_body" | "constructor_body" | "constructor_declaration" => {
+                    class = n.parent();
+                }
+                _ => return None,
+            }
+        }
+        let class = class?;
+        let Some(superclass) = class.child_by_field_name("superclass") else {
+            return Some(("Object".to_string(), true));
+        };
+        let mut ty = superclass.named_child(0)?;
+        if ty.kind() == "generic_type" {
+            ty = ty.named_child(0)?;
+        }
+        let unqualified = ty.kind() == "type_identifier";
+        if ty.kind() == "scoped_type_identifier" {
+            let mut cursor = ty.walk();
+            ty = ty
+                .named_children(&mut cursor)
+                .filter(|c| c.kind() == "type_identifier")
+                .last()?;
+        }
+        if ty.kind() != "type_identifier" {
+            return None;
+        }
+        let name = text(ty, self.source);
+        Some((name.to_string(), unqualified && self.jdk.is_jdk(name)))
     }
 
     /// The direct supertypes `node`'s header names (`extends`, `implements`,
