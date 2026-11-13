@@ -206,7 +206,7 @@ fn plain_javascript_class_fields_and_jsx_use_the_js_grammar() {
 }
 
 #[test]
-fn object_literal_methods_and_nested_functions_are_parentless_functions() {
+fn object_literal_methods_are_parentless_and_nested_functions_are_owned() {
     // An object literal is not a type: its methods (getters included) are
     // functions, as in a CommonJS `module.exports = { … }`.
     assert_eq!(parent("inventory.ts", "levels", Function), None);
@@ -214,10 +214,16 @@ fn object_literal_methods_and_nested_functions_are_parentless_functions() {
     assert_eq!(parent("seed.cjs", "sent", Function), None);
     // Calls inside them stay theirs.
     corpus().relation("inventory.ts", "levels", Calls, "parseLocation");
-    // Nested functions are functions too, never members of the enclosing
-    // class or function.
-    assert_eq!(parent("order.ts", "waitedMinutes", Function), None);
-    assert_eq!(parent("OrderTable.tsx", "showSlip", Function), None);
+    // Nested functions are functions too, never methods: the enclosing
+    // function or method owns them.
+    assert_eq!(
+        parent("order.ts", "waitedMinutes", Function),
+        Some("stalePayments")
+    );
+    assert_eq!(
+        parent("OrderTable.tsx", "showSlip", Function),
+        Some("OrderTable")
+    );
     let c = corpus();
     assert!(c
         .files
