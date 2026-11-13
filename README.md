@@ -116,4 +116,6 @@ See [Troubleshooting](docs/INSTALL.md#troubleshooting).
 | [Security](SECURITY.md) | How to report a vulnerability privately |
 | [Third-party notices](THIRD_PARTY_NOTICES.md) | Licenses of bundled components |
 
-mini-consumes-tokens is released under the [Apache License 2.0](LICENSE). A star on [GitHub](https://github.com/Zubiarka8/mini-consumes-tokens) helps other people find it.
+mini-consumes-tokens was started in September 2026 by Arkaitz Zubizarreta (zubiarka8). Initial versions were released under MIT or Apache License 2.0; the current version is released under the [Apache License 2.0](LICENSE).
+
+A star on [GitHub](https://github.com/Zubiarka8/mini-consumes-tokens) helps other people find it.
