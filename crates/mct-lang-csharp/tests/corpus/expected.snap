@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=476 relations=751 name_matched_across_files=187
+# language=csharp files=6 symbols=476 relations=749 name_matched_across_files=187
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -312,7 +312,6 @@ R 8:1 imports Models -> Linq
 R 9:1 imports Models -> Warehouse.Errors (name-matched: Warehouse/Errors.cs)
 R 9:1 imports Models -> Errors (name-matched: Warehouse/Errors.cs)
 R 10:1 imports Models -> System.Decimal
-R 10:1 imports Models -> Money
 R 36:42 calls Sku::Sku -> ToUpperInvariant
 R 36:26 calls Sku::Sku -> NotBlank (name-matched: Warehouse/Errors.cs)
 R 36:20 references Sku::Sku -> Guard (name-matched: Warehouse/Errors.cs)
@@ -727,7 +726,6 @@ R 13:1 imports Reports -> Warehouse.Models (name-matched: Warehouse/Models.cs)
 R 13:1 imports Reports -> Models (name-matched: Warehouse/Models.cs)
 R 14:1 imports Reports -> Warehouse.Services (name-matched: Warehouse/Services.cs)
 R 14:1 imports Reports -> Services (name-matched: Warehouse/Services.cs)
-R 15:1 imports Reports -> Table
 R 20:6 references Warehouse.Reporting::ColumnAttribute -> AttributeUsageAttribute
 R 21:73 extends Warehouse.Reporting::ColumnAttribute -> Attribute
 R 45:56 implements Warehouse.Reporting::InventoryRow -> IRow
@@ -743,7 +741,7 @@ R 52:84 calls BacklogRow::Cells -> ToString
 R 52:102 calls BacklogRow::Cells -> ToString
 R 52:120 calls BacklogRow::Cells -> ToString
 R 69:36 calls Report::RenderWith -> StringWriter
-R 70:28 calls Report::RenderWith -> Table
+R 70:28 calls Report::RenderWith -> List
 R 71:18 calls Report::RenderWith -> AddRange
 R 71:34 calls Report::RenderWith -> Select
 R 71:27 calls Report::RenderWith -> Rows
