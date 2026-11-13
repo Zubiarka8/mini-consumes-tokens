@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 68% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 70% | 35 | 65% | 10 | 0 |
-| C# | 76% | 34 | 55% | 10 | 0 |
+| C# | 79% | 34 | 55% | 10 | 0 |
 | C++ | 79% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 81% | 70% | 17% | 89% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 79% | 33% | 81% | 80% | 50% | 50% |
-| C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
+| C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 42% | 80% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
@@ -498,7 +498,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Record positional parameters | Not implemented | no arm for the record's `parameter_list` |
 | Static class used as a qualifier (`Helpers.X()`) | Not implemented | the qualifier of a member call is not a reference |
 | Lambdas, locals | Not implemented | no arm for `lambda_expression` or `local_declaration_statement` |
-| Base-constructor call, `using Alias = Type` symbol | Not implemented | base initializer arguments are traversed without a call to the base; alias directives emit imports only |
+| `using Alias = Type` symbol | Not implemented | alias directives emit imports only |
 | `.csproj`/NuGet dependencies | By design | explicitly excluded in [Dependency detection](../../../internal/checklist.md#dependency-manifest-detection) |
 
 ### C++
@@ -1113,7 +1113,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls
 - [x] Constructor call (`new X()` / `X()`): `calls X`
-- [ ] Super / base constructor call: `: base()` gives no call to the base constructor; calls inside its arguments can still be traversed
+- [x] Super / base constructor call: `: this(…)` and `: base(…)` give `calls` restricted to a constructor declared in the enclosing type or in the base list's first entry; `: base()` with no base list (`object`) is external
 - [x] Imports: a plain `using System;` emits repeated target names; alias imports can emit distinct path and alias names
 - [~] Class extends class: heuristic: the first base is `extends` unless it is named like `IFoo`; the rest are `implements`
 - [~] Implements interface / trait: heuristic, as above
