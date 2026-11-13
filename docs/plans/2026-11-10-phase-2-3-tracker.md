@@ -389,6 +389,14 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Kotlin `: Base(4)` in a class or object header and
+          `constructor(…) : super(…)` give `calls Base` from the class (a
+          Kotlin constructor is no symbol), restricted to a class; `super(…)`
+          only when the header names one supertype without `()`, and to
+          `Any`, external, when it names none. `this(…)` gives nothing (the
+          class calling itself). On the snapshot: 14 new Kotlin relations
+          (10 resolved to sealed-class parents, 4 unresolved stdlib
+          exceptions); dead code unchanged at 122.
     - [x] C# `: this(…)` and `: base(…)` give `calls`, restricted to a
           constructor declared in the enclosing type or in the base list's
           first entry (an interface there has none, so nothing matches);
