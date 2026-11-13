@@ -20,6 +20,7 @@ use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod literals;
 mod receivers;
 mod stdlib;
 
@@ -86,7 +87,9 @@ impl LanguageParser for GoParser {
             walker.push_symbol(pkg.clone(), SymbolKind::Module, file_loc, None);
         }
         walker.visit_children(root, file_module_id, package_name.as_deref(), 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 

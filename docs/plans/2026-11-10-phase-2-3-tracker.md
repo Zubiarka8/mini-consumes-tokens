@@ -868,6 +868,16 @@ From `rules.md` and the two messages:
           still 1314; relations unchanged (24397); database file 39,493,632
           bytes either side. Dead code 123 -> 123. JS/TS feature score 80%
           -> 90%; area Search 80% -> 100%.
+    - [x] Go string literals: each interpreted or raw string goes through
+          the shared prose filter into `ParsedFile::literals`, through
+          `mct_tree_sitter::collect_literals`; escapes are resolved unless
+          the string is raw. A struct field tag (`json:"id"`) is metadata,
+          not a message, and is skipped. Test: `tests/literals.rs` (parser
+          and `search_literals`). Corpus: no changes. Repository snapshot
+          (with `init --force`): 0 -> 99 Go literals, other languages
+          unchanged; Go relations unchanged (1328, no resolution changes);
+          database file 39,493,632 bytes either side. Dead code 123 -> 123.
+          Go feature score 70% -> 80%; area Search 70% -> 90%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
