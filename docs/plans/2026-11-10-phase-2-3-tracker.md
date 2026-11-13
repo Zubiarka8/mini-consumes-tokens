@@ -382,6 +382,13 @@ From `rules.md` and the two messages:
         recomputes them from the checklists on every test run.
   - [ ] Re-probe the cells still dated 2026-10-19 (`71ec6d0`), then the
         gaps by language group.
+    - [x] Java supertypes: `interface B extends A` gives an `extends`
+          relation, and every supertype relation targets a type (`class` for
+          a class's `extends`, `interface` otherwise), so a same-named
+          constructor or method is no longer a candidate. On the snapshot:
+          relations 890 → 891, `Repository.java:224 Jdbc` ambiguous →
+          resolved to the class, dead code unchanged at 122. Python, Go,
+          Java and Rust cells re-probed; the others are still to do.
 - [ ] Inherited methods, using supertype data.
 - [~] Members of an anonymous class or an enum constant's body are recorded
       under the enclosing type (Java, Kotlin), which leaves their overrides

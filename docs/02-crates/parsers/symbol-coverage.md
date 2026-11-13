@@ -179,7 +179,7 @@ round to the nearest whole percent, with halves rounded up.
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 69% | 29 | 85% | 10 | 0 |
 | JS/TS | 62% | 33 | 80% | 10 | 1 |
-| Java | 72% | 27 | 65% | 10 | 0 |
+| Java | 76% | 27 | 65% | 10 | 0 |
 | Kotlin | 70% | 33 | 65% | 10 | 2 |
 | C# | 76% | 34 | 55% | 10 | 0 |
 | C++ | 77% | 28 | 50% | 10 | 0 |
@@ -275,7 +275,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
 | JS/TS | 69% | 70% | 17% | 78% | 80% | 50% | 100% |
-| Java | 80% | 90% | 38% | 63% | 80% | 25% | 67% |
+| Java | 80% | 90% | 38% | 75% | 80% | 25% | 67% |
 | Kotlin | 72% | 79% | 33% | 83% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 42% | 70% | 60% | 25% | 50% |
@@ -421,7 +421,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `enum` and its constants | `enum_declaration`, `enum_constant` | `enum`; constants as `field` |
 | methods and constructors | `method_declaration`, `constructor_declaration` | `method`, one row per overload |
 | fields | `field_declaration` | `field` |
-| `extends`, `implements` | superclass / interfaces of `class_declaration` | `extends`, `implements` |
+| `extends`, `implements` | superclass / interfaces of `class_declaration`, `extends_interfaces` of `interface_declaration` | `extends`, `implements`; the target is a `class` for a class's `extends` and an `interface` otherwise, so a same-named constructor or method is never a candidate |
 | `import a.b.C`, `import static`, `.*` | `import_declaration`, `scoped_identifier`, `asterisk` | `imports` (each emitted twice) |
 | `m()`, `obj.m()`, `new X()` | `method_invocation`, `object_creation_expression` | `calls` |
 | the target of `m()`, `obj.m()` | `method_invocation` | only a `method` can be its target: Java cannot invoke a field, so a same-named field is never a candidate |
@@ -431,9 +431,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| `interface B extends A` | Not implemented | `extends_interfaces` is not read, while class `extends`/`implements` are |
-| Anonymous class in a field initializer | Not implemented | the initializer is not traversed, so its members are skipped |
-| Anonymous-class methods inside a method | Bug | generic traversal assigns them to the enclosing class instead of an anonymous owner |
+| Anonymous-class methods | Bug | in a method or a field initializer, generic traversal assigns them to the enclosing class instead of an anonymous owner (waiting on the naming decision, see the phase 2–3 tracker) |
 | Annotations as relations, lambdas, `super()`/`this()` | Not implemented | no arm for `annotation`, `lambda_expression` or `explicit_constructor_invocation` |
 | Separate file/type import evidence | By design | [push_type_import](../../../crates/mct-lang-java/src/lib.rs#L325) explicitly targets the declaring file module, alongside the imported symbol; repeated names alone are not a defect |
 | Dead code only checks types | By design | methods are explicitly excluded in [dead_code.rs](../../../crates/mct-index/src/dead_code.rs#L7) |
@@ -961,7 +959,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Enum members: `field`
 - [x] Record / data class: `record` is a `class`; each component is its implicit accessor `method`
 - [x] Nested / inner class: static and inner
-- [~] Anonymous class: inside a method, its methods attach to the enclosing class; in a field initializer they have no symbol
+- [~] Anonymous class: in a method or a field initializer, its methods attach to the enclosing class
 - [~] Module / namespace / package: file `module`; `package` has no symbol
 
 **Fields, constants and variables**
@@ -979,7 +977,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Imports: repeated target names can carry distinct file/type resolution evidence; repetition alone is not a parser defect
 - [x] Class extends class
 - [x] Implements interface / trait
-- [ ] Interface extends interface / supertrait: `interface B extends A` gives no relation
+- [x] Interface extends interface / supertrait: `interface B extends A` → `extends`, to an `interface` only
 - [ ] Decorator / annotation / attribute: `@Entity`, `@Override` give no relation
 
 **Features: Search and lookup**

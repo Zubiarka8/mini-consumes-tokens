@@ -1,4 +1,4 @@
-# language=java files=6 symbols=432 relations=977 name_matched_across_files=145
+# language=java files=6 symbols=432 relations=978 name_matched_across_files=145
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -1323,6 +1323,7 @@ R 24:1 imports Repository -> Function
 R 24:1 imports Repository -> Function
 R 25:1 imports Repository -> DataSource
 R 25:1 imports Repository -> DataSource
+R 34:44 extends Repository -> AutoCloseable
 R 45:29 calls Repository::getById -> orElseThrow
 R 45:16 calls Repository::getById -> findById
 R 45:51 calls Repository::getById -> NotFoundException
