@@ -5,7 +5,7 @@ use mct_core::{
     SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{location, Supertype};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tree_sitter::Node;
 
 mod details;
@@ -59,6 +59,9 @@ pub(super) struct Walker<'a> {
     /// The class each enclosing class body `extends`, innermost last: what
     /// an `override` method there overrides (D8). Empty without `extends`.
     supertypes: Vec<Vec<Supertype>>,
+    /// The field each class accessor declared so far stands for, by class
+    /// and name: `set x()` after `get x()` adds to the same field.
+    accessors: HashMap<(String, String), SymbolId>,
 }
 
 impl<'a> Walker<'a> {
@@ -80,6 +83,7 @@ impl<'a> Walker<'a> {
             this_class: None,
             details: Vec::new(),
             supertypes: Vec::new(),
+            accessors: HashMap::new(),
         }
     }
 
@@ -225,6 +229,51 @@ impl<'a> Walker<'a> {
             .find(|s| s.id == owner)
             .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
             .map(|s| s.name.clone())
+    }
+
+    /// `get x()` / `set x()` of a class: one `field` `x`, as a TS property
+    /// is, declared by the first accessor and owning every accessor's body.
+    /// A later accessor of the same name only extends the field's span.
+    fn visit_accessor(&mut self, node: Node, class: &str, depth: u32) {
+        let Some(name_node) = node.child_by_field_name("name") else {
+            return;
+        };
+        let name = text(name_node, self.source).to_string();
+        let key = (class.to_string(), name.clone());
+        let id = match self.accessors.get(&key) {
+            Some(&id) => {
+                let end = location(node).end_line;
+                if let Some(field) = self.symbols.iter_mut().find(|s| s.id == id) {
+                    field.location.end_line = field.location.end_line.max(end);
+                }
+                id
+            }
+            None => {
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(node),
+                    Some(class.to_string()),
+                );
+                self.details
+                    .push(details::function_detail(node, node, id, self.source));
+                self.accessors.insert(key, id);
+                if is_override_in_class(node) {
+                    let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                    mct_tree_sitter::push_property_overrides(
+                        &mut self.relations,
+                        &mut self.relation_targets,
+                        id,
+                        text(name_node, self.source),
+                        location(name_node),
+                        &supertypes,
+                    );
+                }
+                id
+            }
+        };
+        self.push_decorators(node, id, depth);
+        self.visit_function_like_body(node, id, depth);
     }
 
     /// A constructor's parameter properties
@@ -631,6 +680,9 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 self.push_symbol(name, SymbolKind::Module, location(node), None);
                 self.visit_children(node, owner, type_name, depth + 1);
+            }
+            "method_definition" if type_name.is_some() && is_class_accessor(node) => {
+                self.visit_accessor(node, type_name.unwrap_or_default(), depth);
             }
             "method_definition" => {
                 let name = node
@@ -1338,6 +1390,17 @@ fn member_name<'a>(node: Node, source: &'a str) -> Option<&'a str> {
 /// left out, since the enclosing declaration's supertype isn't theirs.
 /// Whether a method or field is declared `override` directly in the body of
 /// a class declaration.
+/// `get x()` / `set x()` in a class body: an accessor of the property `x`.
+/// An object literal's accessor stays a function, as its methods do.
+fn is_class_accessor(method: Node) -> bool {
+    let in_class = method.parent().is_some_and(|p| p.kind() == "class_body");
+    let mut cursor = method.walk();
+    let accessor = method
+        .children(&mut cursor)
+        .any(|c| matches!(c.kind(), "get" | "set"));
+    in_class && accessor
+}
+
 fn is_override_in_class(method: Node) -> bool {
     let in_declaration = method
         .parent()
