@@ -275,7 +275,7 @@ impl FileGlobals {
 /// for an `index` file. `-` is written `_`, as the index compares a
 /// candidate's path with `-` read as `_`. `None` for `.`/`..` and an empty
 /// specifier.
-fn module_name(specifier: &str) -> Option<String> {
+pub(super) fn module_name(specifier: &str) -> Option<String> {
     let path = specifier.trim_matches(|c| c == '"' || c == '\'' || c == '`');
     let mut segments = path.rsplit('/').filter(|s| !s.is_empty());
     let mut last = segments.next()?;

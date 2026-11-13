@@ -38,6 +38,10 @@ pub(super) struct Walker<'a> {
     /// values that are not functions, patterns): a value use of one of these
     /// names reads the local, never the same-named function.
     bound: HashSet<String>,
+    /// Bare calls (`f()`) with no other evidence, by relation index, and
+    /// whether an enclosing local binds the name: [`Walker::finish`] targets
+    /// a call in this file when the name it reaches lies there.
+    bare_calls: Vec<(usize, bool)>,
     /// TS type parameters declared by the enclosing declarations: a type
     /// named like one of them is that parameter, not a type to record.
     generics: HashSet<String>,
@@ -68,6 +72,7 @@ impl<'a> Walker<'a> {
             next_id: 0,
             value_uses: Vec::new(),
             bound: HashSet::new(),
+            bare_calls: Vec::new(),
             generics: HashSet::new(),
             globals: FileGlobals::default(),
             local_types: receivers::Types::new(),
@@ -699,10 +704,13 @@ impl<'a> Walker<'a> {
                 {
                     self.push_module_import(owner, &spec, location(node));
                 }
+                let module = node
+                    .child_by_field_name("source")
+                    .and_then(|source| globals::module_name(text(source, self.source)));
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
                     if child.kind() == "import_clause" {
-                        self.visit_import_clause(child, owner);
+                        self.visit_import_clause(child, owner, module.as_deref());
                     }
                 }
             }
@@ -784,13 +792,19 @@ impl<'a> Walker<'a> {
 
     /// `calls f` for a callee written as a bare name, `f`.
     fn push_identifier_call(&mut self, function: Node, owner: SymbolId) {
+        let evidence = self.relation_targets.len();
         self.mark_global(function, false);
+        let name = text(function, self.source);
+        let index = self.relations.len();
         self.push_relation(
             owner,
             RelationKind::Calls,
-            text(function, self.source).to_string(),
+            name.to_string(),
             location(function),
         );
+        if self.relation_targets.len() == evidence && self.relations.len() > index {
+            self.bare_calls.push((index, self.bound.contains(name)));
+        }
     }
 
     /// `calls m` for a callee written as a member, `x.m`, with the
@@ -944,7 +958,11 @@ impl<'a> Walker<'a> {
 
     /// Keeps the value uses that name a function declared in this file,
     /// except a function's use of its own name (`setTimeout(tick)` inside
-    /// `tick`), which does not make it reachable.
+    /// `tick`), which does not make it reachable. Those, and the bare calls
+    /// naming a function or class the file declares outside any
+    /// type, reach this file's declaration: nothing nearer binds the name. A
+    /// bare call to a local reaches this file too, with no symbol, unless
+    /// the file also declares the name, which the local then shadows.
     pub(super) fn finish(mut self) -> ParsedFile {
         let functions: HashSet<String> = self
             .symbols
@@ -952,14 +970,39 @@ impl<'a> Walker<'a> {
             .filter(|s| s.kind == SymbolKind::Function)
             .map(|s| s.name.clone())
             .collect();
+        let file_level: HashSet<String> = self
+            .symbols
+            .iter()
+            .filter(|s| {
+                s.parent.is_none() && matches!(s.kind, SymbolKind::Function | SymbolKind::Class)
+            })
+            .map(|s| s.name.clone())
+            .collect();
+        let mut same_file: Vec<usize> = std::mem::take(&mut self.bare_calls)
+            .into_iter()
+            .filter(|&(i, local)| {
+                self.relations
+                    .get(i)
+                    .is_some_and(|r| file_level.contains(&r.to_name) != local)
+            })
+            .map(|(i, _)| i)
+            .collect();
         for (owner, name, loc) in std::mem::take(&mut self.value_uses) {
             let own_name = self
                 .symbols
                 .get(owner as usize)
                 .is_some_and(|s| s.name == name);
             if functions.contains(&name) && !own_name {
+                same_file.push(self.relations.len());
                 self.push_relation(owner, RelationKind::References, name, loc);
             }
+        }
+        for relation in same_file {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                path: Some(self.path.to_string()),
+                ..Default::default()
+            });
         }
         ParsedFile {
             symbols: self.symbols,
