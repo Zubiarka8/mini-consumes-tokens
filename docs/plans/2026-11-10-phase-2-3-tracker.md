@@ -389,6 +389,18 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Java and Kotlin annotations: `@Audited` on a declaration gives
+          `references Audited` from the annotated symbol, restricted to an
+          annotation type (Java `interface`, Kotlin `class`), as C#
+          attributes already did. On the snapshot: Java relations 891 →
+          959 (14 resolved, 54 unresolved, 43 of them `@Override`, which
+          nothing in the repository declares), Kotlin 789 → 792
+          (3 unresolved). Dead code unchanged at 122.
+    - [ ] Kotlin: `@X annotation class D` and `@X enum class E` have no
+          symbol, because tree-sitter-kotlin-ng 1.1.0 parses them as an
+          annotated infix expression without a syntax error (the corpus's
+          `PricingDsl` is lost this way). Needs a targeted recovery like
+          the one-line-member reparse.
     - [x] C++ `new T(…)`, `new T`, `new ns::T{}` and `new T<U>(…)` give
           `calls T`, as `T()` does; `new std::T` is external and
           `new int[4]` gives nothing. No change on the snapshot (538 C++

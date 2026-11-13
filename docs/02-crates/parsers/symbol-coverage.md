@@ -179,8 +179,8 @@ round to the nearest whole percent, with halves rounded up.
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 69% | 29 | 85% | 10 | 0 |
 | JS/TS | 65% | 33 | 80% | 10 | 1 |
-| Java | 76% | 27 | 65% | 10 | 0 |
-| Kotlin | 67% | 35 | 65% | 10 | 0 |
+| Java | 80% | 27 | 65% | 10 | 0 |
+| Kotlin | 70% | 35 | 65% | 10 | 0 |
 | C# | 76% | 34 | 55% | 10 | 0 |
 | C++ | 79% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
@@ -275,8 +275,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 70% | 17% | 78% | 80% | 50% | 100% |
-| Java | 80% | 90% | 38% | 75% | 80% | 25% | 67% |
-| Kotlin | 72% | 79% | 33% | 69% | 80% | 50% | 50% |
+| Java | 80% | 90% | 38% | 88% | 80% | 25% | 67% |
+| Kotlin | 72% | 79% | 33% | 81% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 42% | 80% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
@@ -421,6 +421,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | methods and constructors | `method_declaration`, `constructor_declaration` | `method`, one row per overload |
 | fields | `field_declaration` | `field` |
 | `extends`, `implements` | superclass / interfaces of `class_declaration`, `extends_interfaces` of `interface_declaration` | `extends`, `implements`; the target is a `class` for a class's `extends` and an `interface` otherwise, so a same-named constructor or method is never a candidate |
+| `@Audited`, `@a.b.Audited(…)` on a type, method, constructor or field | `marker_annotation`, `annotation` in `modifiers` | `references Audited` from the annotated symbol, to an `interface` only (annotation types are indexed as interfaces). `@Override` stays unresolved: nothing in the repository declares it |
 | `import a.b.C`, `import static`, `.*` | `import_declaration`, `scoped_identifier`, `asterisk` | `imports` (each emitted twice) |
 | `m()`, `obj.m()`, `new X()` | `method_invocation`, `object_creation_expression` | `calls` |
 | the target of `m()`, `obj.m()` | `method_invocation` | only a `method` can be its target: Java cannot invoke a field, so a same-named field is never a candidate |
@@ -431,7 +432,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Anonymous-class methods | Bug | in a method or a field initializer, generic traversal assigns them to the enclosing class instead of an anonymous owner (waiting on the naming decision, see the phase 2–3 tracker) |
-| Annotations as relations, lambdas, `super()`/`this()` | Not implemented | no arm for `annotation`, `lambda_expression` or `explicit_constructor_invocation` |
+| Lambdas, `super()`/`this()`, annotations on parameters and locals | Not implemented | no arm for `lambda_expression` or `explicit_constructor_invocation`; only declaration `modifiers` are read for annotations |
 | Separate file/type import evidence | By design | [push_type_import](../../../crates/mct-lang-java/src/lib.rs#L325) explicitly targets the declaring file module, alongside the imported symbol; repeated names alone are not a defect |
 | Dead code only checks types | By design | methods are explicitly excluded in [dead_code.rs](../../../crates/mct-index/src/dead_code.rs#L7) |
 | Maven/Gradle dependencies | By design | explicitly excluded in [Dependency detection](../../../internal/checklist.md#dependency-manifest-detection); the scope decision mentions Gradle's DSL |
@@ -449,6 +450,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `class C(val x: Int)` | `class_parameter` | `field` |
 | `enum class` entries | `enum_entry` | `field` |
 | `: Base()`, `: Iface` | `constructor_invocation`, `user_type` | `extends` to a `class` (with `()`); without `()`, `extends` to an `interface` from an interface, else `implements` |
+| `@Audited`, `@a.b.Audited`, `@field:Inject(…)` on a class, function or property | `annotation` in `modifiers` | `references Audited` from the annotated symbol, to a `class` only |
 | `import a.b.c`, `import … as x` | `import` | `imports` (alias when present) |
 | `f()`, `obj.m()` | `call_expression`, `navigation_expression` | `calls` |
 | the receiver of `x.m()` | `call_expression` + `navigation_expression` receiver | qualified by `x`'s declared type: a parameter or `val x: T` (`T?` and `List<T>` name `T` and `List`), `= T(…)` (a capitalized callee), `T(…).m()`, a class property or a `val`/`var` constructor property (`this.f.m()`). A capitalized name (`Money.of()`, an object or companion) is its own qualifier. `this.m()` is qualified by the enclosing class when its body declares `m`; otherwise it is left as before, since `m` may be inherited; inside a lambda `this` is not the class. A local without a proven type (`it`, a lambda or `for` variable, `val x = f()`), a call result, `this@Label` or any other expression is a member call: ambiguous even with one candidate. A lowercase name that is no local (a package, a top-level property) is left as before. Inherited and extension methods are not found through the qualifier, so such a call is unresolved |
@@ -465,6 +467,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Infix and operator calls (`a + b`) | Not implemented | [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L16) describe a known limit, not an explicit decision to omit them |
 | One-line member without separator (`class A { fun f() {} }`) | Worked around | tree-sitter-kotlin-ng reports a missing separator; the parser reparses with a `;` in the blank before each such `}` and keeps the result only when it is clean ([`reparse_with_terminated_lines`](../../../crates/mct-lang-kotlin/src/lib.rs)) |
 | Duplicate import names | Bug | path/stem or symbol import evidence can leave an extra external entry; not every import produces two rows |
+| An annotated `annotation class` or `enum class` (`@DslMarker annotation class D`, `@X\nenum class E`) has no symbol | Grammar | tree-sitter-kotlin-ng 1.1.0 parses `annotation`/`enum` there as an identifier of an annotated infix expression, with no syntax error; other modifiers (`data`, `open`, `sealed`, `inline`) parse as declarations |
 
 ### C#
 
@@ -979,7 +982,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Class extends class
 - [x] Implements interface / trait
 - [x] Interface extends interface / supertrait: `interface B extends A` → `extends`, to an `interface` only
-- [ ] Decorator / annotation / attribute: `@Entity`, `@Override` give no relation
+- [x] Decorator / annotation / attribute: `@Entity` → `references Entity`, to an annotation type only
 
 **Features: Search and lookup**
 
@@ -1047,7 +1050,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Class extends class: when the supertype has `()`
 - [x] Implements interface / trait: supertype without `()`
 - [x] Interface extends interface / supertrait: `interface B : A` → `extends`, to an `interface` only
-- [ ] Decorator / annotation / attribute: `@Marker` gives no relation to the annotation class
+- [x] Decorator / annotation / attribute: `@Marker` → `references Marker`, to a class only
 
 **Features: Search and lookup**
 

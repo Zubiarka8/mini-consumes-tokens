@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=483 relations=818 name_matched_across_files=113
+# language=kotlin files=5 symbols=483 relations=821 name_matched_across_files=113
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -922,6 +922,7 @@ R 7:1 imports Order -> Instant
 R 7:1 imports Order -> Instant
 R 8:1 imports Order -> UUID
 R 8:1 imports Order -> UUID
+R 16:2 references OrderId -> JvmInline
 R 18:18 overrides OrderId::toString -> toString
 R 18:45 calls OrderId::toString -> toString
 R 21:24 calls OrderId::random -> OrderId
@@ -1205,6 +1206,7 @@ R 88:63 calls CouponDiscount::discount -> zero (name-matched: money/Money.kt)
 R 90:18 overrides CouponDiscount::toString -> toString
 R 90:18 overrides CouponDiscount::toString -> toString
 R 93:84 calls Money::percentOfInt -> toBigDecimal
+R 104:2 references PricingBuilder -> PricingDsl
 R 106:25 calls Pricing -> mutableListOf
 R 107:48 calls Pricing -> emptyMap
 R 110:18 calls PricingBuilder::volume -> VolumeDiscount
@@ -1217,6 +1219,7 @@ R 116:34 calls PricingBuilder::loyalty -> mapOf
 R 120:18 calls PricingBuilder::coupon -> CouponDiscount
 R 128:9 calls PricingBuilder::build -> PricingEngine
 R 128:29 calls PricingBuilder::build -> reduceOrNull
+R 131:2 references VolumeBuilder -> PricingDsl
 R 133:31 calls Pricing -> mutableMapOf
 R 140:19 calls Pricing -> DiscountRule
 R 140:55 calls Pricing -> zero (name-matched: money/Money.kt)
