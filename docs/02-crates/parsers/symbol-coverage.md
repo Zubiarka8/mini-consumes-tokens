@@ -184,7 +184,7 @@ round to the nearest whole percent, with halves rounded up.
 | C# | 79% | 34 | 55% | 10 | 0 |
 | C++ | 86% | 28 | 50% | 10 | 0 |
 | Go | 75% | 18 | 60% | 10 | 0 |
-| PHP | 85% | 30 | 65% | 10 | 0 |
+| PHP | 88% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
 | PowerShell | 38% | 17 | 60% | 10 | 0 |
@@ -280,7 +280,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
-| PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
+| PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
 | PowerShell | 42% | 25% | 25% | 67% | 80% | 50% | 33% |
@@ -589,6 +589,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `const` top-level and in types | `const_declaration` | `constant` |
 | `case` in an enum | `enum_case` | `field` |
 | `$f = function () {}`, `fn() =>` | `assignment_expression` | `function` |
+| `$x = …` at file scope, first in the file | `assignment_expression` | `variable` (`x`, no parent) |
 | `extends`, `implements`, `use Trait;` | `base_clause`, `class_interface_clause`, `use_declaration` | `extends`, `implements` |
 | `use A\B;` | `namespace_use_declaration` | one `imports` per clause, named after the imported class (an alias is not used), with its namespace as evidence |
 | `require`/`include` with a literal path | `binary_expression`, function call | `imports` (path and stem) |
@@ -604,7 +605,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | `define()` constants | By design | `define()` stays a call by the explicit [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L68) |
-| Global `$variables` | Not implemented | a top-level `assignment_expression` gives a symbol only for a closure value |
 | Anonymous classes (`new class {}`) | Partly | `anonymous_class` gives only the `extends`/`implements` relations, no symbols; the one exception is an anonymous Laravel `Migration`, whose `up`/`down` methods are indexed under the migration file's module |
 | `namespace` as a symbol | By design | explicit file-module-only [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L28) |
 | Trait as `trait`, `use Trait` as `implements` | By design | explicit [PHP mappings](../../../crates/mct-lang-php/src/lib.rs#L9), using the closest existing kinds |
@@ -1298,7 +1298,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Field / instance attribute: `field`, `readonly` and trait properties too
 - [x] Constructor-promoted field: promoted parameter → `field`
 - [x] Constant (module or global): `const` top-level and in classes → `constant`; `define()` is only a `calls` relation
-- [ ] Global / module-level variable: `$x = …` has no symbol
+- [x] Global / module-level variable: the first `$x = …` at file scope (in a namespace or a top-level block too) is a `variable` named without `$`; a superglobal, `$$x`, a property, an element or a destructuring pattern declares none
 - [ ] Local variable
 - [ ] Parameter
 

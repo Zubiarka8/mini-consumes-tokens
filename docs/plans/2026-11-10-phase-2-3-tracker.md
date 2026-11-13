@@ -488,6 +488,20 @@ From `rules.md` and the two messages:
           `tests/self_fields.rs`. Corpus: 410 -> 417 symbols, relations
           unchanged. Repository snapshot: Lua fields 28 -> 35 (the corpus is
           the only Lua), relations unchanged, dead code 122 -> 122.
+    - [x] PHP global variables: the first `$x = …` at file scope (in a
+          namespace or a top-level block too) is a `variable` named without
+          `$`, with no parent, as PowerShell's are; a function, method,
+          closure or class body has its own scope, and a superglobal, `$$x`,
+          a property, an element or a destructuring pattern declares none. So
+          that these names don't widen call matches, a bare `f()` targets a
+          function only (a variable is called as `$f()`). Test:
+          `tests/global_variables.rs`. Corpus: 418 -> 420 symbols (`$clock`,
+          `$out` in `console.php`), relations unchanged. Repository snapshot
+          (PHP, 1184 relations): 3 variables added; 7 bare `count(…)` calls
+          inside a namespace, ambiguous between the methods
+          `InMemoryRepository.count` and `Collection.count`, are now
+          unresolved (each is PHP's `count`, which no function of the
+          repository declares); nothing else changed. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its
