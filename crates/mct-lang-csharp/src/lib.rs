@@ -5,8 +5,11 @@ use mct_core::{
     SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{find_child, first_error, location, Supertype};
+use std::collections::HashMap;
+
 use tree_sitter::{Node, Parser};
 
+mod aliases;
 mod details;
 mod receivers;
 
@@ -87,6 +90,8 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 struct Walker<'a> {
     source: &'a str,
+    /// `using Alias = Target;` aliases this file declares: alias → target.
+    aliases: HashMap<String, String>,
     file_end: u32,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
@@ -106,6 +111,7 @@ impl<'a> Walker<'a> {
     fn new(source: &'a str, file_end: u32) -> Self {
         Self {
             source,
+            aliases: HashMap::new(),
             file_end,
             symbols: Vec::new(),
             relations: Vec::new(),
@@ -330,6 +336,7 @@ impl<'a> Walker<'a> {
                             location(declarator),
                             parent.clone(),
                         );
+
                         self.details
                             .push(details::field_detail(node, declarator, id, self.source));
                         // A field-like `override event` (a plain field
@@ -358,8 +365,14 @@ impl<'a> Walker<'a> {
                 }
             }
             "using_directive" => {
+                self.record_using_alias(node);
                 self.push_namespace_import(owner, node);
-                if let Some(path) = node.named_child(0) {
+                // `using Alias = A.B;` names no imported `Alias`: only the
+                // namespace import above records it.
+                let path = node
+                    .named_child(0)
+                    .filter(|_| aliases::alias_parts(node).is_none());
+                if let Some(path) = path {
                     if let Some(last) = last_identifier(path) {
                         self.push_relation(
                             owner,
@@ -423,10 +436,21 @@ impl<'a> Walker<'a> {
             // A type is never a field, so a same-named field is no target.
             "object_creation_expression" => {
                 if let Some(type_node) = node.child_by_field_name("type") {
-                    if let Some(name) = type_base_name(type_node, self.source) {
+                    // `new Alias()` constructs the alias's target; only a
+                    // bare name can be an alias (`new M.Money()` is not).
+                    let aliased = (type_node.kind() == "identifier")
+                        .then(|| self.alias_target(text(type_node, self.source)))
+                        .flatten()
+                        .map(str::to_string);
+                    let external = aliased.as_deref().is_some_and(is_framework_name);
+                    let name = aliased
+                        .map(|target| base_of(&target).to_string())
+                        .or_else(|| type_base_name(type_node, self.source));
+                    if let Some(name) = name {
                         self.relation_targets.push(RelationTarget {
                             relation: self.relations.len(),
                             not_field: true,
+                            external,
                             ..Default::default()
                         });
                         self.push_relation(owner, RelationKind::Calls, name, location(type_node));
@@ -765,6 +789,14 @@ impl<'a> Walker<'a> {
                     .or_else(|| class.and_then(|c| c.fields.get(name)))
                 {
                     Some(ty) => typed(ty.clone()),
+                    // `Alias.M()`: the alias names its target type.
+                    None if self.alias_target(name).is_some() => {
+                        type_qualifier = Some(r);
+                        (
+                            self.alias_target(name).map(|t| base_of(t).to_string()),
+                            false,
+                        )
+                    }
                     None if name.starts_with(char::is_uppercase) => {
                         type_qualifier = Some(r);
                         (Some(name.to_string()), false)
@@ -806,15 +838,20 @@ impl<'a> Walker<'a> {
     /// `Helpers.F()`). `static` is a class-only modifier, so only a `class`
     /// is its target, never a method or field named like it.
     fn push_type_qualifier(&mut self, owner: SymbolId, qualifier: Node) {
-        let relation = self.relations.len();
-        self.push_relation(
-            owner,
-            RelationKind::References,
-            text(qualifier, self.source).to_string(),
-            location(qualifier),
+        // `Alias.M()` uses the alias's target (`JsonSerializer`).
+        let aliased = self
+            .alias_target(text(qualifier, self.source))
+            .map(str::to_string);
+        let external = aliased.as_deref().is_some_and(is_framework_name);
+        let name = aliased.map_or_else(
+            || text(qualifier, self.source).to_string(),
+            |target| base_of(&target).to_string(),
         );
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::References, name, location(qualifier));
         self.relation_targets.push(RelationTarget {
             relation,
+            external,
             kind: Some(SymbolKind::Class),
             ..Default::default()
         });
@@ -843,7 +880,11 @@ impl<'a> Walker<'a> {
         }
         // `using Alias = A.B;` names its target last.
         let mut cursor = node.walk();
-        let Some(path) = node.named_children(&mut cursor).last() else {
+        let Some(path) = node
+            .named_children(&mut cursor)
+            .last()
+            .filter(|path| aliases::is_name(*path))
+        else {
             return;
         };
         let name: String = text(path, self.source).split_whitespace().collect();
@@ -851,8 +892,7 @@ impl<'a> Walker<'a> {
         if name.is_empty() || name.contains('<') {
             return;
         }
-        let root = name.split('.').next().unwrap_or_default();
-        let external = matches!(root, "System" | "Microsoft");
+        let external = is_framework_name(&name);
         let relation = self.relations.len();
         self.push_relation(owner, RelationKind::Imports, name, location(node));
         self.relation_targets.push(RelationTarget {
@@ -1017,4 +1057,19 @@ fn has_named_lambda(declaration: Node) -> bool {
             .any(|d| d.kind() == "variable_declarator" && bound_lambda(d).is_some());
         found
     })
+}
+
+/// A name under `System` or `Microsoft` (`System.Text.Json.JsonSerializer`,
+/// `global::System.IO`): the framework, never the repository.
+fn is_framework_name(name: &str) -> bool {
+    let name = name.strip_prefix("global::").unwrap_or(name);
+    let root = name.split('.').next().unwrap_or_default();
+    matches!(root, "System" | "Microsoft")
+}
+
+/// The last segment of a dotted name without type arguments:
+/// `System.Collections.Generic.List<string>` → `List`.
+fn base_of(name: &str) -> &str {
+    let name = name.split('<').next().unwrap_or(name);
+    name.rsplit(['.', ':']).next().unwrap_or(name)
 }

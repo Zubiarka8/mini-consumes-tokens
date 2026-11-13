@@ -498,7 +498,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `Func<int, int> f = x => …;`, `Action f = delegate { … };` in a body | `local_declaration_statement` declarator with a `lambda_expression` / `anonymous_method_expression` value | `function`, no parent, like a local function; it owns the lambda's calls, so `f(2)` reaches it. A field holding a lambda stays a `field`; a lambda passed as an argument declares nothing |
 | `delegate` | `delegate_declaration` | `type_alias` |
 | `: Base, IFoo` | base list | `extends` / `implements` by the `IFoo` heuristic |
-| `using N;`, `using static` | `using_directive` | `imports` |
+| `using N;`, `using static`, `using A = N.T;` | `using_directive` | `imports`; an alias imports its target path only, and a use of the alias in its file (`new A()`, `A.M()`) uses the target (external under `System`/`Microsoft`); a `global using` alias is not followed |
 | `f()`, `a?.F()`, `new T()` | `invocation_expression`, `conditional_access_expression`, `object_creation_expression` | `calls`; a field is never the target of `new T()` |
 | the receiver of `x.M()`, `x?.M()` | `member_access_expression` `expression`, `conditional_access_expression` `condition` | qualified by `x`'s declared type: a parameter, a typed local (`T?` and `List<T>` name `T` and `List`), `var x = new T()`, a `foreach`, pattern (`is T x`), `out` or `catch` variable, `new T().M()`, a field, a property or a primary constructor parameter (`this.f.M()` too). A predefined type (`string`) is its own qualifier, so no repository method is its target. A capitalized name that is no local or field (`Money.Of()`, a static class) is its own qualifier, and the call also `references` it with a `class` target (`static` is class-only), so a struct, delegate or BCL qualifier (`Sku.Parse()`, `Math.Max()`) stays unresolved. `this.M()` is qualified by the enclosing type when its body declares `M`; otherwise it is left as before, since `M` may be inherited. A lambda parameter, `var x = F()`, a call result or any other expression is a member call: ambiguous even with one candidate. `base.M()` and a lowercase name that is no local or field are left as before. Inherited methods and extension methods (their parent is the static class) are not found through the qualifier, so such a call is unresolved |
 | `[Attribute]` | `attribute` | `references XAttribute` |
@@ -510,7 +510,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Base list split by naming | By design | C# syntax does not separate base class from interfaces; the [documented heuristic](../../../crates/mct-lang-csharp/src/lib.rs#L420) uses the `IFoo` convention |
 | A struct used as a qualifier (`Sku.Parse()`) gets an unresolved reference | Model limit | a target has one kind, and a capitalized qualifier is far more often a static class; a method named like the type (its constructor) must never be the target |
 | Unnamed lambdas, plain locals | Not implemented | a lambda passed as an argument and a local with any other value declare no symbol; their calls belong to the enclosing member |
-| `using Alias = Type` symbol | Not implemented | alias directives emit imports only |
+| `using Alias = Type` symbol | Model limit (#446) | an alias is visible only in its own file, and a symbol cannot be kept out of other files' name matching, so a `type_alias` would make same-named targets elsewhere ambiguous. The alias names its target instead: it imports no symbol called like the alias, `new Alias()` constructs the target and `Alias.M()` is qualified by it |
 | `.csproj`/NuGet dependencies | By design | explicitly excluded in [Dependency detection](../../../internal/checklist.md#dependency-manifest-detection) |
 
 ### C++
@@ -1123,7 +1123,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Record / data class: `record` is a `class`; positional parameters and body properties are `field`s
 - [x] Nested / inner class: parent is the outer class
 - [x] Partial class (several declarations): one `class` row per declaration, members keep the class as parent
-- [~] Type alias: `delegate` becomes `type_alias`; `using Alias = System.String` emits imports, not an alias symbol
+- [~] Type alias: `delegate` becomes `type_alias`; `using Alias = System.String` is no symbol (#446): it emits the namespace import only, and a use of the alias in its file (`new Alias()`, `Alias.M()`) is a use of the target
 - [x] Module / namespace / package: file `module` plus block and file-scoped `namespace`; types get `Ns::` in their parent
 
 **Fields, constants and variables**
@@ -1139,7 +1139,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Calls
 - [x] Constructor call (`new X()` / `X()`): `calls X`
 - [x] Super / base constructor call: `: this(…)` and `: base(…)` give `calls` restricted to a constructor declared in the enclosing type or in the base list's first entry; `: base()` with no base list (`object`) is external
-- [x] Imports: a plain `using System;` emits repeated target names; alias imports can emit distinct path and alias names
+- [x] Imports: a plain `using System;` emits repeated target names; an alias import emits its target path only, never the alias name, and a tuple target nothing
 - [~] Class extends class: heuristic: the first base is `extends` unless it is named like `IFoo`; the rest are `implements`
 - [~] Implements interface / trait: heuristic, as above
 - [x] Interface extends interface / supertrait: `extends`
