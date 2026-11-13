@@ -1,13 +1,13 @@
 # Symbol coverage by language
 
 > **Measurement status:** The coverage inventory, scores and examples below
-> describe the parser probes at commit `71ec6d0` on 2026-10-19. They have not
-> been fully rechecked against the current working tree, including unreleased
-> branch changes. Confirm a specific construct against current parser tests
-> before relying on an individual cell. Parser PRs have updated their
-> checklist items since; the score tables are recomputed from the
-> checklists, and `crates/mct-languages/tests/coverage_scores.rs` fails when
-> they disagree.
+> come from the parser probes at commit `71ec6d0` on 2026-10-19. On
+> 2026-11-11 every checklist item not marked `[x]` was probed again with a
+> release `mct-cli` built from the phase 2–3 branch stack, and the stale
+> ones were corrected. Items marked `[x]` were not probed again; parser PRs
+> keep them current. The score tables are recomputed from the checklists,
+> and `crates/mct-languages/tests/coverage_scores.rs` fails when they
+> disagree.
 
 What each `mct-lang-*` parser puts in the index, construct by construct:
 functions, methods, classes and the rest of object-oriented programming,
@@ -178,14 +178,14 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 69% | 29 | 85% | 10 | 0 |
-| JS/TS | 62% | 33 | 80% | 10 | 1 |
+| JS/TS | 65% | 33 | 80% | 10 | 1 |
 | Java | 76% | 27 | 65% | 10 | 0 |
-| Kotlin | 70% | 33 | 65% | 10 | 2 |
+| Kotlin | 66% | 35 | 65% | 10 | 0 |
 | C# | 76% | 34 | 55% | 10 | 0 |
 | C++ | 77% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
-| Lua | 54% | 13 | 50% | 10 | 1 |
+| Lua | 82% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
 | PowerShell | 38% | 17 | 60% | 10 | 0 |
 
@@ -274,14 +274,14 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
-| JS/TS | 69% | 70% | 17% | 78% | 80% | 50% | 100% |
+| JS/TS | 81% | 70% | 17% | 78% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 75% | 80% | 25% | 67% |
-| Kotlin | 72% | 79% | 33% | 83% | 80% | 50% | 50% |
+| Kotlin | 72% | 79% | 33% | 63% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 42% | 70% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
-| Lua | 88% | 75% | 0% | 67% | 60% | 25% | 50% |
+| Lua | 90% | 75% | 63% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
 | PowerShell | 42% | 25% | 25% | 67% | 80% | 50% | 33% |
 
@@ -400,7 +400,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Interface members, enum members | Not implemented | `src/lib.rs:29` calls interface members a known limit, not a decision; `walker.rs` skips both bodies |
-| `abstract m(): T;` | Not implemented | `abstract_method_signature` has no arm |
 | Top-level `const`/`let`/`var` with a non-function value | Not implemented | `variable_declarator` is used only when the value is a function |
 | Constructor parameter properties (`constructor(public x)`) | Not implemented | no arm for `required_parameter` with an accessibility modifier |
 | Decorators, `super()` calls | Not implemented | no arm for `decorator`; `super` is not a call target |
@@ -602,6 +601,10 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `function M.f()`, `function M:f()` | `function_declaration` with `dot_index_expression`/`method_index_expression` | `method`, parent `M` |
 | `local f = function() end` | `assignment_statement` + `function_definition` | `function` |
 | `local M = {}` | `assignment_statement` + `table_constructor` | `module` |
+| `T.__index = T`, `local D = setmetatable({}, { __index = B })` at file level | `assignment_statement`, `function_call` | the table becomes `class`; `extends B` |
+| `Vec.__add = function(a, b)` | `assignment_statement` + `function_definition` | `method`, parent `Vec` |
+| file-level `x = 1`, `local x = 1`, `local x <const> = 1`, `M.x = 1` | `assignment_statement` | `variable`, `constant`, `field` of `M` |
+| `local x` inside a function, loop variables | `variable_declaration`, `for_numeric_clause` | `variable`, parent the function |
 | `require("x")` | `function_call` | `imports` |
 | `f()`, `M.f()`, `o:m()` | `function_call` | `calls` |
 | `self:m()` in `function T:x()`, `o:m()` | `function_call` + `method_index_expression` | `calls` qualified by `T`; any other receiver is a member call (type unknown) |
@@ -610,9 +613,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Classes built with `setmetatable` | Not implemented | only a table literal assigned to a name becomes a `module` |
-| Fields (`self.x`), globals, top-level `local` values | Not implemented | `assignment_statement` is used only for functions and tables |
-| Inheritance through `__index` | Not implemented | no relation for metatables |
+| Nested table classes (`W.Widget.__index = W.Widget`) | Not implemented | only a file-level name is promoted to `class` |
+| Fields assigned in a method (`self.x = …`), parameters | Not implemented | `self.x` is assigned inside a function, where only `local` names become symbols |
 | Dead code skips table/module methods | By design | methods are excluded by [the shared allowlist decision](../../../crates/mct-index/src/dead_code.rs#L7); free global/local functions remain candidates |
 
 ### Bash
@@ -882,7 +884,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Method: `method`
 - [x] Constructor: `constructor` as `method`
 - [~] Property accessors (get/set): `get x()` and `set x()` are two `method` rows with the same name
-- [ ] Abstract / pure virtual method: `abstract m(): T;` has no symbol
+- [x] Abstract / pure virtual method: `abstract m(): T;` → `method` of the class, with its signature
 - [~] Overloads kept apart: only the implementation signature is a row; overload signatures are dropped
 
 **Types and object-oriented programming**
@@ -1041,12 +1043,12 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls
 - [x] Constructor call (`new X()` / `X()`): `calls X`
-- [?] Super / base constructor call: Kotlin secondary-constructor delegation was not independently checked
+- [ ] Super / base constructor call: neither `: Base(4)` in a class header nor `constructor() : this(0)` gives a call relation
 - [~] Imports: aliases use the alias name; some imports emit duplicate target names and a false external graph entry
 - [x] Class extends class: when the supertype has `()`
 - [x] Implements interface / trait: supertype without `()`
 - [~] Interface extends interface / supertrait: an `implements` relation is emitted, rather than `extends`
-- [?] Decorator / annotation / attribute: Kotlin annotation extraction was not independently checked
+- [ ] Decorator / annotation / attribute: `@Marker` gives no relation to the annotation class
 
 **Features: Search and lookup**
 
@@ -1317,38 +1319,38 @@ percentages and denominators; these checklists provide the scored evidence.
 - [~] Nested function (named, inside a function): `function` with no parent
 - [x] Lambda / closure assigned to a name: `local f = function() end` becomes `function`
 - [x] Method: `M.f` and `M:f` become `method` of `M`
-- [?] Operator overload: No Lua metamethod/operator fixture was checked
+- [x] Operator overload: `Vec.__add = function(a, b)` → `method` of `Vec`
 
 **Types and object-oriented programming**
 
-- [~] Class: only a table literal `local M = {}` becomes `module`; `setmetatable(...)` classes have no symbol
+- [~] Class: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it; a nested table (`W.Widget.__index = W.Widget`) stays `module`
 - [x] Module / namespace / package: file `module`; table literals too
 
 **Fields, constants and variables**
 
-- [ ] Field / instance attribute: `self.x = …` has no symbol
-- [ ] Global / module-level variable: globals and top-level `local` have no symbol
-- [ ] Local variable
+- [~] Field / instance attribute: a file-level `M.x = …` → `field` of `M`; `self.x = …` inside a method has no symbol
+- [x] Global / module-level variable: globals and top-level `local` → `variable`, `<const>` → `constant`
+- [x] Local variable: `local x` and loop variables → `variable` owned by the function
 - [ ] Parameter
 
 **Relations**
 
 - [x] Calls
 - [x] Imports: `require`
-- [ ] Class extends class: `setmetatable`/`__index` gives no relation
+- [x] Class extends class: `setmetatable({}, { __index = Base })` → `extends Base`; `setmetatable(Cat, { __index = Animal })` → `extends Animal`
 
 **Features: Search and lookup**
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a table-based class (`M.Widget`) is not a symbol, so it has no references
+- [~] Every use: `find_references`: a nested table class (`W.Widget`) used only as a qualifier (`W.Widget.make()`) gets no reference; the call to `make` resolves
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
 **Features: Code quality**
 
 - [~] Dead code: `find_dead_code`, `mct-cli dead-code`: free global/local functions are candidates; table/module methods (`function M.f`) are skipped
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: Lua token source, listed under `supported_languages` (`crates/mct-lang-lua/tests/duplicates.rs`)
 
 **Features: Structure**
 
@@ -1459,11 +1461,13 @@ the other documents.
    is indexed as a top-level `variable` named `this`, once per assignment.
    The class has no symbol; these spurious variables are incorrect output.
    Other recursively visited expressions can still emit relations.
-2. **Java:** `interface B extends A` gives no relation, while
-   `class X implements A` and `class X extends Y` do. Kotlin, C#, PHP and
-   TypeScript all record interface inheritance.
+2. **Java:** `interface B extends A` gave no relation, while
+   `class X implements A` and `class X extends Y` did. Kotlin, C#, PHP and
+   TypeScript all record interface inheritance. (Fixed: it gives `extends`
+   to an `interface`.)
 3. **TypeScript:** an `abstract m(): T;` method and every member of an
-   `interface` have no symbol. Java, Kotlin, C#, Go and PHP index interface
+   `interface` have no symbol (the abstract method now has one; interface
+   members still do not). Java, Kotlin, C#, Go and PHP index interface
    members.
 4. **Rust:** `impl Trait for T` records `implements Trait` from the file
    module, not from `T`. Asking what implements the trait gives the file,

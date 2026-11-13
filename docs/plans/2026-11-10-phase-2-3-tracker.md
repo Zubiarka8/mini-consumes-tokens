@@ -380,8 +380,15 @@ From `rules.md` and the two messages:
         closed, Python, JS/TS, Java and PHP by 1–6 points). They are
         recomputed, and `crates/mct-languages/tests/coverage_scores.rs`
         recomputes them from the checklists on every test run.
-  - [ ] Re-probe the cells still dated 2026-10-19 (`71ec6d0`), then the
-        gaps by language group.
+  - [x] Re-probe the cells still dated 2026-10-19 (`71ec6d0`): every item
+        not marked `[x]`, in all 12 languages, with a release `mct-cli`.
+        Stale cells corrected: TypeScript abstract methods are indexed;
+        Kotlin `: Base(4)`/`: this(0)` and `@Marker` were `[?]` and give no
+        relation (66% constructs, down from 70% because two unverified items
+        are now scored); Lua classes, `extends` through `setmetatable`,
+        metamethods, variables and duplicates were added by `dc683c35`
+        (constructs 54% → 82%). The other cells were confirmed as written.
+  - [ ] Work through the gaps by language group.
     - [x] Java supertypes: `interface B extends A` gives an `extends`
           relation, and every supertype relation targets a type (`class` for
           a class's `extends`, `interface` otherwise), so a same-named
