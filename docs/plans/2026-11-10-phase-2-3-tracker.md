@@ -407,6 +407,30 @@ From `rules.md` and the two messages:
           `p.Jitter(d)`); 1 resolved -> unresolved (`cmd.run(…)`, a
           func-typed field of an unproven receiver that matched the function
           `main.run`); none newly ambiguous. Dead code 122 -> 122.
+    - [x] Python module values and class attributes: each name a
+          module-level assignment binds first is a `variable` (`constant`
+          when annotated `Final`); a class-body assignment or annotation is a
+          `field` of the class (dataclass and `Enum` members too). `_`,
+          attribute and subscript targets declare nothing, and `self.x` is
+          still no symbol. So that these names don't widen call matches: a
+          call, decorator or base naming something the file neither imports
+          nor binds targets this file; a class attribute hides an import only
+          in its class body; `from pkg.util import x` carries `util` as
+          module evidence; `v.m()` on a local or a non-name value of unstated
+          type must be a method. Tests: `tests/module_values.rs`,
+          `tests/name_evidence.rs`. Corpus: 400 -> 570 symbols, relations
+          unchanged. Repository snapshot (Python, 7323 relations; 140 fields
+          and 204 variables added): 46 unresolved -> resolved and 10
+          ambiguous -> resolved, all correct but one (`DEFAULT_LOAN_DAYS`,
+          `CSV_CONFIG` through imports, `toml_reader` in its own file; the
+          wrong one is `library/cli.py` `int(…)`, in a `from … import *` file,
+          now matching a fixture variable `int`); 17 resolved or ambiguous ->
+          unresolved, every one a wrong match before (`path.stat()` to
+          `agent_bench.stat`, Django's `render` to `Report.render`); 121
+          resolved -> ambiguous, all `v.m()` method calls, 62 of them to a
+          method in another directory (`dict.values()` to
+          `Repository.values`, `open(…).close()`), 59 in the same directory
+          (`ctx.echo(…)` to `Context.echo`). Dead code 122 -> 122.
     - [x] Lua instance fields: the first `self.x = …` in a colon method
           `function T:m()` (or a closure inside it) is a `field` of `T`,
           unless `T` already declares `x`. An explicit `self` parameter, a

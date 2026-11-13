@@ -102,6 +102,8 @@ struct Walker<'a> {
     /// This file's repository-relative path, the base of relative imports.
     path: &'a str,
     symbols: Vec<SymbolRecord>,
+    /// `(parent, name)` of every symbol recorded so far.
+    declared: HashSet<(Option<String>, String)>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
     next_id: SymbolId,
@@ -165,6 +167,7 @@ impl<'a> Walker<'a> {
         location: Location,
         parent: Option<String>,
     ) -> SymbolId {
+        self.declared.insert((parent.clone(), name.clone()));
         mct_tree_sitter::push_symbol(
             &mut self.symbols,
             &mut self.next_id,
@@ -221,7 +224,13 @@ impl<'a> Walker<'a> {
                     if decorator.kind() == "decorator" {
                         if let Some(expr) = decorator.named_child(0) {
                             if let Some(name) = expr_name(expr, self.source) {
-                                self.push_bare_evidence(expr);
+                                // `@cache_page(60)` names `cache_page`.
+                                let named = if expr.kind() == "call" {
+                                    expr.child_by_field_name("function").unwrap_or(expr)
+                                } else {
+                                    expr
+                                };
+                                self.push_use_evidence(named);
                                 self.push_relation(
                                     target_id.unwrap_or(owner),
                                     RelationKind::References,
@@ -277,7 +286,18 @@ impl<'a> Walker<'a> {
                     if Some(child.id()) == module_child_id {
                         continue;
                     }
+                    let module = node
+                        .child_by_field_name("module_name")
+                        .and_then(|m| from_module(m, self.source));
                     for (name, loc) in import_names(child, self.source) {
+                        // `from m import x` names an `x` of module `m`,
+                        // whatever else binds `x` later.
+                        if let Some(module) = module {
+                            self.push_target(RelationTarget {
+                                module: Some(module.to_string()),
+                                ..Default::default()
+                            });
+                        }
                         self.push_relation(owner, RelationKind::Imports, name, loc);
                     }
                 }
@@ -286,7 +306,7 @@ impl<'a> Walker<'a> {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some((name, name_node)) = expr_name_node(function, self.source) {
                         if !self.push_receiver_evidence(function) {
-                            self.push_bare_evidence(function);
+                            self.push_use_evidence(function);
                         }
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
@@ -298,6 +318,7 @@ impl<'a> Walker<'a> {
                 }
             }
             "assignment" => {
+                self.push_bindings(node, depth);
                 if let Some(right) = node.child_by_field_name("right") {
                     self.push_value_references(right, owner, depth + 1);
                 }
@@ -316,6 +337,50 @@ impl<'a> Walker<'a> {
                 self.frames.pop();
             }
             _ => self.visit_children(node, owner, class_name, depth + 1),
+        }
+    }
+
+    /// The names a module-level or class-body `assignment` binds: a
+    /// `variable` of the module (a `constant` when annotated `Final`), or a
+    /// `field` of the class. Only the first binding of a name the file does
+    /// not already declare there counts; `_`, attribute and subscript
+    /// targets, and anything inside a function declare nothing.
+    fn push_bindings(&mut self, assignment: Node, depth: u32) {
+        let Some(scope) = binding_scope(assignment, self.source) else {
+            return;
+        };
+        let annotation = assignment.child_by_field_name("type");
+        let annotation_text = annotation.map(|t| text(t, self.source));
+        let kind = match scope {
+            Some(_) => SymbolKind::Field,
+            None if annotation_text.is_some_and(is_final) => SymbolKind::Constant,
+            None => SymbolKind::Variable,
+        };
+        let mut names = Vec::new();
+        if let Some(left) = assignment.child_by_field_name("left") {
+            target_names(left, &mut names, depth);
+        }
+        for name_node in names {
+            let name = text(name_node, self.source);
+            let key = (scope.map(str::to_string), name.to_string());
+            if name == "_" || self.declared.contains(&key) {
+                continue;
+            }
+            let signature = match annotation_text {
+                Some(ty) => format!("{name}: {ty}"),
+                None => name.to_string(),
+            };
+            let id = self.push_symbol(
+                name.to_string(),
+                kind,
+                location(name_node),
+                scope.map(str::to_string),
+            );
+            self.details.push(mct_core::SymbolDetail {
+                symbol: id,
+                signature: Some(signature),
+                ..Default::default()
+            });
         }
     }
 
@@ -383,7 +448,7 @@ impl<'a> Walker<'a> {
                     let mut cursor = superclasses.walk();
                     for base in superclasses.named_children(&mut cursor) {
                         if let Some(base_name) = expr_name(base, self.source) {
-                            self.push_bare_evidence(base);
+                            self.push_use_evidence(base);
                             self.push_relation(
                                 id,
                                 RelationKind::Extends,
@@ -528,9 +593,35 @@ impl<'a> Walker<'a> {
     /// a `def`/`class` of this module binds stays in this file.
     ///
     /// `true` when the name carried evidence.
+    /// Whether `name` at `expr` may be a class attribute: some class body
+    /// assigns it and `expr` runs in a class body.
+    fn is_class_attribute_use(&self, expr: Node, name: &str) -> bool {
+        self.scope.is_class_attribute(name)
+            && matches!(binding_scope(expr, self.source), Some(Some(_)))
+    }
+
+    /// `push_bare_evidence` for a name that is called, decorates or is a
+    /// base class. Python reaches another module's name only through an
+    /// import, so a bare name no import binds is this file's: one of its
+    /// symbols, or a local or builtin, which stays unresolved. A value use
+    /// gets no such evidence, so a local is never recorded as a reference.
+    fn push_use_evidence(&mut self, expr: Node) {
+        if self.push_bare_evidence(expr) || expr.kind() != "identifier" {
+            return;
+        }
+        if self.scope.is_unimported(text(expr, self.source)) {
+            self.push_target(RelationTarget {
+                path: Some(self.path.to_string()),
+                ..Default::default()
+            });
+        }
+    }
+
     fn push_bare_evidence(&mut self, expr: Node) -> bool {
         if expr.kind() == "attribute" {
-            self.push_module_attribute_evidence(expr);
+            if !self.push_module_attribute_evidence(expr) {
+                self.push_value_attribute_evidence(expr);
+            }
             return false;
         }
         if expr.kind() != "identifier" {
@@ -547,7 +638,11 @@ impl<'a> Walker<'a> {
                 path: Some(self.path.to_string()),
                 ..Default::default()
             }
-        } else if let Some(module) = self.scope.imported_from(name) {
+        } else if let Some(module) = self
+            .scope
+            .imported_from(name)
+            .filter(|_| !self.is_class_attribute_use(expr, name))
+        {
             RelationTarget {
                 module: Some(module.to_string()),
                 ..Default::default()
@@ -604,27 +699,27 @@ impl<'a> Walker<'a> {
     /// `m.f()` where `m` names a module only through an import (`import
     /// a.b as m`, or `import a` then `a.b.f()`): `f` is defined in the last
     /// module of that path.
-    fn push_module_attribute_evidence(&mut self, attribute: Node) {
+    fn push_module_attribute_evidence(&mut self, attribute: Node) -> bool {
         let Some(object) = attribute.child_by_field_name("object") else {
-            return;
+            return false;
         };
         let mut segments = Vec::new();
         let mut head = object;
         while head.kind() == "attribute" {
             let Some(name) = head.child_by_field_name("attribute") else {
-                return;
+                return false;
             };
             segments.push(text(name, self.source));
             match head.child_by_field_name("object") {
                 Some(inner) => head = inner,
-                None => return,
+                None => return false,
             }
         }
         if head.kind() != "identifier" {
-            return;
+            return false;
         }
         let Some(path) = self.scope.module_alias(text(head, self.source)) else {
-            return;
+            return false;
         };
         let module = segments
             .first()
@@ -632,12 +727,54 @@ impl<'a> Walker<'a> {
             .or_else(|| path.rsplit('.').next())
             .unwrap_or_default();
         if module.is_empty() {
-            return;
+            return false;
         }
         self.relation_targets.push(RelationTarget {
             relation: self.relations.len(),
             module: Some(module.to_string()),
             ..Default::default()
+        });
+        true
+    }
+
+    /// `v.f()` where `v` is a value: a call result, a subscript, a literal,
+    /// or a parameter or local of the enclosing function that no import
+    /// binds and that is no `def`/`class` of this file
+    /// (`member.tier.name.title()`). `f` is then a method of a type the
+    /// syntax doesn't prove: a member call, never a module-level name or a
+    /// class attribute. A name an import binds may be a module
+    /// (`os.path.join`), a module-level name may hold one
+    /// (`MODULE = importlib.util.module_from_spec(…)`), a class of this file
+    /// may hold a nested class (`Outer.Inner()`), and `self` may reach an
+    /// inherited method, so none of them proves anything.
+    fn push_value_attribute_evidence(&mut self, attribute: Node) {
+        let mut head = attribute;
+        while head.kind() == "attribute" {
+            match head.child_by_field_name("object") {
+                Some(inner) => head = inner,
+                None => return,
+            }
+        }
+        if head.kind() == "identifier" {
+            let name = text(head, self.source);
+            // A function's own binding is local whatever `import *` or
+            // `globals()` do to module names.
+            let local = self.frames.last().is_some_and(|f| f.binds(name));
+            if !local || self.scope.is_import_bound(name) || self.scope.defines(name) {
+                return;
+            }
+        }
+        self.push_target(RelationTarget {
+            member: true,
+            ..Default::default()
+        });
+    }
+
+    /// `target` for the relation about to be pushed.
+    fn push_target(&mut self, target: RelationTarget) {
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            ..target
         });
     }
 
@@ -813,6 +950,65 @@ fn class_supertypes(class: Node, source: &str) -> Vec<Supertype> {
 
 /// Name of a callable/base-class expression: a bare identifier, or the
 /// trailing attribute of a dotted access (`module.Class`, `obj.method`).
+/// Where an assignment binds: `Some(None)` at module level, `Some(class)`
+/// in a class body (an `if` or `try` block inside either too), `None`
+/// inside a function or lambda.
+fn binding_scope<'a>(node: Node, source: &'a str) -> Option<Option<&'a str>> {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        match ancestor.kind() {
+            "function_definition" | "lambda" => return None,
+            "class_definition" => {
+                return ancestor
+                    .child_by_field_name("name")
+                    .map(|n| Some(text(n, source)));
+            }
+            "module" => return Some(None),
+            _ => current = ancestor.parent(),
+        }
+    }
+    None
+}
+
+/// The module a `from … import` names by its last segment: `models` for
+/// `django.db.models` and `.models`; `None` for `from . import x`.
+fn from_module<'a>(module_name: Node, source: &'a str) -> Option<&'a str> {
+    let dotted = match module_name.kind() {
+        "dotted_name" => module_name,
+        "relative_import" => module_name
+            .named_children(&mut module_name.walk())
+            .find(|c| c.kind() == "dotted_name")?,
+        _ => return None,
+    };
+    let last = dotted.named_child(dotted.named_child_count().checked_sub(1)?)?;
+    Some(text(last, source))
+}
+
+/// `Final`, `Final[int]`, `typing.Final`.
+fn is_final(annotation: &str) -> bool {
+    let base = annotation.split('[').next().unwrap_or_default().trim();
+    base == "Final" || base.ends_with(".Final")
+}
+
+/// The identifiers an assignment target binds: `x`, and each name of
+/// `a, b` / `(a, b)` / `[a, b]`. Attribute and subscript targets bind no
+/// name of this scope.
+fn target_names<'a>(target: Node<'a>, out: &mut Vec<Node<'a>>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    match target.kind() {
+        "identifier" => out.push(target),
+        "pattern_list" | "tuple_pattern" | "list_pattern" => {
+            let mut cursor = target.walk();
+            for child in target.named_children(&mut cursor) {
+                target_names(child, out, depth + 1);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn expr_name(node: Node, source: &str) -> Option<String> {
     match node.kind() {
         "identifier" => Some(text(node, source).to_string()),

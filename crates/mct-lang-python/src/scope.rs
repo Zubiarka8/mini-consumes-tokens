@@ -182,6 +182,9 @@ pub(crate) struct ModuleScope {
     imports: HashMap<String, Option<Import>>,
     /// Names bound by anything other than an import.
     rebound: HashSet<String>,
+    /// Names an assignment in a class body binds: class attributes, which
+    /// rebind nothing outside that body.
+    class_attributes: HashSet<String>,
     /// Names an import binds to `override` of `typing` or
     /// `typing_extensions` (`from typing import override [as o]`).
     typing_override: HashSet<String>,
@@ -202,7 +205,7 @@ enum Import {
 impl ModuleScope {
     pub(crate) fn collect(root: Node, source: &str) -> Self {
         let mut scope = Self::default();
-        scope.visit(root, source, false, 0);
+        scope.visit(root, source, false, false, 0);
         scope
     }
 
@@ -250,6 +253,29 @@ impl ModuleScope {
         }
     }
 
+    /// Whether nothing but this file can bind a bare `name`: no import
+    /// binds it and no `import *`, `globals()` or `exec` can. Python
+    /// reaches another module's name only through an import.
+    pub(crate) fn is_unimported(&self, name: &str) -> bool {
+        !self.opaque && !self.imports.contains_key(name)
+    }
+
+    /// Whether some import of this file, at any level, binds `name`.
+    pub(crate) fn is_import_bound(&self, name: &str) -> bool {
+        self.imports.contains_key(name)
+    }
+
+    /// Whether this file has a `def`/`class` named `name` outside a class
+    /// body.
+    pub(crate) fn defines(&self, name: &str) -> bool {
+        self.functions.contains(name)
+    }
+
+    /// Whether an assignment in some class body binds `name`.
+    pub(crate) fn is_class_attribute(&self, name: &str) -> bool {
+        self.class_attributes.contains(name)
+    }
+
     fn import_of(&self, name: &str) -> Option<&Import> {
         if self.opaque || self.functions.contains(name) || self.rebound.contains(name) {
             return None;
@@ -286,7 +312,8 @@ impl ModuleScope {
         }
     }
 
-    fn visit(&mut self, node: Node, source: &str, in_class: bool, depth: u32) {
+    /// `class_level`: `node` runs in a class body, outside any function.
+    fn visit(&mut self, node: Node, source: &str, in_class: bool, class_level: bool, depth: u32) {
         if depth >= MAX_TRAVERSAL_DEPTH {
             // Too deep to see every binding: prove nothing.
             self.opaque = true;
@@ -307,6 +334,11 @@ impl ModuleScope {
                 child_in_class = node.kind() == "class_definition";
             }
             "parameters" | "lambda_parameters" => self.parameters(node, source),
+            "assignment" | "augmented_assignment" if class_level => {
+                if let Some(left) = node.child_by_field_name("left") {
+                    self.class_targets(left, source);
+                }
+            }
             "assignment" | "augmented_assignment" | "for_statement" | "for_in_clause" => {
                 if let Some(left) = node.child_by_field_name("left") {
                     self.targets(left, source, depth + 1);
@@ -347,7 +379,12 @@ impl ModuleScope {
             // Only a class's own body is a class body; a `def` inside a
             // method is a function again.
             let in_body = child_in_class && child.kind() == "block";
-            self.visit(child, source, in_body, depth + 1);
+            let child_level = match node.kind() {
+                "class_definition" => in_body,
+                "function_definition" | "lambda" => false,
+                _ => class_level,
+            };
+            self.visit(child, source, in_body, child_level, depth + 1);
         }
     }
 
@@ -374,6 +411,19 @@ impl ModuleScope {
                 "tuple_pattern" => self.targets(param, source, 0),
                 _ => {}
             }
+        }
+    }
+
+    /// A class-body assignment target: a plain name is a class attribute,
+    /// and still hides a builtin or a `def` there (`other`); any other
+    /// target is read as a module-level one.
+    fn class_targets(&mut self, node: Node, source: &str) {
+        if node.kind() == "identifier" {
+            let name = text(node, source).to_string();
+            self.other.insert(name.clone());
+            self.class_attributes.insert(name);
+        } else {
+            self.targets(node, source, 0);
         }
     }
 
