@@ -644,7 +644,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Source | Grammar node | Indexed as |
 |---|---|---|
 | `function Verb-Noun {}` | `function_statement` | `function`, parent the file |
-| top-level `$x = …`, `$script:x = …` | `assignment_expression` | `variable` (scope prefix stripped) |
+| top-level `$x = …`, `$script:x = …` | `assignment_expression` | `variable` (scope prefix stripped); not inside a `class` body, and not for `$x.Name = …` or `$x[0] = …` |
 | `. .\lib.ps1`, `Import-Module X` | `command` | `imports` (path and stem) |
 | any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls` |
 | simple bare identifier comma lists (`Write-Output alpha,beta`) | `command_elements`, `generic_token` | accepted through [targeted recovery](../../../crates/mct-lang-powershell/src/lib.rs#L116); extraction retains original text and locations |
@@ -654,7 +654,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Classes, methods, properties, `enum` | By design | explicit exclusion in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L30) |
-| `$this.X = …` in a class becomes a variable `this` | Bug | seen in the probe: each such assignment adds a top-level `variable` named `this` |
 | `: base(…)` constructors, `??`, ternary | Grammar | tree-sitter-powershell 0.26.4 rejects these forms; simple bare identifier comma lists are recovered, not an unconditional gap (`errors/REGISTRY.md` ERR-002) |
 | Variables inside functions, computed import paths | By design | explicit static/scope limits in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L16) |
 
@@ -1460,7 +1459,8 @@ the other documents.
 1. **PowerShell:** inside a `class` method or constructor, `$this.Radius = $r`
    is indexed as a top-level `variable` named `this`, once per assignment.
    The class has no symbol; these spurious variables are incorrect output.
-   Other recursively visited expressions can still emit relations.
+   Other recursively visited expressions can still emit relations. (Fixed:
+   no assignment inside a class body is a script variable.)
 2. **Java:** `interface B extends A` gave no relation, while
    `class X implements A` and `class X extends Y` did. Kotlin, C#, PHP and
    TypeScript all record interface inheritance. (Fixed: it gives `extends`
