@@ -10,7 +10,7 @@
 //! structs satisfy it. Revisit alongside the general LSP/type-resolution
 //! decision (see `checklist.md`).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
@@ -79,6 +79,7 @@ impl LanguageParser for GoParser {
         walker.structs = receivers::structs(root, &file.contents);
         walker.std_imports = stdlib::StdImports::of(root, &file.contents);
         walker.packages = repo_packages(root, &file.contents);
+        walker.aliased_packages = receivers::aliased_repo_packages(root, &file.contents);
         let file_loc = file_location(root);
         let file_module_id = walker.push_symbol(module_name, SymbolKind::Module, file_loc, None);
         if let Some(ref pkg) = package_name {
@@ -134,6 +135,10 @@ struct Walker<'a> {
     /// The names this file's unaliased repository imports bind (see
     /// `repo_packages`).
     packages: HashSet<String>,
+    /// The names this file's aliased repository imports bind, each to the
+    /// directory its import path ends in: `database` for `db
+    /// "example.com/app/database"` (see `receivers::aliased_repo_packages`).
+    aliased_packages: HashMap<String, String>,
     /// The type parameters in scope (`T` of `func F[T any]` or `type
     /// Box[T any]`), which name no declared type.
     type_params: Vec<String>,
@@ -520,7 +525,7 @@ impl<'a> Walker<'a> {
             "qualified_type" => {
                 let proven = ty.child_by_field_name("package").is_some_and(|p| {
                     let package = text(p, self.source);
-                    self.std_imports.is_std(package) || self.packages.contains(package)
+                    self.std_imports.is_std(package) || self.package_target(package, None).is_some()
                 });
                 if proven {
                     self.push_type_use(from, RelationKind::References, ty, None, package_name);
@@ -601,14 +606,8 @@ impl<'a> Walker<'a> {
                         external: true,
                         ..Default::default()
                     })
-                } else if self.packages.contains(package) {
-                    Some(RelationTarget {
-                        qualifier: Some(package.to_string()),
-                        kind,
-                        ..Default::default()
-                    })
                 } else {
-                    None
+                    self.package_target(package, kind)
                 };
                 (name, target)
             }
@@ -833,16 +832,36 @@ impl<'a> Walker<'a> {
                     kind: Some(SymbolKind::Method),
                     ..Default::default()
                 }
-            } else if self.packages.contains(name) {
-                RelationTarget {
-                    qualifier: Some(name.to_string()),
-                    ..Default::default()
-                }
+            } else if let Some(target) = self.package_target(name, None) {
+                target
             } else {
                 return;
             }
         };
         self.push_target(target);
+    }
+
+    /// Where a name declared in the repository package `package` lives: a
+    /// declaration of `package` through an unaliased import (its name is
+    /// the package's), or one under the import path's last directory
+    /// through an aliased import (`db "…/database"`: under `database/`,
+    /// whatever its `package` clause says). `None` when no repository
+    /// import binds `package`.
+    fn package_target(&self, package: &str, kind: Option<SymbolKind>) -> Option<RelationTarget> {
+        if self.packages.contains(package) {
+            return Some(RelationTarget {
+                qualifier: Some(package.to_string()),
+                kind,
+                ..Default::default()
+            });
+        }
+        self.aliased_packages
+            .get(package)
+            .map(|directory| RelationTarget {
+                module: Some(directory.clone()),
+                kind,
+                ..Default::default()
+            })
     }
 
     /// `target` for the relation about to be pushed.

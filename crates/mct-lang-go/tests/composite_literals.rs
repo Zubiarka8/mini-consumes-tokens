@@ -1,8 +1,9 @@
 //! A composite literal of a named type (`Cart{…}`, `&Cart{…}`,
 //! `store.Basket{…}`, `Box[int]{…}`) references that type, with the
 //! evidence an embedded type gets: a bare name is a declaration of this
-//! package, `pkg.T` is external through a standard package and a
-//! declaration of `pkg` through an unaliased repository import. A literal
+//! package, `pkg.T` is external through a standard package, a
+//! declaration of `pkg` through an unaliased repository import and one
+//! under the path's last directory through an aliased one. A literal
 //! of an unnamed type (`[]Item{…}`, `map[string]int{…}`, an elided
 //! `{…}` element) references nothing; its elements are still walked.
 
@@ -57,7 +58,11 @@ fn references(parsed: &ParsedFile) -> Vec<String> {
             let evidence = match target {
                 None => "-".to_string(),
                 Some(t) if t.external => "external".to_string(),
-                Some(t) => t.qualifier.clone().unwrap_or_else(|| "?".to_string()),
+                Some(t) => t
+                    .qualifier
+                    .clone()
+                    .or_else(|| t.module.as_ref().map(|m| format!("dir:{m}")))
+                    .unwrap_or_else(|| "?".to_string()),
             };
             format!("{} {from} -> {} {evidence}", r.location.line, r.to_name)
         })
@@ -73,7 +78,7 @@ fn a_composite_literal_references_its_type() {
             "12 build -> Cart shop",
             "12 build -> Item shop",
             "13 build -> Basket store",
-            "14 build -> Conn -",
+            "14 build -> Conn dir:database",
             "15 build -> Mutex external",
             "16 build -> Box shop",
         ]

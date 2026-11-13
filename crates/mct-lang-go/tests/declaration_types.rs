@@ -2,10 +2,11 @@
 //! struct field, a local `var`), unwrapped through `*T`, `[]T`, `map[K]V`,
 //! `chan T` and generic arguments, references that type with the evidence a
 //! composite literal gets: a bare name is a declaration of this package,
-//! `pkg.T` is external through a standard package and a declaration of
-//! `pkg` through an unaliased repository import. A predeclared type
-//! (`int`, `error`), a type parameter (`T`) and a type of an aliased or
-//! unknown package give no relation.
+//! `pkg.T` is external through a standard package, a declaration of `pkg`
+//! through an unaliased repository import and one under the path's last
+//! directory through an aliased one (`db.Conn`: under `database/`). A
+//! predeclared type (`int`, `error`), a type parameter (`T`) and a type of
+//! an unknown package give no relation.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -63,7 +64,10 @@ fn a_declared_type_references_its_type_with_package_evidence() {
             let target = parsed.relation_targets.iter().find(|t| t.relation == i);
             let evidence = match target {
                 Some(t) if t.external => "external".to_string(),
-                Some(t) => format!("in {}", t.qualifier.clone().unwrap_or_default()),
+                Some(t) => match (&t.qualifier, &t.module) {
+                    (None, Some(directory)) => format!("under {directory}"),
+                    (qualifier, _) => format!("in {}", qualifier.clone().unwrap_or_default()),
+                },
                 None => "unproven".to_string(),
             };
             (r.to_name.as_str(), r.location.line, evidence)
@@ -78,6 +82,7 @@ fn a_declared_type_references_its_type_with_package_evidence() {
             r("Box", 28, "in shop"),
             r("Cart", 9, "in shop"),
             r("Cart", 20, "in shop"),
+            r("Conn", 14, "under database"),
             r("Item", 12, "in shop"),
             r("Item", 20, "in shop"),
             r("Item", 28, "in shop"),
