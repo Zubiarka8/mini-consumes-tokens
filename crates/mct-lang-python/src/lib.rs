@@ -121,6 +121,9 @@ struct Walker<'a> {
     class_scopes: Vec<receivers::ClassScope>,
     /// The enclosing functions' bindings, innermost last (D5).
     frames: Vec<receivers::Frame>,
+    /// The enclosing functions' names, innermost last; `None` for a class
+    /// body, whose `def`s are methods of the class.
+    functions: Vec<Option<String>>,
 }
 
 /// The methods `object` defines, the only ones a class with no base can
@@ -495,8 +498,13 @@ impl<'a> Walker<'a> {
                 } else {
                     SymbolKind::Function
                 };
-                let id =
-                    self.push_symbol(name, kind, location(node), class_name.map(str::to_string));
+                // A `def` in a class body belongs to the class; one in a
+                // function body to that function, as a Rust nested fn does.
+                let parent = match class_name {
+                    Some(class) => Some(class.to_string()),
+                    None => self.functions.last().cloned().flatten(),
+                };
+                let id = self.push_symbol(name.clone(), kind, location(node), parent);
                 self.details.push(details::function_detail(
                     node,
                     class_name.is_some(),
@@ -507,12 +515,14 @@ impl<'a> Walker<'a> {
                 let frame =
                     receivers::Frame::of(node, self.source, class, &self.scope, &self.classes);
                 self.frames.push(frame);
+                self.functions.push(Some(name));
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, None, depth + 1);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, None, depth + 1);
                 }
+                self.functions.pop();
                 self.frames.pop();
                 Some(id)
             }
@@ -562,9 +572,11 @@ impl<'a> Walker<'a> {
                 // A class body is its own scope: the enclosing function's
                 // names are not its bindings.
                 self.frames.push(receivers::Frame::default());
+                self.functions.push(None);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit_children(body, id, Some(&name), depth + 1);
                 }
+                self.functions.pop();
                 self.frames.pop();
                 self.class_scopes.pop();
                 self.supertypes.pop();
