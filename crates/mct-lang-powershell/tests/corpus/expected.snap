@@ -1,4 +1,4 @@
-# language=powershell files=5 symbols=82 relations=261 name_matched_across_files=62
+# language=powershell files=5 symbols=103 relations=261 name_matched_across_files=62
 
 == Deploy-Warehouse.ps1 (301 lines)
 S 1-301 module Deploy-Warehouse
@@ -311,6 +311,27 @@ R 288:1 calls Warehouse.Common -> Export-ModuleMember
 
 == Warehouse.Inventory.psm1 (302 lines)
 S 1-302 module Warehouse.Inventory
+S 18-23 enum Warehouse.Inventory::StorageZone
+S 19-19 field StorageZone::Ambient
+S 20-20 field StorageZone::Chilled
+S 21-21 field StorageZone::Frozen
+S 22-22 field StorageZone::Bulky
+S 25-51 class Warehouse.Inventory::Location
+S 26-26 field Location::Zone
+S 27-27 field Location::Aisle
+S 28-28 field Location::Level
+S 30-37 method Location::Location
+S 39-46 method Location::StorageZone
+S 48-50 method Location::ToString
+S 53-75 class Warehouse.Inventory::CycleCount
+S 54-54 field CycleCount::Sku
+S 55-55 field CycleCount::Location
+S 56-56 field CycleCount::Expected
+S 57-57 field CycleCount::Counted
+S 58-58 field CycleCount::Reason
+S 60-62 method CycleCount::Difference
+S 64-67 method CycleCount::NeedsReview
+S 69-74 method CycleCount::Describe
 S 81-112 function Warehouse.Inventory::Import-CycleCount
 S 114-134 function Warehouse.Inventory::Split-CycleCount
 S 136-155 function Warehouse.Inventory::Submit-CycleCount

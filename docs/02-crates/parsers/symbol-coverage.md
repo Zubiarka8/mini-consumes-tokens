@@ -127,7 +127,7 @@ table emits none yet:
 | C++ | function and method definitions and prototypes (out-of-line `Class::method` included), classes, structs, unions, enums, `using` aliases, `typedef`s, each declarator of a variable or field declaration; a templated one keeps its `template <…>` | the access label in force in the class body; none → private in a `class`, public in a `struct`/`union` (the language defaults); none recorded outside a class (C++ has linkage there) or for an out-of-line definition (its access is the declaration's) | `virtual`, `static`, `extern`, `inline`, `constexpr` → const, `override`, `final`, `= 0` → abstract | enumerators, lambdas, `auto` deduction (an `auto` return without `-> T` stays `auto`). A type is everything the declaration writes but the name (`const char*`, `int&`); C `...` is a variadic parameter with no name or type |
 | Lua | `function` declarations (`local`, dotted, `T:m`), functions assigned to a name or field, functions in a module table's fields | none: Lua has no visibility syntax (`local` is scope, not access) | — (Lua has none) | classes, fields and variables (no declaration header), `@generic`, `@class`/`@field`. Lua writes no types: every type comes from the LuaLS `---` lines right above (`@param name type`, `@return type`, several `@return`s joined as one multiple return) as `doc`. `function T:m()` has the implicit `self` receiver; `...` is variadic |
 | Bash | functions (`function f()` and `f()`), file-level variables (bare or under `readonly`/`export`/`declare`/`typeset`/`local`) | none: Bash has no access control (`export` passes a variable to child processes) | `readonly`, or a `-r` flag of `declare`/`typeset`, → readonly | parameters (a shell function declares none: it reads `$1`, `$@`, so they are recorded as unknown), types (Bash has none), a variable's value |
-| PowerShell | functions and filters (header up to the body, inline parameter list included), file-level variables (the assignment target as written: `$Global:Limit`, `[int]$Max`) | none: PowerShell functions have no access modifiers (`Export-ModuleMember` is a runtime call) | — | parameters come from the inline list or the body's `param()` block; a `[type]` literal is the type, other attributes (`[Parameter(Mandatory)]`, validators) are not. A function with neither form has unknown parameters (it can read `$args`). Return types (`[OutputType()]` is advisory), classes and enums (not indexed) |
+| PowerShell | functions and filters (header up to the body, inline parameter list included), file-level variables (the assignment target as written: `$Global:Limit`, `[int]$Max`), classes and enums (the header: `class Animal : Base`), class properties (without the value: `hidden static [int] $Count`), class methods and constructors (the header; a `[type]` before the name is the return type), enum members (`Green = 2`) | none: PowerShell functions have no access modifiers (`Export-ModuleMember` is a runtime call) | `static` on a class property or method | parameters come from the inline list or the body's `param()` block; a `[type]` literal is the type, other attributes (`[Parameter(Mandatory)]`, validators) are not. A function with neither form has unknown parameters (it can read `$args`). A function's return type (`[OutputType()]` is advisory); `hidden` on a class member |
 | Go | `func`, methods, interface methods, `type` (struct, interface, defined type, alias), struct fields, package-level `const`/`var` (a `function` for `var f = func…`) | an upper-case first letter → public, otherwise package (the exported-name rule) | — (Go has none) | function literals. A result list is one return type as written: `(n int, err error)` |
 
 A Rust receiver is stored with the type it stands for: `&mut self` is `&mut Self`; a Go receiver keeps its declared type (`*Stack[T]`). `a, b int` is two `int` parameters.
@@ -187,7 +187,7 @@ round to the nearest whole percent, with halves rounded up.
 | PHP | 88% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
-| PowerShell | 38% | 17 | 60% | 10 | 0 |
+| PowerShell | 78% | 16 | 50% | 10 | 0 |
 
 ## Language by language
 
@@ -283,7 +283,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
-| PowerShell | 42% | 25% | 25% | 67% | 80% | 50% | 33% |
+| PowerShell | 90% | 100% | 50% | 67% | 60% | 50% | 33% |
 
 ### Rust
 
@@ -666,15 +666,19 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `function Verb-Noun {}` | `function_statement` | `function`, parent the file |
 | top-level `$x = …`, `$script:x = …` | `assignment_expression` | `variable` (scope prefix stripped); not inside a `class` body, and not for `$x.Name = …` or `$x[0] = …` |
+| `class Animal : Base { … }` | `class_statement` | `class`, parent the file; the bases are no relation |
+| `[string] $Name` in a class | `class_property_definition` | `field` of the class; calls in its value belong to the class |
+| `[string] Speak() { … }`, `Animal() { … }` | `class_method_definition` | `method` of the class (a constructor is named after it); it owns its body's calls |
+| `enum Color { Red; Green = 2 }` | `enum_statement`, `enum_member` | `enum`, parent the file; each member a `field` of it |
 | `. .\lib.ps1`, `Import-Module X` | `command` | `imports` (path and stem) |
-| any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls` |
-| simple bare identifier comma lists (`Write-Output alpha,beta`) | `command_elements`, `generic_token` | accepted through [targeted recovery](../../../crates/mct-lang-powershell/src/lib.rs#L116); extraction retains original text and locations |
+| any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls`; only a `function` can be its target, never a method of the same name |
+| simple bare identifier comma lists (`Write-Output alpha,beta`) | `command_elements`, `generic_token` | accepted through [targeted recovery](../../../crates/mct-lang-powershell/src/lib.rs#L117); extraction retains original text and locations |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Classes, methods, properties, `enum` | By design | explicit exclusion in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L30) |
+| Class bases, `[Type]` uses | Not implemented | a class's `: Base, IFoo` names and a type literal (`[Location]::new()`, `[StorageZone]::Frozen`) are no relations |
 | `: base(…)` constructors, `??`, ternary | Grammar | tree-sitter-powershell 0.26.4 rejects these forms; simple bare identifier comma lists are recovered, not an unconditional gap (`errors/REGISTRY.md` ERR-002) |
 | Variables inside functions, computed import paths | By design | explicit static/scope limits in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L16) |
 
@@ -1426,20 +1430,19 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Top-level function: `function`
 - [x] Nested function (named, inside a function): `function` with the outer function as parent
 - [~] Lambda / closure assigned to a name: a top-level `$f = { … }` is indexed as `variable`, not `function`
-- [ ] Method: classes are not supported
-- [ ] Constructor: classes are not supported
-- [ ] Property accessors (get/set): classes are not supported
+- [x] Method: `method`, parent is the class
+- [x] Constructor: `method` named after the class
 
 **Types and object-oriented programming**
 
-- [ ] Class: `class` has no symbol
-- [ ] Enum: `enum` has no symbol
-- [ ] Enum members: no symbol
+- [x] Class: `class`
+- [x] Enum: `enum`
+- [x] Enum members: `field` of the enum
 - [x] Module / namespace / package: file `module`
 
 **Fields, constants and variables**
 
-- [ ] Field / instance attribute: class properties have no symbol
+- [x] Field / instance attribute: a class property is a `field`, `static` too
 - [x] Global / module-level variable: `variable`; scope prefixes (`$script:`) stripped
 - [ ] Local variable
 - [ ] Parameter
@@ -1448,14 +1451,14 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls: every literal command or cmdlet
 - [x] Imports: dot-sourcing and `Import-Module`
-- [ ] Class extends class: classes are not supported
+- [ ] Class extends class: a class's bases (`: Base, IFoo`) give no relation
 
 **Features: Search and lookup**
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [x] Every use: `find_references`
-- [x] Blast radius and context: `impact_analysis`, `build_context_pack`
+- [~] Every use: `find_references`: a class or enum named only in a type literal (`[Location]::new()`) gets no reference
+- [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gap as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
 **Features: Code quality**
