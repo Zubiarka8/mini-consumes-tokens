@@ -781,6 +781,21 @@ From `rules.md` and the two messages:
           corpus). Repository snapshot (Go, with `init --force`): no
           changes. Dead code 123 -> 123. Go feature score 60% -> 70%;
           areas Search 60% -> 70%, Quality 25% -> 50%.
+    - [x] Python properties: a `@property` (or `@cached_property`,
+          `@functools.cached_property`) getter is one `field` of its
+          class, as in C# and Kotlin, with the getter's `def` as
+          signature; `@x.setter` / `@x.deleter` / `@x.getter` of a
+          property the class declared earlier add to its range and calls
+          instead of a second row, and their decorator references nothing
+          (before: `references setter`). A setter of an inherited
+          property stays a `method`. Test: `tests/property_accessors.rs`;
+          `tests/corpus.rs` pinned "three methods of one name" and now
+          checks one field. Corpus 1507 -> 1504 relations (the 3
+          `setter`/`deleter` references), 9 properties become fields.
+          Repository snapshot (Python, with `init --force`): 7323 ->
+          7320, the same 3; `today.weekday()` (a `datetime` method) was
+          ambiguous over the 3 property rows and is now unresolved. Dead
+          code 123 -> 123. Python scores 90% -> 91% and 94% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
