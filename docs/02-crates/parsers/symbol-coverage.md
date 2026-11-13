@@ -178,7 +178,7 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 91% | 29 | 85% | 10 | 0 |
-| JS/TS | 88% | 33 | 80% | 10 | 1 |
+| JS/TS | 89% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 83% | 35 | 65% | 10 | 0 |
 | C# | 87% | 34 | 60% | 10 | 0 |
@@ -274,7 +274,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 100% | 100% | 50% | 100% | 80% | 100% | 83% |
-| JS/TS | 88% | 90% | 67% | 100% | 80% | 50% | 100% |
+| JS/TS | 94% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 94% | 96% | 50% | 88% | 70% | 25% | 67% |
@@ -382,7 +382,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `function f`, generators | `function_declaration`, `generator_function_declaration` | `function`; inside a function or method body, with that function or method as parent |
 | `const f = () => …`, `= function …` | `variable_declarator` + `arrow_function`/`function_expression` | `function`; inside a function or method body, with that function or method as parent |
 | `class` / `abstract class` | `class_declaration`, `abstract_class_declaration` | `class` |
-| class methods, `constructor`, `get`/`set` | `method_definition` | `method` |
+| class methods, `constructor` | `method_definition` | `method` |
+| class `get x()` / `set x()` | `method_definition` with a `get`/`set` keyword under `class_body` | one `field` `x` of the class with the first accessor as signature, spanning every accessor of that name and owning their calls; a typed getter (`get repo(): Repo`) or setter parameter types the field for `this.repo.m()`. An object literal's accessor stays a `function` |
 | class fields (`#private`, `static`) | `field_definition`, `public_field_definition` | `field`; an arrow-function value becomes `method` |
 | constructor parameter properties (`constructor(private readonly store: Store)`) | `required_parameter`, `optional_parameter` with an `accessibility_modifier` or `readonly` | `field` of the class at the parameter, with its visibility and `readonly`; a plain parameter declares nothing |
 | `interface` | `interface_declaration` | `interface` (members skipped) |
@@ -911,7 +912,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Lambda / closure assigned to a name: arrow and function expressions become `function`; a class-field arrow becomes `method`
 - [x] Method: `method`
 - [x] Constructor: `constructor` as `method`
-- [~] Property accessors (get/set): `get x()` and `set x()` are two `method` rows with the same name
+- [x] Property accessors (get/set): one `field` of the class, as in C#, Kotlin and Python: the first accessor declares it, the other adds to its range and calls
 - [x] Abstract / pure virtual method: `abstract m(): T;` → `method` of the class, with its signature
 - [~] Overloads kept apart: only the implementation signature is a row; overload signatures are dropped
 
