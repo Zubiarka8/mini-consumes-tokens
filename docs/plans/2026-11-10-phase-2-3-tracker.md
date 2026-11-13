@@ -682,6 +682,16 @@ From `rules.md` and the two messages:
           nested classes, no changes. Repository snapshot (Lua, 410
           relations, with `init --force`): no changes. Dead code 123 ->
           123.
+    - [x] Lua class qualifiers: a call's qualifier (`Animal.new()`,
+          `Animal:speak()`, `W.Widget.make()`) references the class it
+          names when the same file declares that class and no local,
+          parameter or `require` binding shadows the first name. Another
+          file reaching the class through `require` still gets no
+          reference: it would need the module's returned table, so a
+          nested table there stays unknown. Test:
+          `tests/nested_qualifier.rs`. Corpus: no class is used as a
+          qualifier in its own file, no new relations (375). Repository
+          snapshot (Lua, 410 relations, with `init --force`): no changes.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no

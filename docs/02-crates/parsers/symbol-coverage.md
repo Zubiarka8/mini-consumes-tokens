@@ -1369,7 +1369,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a nested table class (`W.Widget`) used only as a qualifier (`W.Widget.make()`) gets no reference; the call to `make` resolves
+- [~] Every use: `find_references`: a class used as a call's qualifier (`Animal.new()`, `W.Widget.make()`) is referenced when the same file declares it; in a file that reaches it through `require` it gets no reference, and only the call to `make` resolves
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
