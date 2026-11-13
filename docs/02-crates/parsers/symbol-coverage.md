@@ -183,7 +183,7 @@ round to the nearest whole percent, with halves rounded up.
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
 | C++ | 84% | 28 | 50% | 10 | 0 |
-| Go | 64% | 18 | 60% | 10 | 0 |
+| Go | 75% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
@@ -279,7 +279,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 58% | 90% | 60% | 25% | 50% |
-| Go | 67% | 90% | 60% | 40% | 60% | 25% | 83% |
+| Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
@@ -555,7 +555,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `func F()` | `function_declaration` | `function`, parent the package |
 | `func (r *T) M()` | `method_declaration` | `method`, parent `T` (pointer and generic receivers unwrapped) |
 | `type T struct` | `type_spec` | `struct` |
-| `ID string` in a struct, `x, Y int` | `field_declaration` | `field` per name, parent the struct; signature `ID string` (no tag). An embedded field (`*Base`) is none |
+| `ID string` in a struct, `x, Y int` | `field_declaration` | `field` per name, parent the struct; signature `ID string` (no tag). An embedded field (`*Base`) is none: the struct `extends` its type |
+| an embedded type: `Base`, `*Base`, `pkg.Base`, `List[T]` in a struct; `Reader`, `io.Writer` in an interface | `field_declaration` without a name, `type_elem` of one type | `extends` from the struct or interface; in an interface the target must be an `interface`. A bare name is qualified by the package, `pkg.T` through a standard package is external, through an unaliased repository import qualified by `pkg`. A union or `~T` element is a type set and gives none |
 | package-level `const X = 1`, `const ( … )` | `const_declaration`, `const_spec` | `constant` per name, parent the package; signature `const X` or `const X T` |
 | package-level `var x T`, `var ( … )` | `var_declaration`, `var_spec`, `var_spec_list` | `variable` per name, parent the package; signature `var x T`. A call in the value belongs to the file module. `_` and a `const`/`var` inside a function are none |
 | `type I interface { M() }` | `type_spec` | `interface`; each method as `method` |
@@ -571,7 +572,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Implicit interface satisfaction | By design | explicitly deferred pending type resolution in [Go crate docs](../../../crates/mct-lang-go/src/lib.rs#L3) and [open decision 3](../../../internal/checklist.md#open-decisions) |
-| Struct and interface embedding | Not implemented | the decision above concerns conformance inference, not explicit embedded declarations; no embedding relation is emitted |
 | Composite literals (`T{}`) and conversions as uses | Not implemented | `composite_literal` gives no relation; conversions appear as calls |
 | Closures, locals | Not implemented | no arm for `func_literal` or short variable declarations |
 
@@ -1246,8 +1246,8 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Calls
 - [x] Imports
 - [ ] Implements interface / trait: structural, deliberately not inferred
-- [ ] Interface extends interface / supertrait: embedded interfaces give no relation
-- [ ] Struct embedding: embedded fields give no relation
+- [x] Interface extends interface / supertrait: an embedded interface → `extends`, to an `interface` only
+- [x] Struct embedding: an embedded field → `extends` its type
 
 **Features: Search and lookup**
 

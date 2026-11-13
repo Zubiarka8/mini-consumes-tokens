@@ -443,6 +443,17 @@ From `rules.md` and the two messages:
           evidence resolve to them by name (6 wrong of 19 new resolutions,
           `CSV_CONFIG.items()` to `Page.items`). Draft branch
           `feat/python-self-fields`.
+    - [x] Go embedding: an embedded struct field (`Base`, `*Base`,
+          `pkg.Base`, `List[T]`) and an interface element naming one type
+          (`Reader`, `io.Writer`, which must be an interface) are an
+          `extends` of the embedding type; a union or `~T` element gives
+          none. A bare name is qualified by the package, `pkg.T` is external
+          through a standard package and qualified by `pkg` through an
+          unaliased repository import. Test: `tests/embedding.rs`. Corpus:
+          835 -> 838 relations. Repository snapshot (Go, 861 -> 864
+          relations): 3 new `extends`, all resolved to the embedded type
+          (`Service` -> `Store`, `Transaction` -> `Meta`, `Meta` -> `Tags`).
+          Dead code 122 -> 122.
     - [x] Lua instance fields: the first `self.x = …` in a colon method
           `function T:m()` (or a closure inside it) is a `field` of `T`,
           unless `T` already declares `x`. An explicit `self` parameter, a
