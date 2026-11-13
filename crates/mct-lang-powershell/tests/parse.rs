@@ -128,3 +128,32 @@ fn repository_pr_status_script_parses_without_execution() {
         .iter()
         .any(|r| r.kind == RelationKind::Calls && r.to_name == "gh"));
 }
+
+/// Names of the `variable` symbols in `parsed`, in source order.
+fn variables(parsed: &mct_core::ParsedFile) -> Vec<&str> {
+    parsed
+        .symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Variable)
+        .map(|s| s.name.as_str())
+        .collect()
+}
+
+#[test]
+fn assignments_inside_a_class_body_are_not_script_variables() {
+    // A class method or constructor body is its own scope: `$this.Radius`
+    // sets a property and `$area` is a method local, neither a variable of
+    // the script.
+    let parsed = parse(
+        "$scale = 2\nclass Shape {\n  [int]$Radius\n  Shape([int]$r) { $this.Radius = $r }\n  [double] Area() { $area = $this.Radius * 2; return $area }\n}\n",
+    );
+    assert_eq!(variables(&parsed), ["scale"]);
+}
+
+#[test]
+fn a_member_or_element_assignment_does_not_declare_its_receiver() {
+    // `$cfg.Name = …` and `$list[0] = …` change an existing value; only the
+    // plain `$cfg = …` declares the variable.
+    let parsed = parse("$cfg = @{}\n$cfg.Name = 'x'\n$list = @(1)\n$list[0] = 2\n");
+    assert_eq!(variables(&parsed), ["cfg", "list"]);
+}
