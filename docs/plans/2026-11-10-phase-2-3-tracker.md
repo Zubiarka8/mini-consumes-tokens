@@ -389,6 +389,14 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Kotlin supertypes: `interface B : A` gives `extends` (it gave
+          `implements`) restricted to an `interface`, and `: Base(4)`
+          targets a `class`, so a factory function `fun Base()` is not a
+          candidate. A class's bare supertype keeps `implements` with no
+          kind, since it can be the superclass when only secondary
+          constructors call `super(…)`. No change on the snapshot (27
+          Kotlin supertype relations before and after; none from an
+          interface).
     - [x] PowerShell: an assignment inside a `class` body (`$this.Radius = $r`,
           a method's `$diff = …`) and a member or element assignment
           (`$cfg.Name = …`, `$list[0] = …`) no longer add a script
