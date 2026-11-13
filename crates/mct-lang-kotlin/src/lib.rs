@@ -354,7 +354,7 @@ fn direct_supertypes(node: Node, source: &str) -> Vec<Supertype> {
             };
             if let Some(type_id) = user_type
                 .filter(|t| t.kind() == "user_type")
-                .and_then(|t| t.named_child(0))
+                .and_then(last_identifier_child)
             {
                 named.push(Supertype {
                     name: text(type_id, source).to_string(),
@@ -711,9 +711,12 @@ impl<'a> Walker<'a> {
                             match target.kind() {
                                 // `Shape(4)` — a constructor call, so `Shape` is the
                                 // superclass: a class, never a function `Shape`.
+                                // `p.Shape<T>(4)` names `Shape`, its last segment.
                                 "constructor_invocation" => {
-                                    if let Some(type_id) =
-                                        target.named_child(0).and_then(|t| t.named_child(0))
+                                    if let Some(type_id) = target
+                                        .named_child(0)
+                                        .filter(|t| t.kind() == "user_type")
+                                        .and_then(last_identifier_child)
                                     {
                                         self.push_type_relation(
                                             id,
@@ -721,14 +724,9 @@ impl<'a> Walker<'a> {
                                             Some(SymbolKind::Class),
                                             type_id,
                                         );
-                                    }
-                                    // …and calls its constructor, from the
-                                    // class: a constructor is no symbol.
-                                    if let Some(type_id) = target
-                                        .named_child(0)
-                                        .filter(|t| t.kind() == "user_type")
-                                        .and_then(last_identifier_child)
-                                    {
+                                        // …and calls its constructor, from
+                                        // the class: a constructor is no
+                                        // symbol.
                                         self.push_type_relation(
                                             id,
                                             RelationKind::Calls,
@@ -744,7 +742,7 @@ impl<'a> Walker<'a> {
                                 // constructors call `super(…)`, so its kind
                                 // stays open.
                                 "user_type" => {
-                                    if let Some(type_id) = target.named_child(0) {
+                                    if let Some(type_id) = last_identifier_child(target) {
                                         let (relation, target_kind) =
                                             if kind == SymbolKind::Interface {
                                                 (RelationKind::Extends, Some(SymbolKind::Interface))
