@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use mct_core::MAX_TRAVERSAL_DEPTH;
 use tree_sitter::Node;
 
+use crate::receivers::BUILTIN_LITERALS;
 use crate::text;
 
 /// Names of `builtins` (CPython 3.14, `python -I -S -c "import builtins;
@@ -190,6 +191,10 @@ pub(crate) struct ModuleScope {
     typing_override: HashSet<String>,
     /// Names some other import binds.
     other_imports: HashSet<String>,
+    /// How many statements bind each name outside an import or `def`.
+    bindings: HashMap<String, u32>,
+    /// Names a module-level `X = <builtin literal>` binds.
+    literal_values: HashSet<String>,
 }
 
 /// What an import binds a local name to.
@@ -206,7 +211,42 @@ impl ModuleScope {
     pub(crate) fn collect(root: Node, source: &str) -> Self {
         let mut scope = Self::default();
         scope.visit(root, source, false, false, 0);
+        scope.module_literals(root, source, 0);
         scope
+    }
+
+    /// Whether `name` can only hold the builtin literal one module-level
+    /// assignment binds it to (`TABLE = {}`): nothing else in the file binds
+    /// it, and no import or `import *` can.
+    pub(crate) fn is_builtin_value(&self, name: &str) -> bool {
+        self.literal_values.contains(name)
+            && self.bindings.get(name) == Some(&1)
+            && !self.functions.contains(name)
+            && self.is_unimported(name)
+    }
+
+    /// The module-level `X = <builtin literal>` assignments, in `if`/`try`
+    /// blocks too; a function, class or lambda body is another scope.
+    fn module_literals(&mut self, node: Node, source: &str, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            match child.kind() {
+                "function_definition" | "class_definition" | "decorated_definition" | "lambda" => {}
+                "assignment" => {
+                    let left = child.child_by_field_name("left");
+                    let right = child.child_by_field_name("right");
+                    if let (Some(left), Some(right)) = (left, right) {
+                        if left.kind() == "identifier" && BUILTIN_LITERALS.contains(&right.kind()) {
+                            self.literal_values.insert(text(left, source).to_string());
+                        }
+                    }
+                }
+                _ => self.module_literals(child, source, depth + 1),
+            }
+        }
     }
 
     /// Whether a bare `name` can only be the `builtins` one.
@@ -287,6 +327,7 @@ impl ModuleScope {
         if !name.is_empty() {
             self.other.insert(name.to_string());
             self.rebound.insert(name.to_string());
+            *self.bindings.entry(name.to_string()).or_default() += 1;
         }
     }
 

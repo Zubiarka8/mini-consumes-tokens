@@ -41,7 +41,7 @@ const BUILTIN_TYPES: &[&str] = &[
 ];
 
 /// Literals whose value is a builtin container or string.
-const BUILTIN_LITERALS: &[&str] = &[
+pub(crate) const BUILTIN_LITERALS: &[&str] = &[
     "concatenated_string",
     "dictionary",
     "dictionary_comprehension",
@@ -383,7 +383,7 @@ impl Frame {
         }
         match self.bindings.get(object) {
             Some(bound) => bound.clone(),
-            None => module_receiver(object, scope, classes),
+            None => value_receiver(object, scope, classes),
         }
     }
 
@@ -550,6 +550,17 @@ pub(crate) fn module_receiver(
         .contains(object)
         .then(|| Receiver::Class(object.to_string()))
         .filter(|_| scope.is_local_function(object) || scope.imported_from(object).is_some())
+}
+
+/// The proven receiver of `object.m()` for a module-level `object`: a
+/// class, or a builtin literal the module binds it to once.
+pub(crate) fn value_receiver(
+    object: &str,
+    scope: &ModuleScope,
+    classes: &HashSet<String>,
+) -> Option<Receiver> {
+    module_receiver(object, scope, classes)
+        .or_else(|| scope.is_builtin_value(object).then_some(Receiver::Builtin))
 }
 
 /// The class names the file can name a receiver by: every `class`
