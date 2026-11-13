@@ -124,7 +124,7 @@ table emits none yet:
 | Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes (`enum`), member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
 | C# | methods, constructors, destructors, operators, conversion operators, local functions, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration, a record's positional parameters (type and name: `int X`, public) | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
 | PHP | functions, methods (Laravel's anonymous migration `up`/`down` included), classes, interfaces, traits, enums, each element of a property declaration, promoted constructor parameters | `public`/`protected`/`private` (`private(set)` reads as its first word); none → public for a method or property (the language default); functions and types have none | `abstract`, `final`, `static`, `readonly` | closures assigned to a variable, enum cases, class constants, `@template` generics. A type the syntax leaves out comes from the PHPDoc block right above (`@param T $name`, `@return T`) as `doc`; a written type always wins. `...$x` is variadic; `&$x` stays in the signature only |
-| C++ | function and method definitions and prototypes (out-of-line `Class::method` included), classes, structs, unions, enums, `using` aliases, `typedef`s, each declarator of a variable or field declaration; a templated one keeps its `template <…>` | the access label in force in the class body; none → private in a `class`, public in a `struct`/`union` (the language defaults); none recorded outside a class (C++ has linkage there) or for an out-of-line definition (its access is the declaration's) | `virtual`, `static`, `extern`, `inline`, `constexpr` → const, `override`, `final`, `= 0` → abstract | enumerators, lambdas, `auto` deduction (an `auto` return without `-> T` stays `auto`). A type is everything the declaration writes but the name (`const char*`, `int&`); C `...` is a variadic parameter with no name or type |
+| C++ | function and method definitions and prototypes (out-of-line `Class::method` included), classes, structs, unions, enums, `using` aliases, `typedef`s, each declarator of a variable or field declaration; a templated one keeps its `template <…>` | the access label in force in the class body; none → private in a `class`, public in a `struct`/`union` (the language defaults); none recorded outside a class (C++ has linkage there) or for an out-of-line definition (its access is the declaration's) | `virtual`, `static`, `extern`, `inline`, `constexpr` → const, `override`, `final`, `= 0` → abstract | enumerators, unnamed lambdas (one bound to a name has the binding up to its body and its parameters), `auto` deduction (an `auto` return without `-> T` stays `auto`). A type is everything the declaration writes but the name (`const char*`, `int&`); C `...` is a variadic parameter with no name or type |
 | Lua | `function` declarations (`local`, dotted, `T:m`), functions assigned to a name or field, functions in a module table's fields | none: Lua has no visibility syntax (`local` is scope, not access) | — (Lua has none) | classes, fields and variables (no declaration header), `@generic`, `@class`/`@field`. Lua writes no types: every type comes from the LuaLS `---` lines right above (`@param name type`, `@return type`, several `@return`s joined as one multiple return) as `doc`. `function T:m()` has the implicit `self` receiver; `...` is variadic |
 | Bash | functions (`function f()` and `f()`), file-level variables (bare or under `readonly`/`export`/`declare`/`typeset`/`local`) | none: Bash has no access control (`export` passes a variable to child processes) | `readonly`, or a `-r` flag of `declare`/`typeset`, → readonly | parameters (a shell function declares none: it reads `$1`, `$@`, so they are recorded as unknown), types (Bash has none), a variable's value |
 | PowerShell | functions and filters (header up to the body, inline parameter list included), file-level variables (the assignment target as written: `$Global:Limit`, `[int]$Max`), classes and enums (the header: `class Animal : Base`), class properties (without the value: `hidden static [int] $Count`), class methods and constructors (the header; a `[type]` before the name is the return type), enum members (`Green = 2`) | none: PowerShell functions have no access modifiers (`Export-ModuleMember` is a runtime call) | `static` on a class property or method | parameters come from the inline list or the body's `param()` block; a `[type]` literal is the type, other attributes (`[Parameter(Mandatory)]`, validators) are not. A function with neither form has unknown parameters (it can read `$args`). A function's return type (`[OutputType()]` is advisory); `hidden` on a class member |
@@ -182,7 +182,7 @@ round to the nearest whole percent, with halves rounded up.
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 80% | 35 | 65% | 10 | 0 |
 | C# | 84% | 34 | 60% | 10 | 0 |
-| C++ | 86% | 28 | 50% | 10 | 0 |
+| C++ | 89% | 28 | 50% | 10 | 0 |
 | Go | 78% | 18 | 60% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
@@ -278,7 +278,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 96% | 50% | 88% | 70% | 25% | 67% |
-| C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
+| C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
@@ -538,7 +538,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Lambdas, locals | Not implemented | no arm for `lambda_expression`; locals are skipped |
+| Unnamed lambdas, locals | Not implemented | only a lambda bound to a plain name declares a symbol; an argument lambda (`std::sort(…, [](…) { … })`) or an immediately invoked one declares none, and locals are skipped |
 | Base-constructor calls of an out-of-line constructor whose class is defined in another file | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition it can't tell a base from a member |
 | A type declared in another file and used only in a declaration (`Widget w;`) | Model limit | a by-name match can't be limited to types, so an unpinned reference could reach a method or constructor named like the type; only a type of the same file is pinned (#440) |
 | Header and source files are two rows | By design | [crate docs](../../../crates/mct-lang-cpp/src/lib.rs#L3) explicitly choose independent header/source rows and correlate matching names and parents |
@@ -1167,7 +1167,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, templates as plain functions
-- [ ] Lambda / closure assigned to a name: no symbol
+- [x] Lambda / closure assigned to a name: `auto f = [](int x) { … };` is a `function` of the namespace, or owned by the enclosing function in a body, with the binding up to the body as signature; a data member holding a lambda stays a `field`
 - [x] Method: `method`, out-of-line `A::m` gets parent `A`
 - [x] Constructor: `method` named after the class
 - [x] Destructor / finalizer: `~Name` as `method`, virtual and defaulted too
