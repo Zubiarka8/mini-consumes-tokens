@@ -6,7 +6,7 @@ A local MCP server that indexes your code into a symbol graph. Your AI coding ag
 
 ![CI](https://img.shields.io/github/actions/workflow/status/Zubiarka8/mini-consumes-tokens/ci.yml?branch=main&label=CI)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Version](https://img.shields.io/badge/version-0.3.1-informational.svg)
+![Version](https://img.shields.io/badge/version-0.3.2-informational.svg)
 
 [Quick start](#how-to-install) · [Why install it](#why-install-it) · [FAQ](#faq) · [Documentation](#documentation) · [Commands](COMMANDS.md) · [Changelog](CHANGELOG.md) · [Website](https://zubiarka8.github.io/mini-consumes-tokens/)
 
@@ -116,4 +116,6 @@ See [Troubleshooting](docs/INSTALL.md#troubleshooting).
 | [Security](SECURITY.md) | How to report a vulnerability privately |
 | [Third-party notices](THIRD_PARTY_NOTICES.md) | Licenses of bundled components |
 
-mini-consumes-tokens is released under the [Apache License 2.0](LICENSE). A star on [GitHub](https://github.com/Zubiarka8/mini-consumes-tokens) helps other people find it.
+mini-consumes-tokens was started in September 2026 by Arkaitz Zubizarreta (zubiarka8). Initial versions were released under MIT or Apache License 2.0; the current version is released under the [Apache License 2.0](LICENSE).
+
+A star on [GitHub](https://github.com/Zubiarka8/mini-consumes-tokens) helps other people find it.

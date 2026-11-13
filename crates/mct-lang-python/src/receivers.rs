@@ -127,18 +127,17 @@ impl AttributeFacts {
         let Some(name) = name else {
             return;
         };
-        let stated = match node.child_by_field_name("type") {
-            Some(ty) => Some(ctx.annotation(ty)),
-            None => node
-                .child_by_field_name("right")
-                .and_then(|v| ctx.value(v))
-                .map(Some),
-        };
-        if let Some(stated) = stated {
-            self.stated
+        let annotation = node
+            .child_by_field_name("type")
+            .map(|ty| ctx.annotation(ty));
+        let value = node.child_by_field_name("right").and_then(|v| ctx.value(v));
+        if annotation.is_some() || value.is_some() {
+            let stated = self
+                .stated
                 .entry(text(name, ctx.source).to_string())
-                .or_default()
-                .push(stated);
+                .or_default();
+            stated.extend(annotation);
+            stated.extend(value.map(Some));
         }
     }
 
@@ -281,6 +280,11 @@ fn self_annotations(method: Node, ctx: &Ctx, annotate: &mut impl FnMut(&str, Opt
         return;
     };
     let self_name = text(first, ctx.source);
+    let mut frame = Frame::default();
+    frame.collect(body, ctx, 0);
+    if frame.opaque || frame.bindings.contains_key(self_name) {
+        return;
+    }
     let mut stack = vec![(body, 0u32)];
     while let Some((node, depth)) = stack.pop() {
         if depth >= MAX_TRAVERSAL_DEPTH {

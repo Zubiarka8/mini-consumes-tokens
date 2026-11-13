@@ -56,10 +56,27 @@ checked by running the code, never read off the index:
   type is `java.util.List`, and `javap` shows `add` and `of` as
   `java/util/List` calls, never `shop.List`'s.
 - **Standard library (D9), C++:** built with `clang++ -std=c++17` and a
-  checker. `label({3, 1, 2}) == "1"` and the vector comes back sorted, so
+  checker. For a vector initialized with `{3, 1, 2}`, `label(v) == "1"`
+  and the vector comes back sorted, so
   `std::to_string` and `std::sort` are the standard library's, never
   `Quantity::to_string` or `util::sort`; `util::sorted_calls == 1`, so the
   qualified `util::sort(v)` is the one call that reaches `util.hpp`.
+
+  With the C++ files below unpacked into `cpp/src`, the checker can be run
+  from that directory with `clang++ -std=c++17 checker.cpp -o checker &&
+  ./checker`:
+
+  ```cpp
+  #include <cassert>
+  #include "report.cpp"
+
+  int main() {
+      std::vector<int> v{3, 1, 2};
+      assert(label(v) == "1");
+      assert((v == std::vector<int>{1, 2, 3}));
+      assert(util::sorted_calls == 1);
+  }
+  ```
 
 - **Receiver types (D5) and the standard library (D9), C#:** run with
   `dotnet run`. `new Orders(new Mailer()).Place("  x  ") == "mail:x"`;

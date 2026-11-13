@@ -988,6 +988,7 @@ impl<'a> Walker<'a> {
     fn scoped_target(&self, path: &str, at: usize, name: &str) -> RelationTarget {
         let mut target = self.path_target(path, at);
         if CONVERSIONS.contains(&name) && self.unshadowed_primitive(path, at) {
+            target.external = false;
             target.member = true;
         }
         target
@@ -1057,8 +1058,11 @@ impl<'a> Walker<'a> {
     fn unshadowed_primitive(&self, path: &str, at: usize) -> bool {
         let name = path.trim();
         PRIMITIVES.contains(&name)
-            && !self.scope.declared.contains(name)
-            && !self.scope.std_imports.contains(name)
+            && !self
+                .scope
+                .primitive_shadows
+                .get(name)
+                .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
             && !self
                 .scope
                 .other_imports
@@ -1521,6 +1525,8 @@ struct FileScope {
     /// unless a glob over their enum brings them in (`Level::Debug` doesn't
     /// shadow the `Debug` derive).
     declared: HashSet<String>,
+    /// Item and standard import scopes that can shadow a primitive type.
+    primitive_shadows: HashMap<String, Vec<std::ops::Range<usize>>>,
     /// Names a `use` of a `std`/`core`/`alloc` path brings in.
     std_imports: HashSet<String>,
     /// Names any other `use` brings in, each with the byte ranges of the
@@ -1602,6 +1608,16 @@ fn collect_scope_at(
                     block.start_byte()..block.end_byte()
                 });
                 if is_std_path(text(argument, source)) {
+                    for used in names
+                        .iter()
+                        .filter(|used| PRIMITIVES.contains(&used.name.as_str()))
+                    {
+                        scope
+                            .primitive_shadows
+                            .entry(used.name.clone())
+                            .or_default()
+                            .push(reach.clone());
+                    }
                     scope
                         .std_imports
                         .extend(names.into_iter().map(|used| used.name));
@@ -1653,6 +1669,16 @@ fn collect_scope_at(
                 .is_some_and(|owner| matches!(owner.kind(), "impl_item" | "trait_item"));
             if let Some(name) = node.child_by_field_name("name").filter(|_| !associated) {
                 let name = text(name, source).to_string();
+                if node.kind() != "enum_variant" && PRIMITIVES.contains(&name.as_str()) {
+                    let reach = node.parent().map_or(0..source.len(), |parent| {
+                        parent.start_byte()..parent.end_byte()
+                    });
+                    scope
+                        .primitive_shadows
+                        .entry(name.clone())
+                        .or_default()
+                        .push(reach);
+                }
                 match node.kind() {
                     "enum_item" => {
                         enums.entry(name.clone()).or_default();
@@ -1872,10 +1898,6 @@ fn collect_identifiers(node: Node, source: &str, out: &mut HashSet<String>, dept
     }
 }
 
-/// `#[test]`, `#[bench]`, `#[tokio::test]`/`#[async_std::test]` (any path
-/// ending in `test`), `#[rstest]`, `#[test_case(..)]`: attributes that hand
-/// the function to a test/bench harness. `#[cfg(test)]` is not one — it only
-/// gates compilation, and a helper under it can still be genuinely unused.
 /// A built-in attribute of the Rust reference not already skipped above. A
 /// bare one can't be an imported attribute macro of the same name (that is
 /// an ambiguity error, E0659), so it never names a repo item.
@@ -1918,6 +1940,10 @@ fn is_bare_builtin_attribute(name: &str) -> bool {
     )
 }
 
+/// `#[test]`, `#[bench]`, `#[tokio::test]`/`#[async_std::test]` (any path
+/// ending in `test`), `#[rstest]`, `#[test_case(..)]`: attributes that hand
+/// the function to a test/bench harness. `#[cfg(test)]` is not one — it only
+/// gates compilation, and a helper under it can still be genuinely unused.
 fn is_harness_attribute(attribute_item: Node, source: &str) -> bool {
     let mut cursor = attribute_item.walk();
     let Some(attribute) = attribute_item

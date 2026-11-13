@@ -141,3 +141,41 @@ fn an_interface_extends_its_superinterface() {
     assert_eq!(target(&index, &hit), "src/shop/Shape.java:3");
     std::fs::remove_dir_all(root).ok();
 }
+
+#[test]
+fn annotations_on_supertypes_do_not_create_extra_inheritance() {
+    use mct_core::RelationKind;
+
+    let source = r#"
+import java.lang.annotation.*;
+@Target(ElementType.TYPE_USE) @interface Tag { Class<?> value(); }
+class Other {}
+class Base<T> {}
+interface Parent<T> {}
+interface Extra {}
+interface Child extends @Tag(Other.class) Parent<String>, Extra {}
+class Derived extends @Tag(Other.class) Base<String> implements @Tag(Other.class) Parent<String>, Extra {}
+"#;
+    let parsed = mct_corpus::parse_source(&JavaParser, "Example.java", "Java", source);
+    let relations: Vec<_> = parsed
+        .relations
+        .iter()
+        .filter(|relation| {
+            matches!(
+                relation.kind,
+                RelationKind::Extends | RelationKind::Implements
+            )
+        })
+        .map(|relation| (relation.kind, relation.to_name.as_str()))
+        .collect();
+    assert_eq!(
+        relations,
+        vec![
+            (RelationKind::Extends, "Parent"),
+            (RelationKind::Extends, "Extra"),
+            (RelationKind::Extends, "Base"),
+            (RelationKind::Implements, "Parent"),
+            (RelationKind::Implements, "Extra"),
+        ]
+    );
+}

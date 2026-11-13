@@ -7,16 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-13
+
 This release is mostly about the dashboard and about large Obsidian vaults. Notes now render the way Obsidian renders them, the notes graph shows every note at once and stays readable, and the dashboard can close itself when you stop using it. A few fixes also make the dead-code and duplicate reports more accurate, and releases now come in more formats.
 
 ### Upgrading from 0.3.1
 
-- No index migration is needed. The parsers now record more type uses and functions passed around as values, so run `mct-cli --root <project> reindex --force` once to refresh what is already indexed.
+- The index moves from schema version 14 to 17 and reparses indexed files. Update every binary that shares an index before reopening it: older binaries cannot open the migrated database. Run `mct-cli --root <project> reindex --force` to refresh the index.
 - `mct-cli web` now closes itself after 30 minutes without use. Pass `--idle-timeout <minutes>` to change that for one run (`0` means never), or set it under Settings in the dashboard. A saved setting applies when you do not pass the flag.
 - `format::find_dead_code_toon` was removed from `mct-mcp-server`. Nothing in the repository used it, but it was public, so code that called it directly will stop compiling.
 
 ### Added
 
+- Symbol queries can report declaration signatures, parameters, visibility and modifiers when the language parser provides them. Context packs also include declaration details.
+- Symbol relations can record override relationships and more precise evidence about imports, receivers, scope and external calls.
+- Language parsers index more declarations and relationships, including Go fields and package values, Python module values and instance fields, TypeScript parameter properties and decorators, Kotlin top-level declarations, and C++ constants.
 - `mct-mcp-server --exit-idle <VALUE>` (or `MCT_EXIT_IDLE`) makes the process exit after that long without a request that uses the index. It is off by default, because an MCP client does not restart a server that has exited. Dashboard Settings, under Background use, has the same choice ("Close MCP servers after no use"); running servers pick it up within a minute.
 - Dashboard: Obsidian notes render with their own syntax: callouts, wikilinks with aliases and sections, embeds, tags, footnotes, task lists, tables and highlighted code. Raw HTML in a note is shown as text, never run.
 - Dashboard: the notes graph draws every note at once, even in vaults of thousands of notes. Notes are coloured by community, hubs are labelled, and display and force sliders let you tune the layout.
