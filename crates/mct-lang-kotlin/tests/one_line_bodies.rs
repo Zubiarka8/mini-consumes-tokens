@@ -54,7 +54,7 @@ fn a_body_closed_on_its_last_line_is_indexed() {
             "Class Square 2:1+76",
             "Field side 2:14+16",
             "Method area 2:42+33",
-            "Class Op 3:1+77",
+            "Enum Op 3:1+77",
             "Field ADD 3:17+32",
             "Method apply 3:23+24",
             "Method apply 3:51+25",

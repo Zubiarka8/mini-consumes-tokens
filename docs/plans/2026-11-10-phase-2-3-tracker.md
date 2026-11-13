@@ -558,6 +558,13 @@ From `rules.md` and the two messages:
           become `enum`, nothing else changes. Repository snapshot (Python,
           7323 relations): the same 2 kinds change, no relation changes.
           Dead code 123 -> 123.
+    - [x] Kotlin enum kind: an `enum class` is an `enum` (an `enum` class
+          modifier or an enum body, so the annotated one-entry form the
+          grammar misreads counts too); entries stay `field`s and members
+          keep their kinds. Test: `tests/enum_classes.rs`. Corpus:
+          `Currency`, `Scope`, `State`, `VatCategory` become `enum`, nothing
+          else changes. Repository snapshot (Kotlin, 806 relations): the
+          same 4 kinds change, no relation changes. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its
