@@ -502,6 +502,18 @@ From `rules.md` and the two messages:
           `InMemoryRepository.count` and `Collection.count`, are now
           unresolved (each is PHP's `count`, which no function of the
           repository declares); nothing else changed. Dead code 123 -> 123.
+    - [x] TS enum members: each member of `enum`, `const enum` or `declare
+          enum` (`A`, `B = 2`, `'c-d' = 3`) is a `field` of the enum, the
+          property `E.A` the enum object has at run time (as a Java, Kotlin
+          or PHP enum constant is a field); a computed or numeric name
+          declares none, and a call in a member's value is a call from the
+          enum. A type annotation can't name a field or an enum member, so
+          every TS type reference now sets `not_field`; without it, `: Paid`
+          became ambiguous between `interface Paid` and the corpus member
+          `State.Paid`. Test: `tests/enum_members.rs`. Corpus: 307 -> 318
+          symbols, relations unchanged. Repository snapshot (JS/TS, 24397
+          relations): 11 fields added, no relation changed. Dead code
+          123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

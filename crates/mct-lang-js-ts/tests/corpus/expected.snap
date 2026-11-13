@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=307 relations=1005 name_matched_across_files=203
+# language=javascript_typescript files=7 symbols=318 relations=1005 name_matched_across_files=203
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -512,6 +512,10 @@ R 297:66 references splitLines -> available
 == src/money.ts (333 lines)
 S 1-333 module money
 S 7-12 enum Currency
+S 8-8 field Currency::EUR
+S 9-9 field Currency::USD
+S 10-10 field Currency::GBP
+S 11-11 field Currency::JPY
 S 15-20 constant SCALE
 S 22-22 type_alias MoneyJson
 S 24-24 type_alias RoundingMode
@@ -738,6 +742,13 @@ S 1-311 module order
 S 11-11 type_alias OrderId
 S 13-13 function asOrderId
 S 15-23 enum State
+S 16-16 field State::New
+S 17-17 field State::Reserved
+S 18-18 field State::Paid
+S 19-19 field State::Picked
+S 20-20 field State::Shipped
+S 21-21 field State::Invoiced
+S 22-22 field State::Cancelled
 S 25-33 constant NEXT
 S 35-37 function canMoveTo
 S 39-41 function isTerminal

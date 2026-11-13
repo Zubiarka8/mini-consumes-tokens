@@ -390,6 +390,47 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// `enum E { A, B = f() }`: each member is a `field` of `E`, the property
+    /// `E.A` the enum object has at run time (as a Java, Kotlin or PHP enum
+    /// constant is a field), and a member's initializer is visited with the
+    /// enum as its owner. A quoted name (`'dark-blue' = 1`) is the
+    /// member's name without quotes; a computed or numeric one declares
+    /// nothing.
+    fn visit_enum_body(&mut self, body: Node, enum_id: SymbolId, enum_name: &str, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        let mut cursor = body.walk();
+        for member in body.named_children(&mut cursor) {
+            let (name_node, value) = match member.kind() {
+                "enum_assignment" => (
+                    member.child_by_field_name("name"),
+                    member.child_by_field_name("value"),
+                ),
+                _ => (Some(member), None),
+            };
+            let name = name_node.and_then(|n| match n.kind() {
+                "property_identifier" => Some(text(n, self.source)),
+                "string" => n
+                    .named_child(0)
+                    .filter(|f| f.kind() == "string_fragment")
+                    .map(|f| text(f, self.source)),
+                _ => None,
+            });
+            if let Some(name) = name {
+                self.push_symbol(
+                    name.to_string(),
+                    SymbolKind::Field,
+                    location(member),
+                    Some(enum_name.to_string()),
+                );
+            }
+            if let Some(value) = value {
+                self.visit(value, enum_id, None, depth + 1);
+            }
+        }
+    }
+
     fn visit_node(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         match node.kind() {
             "function_declaration" | "generator_function_declaration" => {
@@ -503,13 +544,16 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(
-                    name,
+                    name.clone(),
                     SymbolKind::Enum,
                     location(node),
                     type_name.map(str::to_string),
                 );
                 self.details
                     .push(details::type_detail(node, id, self.source));
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit_enum_body(body, id, &name, depth + 1);
+                }
             }
             // `namespace Legacy { … }`: a symbol of its own, but its members
             // stay top-level (owner and parent unchanged).
@@ -811,16 +855,26 @@ impl<'a> Walker<'a> {
             "jsx_closing_element" => {}
             // A TS type named in an annotation, generic argument, alias or
             // `as` cast (`props: ReviewPanelProps`, `useState<Problem>`) is a
-            // use of that type. Declared names are read by their own arms.
+            // use of that type, never of a field or an enum member (those are
+            // named as `T["f"]` / `E.M`). Declared names are read by their
+            // own arms.
             "type_identifier" => {
                 let name = text(node, self.source);
                 if !self.generics.contains(name) {
+                    let relation = self.relations.len();
                     self.push_relation(
                         owner,
                         RelationKind::References,
                         name.to_string(),
                         location(node),
                     );
+                    if self.relations.len() > relation {
+                        self.relation_targets.push(RelationTarget {
+                            relation,
+                            not_field: true,
+                            ..Default::default()
+                        });
+                    }
                 }
             }
             // A class's, field's or method's decorators are calls from that

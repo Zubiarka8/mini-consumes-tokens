@@ -178,7 +178,7 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 81% | 29 | 85% | 10 | 0 |
-| JS/TS | 80% | 33 | 80% | 10 | 1 |
+| JS/TS | 83% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
@@ -274,7 +274,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 88% | 50% | 100% | 80% | 100% | 83% |
-| JS/TS | 81% | 70% | 67% | 100% | 80% | 50% | 100% |
+| JS/TS | 81% | 80% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
@@ -387,7 +387,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | class fields (`#private`, `static`) | `field_definition`, `public_field_definition` | `field`; an arrow-function value becomes `method` |
 | constructor parameter properties (`constructor(private readonly store: Store)`) | `required_parameter`, `optional_parameter` with an `accessibility_modifier` or `readonly` | `field` of the class at the parameter, with its visibility and `readonly`; a plain parameter declares nothing |
 | `interface` | `interface_declaration` | `interface` (members skipped) |
-| `enum` | `enum_declaration` | `enum` (members skipped) |
+| `enum` | `enum_declaration` | `enum`; each member (`A`, `B = 2`, `'c-d' = 3`) a `field` of the enum, and a call in a member's value is from the enum |
 | `type X = …` | `type_alias_declaration` | `type_alias` |
 | module-level `const X = 1`, `let x`, `var y` (exported or not) | `lexical_declaration`, `variable_declaration` under `program` | `const` is `constant`, `let`/`var` `variable`, with no parent and the declaration without its value as signature; a function value stays `function`; a destructuring pattern and a `require(…)` binding (an import, as an ES `import` is) declare nothing |
 | `namespace N {}` | `internal_module` | `module`; its functions keep no parent |
@@ -401,7 +401,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | the receiver of `x.m()` | `call_expression` + `member_expression` `object` | qualified by `x`'s declared type: a TS annotation (`x: T`, `const x: T`), `= new T()`, `new T().m()`, a class field or parameter property (`this.f.m()`). `this.m()` is qualified by the enclosing class when its body declares `m` as a method, field or parameter property; otherwise it is left as before, since `m` may be inherited. A local without a proven type, a call result or any other expression is a member call: ambiguous even with one candidate, and only a `method` can be its target, so a function reached through a module object (`core.f()` on a loaded module) is unresolved. A name that is no local (a top-level object, an import) is left as before. Inherited and interface methods are not found through the qualifier (interface members are not indexed), so such a call is unresolved |
 | a same-file function used as a value (`onclick: toggle`, `.map(card)`, `return wrapped`, `{ toggle }`) | `identifier`, `shorthand_property_identifier` | `references`; a parameter, pattern or non-function `let`/`const` of the same name in an enclosing function hides it, and a function's use of its own name is skipped |
 | JSX `<Button />` | `jsx_opening_element`, `jsx_self_closing_element` | `references` (DOM tags excluded) |
-| a TS type in an annotation, return type, alias value, generic argument or cast (`props: Props`, `useState<Problem>()`) | `type_identifier` | `references`; the enclosing declarations' type parameters are skipped (their constraints are not walked) |
+| a TS type in an annotation, return type, alias value, generic argument or cast (`props: Props`, `useState<Problem>()`) | `type_identifier` | `references`, never to a field (a type annotation can't name a field or an enum member); the enclosing declarations' type parameters are skipped (their constraints are not walked) |
 | `export default f({ … })` | `export_statement` value | the call and its arguments are walked like any expression |
 | object literal methods | `method_definition` under `object` | `function` |
 | an ECMAScript global (`Math.max()`, `JSON.parse()`, `parseInt()`, `new Map()`) | `call_expression`, `new_expression` | marked `external` only when nothing in the file binds the name — no declaration, import, parameter, pattern or assignment of it — and the file has no direct `eval` or `with`. Host globals (`window`, `document`, `process`, `console`) are not on the list |
@@ -411,7 +411,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Interface members, enum members | Not implemented | `src/lib.rs:29` calls interface members a known limit, not a decision; `walker.rs` skips both bodies |
+| Interface members | Not implemented | `src/lib.rs:29` calls interface members a known limit, not a decision; `walker.rs` skips the body |
 | Overload signatures | Not implemented | only the implementation is a `method_definition` |
 | Repeated code, exact-text search | Not implemented | no token source and no literals for JS/TS |
 | A global is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
@@ -916,7 +916,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [ ] Interface members: neither method signatures nor properties inside an `interface` have a symbol
 - [~] Trait / mixin: a mixin factory becomes `function`; the returned class's methods have no parent
 - [x] Enum: `enum`
-- [ ] Enum members: members have no symbol
+- [x] Enum members: `field` of the enum
 - [?] Nested / inner class: No nested-class form valid in JS/TS was independently verified
 - [~] Anonymous class: class expression: methods have no parent
 - [x] Type alias: `type_alias`
