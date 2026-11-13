@@ -596,6 +596,20 @@ From `rules.md` and the two messages:
           `tests/class_bases.rs`. Corpus: no bases, no changes. Repository
           snapshot (PowerShell, 817 relations): no changes. Dead code
           123 -> 123.
+    - [x] Kotlin class-body ownership: a primary constructor's parameter
+          defaults, property initializers, `init` blocks and secondary
+          constructor bodies run as the class is built, so their calls
+          come from the class, no longer from the file module. Test:
+          `tests/class_body_calls.rs`. Corpus: 34 calls change owner, from
+          the file to their class, with the same targets and resolutions.
+          Repository snapshot (Kotlin, 806 relations): no changes. Dead
+          code 123 -> 123.
+    - [!] Kotlin constructors as symbols: shelved. A constructor `method`
+          named after its class adds a second candidate to every bare
+          `B(…)` call, so 53 corpus calls go from resolved to ambiguous.
+          Java (31) and C# (26) corpus calls already have that ambiguity.
+          A fix needs the index to tell a constructor from its class (a
+          view change, which needs an issue first). Decision pending.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

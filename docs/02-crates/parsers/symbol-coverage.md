@@ -464,13 +464,14 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `import a.b.c`, `import … as x` | `import` | `imports` (alias when present) |
 | `f()`, `obj.m()` | `call_expression`, `navigation_expression` | `calls` |
 | `: Base(4)`, `constructor(x: Int) : super(x)` | `constructor_invocation`, `constructor_delegation_call` | `calls Base` from the class, to a `class` only; `super(…)` only when the header names one supertype without `()`, and to `Any`, external, when it names none |
+| parameter defaults, property initializers, `init { … }`, secondary constructor bodies | `primary_constructor`, `class_body` | their calls come from the class, as no constructor is a symbol; a member function owns its own body |
 | the receiver of `x.m()` | `call_expression` + `navigation_expression` receiver | qualified by `x`'s declared type: a parameter or `val x: T` (`T?` and `List<T>` name `T` and `List`), `= T(…)` (a capitalized callee), `T(…).m()`, a class property or a `val`/`var` constructor property (`this.f.m()`). A capitalized name (`Money.of()`, an object or companion) is its own qualifier. `this.m()` is qualified by the enclosing class when its body declares `m`; otherwise it is left as before, since `m` may be inherited; inside a lambda `this` is not the class. A local without a proven type (`it`, a lambda or `for` variable, `val x = f()`), a call result, `this@Label` or any other expression is a member call: ambiguous even with one candidate. A lowercase name that is no local (a package, a top-level property) is left as before. Inherited and extension methods are not found through the qualifier, so such a call is unresolved |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Primary and secondary constructors | Not implemented | no arm for `primary_constructor` or `secondary_constructor` |
+| Primary and secondary constructors | Model limit | a constructor `method` named after its class (as Java and C# record one) would be a second candidate for every bare `B(…)` call, which the parser can't tell from a function call: in the corpus, 53 resolved constructor calls would become ambiguous. Java (31) and C# (26) corpus calls already are. Telling a constructor from its class needs an index change first |
 | A `typealias` used only as a type | Not implemented | a type in a declaration is no reference, so dead code can list the alias, as it can a class used only as a type |
 | `object` as `class` | By design | explicit mapping in [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L8) |
 | `companion object` without a symbol | Not implemented | not documented as a decision; a companion's members get the outer class as parent |
