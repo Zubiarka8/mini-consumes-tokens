@@ -44,8 +44,8 @@ gh workflow run release.yml --ref <branch>
 gh run watch
 ```
 
-A manual run builds all five targets with `--locked`, smoke-tests the four
-native ones (`linux-arm64` is cross-compiled and only built and packaged),
+A manual run builds all eight targets with `--locked`, smoke-tests the native
+ones (`linux-arm64` is cross-compiled and only built and packaged),
 checks each archive's layout, and uploads the archives as workflow artifacts
 labelled `v<version>-dryrun-<sha>`. Its `release` job is skipped: it cannot
 create a tag or a release. Download an artifact and run the installer test or
@@ -77,7 +77,7 @@ built from this repository, so they include the patched Markdown parser in
 Watch the run. If any platform job fails, nothing is published; fix it and
 push a new patch tag (`v0.2.1`) rather than force-moving a pushed tag.
 
-After it finishes, confirm the release has five archives and that
+After it finishes, confirm the release has eight archives and four Linux packages and that
 `curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.sh | bash`
 installs the new tag on at least one machine.
 
