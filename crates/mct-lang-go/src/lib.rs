@@ -356,6 +356,14 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, package_name, depth + 1);
                 }
             }
+            "composite_literal" => {
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.push_type_use(owner, RelationKind::References, ty, None, package_name);
+                }
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit_children(body, owner, package_name, depth + 1);
+                }
+            }
             "type_conversion_expression" => {
                 // `Fail[T](err)` with a single type argument is ambiguous
                 // with a conversion to the generic type `Fail[T]`; the
@@ -411,12 +419,8 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// `from` extends the type `embedded` names (`Base`, `pkg.Base`,
-    /// `List[T]`), which must be a `kind` when given. A bare name is a
-    /// declaration of this package; `pkg.T` is external through a standard
-    /// package, a declaration of `pkg` through an unaliased repository
-    /// import, and unproven otherwise. Any other type (a union, `~T`, a
-    /// literal type) embeds nothing.
+    /// `from` extends the type `embedded` names, which must be a `kind`
+    /// when given (see `push_type_use`).
     fn push_embedding(
         &mut self,
         from: SymbolId,
@@ -424,13 +428,30 @@ impl<'a> Walker<'a> {
         kind: Option<SymbolKind>,
         package_name: Option<&str>,
     ) {
-        let named = if embedded.kind() == "generic_type" {
-            match embedded.child_by_field_name("type") {
+        self.push_type_use(from, RelationKind::Extends, embedded, kind, package_name);
+    }
+
+    /// A `relation` from `from` to the named type `ty` (`Base`, `pkg.Base`,
+    /// `List[T]`), which must be a `kind` when given. A bare name is a
+    /// declaration of this package; `pkg.T` is external through a standard
+    /// package, a declaration of `pkg` through an unaliased repository
+    /// import, and unproven otherwise. Any other type (a union, `~T`, a
+    /// slice or map type) names none.
+    fn push_type_use(
+        &mut self,
+        from: SymbolId,
+        relation: RelationKind,
+        ty: Node,
+        kind: Option<SymbolKind>,
+        package_name: Option<&str>,
+    ) {
+        let named = if ty.kind() == "generic_type" {
+            match ty.child_by_field_name("type") {
                 Some(base) => base,
                 None => return,
             }
         } else {
-            embedded
+            ty
         };
         let (name, target) = match named.kind() {
             "type_identifier" => (
@@ -471,7 +492,7 @@ impl<'a> Walker<'a> {
             self.push_target(target);
         }
         let to_name = text(name, self.source).to_string();
-        self.push_relation(from, RelationKind::Extends, to_name, location(embedded));
+        self.push_relation(from, relation, to_name, location(ty));
     }
 
     /// Each name of a package-level `const` / `var` declaration, grouped
