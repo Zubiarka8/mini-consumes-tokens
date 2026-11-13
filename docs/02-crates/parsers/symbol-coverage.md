@@ -183,7 +183,7 @@ round to the nearest whole percent, with halves rounded up.
 | Kotlin | 83% | 35 | 65% | 10 | 0 |
 | C# | 87% | 34 | 60% | 10 | 0 |
 | C++ | 89% | 28 | 50% | 10 | 0 |
-| Go | 78% | 18 | 70% | 10 | 0 |
+| Go | 78% | 18 | 80% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
 | Lua | 89% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
@@ -279,7 +279,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 94% | 96% | 50% | 88% | 70% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
-| Go | 83% | 90% | 60% | 80% | 70% | 50% | 83% |
+| Go | 83% | 90% | 60% | 80% | 90% | 50% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 100% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
@@ -565,6 +565,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | package-level `var x T`, `var ( … )` | `var_declaration`, `var_spec`, `var_spec_list` | `variable` per name, parent the package; signature `var x T`. A call in the value belongs to the file module. `_` and a `const`/`var` inside a function are none |
 | `type I interface { M() }` | `type_spec` | `interface`; each method as `method` |
 | `type A = B`, `type A int` | `type_alias`, `type_spec` | `type_alias` |
+| interpreted and raw strings, not a struct field tag | `interpreted_string_literal`, `raw_string_literal` (`…_content`, `escape_sequence`) | literals for exact-text search, escapes resolved unless raw |
 | `import "x"`, grouped imports | `import_declaration`, `import_spec_list`, `import_spec` | `imports` (path and stem), each naming a `module` only, never a same-named field or variable |
 | `f()`, `pkg.F()`, `x.M()`, `F[T]()` | `call_expression`, `selector_expression`, `type_instantiation_expression` | `calls` |
 | a bare `f()` | `call_expression` `function` `identifier` | qualified by this file's package (Go has no implicit receiver), unless `f` is a local of the enclosing function |
@@ -715,7 +716,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts` and `mct-lang-md` fill `ParsedFile::literals`; Python and JS/TS share `mct_tree_sitter::collect_literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Go, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-go` and `mct-lang-md` fill `ParsedFile::literals`; Python, JS/TS and Go share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -1266,7 +1267,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`: a composite literal (`util.Widget{}`) and a declared type (`var w Widget`, a parameter, result or field type, through `*T`, `[]T`, `map[K]V`, `chan T` and generic arguments) reference their type, through an aliased import (`db.Conn`) one under the import path's last directory
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each interpreted or raw string that the prose filter keeps, listed as `path:line`; a struct field tag is skipped
 
 **Features: Code quality**
 
