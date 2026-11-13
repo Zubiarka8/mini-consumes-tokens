@@ -635,6 +635,156 @@
           "defect": "D9"
         }
       ]
+    },
+    {
+      "name": "csharp: a call through a declared interface",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Notify",
+              "path": "cs",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "cs/Shop/Orders.cs:12",
+          "relation": "calls Notify",
+          "truth": "cs/Shop/Notifier.cs:3",
+          "defect": "D5"
+        }
+      ]
+    },
+    {
+      "name": "csharp: a string method",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "Trim",
+              "path": "cs",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "cs/Shop/Orders.cs:11",
+          "relation": "calls Trim",
+          "truth": "external",
+          "defect": "D9"
+        }
+      ]
+    },
+    {
+      "name": "javascript: an imported function",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "pad",
+              "path": "js",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "js/src/main.js:4:10",
+          "relation": "calls pad",
+          "truth": "js/src/fmt.js:1",
+          "defect": "D6"
+        }
+      ]
+    },
+    {
+      "name": "javascript: a platform global",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "abs",
+              "path": "js",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "js/src/main.js:4:19",
+          "relation": "calls abs",
+          "truth": "external",
+          "defect": "D2"
+        }
+      ]
+    },
+    {
+      "name": "bash: a sourced function",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "log_info",
+              "path": "sh",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "sh/bin/run.sh:4",
+          "relation": "calls log_info",
+          "truth": "sh/lib/log.sh:1",
+          "defect": "D6"
+        }
+      ]
+    },
+    {
+      "name": "bash: a shell builtin",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "printf",
+              "path": "sh",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "sh/bin/run.sh:5",
+          "relation": "calls printf",
+          "truth": "external",
+          "defect": "D2"
+        }
+      ]
     }
   ]
 }

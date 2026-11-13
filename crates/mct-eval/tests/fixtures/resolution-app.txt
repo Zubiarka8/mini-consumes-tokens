@@ -8,7 +8,8 @@ crates/mct-eval/src/bundle.rs for the format.
 # resolution-app
 
 Fixture for `crates/mct-eval/suite-resolution.json`: same-named symbols that
-must not be linked, in Rust, Python, TypeScript, Java, Lua and C++. Each suite
+must not be linked, in Rust, Python, TypeScript, JavaScript, Java, C#, Lua,
+C++ and Bash. Each suite
 label names one relation site and what it really refers to. The truth was
 checked by running the code, never read off the index:
 
@@ -76,6 +77,18 @@ checked by running the code, never read off the index:
       assert(util::sorted_calls == 1);
   }
   ```
+
+- **Receiver types (D5) and the standard library (D9), C#:** run with
+  `dotnet run`. `new Orders(new Mailer()).Place("  x  ") == "mail:x"`;
+  reflection shows `_notifier`'s type is `Shop.INotifier`, which `Audit`
+  does not implement, so `_notifier.Notify` is `INotifier.Notify`, never
+  `Audit.Notify`; `id.Trim()` on a `string` is `System.String.Trim`.
+- **Imports (D6) and builtins (D2), JavaScript:** run with Node.
+  `label(-7) == "007"`: `pad` is `fmt.js`'s, never `legacy.js`'s
+  (`"legacy:7"`), and `Math.abs` is the platform's.
+- **Sourced files (D6) and builtins (D2), Bash:** `bash sh/bin/run.sh`
+  prints `info: start`, never `other: start`, so `log_info` is the one
+  `lib/log.sh` defines; `type printf` reports a shell builtin.
 
 The fixture is checked in as one `.txt` bundle, which no parser indexes, and
 unpacked into a temporary directory per eval run, so its clashing names never
@@ -448,3 +461,57 @@ export class Money {
     return other;
   }
 }
+==> cs/Shop/Audit.cs <==
+namespace Shop;
+
+public class Audit
+{
+    public string Notify(string message) => "audit:" + message;
+}
+==> cs/Shop/Notifier.cs <==
+namespace Shop;
+
+public interface INotifier { string Notify(string message); }
+
+public class Mailer : INotifier
+{
+    public string Notify(string message) => "mail:" + message;
+}
+==> cs/Shop/Orders.cs <==
+namespace Shop;
+
+public class Orders
+{
+    private readonly INotifier _notifier;
+
+    public Orders(INotifier notifier) { _notifier = notifier; }
+
+    public string Place(string id)
+    {
+        var trimmed = id.Trim();
+        return _notifier.Notify(trimmed);
+    }
+}
+==> js/src/fmt.js <==
+export function pad(n) { return String(n).padStart(3, "0"); }
+==> js/src/legacy.js <==
+export function pad(s) { return "legacy:" + s; }
+==> js/src/main.js <==
+import { pad } from "./fmt.js";
+
+export function label(n) {
+  return pad(Math.abs(n));
+}
+==> sh/bin/run.sh <==
+source "$(dirname "$0")/../lib/log.sh"
+
+main() {
+  log_info "start"
+  printf '%s\n' done
+}
+
+main
+==> sh/lib/log.sh <==
+log_info() { echo "info: $*"; }
+==> sh/lib/other.sh <==
+log_info() { echo "other: $*"; }
