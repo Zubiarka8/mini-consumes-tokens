@@ -228,16 +228,16 @@ impl<'a> Walker<'a> {
                 self.details.push(detail);
                 match node.child_by_field_name("type") {
                     Some(type_node) if type_node.kind() == "struct_type" => {
-                        self.push_symbol(
+                        let id = self.push_symbol(
                             name.clone(),
                             SymbolKind::Struct,
                             location(node),
                             package_name.map(str::to_string),
                         );
-                        self.push_fields(type_node, &name);
+                        self.push_fields(type_node, &name, id, package_name);
                     }
                     Some(type_node) if type_node.kind() == "interface_type" => {
-                        self.push_symbol(
+                        let id = self.push_symbol(
                             name.clone(),
                             SymbolKind::Interface,
                             location(node),
@@ -248,6 +248,16 @@ impl<'a> Walker<'a> {
                         // module doc's "deferred by design" note above).
                         let mut cursor = type_node.walk();
                         for member in type_node.children(&mut cursor) {
+                            if member.kind() == "type_elem" && member.named_child_count() == 1 {
+                                if let Some(embedded) = member.named_child(0) {
+                                    self.push_embedding(
+                                        id,
+                                        embedded,
+                                        Some(SymbolKind::Interface),
+                                        package_name,
+                                    );
+                                }
+                            }
                             if member.kind() == "method_elem" {
                                 let method_name = member
                                     .child_by_field_name("name")
@@ -374,8 +384,15 @@ impl<'a> Walker<'a> {
     /// A function's or method's parameters and body, with its receiver's,
     /// parameters' and locals' declared types known while the body is walked.
     /// Each named field of `struct_type` is a `Field` of `parent`; an
-    /// embedded field (`*Base`) names a type, not a field of its own.
-    fn push_fields(&mut self, struct_type: Node, parent: &str) {
+    /// embedded field (`*Base`) names a type, not a field of its own: the
+    /// struct `id` extends it.
+    fn push_fields(
+        &mut self,
+        struct_type: Node,
+        parent: &str,
+        id: SymbolId,
+        package_name: Option<&str>,
+    ) {
         let Some(list) = struct_type
             .named_children(&mut struct_type.walk())
             .find(|c| c.kind() == "field_declaration_list")
@@ -383,10 +400,78 @@ impl<'a> Walker<'a> {
             return;
         };
         for field in list.named_children(&mut list.walk()) {
-            if field.kind() == "field_declaration" {
+            if field.kind() != "field_declaration" {
+                continue;
+            }
+            if field.child_by_field_name("name").is_some() {
                 self.push_names(field, "", SymbolKind::Field, Some(parent));
+            } else if let Some(embedded) = field.child_by_field_name("type") {
+                self.push_embedding(id, embedded, None, package_name);
             }
         }
+    }
+
+    /// `from` extends the type `embedded` names (`Base`, `pkg.Base`,
+    /// `List[T]`), which must be a `kind` when given. A bare name is a
+    /// declaration of this package; `pkg.T` is external through a standard
+    /// package, a declaration of `pkg` through an unaliased repository
+    /// import, and unproven otherwise. Any other type (a union, `~T`, a
+    /// literal type) embeds nothing.
+    fn push_embedding(
+        &mut self,
+        from: SymbolId,
+        embedded: Node,
+        kind: Option<SymbolKind>,
+        package_name: Option<&str>,
+    ) {
+        let named = if embedded.kind() == "generic_type" {
+            match embedded.child_by_field_name("type") {
+                Some(base) => base,
+                None => return,
+            }
+        } else {
+            embedded
+        };
+        let (name, target) = match named.kind() {
+            "type_identifier" => (
+                named,
+                package_name.map(|package| RelationTarget {
+                    qualifier: Some(package.to_string()),
+                    kind,
+                    ..Default::default()
+                }),
+            ),
+            "qualified_type" => {
+                let (Some(package), Some(name)) = (
+                    named.child_by_field_name("package"),
+                    named.child_by_field_name("name"),
+                ) else {
+                    return;
+                };
+                let package = text(package, self.source);
+                let target = if self.std_imports.is_std(package) {
+                    Some(RelationTarget {
+                        external: true,
+                        ..Default::default()
+                    })
+                } else if self.packages.contains(package) {
+                    Some(RelationTarget {
+                        qualifier: Some(package.to_string()),
+                        kind,
+                        ..Default::default()
+                    })
+                } else {
+                    None
+                };
+                (name, target)
+            }
+            _ => return,
+        };
+        if let Some(target) = target {
+            self.push_target(target);
+        }
+        let to_name = text(name, self.source).to_string();
+        self.push_relation(from, RelationKind::Extends, to_name, location(embedded));
     }
 
     /// Each name of a package-level `const` / `var` declaration, grouped
