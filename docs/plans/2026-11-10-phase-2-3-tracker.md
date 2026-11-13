@@ -843,6 +843,19 @@ From `rules.md` and the two messages:
           sees one file, and no relation can say "a base if the class has
           one" for the index to settle; Lua's cross-file `require`
           qualifier row got the same label in #451.
+    - [x] Python string literals: each fixed fragment of a string (the
+          text between f-string holes) goes through the shared prose filter
+          into `ParsedFile::literals`, so a `hybrid_search` `"quoted"`
+          query finds Python messages, as it does Rust's. Escapes are
+          resolved unless the string is raw, and `{{` of an f-string reads
+          as `{`. A docstring, or any string standing alone as a statement,
+          is documentation and is skipped. Test: `tests/literals.rs`
+          (parser and `search_literals`). Corpus: no changes (the snapshot
+          does not render literals). Repository snapshot (with `init
+          --force`): 0 -> 1314 Python literals; relations unchanged (7320);
+          the database file is the same size (39,493,632 bytes). Dead code
+          123 -> 123. Python feature score 85% -> 95%; area Search 80% ->
+          100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no

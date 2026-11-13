@@ -177,7 +177,7 @@ round to the nearest whole percent, with halves rounded up.
 | Language | Constructs | Checks | Features | Checks | Unverified |
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
-| Python | 91% | 29 | 85% | 10 | 0 |
+| Python | 91% | 29 | 95% | 10 | 0 |
 | JS/TS | 89% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 83% | 35 | 65% | 10 | 0 |
@@ -273,7 +273,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Language | Functions | Types / OOP | Data | Relations | Search | Quality | Structure |
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
-| Python | 100% | 100% | 50% | 100% | 80% | 100% | 83% |
+| Python | 100% | 100% | 50% | 100% | 100% | 100% | 83% |
 | JS/TS | 94% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
@@ -357,6 +357,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `MAX = 3`, `a, b = …`, `timeout: int = 30` at module level | `assignment` | `variable`; `constant` when annotated `Final`. The first binding of a name only; `_` and attribute or subscript targets are skipped. Signature is the name, or `name: annotation` |
 | `currency = "EUR"`, `sku: str` in a class body | `assignment` | `field`, parent the class |
 | `self.x = …`, `self.x: T = …` in a method | `assignment` + `attribute` on the method's receiver | `field` of the class at its first assignment, unless the class declares `x` (a class attribute or a method). Only the receiver counts (the first parameter, any name, not rebound, not in a `@staticmethod`) |
+| string literals (f-strings too), not a docstring or other string statement | `string`, `string_content` | literals for exact-text search, one per fixed fragment between f-string holes, escapes resolved unless raw |
 | `v.m()`, `@v.m` whose receiver class is not proven, `v` not the method's own `self` | `call`, `decorator` + `attribute` | rules out a `field` as the target ([ADR-036](../../01-architecture/adrs/036-not-field-relation-target.md)): `CONFIG.items()` never resolves to a `Page.items` field by name. `self.key(row)` may still reach a callable field `key` |
 | a call, decorator or base class naming something the file neither imports nor binds (`helper()`, `@cached`, `class C(Base)`) | `call`, `decorator`, `argument_list` | carries this file as evidence, so a same-file definition wins. A name the file binds at class level only hides an import inside that class body |
 | `from pkg.util import x` | `import_from_statement` | the `imports` row for `x` carries `util` as module evidence; `from . import x` carries none |
@@ -369,7 +370,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | A name used in a file with `from m import *` gets no evidence | By design | the star import could bind any name, so the call is left to name resolution (`library/cli.py` `int(…)` still matches a fixture variable named `int`) |
 | A lambda that is not bound to one name (an argument, one of several targets, a local) | By design | it has no name a caller could use; `f = lambda …` at module level or in a class body is a `function` or `method` |
 | A subclass of a project enum (`class Color(BaseEnum)`) stays a `class` | By design | only a base the file proves to be the standard `enum` module's counts; the parser does not follow a base class into another definition |
-| Exact-text search in strings | Not implemented | the parser does not fill `literals` |
 | A builtin is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
 | Two nested `def`s of one name in the same file are `ambiguous` | Model limit | the call is kept to the file, but `RelationTarget` can't name the enclosing function (`suite-resolution.json`, `report.py` `fmt`) |
 
@@ -714,7 +714,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Markdown | Only `mct-lang-rust` and `mct-lang-md` fill `ParsedFile::literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, Markdown | Only `mct-lang-rust`, `mct-lang-python` and `mct-lang-md` fill `ParsedFile::literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -891,7 +891,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each fixed fragment of a string (between f-string holes) that the prose filter keeps, listed as `path:line`; a docstring or a string statement is skipped
 
 **Features: Code quality**
 
