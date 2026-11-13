@@ -542,7 +542,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Unnamed lambdas, locals | Not implemented | only a lambda bound to a plain name declares a symbol; an argument lambda (`std::sort(…, [](…) { … })`) or an immediately invoked one declares none, and locals are skipped |
-| Base-constructor calls of an out-of-line constructor whose class is defined in another file | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition it can't tell a base from a member |
+| Base-constructor calls of an out-of-line constructor whose class is defined in another file | Model limit | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition (in a header) it can't tell a base from a member, and a relation can't carry "a base if the class has one" for the index to settle |
 | A type declared in another file and used only in a declaration (`Widget w;`) | Model limit | a by-name match can't be limited to types, so an unpinned reference could reach a method or constructor named like the type; only a type of the same file is pinned (#440) |
 | Header and source files are two rows | By design | [crate docs](../../../crates/mct-lang-cpp/src/lib.rs#L3) explicitly choose independent header/source rows and correlate matching names and parents |
 | Some valid C++ is rejected | Grammar | tree-sitter-cpp 0.23.4, issue #82 |

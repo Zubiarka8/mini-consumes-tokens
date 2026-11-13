@@ -837,6 +837,12 @@ From `rules.md` and the two messages:
           (`Order.record`), and 2 `self.clock()` calls that resolved to
           `fake_clock.clock` now resolve to the `Limiter.clock` field they
           call. Dead code 123 -> 123.
+    - [x] C++ out-of-line base constructors (docs only): the gap row for
+          `B::B() : A(1)` in a `.cpp` whose class is in a header is
+          relabelled from "Not implemented" to "Model limit". The parser
+          sees one file, and no relation can say "a base if the class has
+          one" for the index to settle; Lua's cross-file `require`
+          qualifier row got the same label in #451.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
