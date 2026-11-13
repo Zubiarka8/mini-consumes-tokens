@@ -740,6 +740,18 @@ From `rules.md` and the two messages:
           lambdas, no changes. Repository snapshot (Kotlin, with `init
           --force`): no changes. Dead code 123 -> 123. Kotlin scores
           80% -> 83% and 72% -> 83%.
+    - [x] C# named lambdas: a local bound to a lambda or an anonymous
+          method (`Func<int, int> f = x => …;`, `Action f = delegate {
+          … };`) is a `function` with no parent, like a local function,
+          with the declaration up to the body as signature and the
+          lambda's parameters (an implicit `x` by name only). The lambda's
+          calls are its own, so `f(2)` resolves. A field holding a lambda
+          stays a `field`, a lambda passed as an argument declares
+          nothing, and another declarator of the same statement stays a
+          plain local. Test: `tests/named_lambdas.rs`. Corpus: no named
+          lambdas, no changes. Repository snapshot (C#, with `init
+          --force`): no changes. Dead code 123 -> 123. C# scores 84% ->
+          87% and 83% -> 94%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
