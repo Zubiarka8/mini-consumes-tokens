@@ -454,6 +454,14 @@ From `rules.md` and the two messages:
           relations): 3 new `extends`, all resolved to the embedded type
           (`Service` -> `Store`, `Transaction` -> `Meta`, `Meta` -> `Tags`).
           Dead code 122 -> 122.
+    - [x] Go composite literals: `T{…}`, `&T{…}`, `pkg.T{…}` and
+          `T[int]{…}` reference `T`, with an embedded type's evidence; a
+          slice, map or elided-type literal references nothing. Test:
+          `tests/composite_literals.rs`. Corpus: 838 -> 917 relations.
+          Repository snapshot (Go, 864 -> 946 relations): 77 new
+          `references`, each resolved to a struct of the package its
+          qualifier names, and 5 external (`time.Time{}`). Dead code
+          122 -> 122.
     - [x] Lua instance fields: the first `self.x = …` in a colon method
           `function T:m()` (or a closure inside it) is a `field` of `T`,
           unless `T` already declares `x`. An explicit `self` parameter, a
