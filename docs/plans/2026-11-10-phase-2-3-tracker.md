@@ -538,6 +538,15 @@ From `rules.md` and the two messages:
           in `notes.js` resolves to its same-file method instead of being
           ambiguous with a field of `review.js`; 130 ambiguous calls keep
           their status with a changed candidate list. Dead code 123 -> 123.
+    - [x] Python lambdas bound to a name: `f = lambda x: …` at module
+          level is a `function`, in a class body a `method` (its first
+          parameter the receiver), as a JS arrow bound to a `const` is; the
+          signature is the binding up to the body (`f = lambda x`) and a
+          call in the body is a call from it. A lambda among several targets,
+          annotated, or inside a function declares nothing new. Test:
+          `tests/lambda_functions.rs`. Corpus unchanged. Repository snapshot
+          (Python, 1529 symbols, 7323 relations): no change, since no file
+          binds a lambda to a name. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

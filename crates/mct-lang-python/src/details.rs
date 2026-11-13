@@ -48,6 +48,42 @@ pub(crate) fn function_detail(
     }
 }
 
+/// A `lambda` bound to one name by `assignment`; `in_class` when the
+/// assignment sits in a class body. The signature is the binding up to the
+/// lambda's body (`double = lambda x`).
+pub(crate) fn lambda_detail(
+    assignment: Node,
+    lambda: Node,
+    in_class: bool,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let list = lambda.child_by_field_name("parameters");
+    let mut parameters = list.map(|l| parameters(l, source)).unwrap_or_default();
+    if in_class {
+        if let Some(first) = parameters
+            .first_mut()
+            .filter(|p| p.kind == ParameterKind::Positional)
+        {
+            first.kind = ParameterKind::Receiver;
+        }
+    }
+    let end = lambda
+        .child_by_field_name("body")
+        .map_or(lambda.end_byte(), |b| b.start_byte());
+    let signature = source
+        .get(assignment.start_byte()..end)
+        .map(|t| t.trim_end().trim_end_matches(':').trim_end().to_string())
+        .filter(|t| !t.is_empty());
+    SymbolDetail {
+        symbol,
+        signature,
+        parameters_known: true,
+        parameters,
+        ..Default::default()
+    }
+}
+
 /// A `class_definition` or a PEP 695 `type_alias_statement`.
 pub(crate) fn type_detail(node: Node, symbol: SymbolId, source: &str) -> SymbolDetail {
     let decorators = decorators(node, source);

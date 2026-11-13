@@ -20,8 +20,8 @@ language it covers and what is missing.
 Use this page:
 
 - before relying on a tool result for a language, to know what can be in it.
-  For example, `find_symbol` never returns a Python lambda, because
-  lambdas are not indexed;
+  For example, `find_symbol` returns a Python lambda only when it is bound
+  to one name (`f = lambda …`), because other lambdas are not indexed;
 - when adding a language. The [language crate template](../../06-templates/lang-crate-base.md)
   asks for inventory entries and a checklist here;
 - when changing a parser. Update the cells it changes in the same PR.
@@ -119,7 +119,7 @@ table emits none yet:
 |---|---|---|---|---|
 | Rust | `fn` (free, method, trait, `extern` block), `struct`, `union`, `enum`, `trait`, `type`, associated `type`, `const`, `static` | `pub` → public, `pub(crate)` → crate, `pub(super)`/`pub(in …)` → restricted, `pub(self)` or no keyword → private; none recorded in a trait or `impl Trait for T`, where the trait decides | `async`, `const`, `unsafe`, `extern` (functions); `unsafe` (traits) | closures bound by `let`, enum variants, fields, macro-generated items; parameter defaults (Rust has none) |
 | JS/TS | `function` (and generator), methods, functions or arrows assigned to `const`/`let`/`var` or to a class field, classes, interfaces, type aliases, enums, class fields | class members: `private`/`protected`/`public` keyword, `#name` → private, otherwise public (the language default); none outside a class | `async`, generator (`*`), `static`, `readonly`, `abstract`, `override`, `const` (enums) | CommonJS/`export default` function values, abstract method signatures, object-literal properties. Types come from TS annotations (`syntax`) or, without one, from a JSDoc `@param {T} name` / `@returns {T}` right above (`doc`); a destructured parameter has no name for JSDoc to match |
-| Python | `def` (functions and methods), `class`, PEP 695 `type`, module-level and class-body assignments | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
+| Python | `def` (functions and methods), `class`, PEP 695 `type`, module-level and class-body assignments, a lambda bound to one name | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas not bound to one name. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
 | Java | methods, constructors, classes, records, interfaces, annotation types, enums, each declarator of a field declaration | `public`/`protected`/`private`; none → package, but public in an interface or annotation type (the language default) | `abstract`, `static`, `final`, `sealed`, `@Override` → override | record accessors (synthesized, not written), enum constants, `throws` (kept in the signature only). The explicit `Type this` parameter is the receiver; `T...` is variadic |
 | Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes, member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
 | C# | methods, constructors, destructors, operators, conversion operators, local functions, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
@@ -177,7 +177,7 @@ round to the nearest whole percent, with halves rounded up.
 | Language | Constructs | Checks | Features | Checks | Unverified |
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
-| Python | 81% | 29 | 85% | 10 | 0 |
+| Python | 84% | 29 | 85% | 10 | 0 |
 | JS/TS | 86% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
@@ -273,7 +273,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Language | Functions | Types / OOP | Data | Relations | Search | Quality | Structure |
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
-| Python | 78% | 88% | 50% | 100% | 80% | 100% | 83% |
+| Python | 89% | 88% | 50% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
@@ -366,7 +366,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | A name used in a file with `from m import *` gets no evidence | By design | the star import could bind any name, so the call is left to name resolution (`library/cli.py` `int(…)` still matches a fixture variable named `int`) |
-| Lambdas | Not implemented | no arm for `lambda` |
+| A lambda that is not bound to one name (an argument, one of several targets, a local) | By design | it has no name a caller could use; `f = lambda …` at module level or in a class body is a `function` or `method` |
 | Enum subclasses | Not implemented | ordinary class traversal emits `class` plus `extends Enum`; assigned enum values are `field`, as any class attribute |
 | Nested functions have no parent | Not implemented | the parent is set only for class members |
 | Getter and setter as two rows | Not implemented | both are emitted as methods; the shared `field` kind could model a combined property, as in C# |
@@ -838,7 +838,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Top-level function: `function`, `async def` too
 - [~] Nested function (named, inside a function): `function` with no parent
-- [ ] Lambda / closure assigned to a name: `f = lambda …` has no symbol
+- [x] Lambda / closure assigned to a name: `f = lambda …` is a `function`, or a `method` in a class body, with the binding up to the body as signature
 - [x] Method: `method`, parent is the class
 - [x] Constructor: `__init__` as `method`
 - [x] Destructor / finalizer: `__del__` as `method`
