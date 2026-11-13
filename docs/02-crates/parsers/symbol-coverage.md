@@ -180,7 +180,7 @@ round to the nearest whole percent, with halves rounded up.
 | Python | 69% | 29 | 85% | 10 | 0 |
 | JS/TS | 65% | 33 | 80% | 10 | 1 |
 | Java | 76% | 27 | 65% | 10 | 0 |
-| Kotlin | 66% | 35 | 65% | 10 | 0 |
+| Kotlin | 67% | 35 | 65% | 10 | 0 |
 | C# | 76% | 34 | 55% | 10 | 0 |
 | C++ | 77% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
@@ -276,7 +276,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 70% | 17% | 78% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 75% | 80% | 25% | 67% |
-| Kotlin | 72% | 79% | 33% | 63% | 80% | 50% | 50% |
+| Kotlin | 72% | 79% | 33% | 69% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 42% | 70% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
@@ -448,7 +448,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `val`/`var` property in a class | `property_declaration` | `field` |
 | `class C(val x: Int)` | `class_parameter` | `field` |
 | `enum class` entries | `enum_entry` | `field` |
-| `: Base()`, `: Iface` | `constructor_invocation`, `user_type` | `extends` (with `()`), `implements` (without) |
+| `: Base()`, `: Iface` | `constructor_invocation`, `user_type` | `extends` to a `class` (with `()`); without `()`, `extends` to an `interface` from an interface, else `implements` |
 | `import a.b.c`, `import … as x` | `import` | `imports` (alias when present) |
 | `f()`, `obj.m()` | `call_expression`, `navigation_expression` | `calls` |
 | the receiver of `x.m()` | `call_expression` + `navigation_expression` receiver | qualified by `x`'s declared type: a parameter or `val x: T` (`T?` and `List<T>` name `T` and `List`), `= T(…)` (a capitalized callee), `T(…).m()`, a class property or a `val`/`var` constructor property (`this.f.m()`). A capitalized name (`Money.of()`, an object or companion) is its own qualifier. `this.m()` is qualified by the enclosing class when its body declares `m`; otherwise it is left as before, since `m` may be inherited; inside a lambda `this` is not the class. A local without a proven type (`it`, a lambda or `for` variable, `val x = f()`), a call result, `this@Label` or any other expression is a member call: ambiguous even with one candidate. A lowercase name that is no local (a package, a top-level property) is left as before. Inherited and extension methods are not found through the qualifier, so such a call is unresolved |
@@ -461,7 +461,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `typealias`, top-level `val`/`var`/`const val` | Not implemented | no arm for `type_alias`; a top-level `property_declaration` gives no symbol |
 | `object` as `class` | By design | explicit mapping in [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L8) |
 | `enum class` as `class`, `companion object` without a symbol | Not implemented | not documented as a decision; a companion's members get the outer class as parent |
-| Interface inherits interface using `implements` | Bug | `interface B : A` has output of the wrong relation kind: `implements`, not `extends` |
 | Anonymous object in a function | Not implemented | no class symbol; its named functions become parentless `function` rows |
 | Infix and operator calls (`a + b`) | Not implemented | [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L16) describe a known limit, not an explicit decision to omit them |
 | One-line member without separator (`class A { fun f() {} }`) | Worked around | tree-sitter-kotlin-ng reports a missing separator; the parser reparses with a `;` in the blank before each such `}` and keeps the result only when it is clean ([`reparse_with_terminated_lines`](../../../crates/mct-lang-kotlin/src/lib.rs)) |
@@ -1046,7 +1045,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [~] Imports: aliases use the alias name; some imports emit duplicate target names and a false external graph entry
 - [x] Class extends class: when the supertype has `()`
 - [x] Implements interface / trait: supertype without `()`
-- [~] Interface extends interface / supertrait: an `implements` relation is emitted, rather than `extends`
+- [x] Interface extends interface / supertrait: `interface B : A` → `extends`, to an `interface` only
 - [ ] Decorator / annotation / attribute: `@Marker` gives no relation to the annotation class
 
 **Features: Search and lookup**
