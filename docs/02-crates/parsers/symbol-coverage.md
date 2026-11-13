@@ -304,7 +304,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `mod m { … }`, `mod m;` | `mod_item` | `module` |
 | `use a::{b, c as d}` | `use_declaration`, `use_list`, `scoped_use_list`, `use_as_clause` | `imports` per name |
 | `f()`, `a::f()`, `x.m()`, `f::<T>()` | `call_expression`, `scoped_identifier`, `field_expression`, `generic_function` | `calls` |
-| `impl Tr for T` | `impl_item` | `implements Tr`, owned by the file module; its associated types count as used |
+| `impl Tr for T` | `impl_item` | `implements Tr`, owned by `T` when the file declares one struct, union or enum `T`, else by the file module; its associated types count as used |
 | `trait B: A` | `trait_item` | `extends A` |
 | `#[derive(Clone)]`, other non-compiler attributes | `attribute_item` | `references` to the item or derive named; a bare built-in attribute of the Rust reference (`#[ignore]`, `#[should_panic]`, `#[track_caller]`, `#[non_exhaustive]`…) is none, since an imported macro can't share its name (E0659) |
 | a same-file free function used as a value, or inside a macro | `identifier`, `token_tree` | `references` |
@@ -325,7 +325,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| `implements` owned by the file module | Bug | the type that implements the trait is not the owner |
+| `implements` of a type declared in another file is owned by the file module | Model limit | the parser sees one file, and a relation's owner must be a symbol of that file |
 | A call to a function of another file inside a macro that is not imported or is reached through a field or path (`x.f()`) | By design | the traversal comment limits macro identifiers to imported names and same-file free functions; other forms are `references`, to avoid mistaking fields and paths for calls |
 | Visibility, generics, signatures | Model limit | see [What the index can hold](#what-the-index-can-hold) |
 | A bare prelude name under a glob whose source is another file (`use super::*` in a file module, `use other::*`) is not marked `external`, and resolves to a same-named item elsewhere when there is only one | By design (parser) + model limit (index) | the parser can't see what the glob brings in, so it proves nothing; the index then reports a unique name match as `resolved`. On this repository: 14 `String` references in `mct-index/src/reviews/tests.rs` and `mct-cli/src/web/tests/group_invariants.rs` resolve to `LiteralCategory::String`. Fixing it needs "resolved by name" to be told apart from "resolved by evidence" in the index |
@@ -814,7 +814,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls
 - [x] Imports
-- [~] Implements interface / trait: `impl Trait for T` → `implements`, but owned by the file module, not by `T`
+- [~] Implements interface / trait: `impl Trait for T` → `implements` owned by `T` when the file declares it; an `impl` of a type from another file stays owned by the file module
 - [x] Interface extends interface / supertrait: `trait B: A` → `extends`
 - [x] Decorator / annotation / attribute: `#[derive(Clone)]` → `references` to `Clone`
 
