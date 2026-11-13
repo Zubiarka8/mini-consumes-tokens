@@ -7,7 +7,7 @@ S 70-76 constant DEFAULTS
 S 82-116 function parseArgs
 S 118-129 function printHelp
 S 135-174 function createApi
-S 138-165 function request
+S 138-165 function createApi::request
 S 170-172 function sent
 S 180-188 function seedStock
 S 190-197 function seedCustomers
@@ -31,18 +31,18 @@ R 112:15 calls parseArgs -> isInteger
 R 113:15 calls parseArgs -> Error
 R 119:11 calls printHelp -> log
 R 127:7 calls printHelp -> join
-R 141:15 calls request -> log
-R 141:60 calls request -> stringify
-R 146:28 calls request -> fetch (name-matched: src/api/client.ts)
-R 151:28 calls request -> randomUUID
-R 153:25 calls request -> stringify
-R 156:26 calls request -> Number
-R 156:50 calls request -> get (name-matched: src/api/client.ts)
-R 157:13 calls request -> delay
-R 158:14 calls request -> request
-R 161:35 calls request -> text
-R 162:17 calls request -> Error
-R 164:54 calls request -> json
+R 141:15 calls createApi::request -> log
+R 141:60 calls createApi::request -> stringify
+R 146:28 calls createApi::request -> fetch (name-matched: src/api/client.ts)
+R 151:28 calls createApi::request -> randomUUID
+R 153:25 calls createApi::request -> stringify
+R 156:26 calls createApi::request -> Number
+R 156:50 calls createApi::request -> get (name-matched: src/api/client.ts)
+R 157:13 calls createApi::request -> delay
+R 158:14 calls createApi::request -> request
+R 161:35 calls createApi::request -> text
+R 162:17 calls createApi::request -> Error
+R 164:54 calls createApi::request -> json
 R 168:23 calls createApi -> request
 R 169:30 calls createApi -> request
 R 182:15 calls seedStock -> post (name-matched: src/api/client.ts)
@@ -876,11 +876,11 @@ S 264-264 field OrderJson::lines
 S 271-277 function countByState
 S 279-281 function largest
 S 284-290 function stalePayments
-S 286-288 function waitedMinutes
+S 286-288 function stalePayments::waitedMinutes
 S 293-297 function pages
 S 300-309 function packingSlip
-S 301-301 function rule
-S 302-302 function row
+S 301-301 function packingSlip::rule
+S 302-302 function packingSlip::row
 R 1:1 imports order -> money (name-matched: src/money.ts)
 R 1:10 imports order -> Currency (name-matched: src/money.ts)
 R 1:20 imports order -> Money (name-matched: src/money.ts)
@@ -1018,16 +1018,16 @@ R 284:81 references stalePayments -> Date
 R 284:107 references stalePayments -> Order
 R 285:27 calls stalePayments -> getTime
 R 285:21 calls stalePayments -> now (name-matched: src/api/client.ts)
-R 286:33 references waitedMinutes -> Order
-R 287:35 calls waitedMinutes -> getTime
-R 287:19 calls waitedMinutes -> placedAt
+R 286:33 references stalePayments::waitedMinutes -> Order
+R 287:35 calls stalePayments::waitedMinutes -> getTime
+R 287:19 calls stalePayments::waitedMinutes -> placedAt
 R 289:17 calls stalePayments -> filter
 R 289:61 calls stalePayments -> waitedMinutes
 R 293:63 references pages -> Generator
 R 295:17 calls pages -> slice
 R 300:36 references packingSlip -> Order
-R 301:26 calls rule -> repeat
-R 302:53 calls row -> padEnd
+R 301:26 calls packingSlip::rule -> repeat
+R 302:53 calls packingSlip::row -> padEnd
 R 303:16 calls packingSlip -> rule
 R 303:24 calls packingSlip -> row
 R 303:55 calls packingSlip -> rule
@@ -1071,8 +1071,8 @@ S 156-160 function StockBadge
 S 162-186 function Toolbar
 S 189-214 function OrderDetail
 S 216-299 function OrderTable
-S 234-240 function cancelSelected
-S 242-246 function showSlip
+S 234-240 function OrderTable::cancelSelected
+S 242-246 function OrderTable::showSlip
 S 302-306 function createOrderTable
 R 1:8 imports OrderTable -> React
 R 1:17 imports OrderTable -> useCallback
@@ -1207,11 +1207,11 @@ R 230:11 calls OrderTable -> sum (name-matched: src/money.ts)
 R 230:67 calls OrderTable -> map
 R 230:23 calls OrderTable -> filter
 R 230:52 calls OrderTable -> has
-R 236:20 calls cancelSelected -> cancel (name-matched: src/api/client.ts)
-R 238:5 calls cancelSelected -> dispatch
-R 239:11 calls cancelSelected -> reload
-R 242:28 references showSlip -> Order (name-matched: src/order.ts)
-R 244:37 calls showSlip -> packingSlip (name-matched: src/order.ts)
+R 236:20 calls OrderTable::cancelSelected -> cancel (name-matched: src/api/client.ts)
+R 238:5 calls OrderTable::cancelSelected -> dispatch
+R 239:11 calls OrderTable::cancelSelected -> reload
+R 242:28 references OrderTable::showSlip -> Order (name-matched: src/order.ts)
+R 244:37 calls OrderTable::showSlip -> packingSlip (name-matched: src/order.ts)
 R 253:8 references OrderTable -> Toolbar
 R 255:54 calls OrderTable -> join
 R 255:24 calls OrderTable -> map
@@ -1272,12 +1272,12 @@ S 128-130 method ScanErrorBoundary::componentDidCatch
 S 132-134 method ScanErrorBoundary::retry
 S 136-147 method ScanErrorBoundary::render
 S 151-184 function createScanner
-S 155-171 function onKeyDown
+S 155-171 function createScanner::onKeyDown
 S 174-176 function start
 S 177-179 function stop
 S 180-182 function pending
 S 186-202 function useIdleLogout
-S 189-192 function reset
+S 189-192 function useIdleLogout::reset
 S 204-213 function usePickSession
 S 215-226 function TaskCard
 S 228-241 function Feedback
@@ -1285,7 +1285,7 @@ S 243-253 function ProgressBar
 S 255-294 function Board
 S 297-316 function openSession
 S 318-339 function PickBoard
-S 328-332 function finish
+S 328-332 function PickBoard::finish
 R 1:8 imports PickBoard -> React
 R 1:17 imports PickBoard -> Component
 R 1:28 imports PickBoard -> useEffect
@@ -1342,14 +1342,14 @@ R 116:21 calls PickSession::close -> clear
 R 121:40 extends ScanErrorBoundary -> Component
 R 129:16 calls ScanErrorBoundary::componentDidCatch -> onError
 R 133:10 calls ScanErrorBoundary::retry -> setState
-R 156:22 calls onKeyDown -> now (name-matched: src/api/client.ts)
-R 163:9 calls onKeyDown -> onScan
+R 156:22 calls createScanner::onKeyDown -> now (name-matched: src/api/client.ts)
+R 163:9 calls createScanner::onKeyDown -> onScan
 R 175:14 calls start -> addEventListener
 R 178:14 calls stop -> removeEventListener
 R 187:17 calls useIdleLogout -> useRef
 R 188:3 calls useIdleLogout -> useEffect
-R 190:7 calls reset -> clearTimeout
-R 191:23 calls reset -> setTimeout
+R 190:7 calls useIdleLogout::reset -> clearTimeout
+R 191:23 calls useIdleLogout::reset -> setTimeout
 R 193:5 calls useIdleLogout -> reset
 R 194:12 calls useIdleLogout -> addEventListener
 R 195:12 calls useIdleLogout -> addEventListener
@@ -1405,11 +1405,11 @@ R 322:3 calls PickBoard -> useIdleLogout
 R 324:3 calls PickBoard -> useEffect
 R 325:38 calls PickBoard -> then
 R 325:5 calls PickBoard -> openSession
-R 329:12 calls finish -> forEach
-R 329:36 calls finish -> invalidate (name-matched: src/inventory.ts)
-R 330:13 calls finish -> close
-R 331:5 calls finish -> setSession
-R 331:22 calls finish -> openSession
+R 329:12 calls PickBoard::finish -> forEach
+R 329:36 calls PickBoard::finish -> invalidate (name-matched: src/inventory.ts)
+R 330:13 calls PickBoard::finish -> close
+R 331:5 calls PickBoard::finish -> setSession
+R 331:22 calls PickBoard::finish -> openSession
 R 335:6 references PickBoard -> ScanErrorBoundary
 R 335:52 calls PickBoard -> error (name-matched: src/ui/OrderTable.tsx)
 R 336:19 references PickBoard -> Board
