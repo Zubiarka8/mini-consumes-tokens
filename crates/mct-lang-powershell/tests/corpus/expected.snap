@@ -1,4 +1,4 @@
-# language=powershell files=5 symbols=103 relations=266 name_matched_across_files=62
+# language=powershell files=5 symbols=103 relations=274 name_matched_across_files=62
 
 == Deploy-Warehouse.ps1 (301 lines)
 S 1-301 module Deploy-Warehouse
@@ -378,3 +378,11 @@ R 284:39 calls Warehouse.Inventory::Invoke-AnnualCount -> ForEach-Object
 R 285:13 calls Warehouse.Inventory::Invoke-AnnualCount -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 289:9 calls Warehouse.Inventory::Invoke-AnnualCount -> Set-ReservationFreeze
 R 293:1 calls Warehouse.Inventory -> Export-ModuleMember
+R 39:6 references Location::StorageZone -> StorageZone
+R 41:28 references Location::StorageZone -> StorageZone
+R 42:28 references Location::StorageZone -> StorageZone
+R 43:28 references Location::StorageZone -> StorageZone
+R 45:17 references Location::StorageZone -> StorageZone
+R 55:6 references Warehouse.Inventory::CycleCount -> Location
+R 88:18 references Warehouse.Inventory::Import-CycleCount -> CycleCount
+R 139:52 references Warehouse.Inventory::Submit-CycleCount -> CycleCount
