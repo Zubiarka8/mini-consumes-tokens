@@ -663,6 +663,17 @@ From `rules.md` and the two messages:
           Corpus: 266 -> 274 relations. Repository snapshot (PowerShell,
           with `init --force`): 822 -> 830 relations, all 8 resolved.
           Dead code 123 -> 123.
+    - [x] C# static-class qualifier: `Helpers.Format(x)`, with a
+          capitalized qualifier that is no local or field, also
+          `references Helpers`, whose target must be a `class` (`static`
+          is class-only), so the class is no longer dead code for that use
+          and a method named like it is never the target. A struct,
+          delegate or BCL qualifier stays unresolved; none is marked
+          `external`. Test: `tests/static_qualifier.rs`. Corpus: 72 new
+          references, 34 resolved, 38 unresolved (`Math`, `Console`,
+          `Task`, the struct `Sku`, …). Repository snapshot (C#, with
+          `init --force`): 692 -> 767 relations, 36 resolved, 39
+          unresolved. Dead code 123 -> 123.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no

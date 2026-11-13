@@ -388,7 +388,7 @@ impl<'a> Walker<'a> {
                         let name = text(name_node, self.source);
                         // `nameof(x)` is an operator, not a call.
                         if !(name == "nameof" && function.kind() == "identifier") {
-                            self.push_receiver(function, name);
+                            let type_qualifier = self.push_receiver(function, name);
                             // location(name_node), not location(node): a
                             // chained call (`a.F(x).F(y)`) has its outer and
                             // inner invocation_expression both start at `a`,
@@ -400,6 +400,9 @@ impl<'a> Walker<'a> {
                                 name.to_string(),
                                 location(name_node),
                             );
+                            if let Some(qualifier) = type_qualifier {
+                                self.push_type_qualifier(owner, qualifier);
+                            }
                         }
                     }
                     self.visit(function, owner, type_name, depth + 1);
@@ -689,13 +692,17 @@ impl<'a> Walker<'a> {
     /// type is not proven. A bare call, `base.M()`, `this.M()` on a method
     /// the class does not declare (it may be inherited) and a lowercase name
     /// that is no local or field (a namespace) record nothing.
-    fn push_receiver(&mut self, function: Node, method: &str) {
+    ///
+    /// Returns the receiver when it is a capitalized name that is no local
+    /// or field (`Helpers.F()`): a type the call also uses.
+    fn push_receiver<'t>(&mut self, function: Node<'t>, method: &str) -> Option<Node<'t>> {
         let receiver = match function.kind() {
             "member_access_expression" => function.child_by_field_name("expression"),
             "conditional_access_expression" => function.child_by_field_name("condition"),
             "member_binding_expression" => None,
-            _ => return,
+            _ => return None,
         };
+        let mut type_qualifier = None;
         let class = self.classes.last();
         let typed = |ty: Option<String>| {
             let member = ty.is_none();
@@ -704,9 +711,9 @@ impl<'a> Walker<'a> {
         let (qualifier, member) = match receiver.map(|r| (r, r.kind())) {
             Some((_, "this")) => match class {
                 Some(class) if class.methods.contains(method) => (Some(class.name.clone()), false),
-                _ => return,
+                _ => return None,
             },
-            Some((_, "base")) => return,
+            Some((_, "base")) => return None,
             Some((r, "identifier")) => {
                 let name = text(r, self.source);
                 match self
@@ -715,8 +722,11 @@ impl<'a> Walker<'a> {
                     .or_else(|| class.and_then(|c| c.fields.get(name)))
                 {
                     Some(ty) => typed(ty.clone()),
-                    None if name.starts_with(char::is_uppercase) => (Some(name.to_string()), false),
-                    None => return,
+                    None if name.starts_with(char::is_uppercase) => {
+                        type_qualifier = Some(r);
+                        (Some(name.to_string()), false)
+                    }
+                    None => return None,
                 }
             }
             // `this.f.M()`: the field's declared type.
@@ -744,6 +754,25 @@ impl<'a> Walker<'a> {
             relation: self.relations.len(),
             qualifier,
             member,
+            ..Default::default()
+        });
+        type_qualifier
+    }
+
+    /// `references` the type a static call names (`Helpers` in
+    /// `Helpers.F()`). `static` is a class-only modifier, so only a `class`
+    /// is its target, never a method or field named like it.
+    fn push_type_qualifier(&mut self, owner: SymbolId, qualifier: Node) {
+        let relation = self.relations.len();
+        self.push_relation(
+            owner,
+            RelationKind::References,
+            text(qualifier, self.source).to_string(),
+            location(qualifier),
+        );
+        self.relation_targets.push(RelationTarget {
+            relation,
+            kind: Some(SymbolKind::Class),
             ..Default::default()
         });
     }
