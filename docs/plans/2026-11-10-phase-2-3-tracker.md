@@ -547,6 +547,17 @@ From `rules.md` and the two messages:
           `tests/lambda_functions.rs`. Corpus unchanged. Repository snapshot
           (Python, 1529 symbols, 7323 relations): no change, since no file
           binds a lambda to a name. Dead code 123 -> 123.
+    - [x] Python enums: a class that subclasses a base of the standard
+          `enum` module (`Enum`, `IntEnum`, `StrEnum`, `Flag`, `IntFlag`) is
+          an `enum`, its assigned members staying `field`s of it. The base
+          counts only when the file proves it is the standard one: a bare
+          name only `from enum import …` binds, or the base on a module alias
+          of `enum`; a base named `Enum` from a relative or other import, a
+          local class or a later assignment leaves a `class`. Test:
+          `tests/enum_classes.rs`. Corpus: `Genre` and `MembershipTier`
+          become `enum`, nothing else changes. Repository snapshot (Python,
+          7323 relations): the same 2 kinds change, no relation changes.
+          Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

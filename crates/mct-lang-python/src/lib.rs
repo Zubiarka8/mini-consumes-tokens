@@ -523,9 +523,14 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 // A class nested directly in another class's body belongs to
                 // it, like a method does.
+                let kind = if self.is_enum(node) {
+                    SymbolKind::Enum
+                } else {
+                    SymbolKind::Class
+                };
                 let id = self.push_symbol(
                     name.clone(),
-                    SymbolKind::Class,
+                    kind,
                     location(node),
                     class_name.map(str::to_string),
                 );
@@ -570,6 +575,34 @@ impl<'a> Walker<'a> {
                 None
             }
         }
+    }
+
+    /// Whether the `class_definition` subclasses one of the standard `enum`
+    /// module's bases (`class Color(Enum)`, `class Bits(enum.IntFlag)`): a
+    /// bare name only `from enum import …` binds, or the base on a module
+    /// alias of `enum`. A base named `Enum` from anywhere else proves
+    /// nothing.
+    fn is_enum(&self, class: Node) -> bool {
+        let Some(bases) = class.child_by_field_name("superclasses") else {
+            return false;
+        };
+        let mut cursor = bases.walk();
+        let found = bases
+            .named_children(&mut cursor)
+            .any(|base| match base.kind() {
+                "identifier" => self.scope.is_enum_base(text(base, self.source)),
+                "attribute" => {
+                    let attribute = base.child_by_field_name("attribute");
+                    let object = base.child_by_field_name("object");
+                    attribute.is_some_and(|a| scope::ENUM_BASES.contains(&text(a, self.source)))
+                        && object.is_some_and(|o| {
+                            o.kind() == "identifier"
+                                && self.scope.module_alias(text(o, self.source)) == Some("enum")
+                        })
+                }
+                _ => false,
+            });
+        found
     }
 
     /// Whether one of the `decorated_definition`'s decorators is PEP 698's
