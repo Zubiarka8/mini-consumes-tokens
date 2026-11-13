@@ -185,7 +185,7 @@ round to the nearest whole percent, with halves rounded up.
 | C++ | 89% | 28 | 50% | 10 | 0 |
 | Go | 78% | 18 | 70% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
-| Lua | 86% | 14 | 60% | 10 | 0 |
+| Lua | 89% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
 | PowerShell | 81% | 18 | 50% | 10 | 0 |
 
@@ -281,7 +281,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 70% | 50% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
-| Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
+| Lua | 90% | 100% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
 | PowerShell | 90% | 100% | 50% | 80% | 60% | 50% | 33% |
 
@@ -624,7 +624,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `function M.f()`, `function M:f()` | `function_declaration` with `dot_index_expression`/`method_index_expression` | `method`, parent `M` |
 | `local f = function() end` | `assignment_statement` + `function_definition` | `function` |
 | `local M = {}` | `assignment_statement` + `table_constructor` | `module` |
-| `T.__index = T`, `local D = setmetatable({}, { __index = B })` at file level | `assignment_statement`, `function_call` | the table becomes `class`; `extends B` |
+| `T.__index = T`, `local D = setmetatable({}, { __index = B })`, `W.D = setmetatable({}, { __index = W.B })` at file level | `assignment_statement`, `function_call` | the table becomes `class` (`D` of `W` for a nested target); `extends B`, pinned to this file when `B` is a class this file declares in `W` |
 | `Vec.__add = function(a, b)` | `assignment_statement` + `function_definition` | `method`, parent `Vec` |
 | file-level `x = 1`, `local x = 1`, `local x <const> = 1`, `M.x = 1` | `assignment_statement` | `variable`, `constant`, `field` of `M` |
 | `self.x = …` in `function T:m()` (and closures inside it) | `assignment_statement` + `dot_index_expression` on `self` | `field` of `T` at its first assignment, unless `T` already declares `x`; an explicit `self` parameter or a plain function gives none, since `self`'s table is unknown there |
@@ -637,7 +637,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Nested table classes bound by `setmetatable` (`W.Dog = setmetatable({}, { __index = W.Animal })`) | Not implemented | only `W.Widget.__index = W.Widget` promotes a nested table to `class` |
+| A class used as a call's qualifier in a file that reaches it through `require` (`local A = require("animal"); A.new()`) gets no reference | Model limit | which table the required file returns is known only in that file, and the parser sees one file; the `require` already imports the module, and the call to `new` still resolves |
 | Fields assigned through an explicit `self` or a local (`local self = setmetatable({}, T)`), parameters | Not implemented | only a colon method's implicit `self` has a known table; inside a function only `local` names otherwise become symbols |
 | Dead code skips table/module methods | By design | methods are excluded by [the shared allowlist decision](../../../crates/mct-index/src/dead_code.rs#L7); free global/local functions remain candidates |
 
@@ -1352,7 +1352,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Types and object-oriented programming**
 
-- [~] Class: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it, and a nested table once `W.Widget.__index = W.Widget` does; a nested `setmetatable` binding stays `module`
+- [x] Class: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it, and a nested table once `W.Widget.__index = W.Widget` or `W.Dog = setmetatable({}, { __index = W.Animal })` does
 - [x] Module / namespace / package: file `module`; table literals too
 
 **Fields, constants and variables**
