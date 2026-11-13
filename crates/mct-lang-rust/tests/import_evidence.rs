@@ -107,6 +107,29 @@ fn a_use_path_from_a_module_of_this_file_is_not_a_crate() {
 }
 
 #[test]
+fn a_library_module_import_is_not_mistaken_for_a_crate() {
+    let root = std::env::temp_dir().join(format!("mct-rs-import-lib-mod-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::create_dir_all(root.join("support")).unwrap();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "#[path = \"../support/query.rs\"]\nmod bench;\nuse bench::Query;\n\npub fn run(q: Query) {}\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("support/query.rs"), "pub struct Query;\n").unwrap();
+    let index = mct_corpus::open_fixture_indexed(&root, Arc::new(RustParser));
+    let hits: Vec<_> = index
+        .find_references("Query")
+        .unwrap()
+        .into_iter()
+        .filter(|h| h.relative_path == "src/lib.rs" && h.kind != "imports")
+        .map(|h| format!("{}:{} {:?}", h.relative_path, h.line, h.resolution))
+        .collect();
+    std::fs::remove_dir_all(root).unwrap();
+    assert_eq!(hits, ["src/lib.rs:5 Resolved"]);
+}
+
+#[test]
 fn an_integration_test_may_import_its_own_package_by_name() {
     // A package at the repository root: its crate name, `app`, is in no path.
     let root = std::env::temp_dir().join(format!("mct-rs-import-own-{}", std::process::id()));

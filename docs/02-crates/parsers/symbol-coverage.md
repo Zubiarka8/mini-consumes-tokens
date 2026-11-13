@@ -594,7 +594,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `use A\B;` | `namespace_use_declaration` | one `imports` per clause, named after the imported class (an alias is not used), with its namespace as evidence |
 | `require`/`include` with a literal path | `binary_expression`, function call | `imports` (path and stem) |
 | `f()`, `$o->m()`, `A::m()`, `new X()` | `function_call_expression`, `member_call_expression`, `scoped_call_expression`, `object_creation_expression` | `calls` (static calls qualified by their class and namespace) |
-| a call that can only reach one of PHP's core functions: `\strlen()`, or a bare `strlen()` in a file with no namespace and no `use function` of it | `function_call_expression` | `calls`, external: a global core function can't be declared again ("Cannot redeclare"). The list (`src/builtins.rs`) holds only functions every PHP 7.0 build has (`Core`, `standard`, `date`, `pcre`, `spl`, `json`) and the call-like keywords (`isset`, `empty`, `exit`…), so no polyfill of a newer function or of an optional extension (`str_contains`, `mb_*`, `ctype_*`) is taken for one. Not proven: a bare call inside a namespace (it may reach a namespaced function of that name) and a name the file declares itself (an `if (!function_exists(…))` polyfill) |
+| a call to a listed global core function: `\strlen()`, or a bare `strlen()` in a file with no namespace and no `use function` of it | `function_call_expression` | `calls`, external, assuming core functions are enabled. The list (`src/builtins.rs`) excludes optional extensions, including Filter and, on PHP 7, Hash and JSON. PHP 8's `disable_functions` can remove a core function and allow its redefinition; runtime configuration is not known to the parser. A bare call inside a namespace or a name declared in the same file is not marked external. |
 | type hints, `catch`, `instanceof`, `X::class`, `X::CONST` | `named_type`, `binary_expression`, `class_constant_access_expression`, `scoped_property_access_expression` | `references` |
 | Laravel routes, `view()`, `withRouting()` | `scoped_call_expression`, `function_call_expression` | `calls` to controller methods, `imports` of `*.blade.php` and route files (see [library support](../../01-architecture/library-support.md#laravel)) |
 | `*.blade.php` | Blade directive and `<x-…>` scan | `imports` / `references` of templates and classes |
@@ -1358,7 +1358,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls
 - [x] Imports: `require`
-- [x] Class extends class: `setmetatable({}, { __index = Base })` and `setmetatable(Cat, { __index = Animal })` → `extends Base`
+- [x] Class extends class: `setmetatable({}, { __index = Base })` → `extends Base`; `setmetatable(Cat, { __index = Animal })` → `extends Animal`
 
 **Features: Search and lookup**
 

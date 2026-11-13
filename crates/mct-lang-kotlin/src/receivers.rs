@@ -88,6 +88,25 @@ fn initializer(property: Node) -> Option<Node> {
     None
 }
 
+/// Record a property's name and declared or constructed type in its scope.
+fn record_property(property: Node, source: &str, out: &mut Types) {
+    let declaration = property
+        .named_children(&mut property.walk())
+        .find(|c| c.kind() == "variable_declaration");
+    let Some(declaration) = declaration else {
+        return;
+    };
+    let Some(name) = declaration
+        .named_child(0)
+        .filter(|n| n.kind() == "identifier")
+    else {
+        return;
+    };
+    let ty = declared(declaration, source)
+        .or_else(|| initializer(property).and_then(|v| constructed(v, source)));
+    record(out, text(name, source), ty);
+}
+
 /// The declared types of a function's parameters and of the names its body
 /// declares (`val`, lambda and `for` variables), not descending into nested
 /// functions or classes.
@@ -102,19 +121,7 @@ pub(crate) fn locals(node: Node, source: &str, out: &mut Types, depth: u32) {
             }
         }
         "property_declaration" => {
-            let declaration = node
-                .named_children(&mut node.walk())
-                .find(|c| c.kind() == "variable_declaration");
-            if let Some(declaration) = declaration {
-                if let Some(name) = declaration
-                    .named_child(0)
-                    .filter(|n| n.kind() == "identifier")
-                {
-                    let ty = declared(declaration, source)
-                        .or_else(|| initializer(node).and_then(|v| constructed(v, source)));
-                    record(out, text(name, source), ty);
-                }
-            }
+            record_property(node, source, out);
             if let Some(value) = initializer(node) {
                 locals(value, source, out, depth + 1);
             }
@@ -177,21 +184,7 @@ pub(crate) fn class_scope(name: &str, class: Node, source: &str) -> ClassScope {
                             }
                         }
                         "property_declaration" => {
-                            let declaration = member
-                                .named_children(&mut member.walk())
-                                .find(|c| c.kind() == "variable_declaration");
-                            let Some(declaration) = declaration else {
-                                continue;
-                            };
-                            if let Some(name) = declaration
-                                .named_child(0)
-                                .filter(|n| n.kind() == "identifier")
-                            {
-                                let ty = declared(declaration, source).or_else(|| {
-                                    initializer(member).and_then(|v| constructed(v, source))
-                                });
-                                record(&mut scope.fields, text(name, source), ty);
-                            }
+                            record_property(member, source, &mut scope.fields);
                         }
                         _ => {}
                     }
