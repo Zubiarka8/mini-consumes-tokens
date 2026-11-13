@@ -182,7 +182,7 @@ round to the nearest whole percent, with halves rounded up.
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
-| C++ | 84% | 28 | 50% | 10 | 0 |
+| C++ | 86% | 28 | 50% | 10 | 0 |
 | Go | 75% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
@@ -278,7 +278,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
-| C++ | 88% | 94% | 58% | 90% | 60% | 25% | 50% |
+| C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
@@ -540,7 +540,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | Lambdas, locals | Not implemented | no arm for `lambda_expression`; locals are skipped |
 | Base-constructor calls of an out-of-line constructor whose class is defined in another file | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition it can't tell a base from a member |
-| `const int X` is a `variable` | Not implemented | a global `const` gets the same kind as a mutable variable; only enum values are `constant` |
 | A type used only in a declaration (`Widget w;`) | Not implemented | a declaration's type is not a reference |
 | Header and source files are two rows | By design | [crate docs](../../../crates/mct-lang-cpp/src/lib.rs#L3) explicitly choose independent header/source rows and correlate matching names and parents |
 | Some valid C++ is rejected | Grammar | tree-sitter-cpp 0.23.4, issue #82 |
@@ -1185,7 +1184,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Fields, constants and variables**
 
 - [x] Field / instance attribute: `field`, union members too
-- [~] Constant (module or global): `const int X` → `variable`; `static const` member → `field`
+- [x] Constant (module or global): namespace-scope `const`/`constexpr` (and `T* const`) → `constant`; a pointer to const, a reference and `constinit` → `variable`; `static const` member → `field`
 - [x] Global / module-level variable: `variable`, in namespaces too
 - [ ] Local variable
 - [ ] Parameter

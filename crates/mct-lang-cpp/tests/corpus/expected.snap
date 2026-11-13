@@ -3,8 +3,8 @@
 == include/inventory/model.hpp (342 lines)
 S 1-342 module model
 S 16-342 module inv
-S 19-19 variable inv::kMaxNameLength
-S 22-22 variable inv::kSkuPrefix
+S 19-19 constant inv::kMaxNameLength
+S 22-22 constant inv::kSkuPrefix
 S 24-24 type_alias inv::Clock
 S 25-25 type_alias inv::Timestamp
 S 26-26 type_alias inv::WarehouseId
@@ -134,7 +134,7 @@ S 326-328 function inv::net_change
 S 330-340 module inv::detail
 S 333-333 function detail::normalize_name
 S 336-336 function detail::validate_name
-S 338-338 variable detail::kSchemaVersion
+S 338-338 constant detail::kSchemaVersion
 R 5:1 imports model -> algorithm
 R 6:1 imports model -> array
 R 7:1 imports model -> chrono
@@ -771,7 +771,7 @@ R 306:17 calls inv::service::make_service -> make_unique
 
 == src/storage.cpp (302 lines)
 S 1-302 module storage
-S 16-16 variable kSep
+S 16-16 constant kSep
 S 18-28 function split
 S 30-44 function to_int
 S 46-50 function encode_location

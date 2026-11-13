@@ -69,12 +69,13 @@ fn types_enums_and_aliases_are_extracted_with_kinds() {
 
 #[test]
 fn namespace_members_are_functions_and_variables_not_methods_and_fields() {
-    use SymbolKind::{Function, Module, Variable};
+    use SymbolKind::{Constant, Function, Module};
     assert_eq!(parent("model.hpp", "make_sku", Function), Some("inv"));
     assert_eq!(parent("model.hpp", "parse_unit", Function), Some("inv"));
-    assert_eq!(parent("model.hpp", "kMaxNameLength", Variable), Some("inv"));
+    // `constexpr` globals: constants, see `tests/const_globals.rs`.
+    assert_eq!(parent("model.hpp", "kMaxNameLength", Constant), Some("inv"));
     assert_eq!(
-        parent("model.hpp", "kSchemaVersion", Variable),
+        parent("model.hpp", "kSchemaVersion", Constant),
         Some("detail")
     );
     assert_eq!(

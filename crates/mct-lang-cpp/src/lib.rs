@@ -431,9 +431,16 @@ impl<'a> Walker<'a> {
                             ));
                             self.push_overrides(id, func_declarator, ctx);
                         } else if let Some(name_node) = plain_declarator_identifier(*declarator) {
+                            let kind = if !ctx.in_type()
+                                && declares_constant(node, *declarator, self.source)
+                            {
+                                SymbolKind::Constant
+                            } else {
+                                ctx.variable_kind()
+                            };
                             let id = self.push_symbol(
                                 text(name_node, self.source).to_string(),
-                                ctx.variable_kind(),
+                                kind,
                                 location(*declarator),
                                 ctx.parent(),
                             );
@@ -814,6 +821,35 @@ fn plain_declarator_identifier(node: Node) -> Option<Node> {
             .and_then(plain_declarator_identifier),
         "reference_declarator" => node.named_child(0).and_then(plain_declarator_identifier),
         _ => None,
+    }
+}
+
+/// Whether a namespace-scope declarator names a value that can't change.
+/// `const`/`constexpr` on the declaration fixes a plain name or an array
+/// (`const int A`, `const int C[]`); a pointer is fixed only by its own
+/// `const` (`char* const q`), since `const char* p` can be repointed, or by
+/// `constexpr`. A reference is a binding, not a value, and `constinit` only
+/// fixes the initialization, so neither is a constant.
+fn declares_constant(declaration: Node, declarator: Node, source: &str) -> bool {
+    let qualified = |node: Node, wanted: &[&str]| {
+        let mut cursor = node.walk();
+        let found = node
+            .children(&mut cursor)
+            .any(|c| c.kind() == "type_qualifier" && wanted.contains(&text(c, source)));
+        found
+    };
+    let constexpr = qualified(declaration, &["constexpr"]);
+    let target = if declarator.kind() == "init_declarator" {
+        declarator.child_by_field_name("declarator")
+    } else {
+        Some(declarator)
+    };
+    match target.map(|t| (t.kind(), t)) {
+        Some(("identifier" | "array_declarator", _)) => {
+            constexpr || qualified(declaration, &["const"])
+        }
+        Some(("pointer_declarator", pointer)) => constexpr || qualified(pointer, &["const"]),
+        _ => false,
     }
 }
 
