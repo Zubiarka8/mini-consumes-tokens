@@ -180,7 +180,7 @@ round to the nearest whole percent, with halves rounded up.
 | Python | 69% | 29 | 85% | 10 | 0 |
 | JS/TS | 68% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
-| Kotlin | 71% | 35 | 65% | 10 | 0 |
+| Kotlin | 79% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
 | C++ | 84% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
@@ -276,7 +276,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Python | 78% | 75% | 0% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 70% | 17% | 89% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
-| Kotlin | 72% | 79% | 33% | 88% | 80% | 50% | 50% |
+| Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 58% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
@@ -448,6 +448,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `fun` in a class, object or interface | `function_declaration` | `method` |
 | `class`, `interface`, `object` | `class_declaration`, `object_declaration` | `class` / `interface`; `object` as `class` |
 | `val`/`var` property in a class | `property_declaration` | `field` |
+| top-level `const val`, `val`/`var`, `val (a, b) = …`, `val T.p` | `property_declaration` | `constant` for `const`, else `variable` (each destructured name too), with no parent; an extension property is a `field` with parent `T`, as an extension `fun` is a method of `T` |
+| `typealias Ids = List<Long>` | `type_alias` | `type_alias` |
 | `class C(val x: Int)` | `class_parameter` | `field` |
 | `enum class` entries | `enum_entry` | `field` |
 | `: Base()`, `: Iface`, `: p.Base<T>()` | `constructor_invocation`, `user_type` | `extends` to a `class` (with `()`); without `()`, `extends` to an `interface` from an interface, else `implements`. A qualified type names its last segment (`Base`, not `p`) |
@@ -462,7 +464,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Primary and secondary constructors | Not implemented | no arm for `primary_constructor` or `secondary_constructor` |
-| `typealias`, top-level `val`/`var`/`const val` | Not implemented | no arm for `type_alias`; a top-level `property_declaration` gives no symbol |
+| A `typealias` used only as a type | Not implemented | a type in a declaration is no reference, so dead code can list the alias, as it can a class used only as a type |
 | `object` as `class` | By design | explicit mapping in [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L8) |
 | `enum class` as `class`, `companion object` without a symbol | Not implemented | not documented as a decision; a companion's members get the outer class as parent |
 | Anonymous object in a function | Not implemented | no class symbol; its named functions become parentless `function` rows |
@@ -1033,15 +1035,15 @@ percentages and denominators; these checklists provide the scored evidence.
 - [~] Singleton / companion object: `object` is a `class`; `companion object` has no symbol and its members get the outer class as parent
 - [x] Nested / inner class: `inner`, sealed subclasses
 - [~] Anonymous class: `object : A { … }` inside a function has no class symbol; its named functions become parentless `function` rows
-- [ ] Type alias: `typealias` has no symbol
+- [x] Type alias: `typealias` is a `type_alias`
 - [x] Module / namespace / package: file `module` plus one for the `package`
 
 **Fields, constants and variables**
 
 - [x] Field / instance attribute: `field`, `lateinit` too
 - [x] Constructor-promoted field: `val`/`var` parameter → `field`
-- [ ] Constant (module or global): top-level `const val` has no symbol; inside a companion it is a `field`
-- [ ] Global / module-level variable: top-level `val`/`var` has no symbol
+- [~] Constant (module or global): top-level `const val` is a `constant`; inside a companion or object it is a `field`
+- [x] Global / module-level variable: top-level `val`/`var` is a `variable`, each name of `val (a, b) = …` too; an extension property `val T.p` is a `field` of `T`
 - [ ] Local variable
 - [ ] Parameter
 

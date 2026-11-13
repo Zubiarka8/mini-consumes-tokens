@@ -389,6 +389,14 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Kotlin file-level declarations: `typealias` is a `type_alias`,
+          `const val` a `constant`, any other `val`/`var` a `variable` (each
+          name of `val (a, b) = …` too), all with no parent; an extension
+          property `val T.p` is a `field` of `T`, as an extension `fun` is a
+          method of `T`. Test: `tests/top_level_declarations.rs`. Corpus:
+          symbols 484 → 488 (`Handler`, `Rate`, `NO_DISCOUNT`,
+          `Money::isPositive`). Repository snapshot: the same 4 Kotlin
+          symbols, relations unchanged at 806, dead code at 122.
     - [x] C++ `#define`: an object-like macro is a `constant` and a
           function-like one a `function` (as Rust's `macro_rules!`), with no
           parent, since the preprocessor knows no namespace or class. An
