@@ -786,13 +786,16 @@ impl<'a> Walker<'a> {
                     .push(receivers::class_scope(&name, node, self.source));
                 let outer_this = self.this_class.replace(self.classes.len() - 1);
                 let outer_locals = std::mem::take(&mut self.locals);
+                // What runs as the class is built (parameter defaults,
+                // property initializers, `init` blocks, secondary
+                // constructors) is the class's: a constructor is no symbol.
                 if let Some(primary_ctor) = find_child(node, "primary_constructor") {
-                    self.visit_children(primary_ctor, owner, Some(&name), depth + 1);
+                    self.visit_children(primary_ctor, id, Some(&name), depth + 1);
                 }
                 if let Some(body) =
                     find_child(node, "class_body").or_else(|| find_child(node, "enum_class_body"))
                 {
-                    self.visit_children(body, owner, Some(&name), depth + 1);
+                    self.visit_children(body, id, Some(&name), depth + 1);
                 }
                 self.locals = outer_locals;
                 self.this_class = outer_this;
