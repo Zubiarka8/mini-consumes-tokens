@@ -565,6 +565,12 @@ From `rules.md` and the two messages:
           `Currency`, `Scope`, `State`, `VatCategory` become `enum`, nothing
           else changes. Repository snapshot (Kotlin, 806 relations): the
           same 4 kinds change, no relation changes. Dead code 123 -> 123.
+    - [~] Go func values: a package-level `var f = func(…) {…}` (one
+          name, no type, one function literal) is a `function` with the
+          signature `var f = func(…) result`, and the literal's body is
+          owned by it; `f := func() {}` inside a function still has no
+          symbol. Test: `tests/func_values.rs`. Repository snapshot (Go, 946
+          relations): no symbol or relation changes. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its
