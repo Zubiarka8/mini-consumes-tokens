@@ -579,16 +579,19 @@ From `rules.md` and the two messages:
           old "By design" exclusion in the crate docs. Class bases and
           `[Type]` literal uses are still no relations. Test:
           `tests/classes.rs`. Corpus: 82 -> 103 symbols, 261 relations
-          unchanged. Repository snapshot (PowerShell, 817 relations): no
-          classes, no changes. Dead code 123 -> 123.
+          unchanged. Repository snapshot (PowerShell, 817 relations,
+          re-measured with `init --force`): 499 -> 520 symbols (the
+          corpus copy's 2 classes, 1 enum, 12 fields, 6 methods), no
+          relation changes. Dead code 123 -> 123.
     - [x] PowerShell constructor calls: `[Location]::new(…)` and
           `New-Object Location` (`-TypeName` too) give `calls Location`,
           and only a `class` can be the target. A dotted or generic type
           (.NET's), another static member (`[math]::Abs`) and `New-Object
           -ComObject` give none. Test: `tests/constructor_calls.rs`.
           Corpus: 261 -> 266 relations, the 5 constructions of `Location`
-          and `CycleCount`. Repository snapshot (PowerShell, 817
-          relations): no changes. Dead code 123 -> 123.
+          and `CycleCount`. Repository snapshot (PowerShell, re-measured
+          with `init --force`): 817 -> 822 relations, the corpus copy's 5
+          constructions, all resolved. Dead code 123 -> 123.
     - [x] PowerShell class bases: as in C#, a class's first base is
           `extends` (its target must be a `class`) unless it is named like
           `IFoo`, and the rest are `implements` (an `interface` target; a
@@ -602,8 +605,9 @@ From `rules.md` and the two messages:
           come from the class, no longer from the file module. Test:
           `tests/class_body_calls.rs`. Corpus: 34 calls change owner, from
           the file to their class, with the same targets and resolutions.
-          Repository snapshot (Kotlin, 806 relations): no changes. Dead
-          code 123 -> 123.
+          Repository snapshot (Kotlin, 806 relations, re-measured with
+          `init --force`): 53 calls change owner, no target or resolution
+          changes. Dead code 123 -> 123.
     - [!] Kotlin constructors as symbols: shelved. A constructor `method`
           named after its class adds a second candidate to every bare
           `B(…)` call, so 53 corpus calls go from resolved to ambiguous.
@@ -618,14 +622,31 @@ From `rules.md` and the two messages:
           `new T()`. Test: `tests/record_parameters.rs`. Corpus: 454 -> 476
           symbols; 5 `new Price(…)` calls ambiguous -> resolved, 3 ambiguous
           calls lose a field candidate. Repository snapshot (C#, 692
-          relations): no changes. Dead code 123 -> 123.
+          relations, re-measured with `init --force`): 496 -> 518 symbols,
+          the same 5 calls ambiguous -> resolved and 3 calls that lose a
+          field candidate. Dead code 123 -> 123.
     - [x] Python nested functions: a `def` inside a function or method is a
           `function` whose parent is that function or method, as a Rust
           nested fn is. A `def` in a class body stays a `method` of the
           class. Test: `tests/nested_functions.rs`. Corpus: 1506 relations,
           no resolution changes (17 candidates now name their enclosing
-          function). Repository snapshot (Python, 7323 relations): no
-          changes. Dead code 123 -> 123.
+          function). Repository snapshot (Python, 7323 relations, with
+          `init --force`): no resolution or owner changes; 46 candidates
+          now name their enclosing function. Dead code 123 -> 123.
+    - [x] JS/TS nested functions: a `function` declaration or a function
+          value (`const show = () => …`) inside a function or method body
+          is a `function` whose parent is that function or method. A
+          bare call to it keeps this file as evidence: a function's
+          parent is no type. Test: `tests/nested_functions.rs`. Corpus:
+          1005 relations, no resolution changes (20 candidates now name
+          their enclosing function). Repository snapshot (JS/TS, 24397
+          relations, with `init --force`): no resolution or owner changes;
+          582 resolved and 2222 ambiguous relations now name an enclosing
+          function among their candidates. Dead code 123 -> 123.
+    - Measurement note: until 2026-11-13 a repository snapshot taken
+          with `init` (no `--force`) kept the parse of unchanged files, so
+          the C#, PowerShell and Kotlin entries above first reported no
+          changes. They are re-measured; earlier entries were not.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

@@ -215,6 +215,18 @@ impl<'a> Walker<'a> {
         )
     }
 
+    /// The name of `owner` when it is a function or method: the parent of a
+    /// function declared in its body, as a Rust nested fn is owned by the
+    /// enclosing fn. A module or class owner gives none.
+    fn enclosing_function(&self, owner: SymbolId) -> Option<String> {
+        self.symbols
+            .iter()
+            .rev()
+            .find(|s| s.id == owner)
+            .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+            .map(|s| s.name.clone())
+    }
+
     /// A constructor's parameter properties
     /// (`constructor(private store: Store)`): each is a field of the class
     /// at the parameter.
@@ -485,7 +497,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
+                let parent = self.enclosing_function(owner);
+                let id = self.push_symbol(name, SymbolKind::Function, location(node), parent);
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
                 self.visit_function_like_body(node, id, depth);
@@ -744,11 +757,14 @@ impl<'a> Walker<'a> {
                     matches!(value.kind(), "arrow_function" | "function_expression"),
                     name_node,
                 ) {
+                    let parent = type_name
+                        .map(str::to_string)
+                        .or_else(|| self.enclosing_function(owner));
                     let id = self.push_symbol(
                         text(name_node, self.source).to_string(),
                         SymbolKind::Function,
                         location(node),
-                        type_name.map(str::to_string),
+                        parent,
                     );
                     self.details
                         .push(details::function_detail(node, value, id, self.source));
@@ -1142,11 +1158,36 @@ impl<'a> Walker<'a> {
             .filter(|s| s.kind == SymbolKind::Function)
             .map(|s| s.name.clone())
             .collect();
+        // A function's own nested functions are outside any type too: their
+        // parent is a function or method, never a class or interface.
+        let callables: HashSet<&str> = self
+            .symbols
+            .iter()
+            .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+            .map(|s| s.name.as_str())
+            .collect();
+        let types: HashSet<&str> = self
+            .symbols
+            .iter()
+            .filter(|s| {
+                matches!(
+                    s.kind,
+                    SymbolKind::Class
+                        | SymbolKind::Interface
+                        | SymbolKind::Enum
+                        | SymbolKind::TypeAlias
+                )
+            })
+            .map(|s| s.name.as_str())
+            .collect();
+        let outside_types = |parent: Option<&str>| {
+            parent.is_none_or(|p| callables.contains(p) && !types.contains(p))
+        };
         let file_level: HashSet<String> = self
             .symbols
             .iter()
             .filter(|s| {
-                s.parent.is_none()
+                outside_types(s.parent.as_deref())
                     && matches!(
                         s.kind,
                         SymbolKind::Function
