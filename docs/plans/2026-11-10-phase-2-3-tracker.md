@@ -719,6 +719,16 @@ From `rules.md` and the two messages:
           interface), 76 external, 0 ambiguous, 0 unresolved. Repository
           snapshot (Go, with `init --force`): 946 -> 1328 relations, +311
           resolved (all to a type), +71 external. Dead code 123 -> 123.
+    - [x] C++ named lambdas: `auto f = [](int x) { … };` is a `function`
+          of the namespace, or owned by the enclosing function in a body
+          (so `local()` resolves), with the binding up to the body as
+          signature and the lambda's parameters; the calls in its body are
+          its own. A data member holding a lambda stays a `field`; an
+          argument or immediately invoked lambda declares nothing. Test:
+          `tests/named_lambdas.rs`. Corpus: its only lambda is invoked at
+          once, no changes. Repository snapshot (C++, with `init --force`):
+          no changes. Dead code 123 -> 123. C++ scores 86% -> 89% and
+          88% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
