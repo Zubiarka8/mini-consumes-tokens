@@ -12,9 +12,11 @@ use std::ops::Range;
 use tree_sitter::Node;
 
 mod attributes;
+mod literals;
 mod tokens;
 
 pub use attributes::unquote_attribute_value;
+pub use literals::{collect_literals, LiteralGrammar, StringStyle};
 
 pub use tokens::{
     tokenize_source, tokenize_source_with_callables, tokenize_tree, tokenize_tree_with_callables,

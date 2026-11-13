@@ -856,6 +856,18 @@ From `rules.md` and the two messages:
           the database file is the same size (39,493,632 bytes). Dead code
           123 -> 123. Python feature score 85% -> 95%; area Search 80% ->
           100%.
+    - [x] JS/TS string literals: each run of fixed text of a string or
+          template literal (between `${…}` holes) goes through the shared
+          prose filter into `ParsedFile::literals`, escapes resolved. A
+          directive (`"use strict"`) or other string statement is skipped,
+          and so is a JSX `className` / `class` value (a CSS class list).
+          The walk is now `mct_tree_sitter::collect_literals`, shared with
+          Python, whose test is unchanged. Test: `tests/literals.rs`
+          (parser and `search_literals`). Corpus: no changes. Repository
+          snapshot (with `init --force`): 0 -> 2854 JS/TS literals, Python
+          still 1314; relations unchanged (24397); database file 39,493,632
+          bytes either side. Dead code 123 -> 123. JS/TS feature score 80%
+          -> 90%; area Search 80% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
