@@ -68,7 +68,24 @@ fn parse(path: &str, source: &str) -> ParsedFile {
 
 /// The detail of the only symbol named `name`.
 fn detail(parsed: &ParsedFile, name: &str) -> SymbolDetail {
-    let symbols: Vec<_> = parsed.symbols.iter().filter(|s| s.name == name).collect();
+    detail_where(parsed, name, |_| true)
+}
+
+/// The detail of the only member `name` of `parent`.
+fn member_detail(parsed: &ParsedFile, parent: &str, name: &str) -> SymbolDetail {
+    detail_where(parsed, name, |s| s.parent.as_deref() == Some(parent))
+}
+
+fn detail_where(
+    parsed: &ParsedFile,
+    name: &str,
+    keep: impl Fn(&mct_core::SymbolRecord) -> bool,
+) -> SymbolDetail {
+    let symbols: Vec<_> = parsed
+        .symbols
+        .iter()
+        .filter(|s| s.name == name && keep(s))
+        .collect();
     assert_eq!(symbols.len(), 1, "{name}: {symbols:?}");
     parsed
         .symbol_details
@@ -167,7 +184,14 @@ fn a_class_header_skips_decorators_and_members_get_visibility_and_modifiers() {
         Some(Visibility::Private)
     );
     // A class member without a modifier is public by the language rule.
-    assert_eq!(detail(&parsed, "get").visibility, Some(Visibility::Public));
+    assert_eq!(
+        member_detail(&parsed, "Store", "get").visibility,
+        Some(Visibility::Public)
+    );
+    assert_eq!(
+        member_detail(&parsed, "Api", "get").signature.as_deref(),
+        Some("get(key: string): unknown")
+    );
 
     let handle = detail(&parsed, "handle");
     assert_eq!(
