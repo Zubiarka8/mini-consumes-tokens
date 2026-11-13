@@ -2,9 +2,39 @@
   "suite": "resolution-app",
   "catalog_tokens": 12169,
   "cases": {
+    "bash: a shell builtin": {
+      "score": 0.0,
+      "tokens": 198,
+      "wrong": 0
+    },
+    "bash: a sourced function": {
+      "score": 0.0,
+      "tokens": 224,
+      "wrong": 0
+    },
+    "csharp: a call through a declared interface": {
+      "score": 1.0,
+      "tokens": 208,
+      "wrong": 0
+    },
+    "csharp: a string method": {
+      "score": 0.0,
+      "tokens": 198,
+      "wrong": 0
+    },
     "java: an inherited call is not a same-named field": {
       "score": 0.0,
       "tokens": 202,
+      "wrong": 0
+    },
+    "javascript: a platform global": {
+      "score": 1.0,
+      "tokens": 198,
+      "wrong": 0
+    },
+    "javascript: an imported function": {
+      "score": 1.0,
+      "tokens": 254,
       "wrong": 0
     },
     "lua: a host global is not another file's local": {
