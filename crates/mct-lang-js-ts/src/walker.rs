@@ -231,6 +231,51 @@ impl<'a> Walker<'a> {
         });
     }
 
+    /// A module-level `const`/`let`/`var` binding with no function value:
+    /// `const` is a `constant`, any other a `variable`, with no parent. A
+    /// destructuring pattern and a `require(…)` binding (an import, as an ES
+    /// `import` is) declare nothing.
+    fn push_module_binding(&mut self, declarator: Node, value: Option<Node>) {
+        let Some(declaration) = declarator.parent() else {
+            return;
+        };
+        let top_level = declaration.parent().is_some_and(|p| match p.kind() {
+            "program" => true,
+            "export_statement" => p.parent().is_some_and(|g| g.kind() == "program"),
+            _ => false,
+        });
+        let name = declarator
+            .child_by_field_name("name")
+            .filter(|n| n.kind() == "identifier");
+        let (true, Some(name)) = (top_level, name) else {
+            return;
+        };
+        if value.is_some_and(|v| is_require(v, self.source)) {
+            return;
+        }
+        let keyword = match declaration.child_by_field_name("kind") {
+            Some(kind) => text(kind, self.source),
+            None => "var",
+        };
+        let kind = if keyword == "const" {
+            SymbolKind::Constant
+        } else {
+            SymbolKind::Variable
+        };
+        let id = self.push_symbol(
+            text(name, self.source).to_string(),
+            kind,
+            location(declarator),
+            None,
+        );
+        self.details.push(details::binding_detail(
+            declarator,
+            keyword,
+            id,
+            self.source,
+        ));
+    }
+
     fn push_relation(
         &mut self,
         from: SymbolId,
@@ -585,7 +630,13 @@ impl<'a> Walker<'a> {
             // normally, so a `require(...)` call on the right is still found.
             "variable_declarator" => {
                 self.visit_part(node, "type", owner, depth);
-                let Some(value) = node.child_by_field_name("value") else {
+                let value = node.child_by_field_name("value");
+                if !value
+                    .is_some_and(|v| matches!(v.kind(), "arrow_function" | "function_expression"))
+                {
+                    self.push_module_binding(node, value);
+                }
+                let Some(value) = value else {
                     return;
                 };
                 let name_node = node
@@ -959,7 +1010,7 @@ impl<'a> Walker<'a> {
     /// Keeps the value uses that name a function declared in this file,
     /// except a function's use of its own name (`setTimeout(tick)` inside
     /// `tick`), which does not make it reachable. Those, and the bare calls
-    /// naming a function or class the file declares outside any
+    /// naming a function, class or binding the file declares outside any
     /// type, reach this file's declaration: nothing nearer binds the name. A
     /// bare call to a local reaches this file too, with no symbol, unless
     /// the file also declares the name, which the local then shadows.
@@ -974,7 +1025,14 @@ impl<'a> Walker<'a> {
             .symbols
             .iter()
             .filter(|s| {
-                s.parent.is_none() && matches!(s.kind, SymbolKind::Function | SymbolKind::Class)
+                s.parent.is_none()
+                    && matches!(
+                        s.kind,
+                        SymbolKind::Function
+                            | SymbolKind::Class
+                            | SymbolKind::Constant
+                            | SymbolKind::Variable
+                    )
             })
             .map(|s| s.name.clone())
             .collect();
@@ -1102,6 +1160,19 @@ fn is_override_in_class(method: Node) -> bool {
         .children(&mut cursor)
         .any(|c| c.kind() == "override_modifier");
     in_declaration && has_override
+}
+
+/// Whether `value` is `require("m")` or a member of it (`require("m").x`).
+fn is_require(value: Node, source: &str) -> bool {
+    match value.kind() {
+        "call_expression" => value
+            .child_by_field_name("function")
+            .is_some_and(|f| f.kind() == "identifier" && text(f, source) == "require"),
+        "member_expression" => value
+            .child_by_field_name("object")
+            .is_some_and(|o| is_require(o, source)),
+        _ => false,
+    }
 }
 
 /// Whether a constructor parameter also declares a property of the class
