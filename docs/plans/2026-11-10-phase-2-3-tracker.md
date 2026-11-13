@@ -729,6 +729,17 @@ From `rules.md` and the two messages:
           once, no changes. Repository snapshot (C++, with `init --force`):
           no changes. Dead code 123 -> 123. C++ scores 86% -> 89% and
           88% -> 100%.
+    - [x] Kotlin named lambdas: `val f = { x: Int -> … }` and `val f =
+          fun(…) { … }` outside a class body are a `function`, top-level
+          or owned by the enclosing function (so `local()` resolves), with
+          the binding up to the body as signature and the lambda's
+          parameters (unknown for a bare `{ … }`, which may take `it`).
+          The lambda's calls are its own. A class property holding a
+          lambda, a delegated, extension or destructured property stays
+          as it was. Test: `tests/named_lambdas.rs`. Corpus: no named
+          lambdas, no changes. Repository snapshot (Kotlin, with `init
+          --force`): no changes. Dead code 123 -> 123. Kotlin scores
+          80% -> 83% and 72% -> 83%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
