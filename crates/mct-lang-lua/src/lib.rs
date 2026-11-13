@@ -760,24 +760,44 @@ impl<'a> Walker<'a> {
         Some(symbol.id)
     }
 
-    /// `Class.__index = Class` makes the table `Class` a class. Returns
-    /// whether the assignment was that idiom (and so declares nothing else).
+    /// `Class.__index = Class` makes the table `Class` a class, and
+    /// `W.Widget.__index = W.Widget` the nested table `Widget` of `W`.
+    /// Returns whether the assignment was that idiom (and so declares
+    /// nothing else).
     fn mark_class_by_index(&mut self, var: Node, value: Node) -> bool {
         if var.kind() != "dot_index_expression" || !self.at_file_scope() {
             return false;
         }
         let (field, table, _) = target_name(var, self.source);
-        if field != "__index" || value.kind() != "identifier" {
+        if field != "__index" {
             return false;
         }
         let Some(table) = table else {
             return false;
         };
-        if text(value, self.source) != table {
-            return false;
+        match value.kind() {
+            "identifier" if text(value, self.source) == table => {
+                self.promote_to_class(&table);
+            }
+            "dot_index_expression" if flatten_table(value, self.source) == table => {
+                if let Some((outer, name)) = table.rsplit_once('.') {
+                    self.promote_nested_to_class(outer, name);
+                }
+            }
+            _ => return false,
         }
-        self.promote_to_class(&table);
         true
+    }
+
+    /// The table `name` of `outer` (`W.Widget = {}`), promoted to a `Class`.
+    fn promote_nested_to_class(&mut self, outer: &str, name: &str) {
+        if let Some(symbol) = self.symbols.iter_mut().rev().find(|s| {
+            s.name == name
+                && s.parent.as_deref() == Some(outer)
+                && matches!(s.kind, SymbolKind::Module | SymbolKind::Class)
+        }) {
+            symbol.kind = SymbolKind::Class;
+        }
     }
 
     /// `local Dog = setmetatable({}, { __index = Animal })` at file level
