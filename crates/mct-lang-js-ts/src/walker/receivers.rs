@@ -147,6 +147,10 @@ pub(super) fn class_scope(
                 return;
             };
             let name = text(name, source);
+            if let Some(ty) = accessor_type(member, source, generics) {
+                record(&mut scope.fields, name, ty);
+                return;
+            }
             scope.methods.insert(name.to_string());
             if name == "constructor" {
                 if let Some(params) = member.child_by_field_name("parameters") {
@@ -191,4 +195,23 @@ pub(super) fn class_scope(
         _ => {}
     });
     scope
+}
+
+/// The declared type of the property a class accessor stands for: what
+/// `get x(): T` returns or `set x(v: T)` takes, `Some(None)` when
+/// unannotated, and `None` for a member that is no accessor.
+fn accessor_type(member: Node, source: &str, generics: &HashSet<String>) -> Option<Option<String>> {
+    let mut cursor = member.walk();
+    let keyword = member
+        .children(&mut cursor)
+        .find(|c| matches!(c.kind(), "get" | "set"))?;
+    let annotation = if keyword.kind() == "get" {
+        member.child_by_field_name("return_type")
+    } else {
+        member
+            .child_by_field_name("parameters")
+            .and_then(|p| p.named_child(0))
+            .and_then(|p| p.child_by_field_name("type"))
+    };
+    Some(annotation.and_then(|t| annotated(t, source, generics)))
 }
