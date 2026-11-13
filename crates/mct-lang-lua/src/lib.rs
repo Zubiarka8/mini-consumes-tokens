@@ -811,10 +811,11 @@ impl<'a> Walker<'a> {
     }
 
     /// `local Dog = setmetatable({}, { __index = Animal })` at file level
-    /// declares the class `Dog` extending `Animal`; without a base it is an
-    /// ordinary value. Returns whether a class was declared.
+    /// declares the class `Dog` extending `Animal`, and `W.Dog = …` the
+    /// class `Dog` of `W`; without a base it is an ordinary value. Returns
+    /// whether a class was declared.
     fn push_class_from_setmetatable(&mut self, var: Node, value: Node) -> bool {
-        if !self.at_file_scope() || var.kind() != "identifier" || value.kind() != "function_call" {
+        if !self.at_file_scope() || !is_name_target(var) || value.kind() != "function_call" {
             return false;
         }
         let Some(callee) = value.child_by_field_name("name") else {
@@ -826,12 +827,8 @@ impl<'a> Walker<'a> {
         let Some(base) = self.metatable_base(value, 1) else {
             return false;
         };
-        let id = self.push_symbol(
-            text(var, self.source).to_string(),
-            SymbolKind::Class,
-            span(var, value),
-            None,
-        );
+        let (name, parent, _) = target_name(var, self.source);
+        let id = self.push_symbol(name, SymbolKind::Class, span(var, value), parent);
         self.push_extends(id, base);
         true
     }
@@ -948,6 +945,15 @@ impl<'a> Walker<'a> {
         if self.relations.len() == relation {
             return;
         }
+        if target.import.is_none() && self.is_nested_class_of_file(node) {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                path: Some(self.path.to_string()),
+                kind: Some(SymbolKind::Class),
+                ..Default::default()
+            });
+            return;
+        }
         if let Some(import) = target.import {
             let mut segments = import.module.rsplit('.');
             let stem = segments.next().map(str::to_string);
@@ -960,6 +966,21 @@ impl<'a> Walker<'a> {
                 ..Default::default()
             });
         }
+    }
+
+    /// Whether `node` (`W.Animal`) names a class this file declared in its
+    /// table `W`, so the name is that class, never a namesake elsewhere.
+    fn is_nested_class_of_file(&self, node: Node) -> bool {
+        if node.kind() != "dot_index_expression" {
+            return false;
+        }
+        let path = flatten_table(node, self.source);
+        let Some((outer, name)) = path.rsplit_once('.') else {
+            return false;
+        };
+        self.symbols.iter().any(|s| {
+            s.kind == SymbolKind::Class && s.name == name && s.parent.as_deref() == Some(outer)
+        })
     }
 
     /// `self:m()` inside `function T:x()` is qualified by `T`; any other
