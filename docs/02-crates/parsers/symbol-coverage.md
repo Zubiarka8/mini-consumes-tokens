@@ -178,7 +178,7 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 91% | 29 | 95% | 10 | 0 |
-| JS/TS | 89% | 33 | 80% | 10 | 1 |
+| JS/TS | 89% | 33 | 90% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 83% | 35 | 65% | 10 | 0 |
 | C# | 87% | 34 | 60% | 10 | 0 |
@@ -274,7 +274,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 100% | 100% | 50% | 100% | 100% | 100% | 83% |
-| JS/TS | 94% | 90% | 67% | 100% | 80% | 50% | 100% |
+| JS/TS | 94% | 90% | 67% | 100% | 100% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 94% | 96% | 50% | 88% | 70% | 25% | 67% |
@@ -393,6 +393,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `namespace N {}` | `internal_module` | `module`; its functions keep no parent |
 | `extends`, `implements` | `extends_clause`, `implements_clause` | `extends`, `implements` |
 | ES `import`, CommonJS `require` | `import_statement`, `named_imports`, `namespace_import`, `call_expression` | `imports`; each bound name (default, `* as ns`, `{ x }`) names the module its specifier ends in (`pkg` for `@scope/pkg`, `core` for `../core/index.ts`), so a same-named definition in another module never matches it |
+| string and template literals, not a directive (`"use strict"`) or other string statement, nor a JSX `className` / `class` value | `string`, `template_string` (`string_fragment`, `escape_sequence`) | literals for exact-text search, one per run of fixed text between `${…}` holes, escapes resolved |
 | `export`, `module.exports.x = …` | `export_statement`, `assignment_expression` | `references`; a function value becomes `function` |
 | `f()`, `new X()` | `call_expression`, `new_expression`, `member_expression` | `calls` |
 | a bare call `f()` or a same-file function used as a value, with no import or global evidence | `call_expression` `identifier` | targets this file when nothing around it binds `f` and the file declares `f` outside any type (a function, class or module-level binding), or when an enclosing local binds `f` and the file declares no `f` of its own (the local has no symbol, so the call stays unresolved instead of matching another file's `f`). A local shadowing a file-level `f` gives no evidence |
@@ -412,7 +413,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Overload signatures | Not implemented | only the implementation is a `method_definition` |
-| Repeated code, exact-text search | Not implemented | no token source and no literals for JS/TS |
+| Repeated code | Not implemented | no token source for JS/TS |
 | A global is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
 | `console.log()`, `document.querySelector()` and other host calls are not `external` | By design | the language does not guarantee host globals, and a project may define them |
 
@@ -714,7 +715,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, Markdown | Only `mct-lang-rust`, `mct-lang-python` and `mct-lang-md` fill `ParsedFile::literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts` and `mct-lang-md` fill `ParsedFile::literals`; Python and JS/TS share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -958,7 +959,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a string or template literal (between `${…}` holes) that the prose filter keeps, listed as `path:line`; a directive or other string statement and a JSX `className` / `class` list are skipped
 
 **Features: Code quality**
 
