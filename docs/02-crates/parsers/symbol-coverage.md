@@ -20,8 +20,8 @@ language it covers and what is missing.
 Use this page:
 
 - before relying on a tool result for a language, to know what can be in it.
-  For example, `find_symbol` never returns a Python `self.x` attribute,
-  because those are not indexed;
+  For example, `find_symbol` never returns a Python lambda, because
+  lambdas are not indexed;
 - when adding a language. The [language crate template](../../06-templates/lang-crate-base.md)
   asks for inventory entries and a checklist here;
 - when changing a parser. Update the cells it changes in the same PR.
@@ -119,7 +119,7 @@ table emits none yet:
 |---|---|---|---|---|
 | Rust | `fn` (free, method, trait, `extern` block), `struct`, `union`, `enum`, `trait`, `type`, associated `type`, `const`, `static` | `pub` → public, `pub(crate)` → crate, `pub(super)`/`pub(in …)` → restricted, `pub(self)` or no keyword → private; none recorded in a trait or `impl Trait for T`, where the trait decides | `async`, `const`, `unsafe`, `extern` (functions); `unsafe` (traits) | closures bound by `let`, enum variants, fields, macro-generated items; parameter defaults (Rust has none) |
 | JS/TS | `function` (and generator), methods, functions or arrows assigned to `const`/`let`/`var` or to a class field, classes, interfaces, type aliases, enums, class fields | class members: `private`/`protected`/`public` keyword, `#name` → private, otherwise public (the language default); none outside a class | `async`, generator (`*`), `static`, `readonly`, `abstract`, `override`, `const` (enums) | CommonJS/`export default` function values, interface members, abstract method signatures, object-literal properties. Types come from TS annotations (`syntax`) or, without one, from a JSDoc `@param {T} name` / `@returns {T}` right above (`doc`); a destructured parameter has no name for JSDoc to match |
-| Python | `def` (functions and methods), `class`, PEP 695 `type`, module-level and class-body assignments | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas, `self.x` attributes. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
+| Python | `def` (functions and methods), `class`, PEP 695 `type`, module-level and class-body assignments | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
 | Java | methods, constructors, classes, records, interfaces, annotation types, enums, each declarator of a field declaration | `public`/`protected`/`private`; none → package, but public in an interface or annotation type (the language default) | `abstract`, `static`, `final`, `sealed`, `@Override` → override | record accessors (synthesized, not written), enum constants, `throws` (kept in the signature only). The explicit `Type this` parameter is the receiver; `T...` is variadic |
 | Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes, member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
 | C# | methods, constructors, destructors, operators, conversion operators, local functions, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
@@ -355,6 +355,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | a bare call to a `def`/`class` of the same file (`count()` → `def count`) | `call`, `identifier` | `calls`, kept to this file when only a `def`/`class` outside a class body binds the name |
 | `MAX = 3`, `a, b = …`, `timeout: int = 30` at module level | `assignment` | `variable`; `constant` when annotated `Final`. The first binding of a name only; `_` and attribute or subscript targets are skipped. Signature is the name, or `name: annotation` |
 | `currency = "EUR"`, `sku: str` in a class body | `assignment` | `field`, parent the class |
+| `self.x = …`, `self.x: T = …` in a method | `assignment` + `attribute` on the method's receiver | `field` of the class at its first assignment, unless the class declares `x` (a class attribute or a method). Only the receiver counts (the first parameter, any name, not rebound, not in a `@staticmethod`) |
+| `v.m()`, `@v.m` whose receiver class is not proven, `v` not the method's own `self` | `call`, `decorator` + `attribute` | rules out a `field` as the target ([ADR-036](../../01-architecture/adrs/036-not-field-relation-target.md)): `CONFIG.items()` never resolves to a `Page.items` field by name. `self.key(row)` may still reach a callable field `key` |
 | a call, decorator or base class naming something the file neither imports nor binds (`helper()`, `@cached`, `class C(Base)`) | `call`, `decorator`, `argument_list` | carries this file as evidence, so a same-file definition wins. A name the file binds at class level only hides an import inside that class body |
 | `from pkg.util import x` | `import_from_statement` | the `imports` row for `x` carries `util` as module evidence; `from . import x` carries none |
 | `v.m()` on a local or a non-name value whose type the code doesn't state (`path.stat()`, `rows.index(x)`, `f().close()`) | `call`, `attribute` | `calls` that must be a method; a single method candidate stays `ambiguous`, so a builtin's method never resolves to a repo function |
@@ -363,7 +365,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| `self.x` attributes | Blocked | as `field` rows, calls with no evidence resolve to them by name (`CSV_CONFIG.items()` to `Page.items`); a parser can't yet rule out a field as a call target ([#412](https://github.com/Zubiarka8/mini-consumes-tokens/issues/412), draft branch `feat/python-self-fields`). Module variables, constants and class-body attributes (dataclass fields too) are symbols |
 | A name used in a file with `from m import *` gets no evidence | By design | the star import could bind any name, so the call is left to name resolution (`library/cli.py` `int(…)` still matches a fixture variable named `int`) |
 | Lambdas | Not implemented | no arm for `lambda` |
 | Enum subclasses | Not implemented | ordinary class traversal emits `class` plus `extends Enum`; assigned enum values are `field`, as any class attribute |
@@ -859,7 +860,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Fields, constants and variables**
 
-- [~] Field / instance attribute: class-body assignments and annotations are `field`; `self.x` and `__slots__` have no symbol
+- [~] Field / instance attribute: class-body assignments, annotations and `self.x = …` in a method are `field`; `__slots__` has no symbol
 - [x] Constant (module or global): `X: Final = 1` is `constant`; an unannotated `UPPER = 1` is `variable`, since Python has no constant syntax
 - [x] Global / module-level variable: module assignments are `variable`
 - [ ] Local variable

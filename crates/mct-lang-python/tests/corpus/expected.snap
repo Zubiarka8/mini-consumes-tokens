@@ -1,4 +1,4 @@
-# language=python files=15 symbols=570 relations=1507 name_matched_across_files=389
+# language=python files=15 symbols=646 relations=1507 name_matched_across_files=395
 
 == library/cli.py (307 lines)
 S 1-307 module cli
@@ -11,6 +11,11 @@ S 35-44 function command
 S 38-42 function register
 S 47-64 class Context
 S 50-54 method Context::__init__
+S 51-51 field Context::catalogue
+S 52-52 field Context::out
+S 53-53 field Context::verbose
+S 54-54 field Context::lending
+S 54-54 field Context::reminders
 S 56-57 method Context::echo
 S 59-61 method Context::debug
 S 63-64 method Context::emit_json
@@ -218,9 +223,9 @@ R 254:12 calls build_parser -> add_argument
 R 255:18 calls build_parser -> add_subparsers
 R 256:32 calls build_parser -> set
 R 257:22 calls build_parser -> sorted
-R 257:39 calls build_parser -> items
+R 257:39 calls build_parser -> items (name-matched: library/models.py)
 R 260:14 calls build_parser -> add (name-matched: library/models.py)
-R 261:44 calls build_parser -> items
+R 261:44 calls build_parser -> items (name-matched: library/models.py)
 R 262:26 calls build_parser -> add_parser
 R 263:15 calls build_parser -> configure
 R 263:9 calls build_parser -> cls
@@ -255,6 +260,8 @@ S 22-40 class LibraryError
 S 25-25 field LibraryError::code
 S 26-26 field LibraryError::retryable
 S 28-31 method LibraryError::__init__
+S 30-30 field LibraryError::message
+S 31-31 field LibraryError::detail
 S 33-37 method LibraryError::to_dict
 S 39-40 method LibraryError::__str__
 S 43-44 class ValidationError
@@ -262,6 +269,8 @@ S 44-44 field ValidationError::code
 S 47-53 class NotFoundError
 S 48-48 field NotFoundError::code
 S 50-53 method NotFoundError::__init__
+S 52-52 field NotFoundError::kind
+S 53-53 field NotFoundError::key
 S 56-58 class ConflictError
 S 57-57 field ConflictError::code
 S 58-58 field ConflictError::retryable
@@ -274,6 +283,11 @@ S 73-73 field StorageError::retryable
 S 76-94 class AuditRecord
 S 79-79 field AuditRecord::__slots__
 S 81-86 method AuditRecord::__init__
+S 82-82 field AuditRecord::when
+S 83-83 field AuditRecord::actor
+S 84-84 field AuditRecord::action
+S 85-85 field AuditRecord::subject
+S 86-86 field AuditRecord::ok
 S 88-90 method AuditRecord::__repr__
 S 92-94 method AuditRecord::as_line
 S 97-101 function audit
@@ -289,10 +303,18 @@ S 171-178 function translate_errors
 S 181-192 function error_response
 S 195-212 class Timer
 S 198-202 method Timer::__init__
+S 199-199 field Timer::label
+S 200-200 field Timer::threshold
+S 201-201 field Timer::elapsed
+S 202-202 field Timer::_start
 S 204-206 method Timer::__enter__
 S 208-212 method Timer::__exit__
 S 215-242 class RateLimiter
 S 218-222 method RateLimiter::__init__
+S 219-219 field RateLimiter::rate
+S 220-220 field RateLimiter::capacity
+S 221-221 field RateLimiter::_tokens
+S 222-222 field RateLimiter::_stamp
 S 224-230 method RateLimiter::_refill
 S 232-238 method RateLimiter::allow
 S 240-242 method RateLimiter::check
@@ -306,8 +328,11 @@ S 293-302 function collect_group
 S 305-320 class ErrorCatalog
 S 308-314 class ErrorCatalog::Entry
 S 309-311 method Entry::__init__
+S 310-310 field Entry::code
+S 311-311 field Entry::status
 S 313-314 method Entry::describe
 S 316-317 method ErrorCatalog::__init__
+S 317-317 field ErrorCatalog::entries
 S 319-320 method ErrorCatalog::lookup
 R 8:8 imports errors -> functools
 R 9:8 imports errors -> logging
@@ -398,7 +423,7 @@ R 242:19 calls RateLimiter::check -> LimitExceededError
 R 248:35 calls summarize_errors -> get (name-matched: library/models.py)
 R 249:12 calls summarize_errors -> dict
 R 249:17 calls summarize_errors -> sorted
-R 249:31 calls summarize_errors -> items
+R 249:31 calls summarize_errors -> items (name-matched: library/models.py)
 R 253:16 calls format_trail -> as_line
 R 254:19 calls format_trail -> len
 R 254:35 calls format_trail -> len
@@ -503,6 +528,10 @@ S 231-231 field Hold::member_id
 S 232-232 field Hold::isbn
 S 235-260 class Page
 S 238-242 method Page::__init__
+S 239-239 field Page::items
+S 240-240 field Page::total
+S 241-241 field Page::offset
+S 242-242 field Page::limit
 S 244-245 method Page::__iter__
 S 247-248 method Page::__len__
 S 251-252 method Page::has_next
@@ -510,6 +539,8 @@ S 254-255 method Page::map
 S 258-260 method Page::of
 S 263-282 class Index
 S 266-268 method Index::__init__
+S 267-267 field Index::_key
+S 268-268 field Index::_buckets
 S 270-271 method Index::add
 S 273-276 method Index::discard
 S 278-279 method Index::get
@@ -679,6 +710,8 @@ S 63-63 field Report::created
 S 65-65 field Report::MAX_ROWS
 S 67-82 class Report::Style
 S 70-72 method Style::__init__
+S 71-71 field Style::width
+S 72-72 field Style::borders
 S 74-75 method Style::rule
 S 77-82 class Style::Palette
 S 78-78 field Palette::header
@@ -703,6 +736,8 @@ S 210-217 function popular_authors
 S 220-241 function inventory
 S 223-232 class Totals
 S 226-228 method Totals::__init__
+S 227-227 field Totals::titles
+S 228-228 field Totals::copies
 S 230-232 method Totals::count
 S 244-245 function audit_report
 S 248-249 function total_fees
@@ -710,6 +745,7 @@ S 252-255 function søk
 S 258-260 function 概要
 S 263-282 class ReportBundle
 S 266-267 method ReportBundle::__init__
+S 267-267 field ReportBundle::reports
 S 269-270 method ReportBundle::__iter__
 S 272-273 method ReportBundle::render_all
 S 276-282 method ReportBundle::monthly
@@ -717,6 +753,9 @@ S 285-287 function top_rows
 S 290-291 function is_periodical
 S 294-320 class ScheduledReport
 S 297-300 method ScheduledReport::__init__
+S 298-298 field ScheduledReport::name
+S 299-299 field ScheduledReport::_build
+S 300-300 field ScheduledReport::_weekday
 S 303-304 method ScheduledReport::weekday
 S 307-310 method ScheduledReport::weekday
 S 313-314 method ScheduledReport::weekday
@@ -832,7 +871,7 @@ R 141:19 calls render_csv -> getvalue
 R 135:1 references render_csv -> renderer
 R 135:11 calls reports -> fmt_name
 R 151:45 calls genre_breakdown -> open_loans (name-matched: library/repository.py)
-R 153:66 calls genre_breakdown -> items
+R 153:66 calls genre_breakdown -> items (name-matched: library/models.py)
 R 153:25 calls genre_breakdown -> group_by_genre (name-matched: library/models.py)
 R 153:56 calls genre_breakdown -> values (name-matched: library/repository.py)
 R 154:55 calls genre_breakdown -> copies_of (name-matched: library/repository.py)
@@ -932,6 +971,10 @@ S 58-59 method Repository::count
 S 61-62 method Repository::page
 S 65-102 class MemoryRepository
 S 68-72 method MemoryRepository::__init__
+S 69-69 field MemoryRepository::kind
+S 70-70 field MemoryRepository::_data
+S 71-71 field MemoryRepository::_versions
+S 72-72 field MemoryRepository::_lock
 S 74-76 method MemoryRepository::get
 S 78-81 method MemoryRepository::put
 S 83-89 method MemoryRepository::put_if_version
@@ -941,6 +984,10 @@ S 99-102 method MemoryRepository::scan
 S 105-105 variable SCHEMA
 S 128-165 class SqliteRepository
 S 131-137 method SqliteRepository::__init__
+S 134-134 field SqliteRepository::conn
+S 135-135 field SqliteRepository::table
+S 136-136 field SqliteRepository::key_column
+S 137-137 field SqliteRepository::kind
 S 140-145 method SqliteRepository::get
 S 148-154 method SqliteRepository::put
 S 156-159 method SqliteRepository::delete
@@ -949,6 +996,12 @@ S 168-175 function _json_default
 S 178-182 function open_database
 S 185-254 class Catalogue
 S 188-199 method Catalogue::__init__
+S 194-194 field Catalogue::books
+S 195-195 field Catalogue::copies
+S 196-196 field Catalogue::members
+S 197-197 field Catalogue::loans
+S 198-198 field Catalogue::holds
+S 199-199 field Catalogue::_by_isbn
 S 201-203 method Catalogue::add_book
 S 205-209 method Catalogue::add_copy
 S 211-212 method Catalogue::copies_of
@@ -961,6 +1014,9 @@ S 257-266 function load_fixture
 S 269-277 function iter_batches
 S 280-316 class UnitOfWork
 S 283-286 method UnitOfWork::__init__
+S 284-284 field UnitOfWork::catalogue
+S 285-285 field UnitOfWork::_pending
+S 286-286 field UnitOfWork::committed
 S 288-289 method UnitOfWork::__enter__
 S 291-296 method UnitOfWork::__exit__
 S 298-299 method UnitOfWork::add
@@ -1022,7 +1078,7 @@ R 92:31 calls MemoryRepository::version -> get
 R 96:28 calls MemoryRepository::delete -> pop (name-matched: library/services.py)
 R 97:31 calls MemoryRepository::delete -> pop (name-matched: library/services.py)
 R 101:21 calls MemoryRepository::scan -> list
-R 101:37 calls MemoryRepository::scan -> items
+R 101:37 calls MemoryRepository::scan -> items (name-matched: library/models.py)
 R 132:22 calls SqliteRepository::__init__ -> isidentifier
 R 132:55 calls SqliteRepository::__init__ -> isidentifier
 R 133:19 calls SqliteRepository::__init__ -> StorageError (name-matched: library/errors.py)
@@ -1117,25 +1173,32 @@ S 55-57 class SystemClock
 S 56-57 method SystemClock::now
 S 60-71 class FixedClock
 S 63-64 method FixedClock::__init__
+S 64-64 field FixedClock::_at
 S 66-67 method FixedClock::now
 S 69-71 method FixedClock::advance
 S 74-87 class Notifier
 S 77-78 method Notifier::__init__
+S 78-78 field Notifier::sent
 S 81-81 method Notifier::deliver
 S 83-87 method Notifier::notify
 S 90-98 class EmailNotifier
 S 91-94 method EmailNotifier::__init__
+S 93-93 field EmailNotifier::sender
+S 94-94 field EmailNotifier::outbox
 S 96-98 method EmailNotifier::deliver
 S 101-108 class SmsNotifier
 S 102-102 field SmsNotifier::MAX_LENGTH
 S 104-108 method SmsNotifier::deliver
 S 111-132 class EventBus
 S 114-115 method EventBus::__init__
+S 115-115 field EventBus::_listeners
 S 117-122 method EventBus::subscribe
 S 118-120 function register
 S 124-132 method EventBus::publish
 S 135-166 class HoldQueue
 S 138-140 method HoldQueue::__init__
+S 139-139 field HoldQueue::_heaps
+S 140-140 field HoldQueue::_counter
 S 142-147 method HoldQueue::place
 S 149-151 method HoldQueue::pop
 S 153-155 method HoldQueue::peek
@@ -1143,6 +1206,14 @@ S 157-163 method HoldQueue::cancel
 S 165-166 method HoldQueue::__len__
 S 169-299 class LendingService
 S 172-188 method LendingService::__init__
+S 181-181 field LendingService::catalogue
+S 182-182 field LendingService::clock
+S 183-183 field LendingService::notifier
+S 184-184 field LendingService::bus
+S 185-185 field LendingService::holds
+S 186-186 field LendingService::limiter
+S 187-187 field LendingService::actor
+S 188-188 field LendingService::_loan_days
 S 191-192 method LendingService::loan_days
 S 195-198 method LendingService::loan_days
 S 200-201 method LendingService::_member
@@ -1160,6 +1231,9 @@ S 284-285 function late
 S 289-299 method LendingService::bulk_checkout
 S 302-341 class ReminderService
 S 305-308 method ReminderService::__init__
+S 306-306 field ReminderService::lending
+S 307-307 field ReminderService::concurrency
+S 308-308 field ReminderService::reminded
 S 310-313 method ReminderService::message_for
 S 315-322 method ReminderService::_send_one
 S 324-333 method ReminderService::send_all
@@ -1168,6 +1242,7 @@ S 340-341 method ReminderService::run
 S 344-368 class UpgradePolicy
 S 347-347 field UpgradePolicy::thresholds
 S 349-350 method UpgradePolicy::__init__
+S 350-350 field UpgradePolicy::history
 S 352-360 method UpgradePolicy::suggest
 S 362-368 method UpgradePolicy::apply
 S 371-373 function first_available
@@ -1433,7 +1508,7 @@ R 20:5 references BookAdmin::copy_count -> display
 R 26:64 calls BookAdmin::mark_lost -> update
 R 26:38 calls BookAdmin::mark_lost -> filter
 R 29:14 calls BookAdmin::mark_lost -> message_user
-R 24:5 references BookAdmin::mark_lost -> action
+R 24:5 references BookAdmin::mark_lost -> action (name-matched: library/errors.py)
 R 12:1 references BookAdmin -> register (name-matched: library/cli.py)
 R 33:18 extends PlainAdmin -> ModelAdmin
 R 32:1 references PlainAdmin -> register (name-matched: library/cli.py)
@@ -1861,6 +1936,7 @@ S 209-240 class LoanAPI
 S 212-212 field LoanAPI::init_every_request
 S 213-213 field LoanAPI::decorators
 S 215-216 method LoanAPI::__init__
+S 216-216 field LoanAPI::lending
 S 218-219 method LoanAPI::_service
 S 221-228 method LoanAPI::get
 S 230-236 method LoanAPI::post
