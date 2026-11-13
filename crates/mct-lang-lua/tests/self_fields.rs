@@ -1,7 +1,8 @@
 //! `self.x = …` inside a colon method `function T:m()` assigns a field of
 //! `T`'s instances, so its first assignment is a `field` of `T`; a later
-//! assignment, or a name `T` already declares, adds nothing. `self` is only
-//! known in a colon method (and the closures inside it): an explicit `self`
+//! assignment, or a name `T` already declares, adds nothing. `self` is
+//! known in a colon method (and the closures inside it) and as a local built
+//! by `setmetatable({}, T)` (see `instance_fields.rs`): an explicit `self`
 //! parameter, a plain function or the file level declare no field.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
@@ -59,6 +60,7 @@ fn a_self_assignment_in_a_colon_method_is_a_field_of_its_table() {
         fields,
         [
             field("limit", 3),
+            field("owner", 7),
             field("balance", 12),
             field("history", 15)
         ]
