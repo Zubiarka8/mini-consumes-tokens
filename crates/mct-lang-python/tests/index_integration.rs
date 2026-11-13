@@ -62,6 +62,7 @@ fn list_symbols_reports_every_definition_in_the_class_file_as_python() {
             "invoice",
             "Invoice",
             "__init__",
+            "total",
             "add_item",
             "add_item_with_tax"
         ]
@@ -76,7 +77,7 @@ fn list_symbols_reports_every_definition_in_the_class_file_as_python() {
             .list_symbols("invoice.py", None, Some("python"))
             .unwrap()
             .len(),
-        5
+        6
     );
     assert!(index
         .list_symbols("invoice.py", None, Some("ruby"))
@@ -86,7 +87,7 @@ fn list_symbols_reports_every_definition_in_the_class_file_as_python() {
 
 #[test]
 fn status_reports_full_python_coverage() {
-    mct_corpus::assert_single_language_coverage(&open_indexed(), "python", 3, 9);
+    mct_corpus::assert_single_language_coverage(&open_indexed(), "python", 3, 10);
 }
 
 #[test]
