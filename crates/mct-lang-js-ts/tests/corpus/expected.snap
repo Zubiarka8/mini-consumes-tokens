@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=275 relations=999 name_matched_across_files=191
+# language=javascript_typescript files=7 symbols=275 relations=1005 name_matched_across_files=191
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -156,6 +156,7 @@ R 4:15 imports client -> OrderId (name-matched: src/order.ts)
 R 18:12 references client -> Record
 R 21:31 extends ApiError -> Error
 R 23:23 references ApiError::constructor -> Problem
+R 26:5 calls ApiError::constructor -> Error
 R 46:16 references client -> Promise
 R 59:34 references PlaceOrderResponse -> OrderJson (name-matched: src/order.ts)
 R 60:42 references PlaceOrderResponse -> OrderJson (name-matched: src/order.ts)
@@ -366,6 +367,7 @@ R 35:28 calls pickingRoute -> localeCompare
 R 43:13 references inventory -> Location
 R 48:34 references available -> StockLevel
 R 50:38 extends OutOfStockError -> Error
+R 56:5 calls OutOfStockError::constructor -> Error
 R 69:24 references inventory -> Promise
 R 69:32 references inventory -> StockLevel
 R 77:33 calls Observable::subscribe -> get
@@ -378,6 +380,7 @@ R 87:23 calls Observable::notify -> get
 R 87:55 calls Observable::notify -> callback
 R 93:33 extends StockCache -> Observable
 R 99:30 references StockCache::constructor -> StockSource
+R 103:5 calls StockCache::constructor -> Observable
 R 106:21 references StockCache::get -> StockLevel
 R 107:25 calls StockCache::get -> get
 R 110:30 references StockCache::levels -> Promise
@@ -560,7 +563,9 @@ R 33:22 references money -> Currency
 R 34:20 references money -> Currency
 R 36:25 references CurrencyMismatchError::constructor -> Currency
 R 36:43 references CurrencyMismatchError::constructor -> Currency
+R 37:5 calls CurrencyMismatchError::constructor -> Error
 R 45:39 extends MoneyFormatError -> Error
+R 47:5 calls MoneyFormatError::constructor -> Error
 R 52:24 calls money -> Map
 R 52:41 references money -> NumberFormat
 R 54:49 references formatterFor -> Currency
@@ -809,6 +814,7 @@ R 111:35 calls describe -> toString (name-matched: src/money.ts)
 R 123:45 extends IllegalTransitionError -> Error
 R 125:20 references IllegalTransitionError::constructor -> State
 R 126:18 references IllegalTransitionError::constructor -> State
+R 128:5 calls IllegalTransitionError::constructor -> Error
 R 136:25 references Listener -> OrderEvent
 R 139:11 references order -> State
 R 140:20 references order -> Line
