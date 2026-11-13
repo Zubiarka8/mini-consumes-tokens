@@ -1,4 +1,4 @@
-# language=lua files=5 symbols=417 relations=375 name_matched_across_files=58
+# language=lua files=5 symbols=433 relations=375 name_matched_across_files=57
 
 == gateway/ratelimit.lua (302 lines)
 S 1-302 module ratelimit
@@ -17,6 +17,11 @@ S 60-65 function refill
 S 61-61 variable refill::elapsed
 S 72-85 method _M::new
 S 74-74 variable new::dict
+S 79-79 field Limiter::dict
+S 80-80 field Limiter::lock_dict
+S 81-81 field Limiter::clock
+S 82-82 field Limiter::rejected
+S 83-83 field Limiter::allowed
 S 89-119 method Limiter::take
 S 90-90 variable take::class
 S 91-91 variable take::limits
@@ -28,8 +33,6 @@ S 97-97 variable take::err
 S 103-103 variable take::now
 S 104-104 variable take::bucket
 S 105-105 variable take::allowed
-S 108-108 field Limiter::allowed
-S 110-110 field Limiter::rejected
 S 117-117 variable take::retry_after
 S 122-128 method Limiter::remaining
 S 123-123 variable remaining::class
@@ -56,6 +59,8 @@ S 189-189 variable describe::limits
 S 202-202 class Concurrency
 S 205-211 method _M::new_concurrency
 S 206-206 variable new_concurrency::dict
+S 210-210 field Concurrency::dict
+S 210-210 field Concurrency::max
 S 213-215 function inflight_key
 S 217-230 method Concurrency::enter
 S 218-218 variable enter::key
@@ -87,7 +92,7 @@ R 8:15 imports ratelimit -> cjson.safe
 R 9:18 imports ratelimit -> lock
 R 9:18 imports ratelimit -> resty.lock
 R 53:24 calls decode_bucket -> decode
-R 61:24 calls refill -> max (name-matched: warehouse/money.lua)
+R 61:24 calls refill -> max
 R 62:24 calls refill -> min
 R 78:10 calls _M::new -> setmetatable (name-matched: warehouse/money.lua)
 R 90:17 calls Limiter::take -> classify
@@ -161,6 +166,7 @@ S 47-47 variable proxy::client
 S 49-57 variable proxy::res
 S 49-57 variable proxy::err
 S 69-71 method M::new
+S 70-70 field Router::routes
 S 74-82 method Router::add
 S 75-75 variable add::names
 S 76-79 variable add::lua_pattern
@@ -337,11 +343,14 @@ S 41-52 function compare_locations
 S 55-59 method M::picking_route
 S 56-56 variable picking_route::route
 S 66-68 method M::new_cache
+S 67-67 field Cache::dict
+S 67-67 field Cache::loader
+S 67-67 field Cache::ttl
+S 67-67 field Cache::hits
+S 67-67 field Cache::misses
 S 70-72 method Cache::key
 S 74-90 method Cache::get
 S 75-75 variable get::raw
-S 77-77 field Cache::hits
-S 80-80 field Cache::misses
 S 81-81 variable get::levels
 S 81-81 variable get::err
 S 85-85 variable get::ok
@@ -498,6 +507,8 @@ S 58-70 method M::round_half_even
 S 59-59 variable round_half_even::f
 S 60-60 variable round_half_even::diff
 S 77-83 method M::of_minor
+S 82-82 field Money::minor
+S 82-82 field Money::currency
 S 86-93 method M::of
 S 88-88 variable of::value
 S 95-97 method M::zero
@@ -660,6 +671,13 @@ S 71-71 field M::subtotal
 S 78-101 method M::new
 S 79-79 variable new::currency
 S 80-88 variable new::self
+S 81-81 field Order::id
+S 82-82 field Order::number
+S 83-83 field Order::customer_id
+S 84-84 field Order::currency
+S 85-85 field Order::state
+S 86-86 field Order::lines
+S 87-87 field Order::events
 S 89-89 variable new::i
 S 89-89 variable new::raw
 S 90-90 variable new::line
@@ -672,7 +690,6 @@ S 111-113 method Order::is_large
 S 115-119 method Order::record
 S 116-116 variable record::event
 S 121-127 method Order::move_to
-S 125-125 field Order::state
 S 129-135 method Order::reserve
 S 130-130 variable reserve::ok
 S 130-130 variable reserve::err
@@ -689,7 +706,6 @@ S 158-158 variable cancel::err
 S 166-171 method Order::drain
 S 167-167 variable drain::_
 S 167-167 variable drain::event
-S 170-170 field Order::events
 S 173-187 method Order::to_json
 S 174-174 variable to_json::lines
 S 175-175 variable to_json::i

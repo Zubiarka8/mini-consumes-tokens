@@ -821,6 +821,22 @@ From `rules.md` and the two messages:
           parser. Test: `tests/nested_setmetatable.rs`. Corpus: no changes.
           Repository snapshot (Lua, with `init --force`): no changes. Dead
           code 123 -> 123. Lua scores 86% -> 89% and 75% -> 100%.
+    - [x] Lua instance fields: an instance built by `setmetatable({…},
+          T)` (or `{ __index = T }`), `T` a class of this file and
+          `setmetatable` the global or `local setmetatable = setmetatable`,
+          gives `T` a `field` for each named key and each `o.x = …` through
+          its local (`local self = setmetatable({}, T)`); `o:m()` is
+          qualified by `T`, and `o.f()` / `self.f()` when `T` declares `f`
+          in this file. Test: `tests/instance_fields.rs`;
+          `tests/self_fields.rs` pinned "`local self` gives no field" and
+          now expects `owner`. Corpus: 417 -> 433 symbols (22 fields, 6 of
+          them moved to the constructor line they are first written on),
+          relations unchanged. Repository snapshot (Lua, with `init
+          --force`): 35 -> 52 fields; `self.loader()` unresolved ->
+          resolved (`Cache.loader`), `self:record()` ambiguous -> resolved
+          (`Order.record`), and 2 `self.clock()` calls that resolved to
+          `fake_clock.clock` now resolve to the `Limiter.clock` field they
+          call. Dead code 123 -> 123.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no

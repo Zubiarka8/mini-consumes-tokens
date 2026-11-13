@@ -628,6 +628,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `Vec.__add = function(a, b)` | `assignment_statement` + `function_definition` | `method`, parent `Vec` |
 | file-level `x = 1`, `local x = 1`, `local x <const> = 1`, `M.x = 1` | `assignment_statement` | `variable`, `constant`, `field` of `M` |
 | `self.x = …` in `function T:m()` (and closures inside it) | `assignment_statement` + `dot_index_expression` on `self` | `field` of `T` at its first assignment, unless `T` already declares `x`; an explicit `self` parameter or a plain function gives none, since `self`'s table is unknown there |
+| `setmetatable({ k = v }, T)`, `local o = setmetatable({}, T)` then `o.x = …` (`{ __index = T }` too) | `function_call` + `table_constructor`, `assignment_statement` | `field` `k` / `x` of `T` at its first declaration, when `T` is a class of this file and `setmetatable` the global (or `local setmetatable = setmetatable`); `o:m()` is qualified by `T`, and `o.f()` / `self.f()` too when `T` declares `f` here. A local rebound to anything else stops being an instance |
 | `local x` inside a function, loop variables | `variable_declaration`, `for_numeric_clause` | `variable`, parent the function |
 | `require("x")` | `function_call` | `imports` |
 | `f()`, `M.f()`, `o:m()` | `function_call` | `calls` |
@@ -638,7 +639,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | A class used as a call's qualifier in a file that reaches it through `require` (`local A = require("animal"); A.new()`) gets no reference | Model limit | which table the required file returns is known only in that file, and the parser sees one file; the `require` already imports the module, and the call to `new` still resolves |
-| Fields assigned through an explicit `self` or a local (`local self = setmetatable({}, T)`), parameters | Not implemented | only a colon method's implicit `self` has a known table; inside a function only `local` names otherwise become symbols |
+| Fields assigned through an explicit `self` parameter or another parameter | Not implemented | a parameter's table is unknown; only a colon method's implicit `self` and a local built by `setmetatable({…}, T)` have one |
 | Dead code skips table/module methods | By design | methods are excluded by [the shared allowlist decision](../../../crates/mct-index/src/dead_code.rs#L7); free global/local functions remain candidates |
 
 ### Bash
@@ -1357,7 +1358,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Fields, constants and variables**
 
-- [x] Field / instance attribute: a file-level `M.x = …` and the first `self.x = …` in a colon method `T:m()` → `field` of `M` / `T`
+- [x] Field / instance attribute: a file-level `M.x = …`, the first `self.x = …` in a colon method `T:m()`, and the keys and assignments of an instance built by `setmetatable({…}, T)` → `field` of `M` / `T`
 - [x] Global / module-level variable: globals and top-level `local` → `variable`, `<const>` → `constant`
 - [x] Local variable: `local x` and loop variables → `variable` owned by the function
 - [ ] Parameter
