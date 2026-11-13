@@ -42,27 +42,21 @@ impl Walker<'_> {
     /// when present, matching the Python plugin's `import x as y` ->
     /// `"y"` precedent), since that is the name later calls in this file
     /// will actually reference — not the name the source module exports it
-    /// under.
-    pub(super) fn visit_import_clause(&mut self, clause: Node, owner: SymbolId) {
+    /// under. Each names `module`, the one its specifier ends in, so a
+    /// same-named definition in another module never matches it.
+    pub(super) fn visit_import_clause(
+        &mut self,
+        clause: Node,
+        owner: SymbolId,
+        module: Option<&str>,
+    ) {
         let mut cursor = clause.walk();
         for child in clause.named_children(&mut cursor) {
             match child.kind() {
-                "identifier" => {
-                    self.push_relation(
-                        owner,
-                        RelationKind::Imports,
-                        text(child, self.source).to_string(),
-                        location(child),
-                    );
-                }
+                "identifier" => self.push_import_binding(owner, child, location(child), module),
                 "namespace_import" => {
                     if let Some(name_node) = child.named_child(0) {
-                        self.push_relation(
-                            owner,
-                            RelationKind::Imports,
-                            text(name_node, self.source).to_string(),
-                            location(child),
-                        );
+                        self.push_import_binding(owner, name_node, location(child), module);
                     }
                 }
                 "named_imports" => {
@@ -78,17 +72,35 @@ impl Walker<'_> {
                             if target.kind() == "default" {
                                 continue;
                             }
-                            self.push_relation(
-                                owner,
-                                RelationKind::Imports,
-                                text(target, self.source).to_string(),
-                                location(spec),
-                            );
+                            self.push_import_binding(owner, target, location(spec), module);
                         }
                     }
                 }
                 _ => {}
             }
+        }
+    }
+
+    fn push_import_binding(
+        &mut self,
+        owner: SymbolId,
+        name: Node,
+        loc: mct_core::Location,
+        module: Option<&str>,
+    ) {
+        let index = self.relations.len();
+        self.push_relation(
+            owner,
+            RelationKind::Imports,
+            text(name, self.source).to_string(),
+            loc,
+        );
+        if let (true, Some(module)) = (self.relations.len() > index, module) {
+            self.relation_targets.push(RelationTarget {
+                relation: index,
+                module: Some(module.to_string()),
+                ..Default::default()
+            });
         }
     }
 }
