@@ -240,10 +240,11 @@ fn declarations_without_a_symbol_are_the_documented_limits() {
     // A call in a package-level initializer belongs to the file module,
     // not to the variable it initializes.
     c.relation("errors.go", "errors", RelationKind::Calls, "New");
-    // Embedding and structural interface satisfaction leave no relation.
+    // Structural interface satisfaction leaves no relation; embedding is an
+    // `extends` (`tests/embedding.rs`).
     assert!(!c.has_relation("Service", RelationKind::Implements, "Store"));
     assert!(!c.has_relation("MemoryStore", RelationKind::Implements, "Store"));
-    assert!(!c.has_relation("Service", RelationKind::Extends, "Store"));
+    assert!(c.has_relation("Service", RelationKind::Extends, "Store"));
     // Method values and expressions are references, not calls.
     assert!(!c.has_relation("Names", RelationKind::Calls, "name"));
 }

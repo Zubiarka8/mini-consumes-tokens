@@ -1,4 +1,4 @@
-# language=go files=7 symbols=463 relations=835 name_matched_across_files=249
+# language=go files=7 symbols=463 relations=838 name_matched_across_files=250
 
 == cmd/ledger/main.go (342 lines)
 S 1-342 module main
@@ -319,6 +319,7 @@ R 191:18 calls ledger::NewAccount -> Now
 R 194:3 calls ledger::NewAccount -> opt
 R 196:14 calls ledger::NewAccount -> Validate
 R 214:19 calls Entry::Signed -> Neg (name-matched: ledger/money.go)
+R 224:2 extends ledger::Meta -> Tags
 R 231:11 calls Meta::Describe -> append
 R 233:5 calls Meta::Describe -> len
 R 234:11 calls Meta::Describe -> make
@@ -328,6 +329,7 @@ R 238:8 calls Meta::Describe -> Strings
 R 239:11 calls Meta::Describe -> append
 R 239:41 calls Meta::Describe -> Join
 R 241:17 calls Meta::Describe -> Join
+R 246:2 extends ledger::Transaction -> Meta
 R 259:14 calls Transaction::Debits -> Add (name-matched: ledger/money.go)
 R 270:14 calls Transaction::Credits -> Add (name-matched: ledger/money.go)
 R 278:20 calls Transaction::Balanced -> Cmp (name-matched: ledger/money.go)
@@ -978,6 +980,7 @@ R 8:2 imports service -> sync
 R 9:2 imports service -> time
 R 30:11 calls HookFuncs::Before -> BeforeFunc
 R 36:5 calls HookFuncs::After -> AfterFunc
+R 61:2 extends ledger::Service -> Store (name-matched: ledger/account.go)
 R 82:38 calls ledger::WithHook -> append
 R 100:12 calls ledger::NewService -> NewSequentialIDs (name-matched: ledger/store.go)
 R 103:12 calls ledger::NewService -> make
