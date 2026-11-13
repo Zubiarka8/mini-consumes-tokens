@@ -462,6 +462,15 @@ From `rules.md` and the two messages:
           `references`, each resolved to a struct of the package its
           qualifier names, and 5 external (`time.Time{}`). Dead code
           122 -> 122.
+    - [x] C++ constant globals: at namespace scope, `const`/`constexpr`
+          on a name or an array (`const int A`, `const int C[]`), a pointer
+          that is itself `const` (`char* const q`) and a `constexpr` pointer
+          are a `constant`; a pointer to const, a reference and `constinit`
+          stay a `variable`, a class member a `field`. Test:
+          `tests/const_globals.rs`. Corpus: 4 `variable` -> `constant`
+          (`kMaxNameLength`, `kSkuPrefix`, `kSchemaVersion`, `kSep`).
+          Repository snapshot (C/C++, 6059 symbols, 542 relations): the same
+          4 kinds change, nothing else. Dead code 122 -> 122.
     - [x] Lua instance fields: the first `self.x = …` in a colon method
           `function T:m()` (or a closure inside it) is a `field` of `T`,
           unless `T` already declares `x`. An explicit `self` parameter, a
