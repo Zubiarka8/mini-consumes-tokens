@@ -389,6 +389,24 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Go fields, constants and variables: each named struct field is a
+          `field` of the struct (an embedded one is none), each package-level
+          `const` / `var` name, grouped or not, a `constant` / `variable` of
+          the package, with signature and exported-name visibility. So that
+          these names don't widen call matches, a call now carries its
+          syntax evidence: a bare `f()` is qualified by this file's package
+          unless `f` is a local; `v.f()` on a value whose type isn't proven
+          targets a method; `pkg.F()` through an unaliased repository import
+          ending in `pkg` is qualified by `pkg`; an import path names a
+          module only. Tests: `tests/fields_and_values.rs`,
+          `tests/call_evidence.rs`. Corpus: 291 -> 463 symbols. Repository
+          snapshot (Go, 861 relations; 138 fields, 24 constants, 14
+          variables added): 7 ambiguous -> resolved (`Describe(&b, err)`,
+          `store.Open()`, `billing.Log(…)`); 3 unresolved -> resolved (calls
+          of func-typed fields through a proven receiver type, as
+          `p.Jitter(d)`); 1 resolved -> unresolved (`cmd.run(…)`, a
+          func-typed field of an unproven receiver that matched the function
+          `main.run`); none newly ambiguous. Dead code 122 -> 122.
     - [x] Lua instance fields: the first `self.x = …` in a colon method
           `function T:m()` (or a closure inside it) is a `field` of `T`,
           unless `T` already declares `x`. An explicit `self` parameter, a

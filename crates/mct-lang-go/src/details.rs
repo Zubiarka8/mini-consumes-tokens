@@ -124,3 +124,27 @@ fn header(source: &str, start: usize, end: usize, prefix: &str) -> Option<String
 fn slice<'a>(node: Node, source: &'a str) -> &'a str {
     source.get(node.byte_range()).unwrap_or_default()
 }
+
+/// One name of a struct `field_declaration` (`ID string`, without its tag)
+/// or of a package-level `const_spec` / `var_spec` (`var hits int`,
+/// without its value): `keyword` is "" for a field.
+pub(crate) fn value_detail(
+    spec: Node,
+    keyword: &str,
+    name: &str,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let type_text = spec.child_by_field_name("type").map(|t| slice(t, source));
+    let signature = [keyword, name, type_text.unwrap_or_default()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    SymbolDetail {
+        symbol,
+        signature: Some(signature),
+        visibility: Some(visibility(name)),
+        ..Default::default()
+    }
+}
