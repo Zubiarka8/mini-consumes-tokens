@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 88% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 80% | 35 | 65% | 10 | 0 |
-| C# | 84% | 34 | 55% | 10 | 0 |
+| C# | 84% | 34 | 60% | 10 | 0 |
 | C++ | 86% | 28 | 50% | 10 | 0 |
 | Go | 78% | 18 | 60% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 88% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 92% | 58% | 88% | 80% | 50% | 50% |
-| C# | 83% | 96% | 50% | 88% | 60% | 25% | 67% |
+| C# | 83% | 96% | 50% | 88% | 70% | 25% | 67% |
 | C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
@@ -498,7 +498,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `: Base, IFoo` | base list | `extends` / `implements` by the `IFoo` heuristic |
 | `using N;`, `using static` | `using_directive` | `imports` |
 | `f()`, `a?.F()`, `new T()` | `invocation_expression`, `conditional_access_expression`, `object_creation_expression` | `calls`; a field is never the target of `new T()` |
-| the receiver of `x.M()`, `x?.M()` | `member_access_expression` `expression`, `conditional_access_expression` `condition` | qualified by `x`'s declared type: a parameter, a typed local (`T?` and `List<T>` name `T` and `List`), `var x = new T()`, a `foreach`, pattern (`is T x`), `out` or `catch` variable, `new T().M()`, a field, a property or a primary constructor parameter (`this.f.M()` too). A predefined type (`string`) is its own qualifier, so no repository method is its target. A capitalized name that is no local or field (`Money.Of()`, a static class) is its own qualifier. `this.M()` is qualified by the enclosing type when its body declares `M`; otherwise it is left as before, since `M` may be inherited. A lambda parameter, `var x = F()`, a call result or any other expression is a member call: ambiguous even with one candidate. `base.M()` and a lowercase name that is no local or field are left as before. Inherited methods and extension methods (their parent is the static class) are not found through the qualifier, so such a call is unresolved |
+| the receiver of `x.M()`, `x?.M()` | `member_access_expression` `expression`, `conditional_access_expression` `condition` | qualified by `x`'s declared type: a parameter, a typed local (`T?` and `List<T>` name `T` and `List`), `var x = new T()`, a `foreach`, pattern (`is T x`), `out` or `catch` variable, `new T().M()`, a field, a property or a primary constructor parameter (`this.f.M()` too). A predefined type (`string`) is its own qualifier, so no repository method is its target. A capitalized name that is no local or field (`Money.Of()`, a static class) is its own qualifier, and the call also `references` it with a `class` target (`static` is class-only), so a struct, delegate or BCL qualifier (`Sku.Parse()`, `Math.Max()`) stays unresolved. `this.M()` is qualified by the enclosing type when its body declares `M`; otherwise it is left as before, since `M` may be inherited. A lambda parameter, `var x = F()`, a call result or any other expression is a member call: ambiguous even with one candidate. `base.M()` and a lowercase name that is no local or field are left as before. Inherited methods and extension methods (their parent is the static class) are not found through the qualifier, so such a call is unresolved |
 | `[Attribute]` | `attribute` | `references XAttribute` |
 
 #### Why the gaps exist
@@ -506,7 +506,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Base list split by naming | By design | C# syntax does not separate base class from interfaces; the [documented heuristic](../../../crates/mct-lang-csharp/src/lib.rs#L420) uses the `IFoo` convention |
-| Static class used as a qualifier (`Helpers.X()`) | Not implemented | the qualifier of a member call is not a reference |
+| A struct used as a qualifier (`Sku.Parse()`) gets an unresolved reference | Model limit | a target has one kind, and a capitalized qualifier is far more often a static class; a method named like the type (its constructor) must never be the target |
 | Lambdas, locals | Not implemented | no arm for `lambda_expression` or `local_declaration_statement` |
 | `using Alias = Type` symbol | Not implemented | alias directives emit imports only |
 | `.csproj`/NuGet dependencies | By design | explicitly excluded in [Dependency detection](../../../internal/checklist.md#dependency-manifest-detection) |
@@ -1147,7 +1147,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a static class used only as a qualifier (`Helpers.HelperFn()`) gets no reference
+- [x] Every use: `find_references`: a static class used only as a qualifier (`Helpers.HelperFn()`) is referenced; a struct qualifier's reference stays unresolved
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
@@ -1515,8 +1515,9 @@ the other documents.
    `var w Widget`) gives no relation. The type is reported as dead code even
    though it is used. A Go composite literal (`util.Widget{}`) references
    its type.
-8. **C#:** a static class used only as a qualifier (`Helpers.HelperFn()`)
-   gives no relation to the class. The class is reported as dead code.
+8. **C#:** a struct used only as a qualifier (`Sku.Parse()`) gets an
+   unresolved reference. The struct is reported as dead code. A static
+   class used that way (`Helpers.HelperFn()`) is referenced.
 9. **Dead code in Java, C# and Lua:** methods are never candidates. Java has no free functions, so its candidates are types.
    C# also has local functions indexed as `function`, which are candidates.
    Lua table/module functions (`function M.f`) are methods and are skipped;
