@@ -634,7 +634,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Nested table classes (`W.Widget.__index = W.Widget`) | Not implemented | only a file-level name is promoted to `class` |
+| Nested table classes bound by `setmetatable` (`W.Dog = setmetatable({}, { __index = W.Animal })`) | Not implemented | only `W.Widget.__index = W.Widget` promotes a nested table to `class` |
 | Fields assigned through an explicit `self` or a local (`local self = setmetatable({}, T)`), parameters | Not implemented | only a colon method's implicit `self` has a known table; inside a function only `local` names otherwise become symbols |
 | Dead code skips table/module methods | By design | methods are excluded by [the shared allowlist decision](../../../crates/mct-index/src/dead_code.rs#L7); free global/local functions remain candidates |
 
@@ -1349,7 +1349,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Types and object-oriented programming**
 
-- [~] Class: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it; a nested table (`W.Widget.__index = W.Widget`) stays `module`
+- [~] Class: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it, and a nested table once `W.Widget.__index = W.Widget` does; a nested `setmetatable` binding stays `module`
 - [x] Module / namespace / package: file `module`; table literals too
 
 **Fields, constants and variables**

@@ -674,6 +674,14 @@ From `rules.md` and the two messages:
           `Task`, the struct `Sku`, …). Repository snapshot (C#, with
           `init --force`): 692 -> 767 relations, 36 resolved, 39
           unresolved. Dead code 123 -> 123.
+    - [x] Lua nested table classes: `W.Widget.__index = W.Widget`
+          promotes the nested table `Widget` of `W` to a `class`, as
+          `T.__index = T` does for a file-level table. Only that
+          self-referencing idiom counts; a nested `setmetatable` binding
+          stays `module`. Test: `tests/nested_classes.rs`. Corpus: no
+          nested classes, no changes. Repository snapshot (Lua, 410
+          relations, with `init --force`): no changes. Dead code 123 ->
+          123.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
