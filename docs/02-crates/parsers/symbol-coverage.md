@@ -182,7 +182,7 @@ round to the nearest whole percent, with halves rounded up.
 | Java | 76% | 27 | 65% | 10 | 0 |
 | Kotlin | 67% | 35 | 65% | 10 | 0 |
 | C# | 76% | 34 | 55% | 10 | 0 |
-| C++ | 77% | 28 | 50% | 10 | 0 |
+| C++ | 79% | 28 | 50% | 10 | 0 |
 | Go | 47% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
 | Lua | 82% | 14 | 60% | 10 | 0 |
@@ -278,7 +278,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Java | 80% | 90% | 38% | 75% | 80% | 25% | 67% |
 | Kotlin | 72% | 79% | 33% | 69% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 75% | 60% | 25% | 67% |
-| C++ | 88% | 94% | 42% | 70% | 60% | 25% | 50% |
+| C++ | 88% | 94% | 42% | 80% | 60% | 25% | 50% |
 | Go | 67% | 90% | 0% | 40% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 63% | 100% | 60% | 75% | 50% |
@@ -514,7 +514,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `using X = …`, `typedef` | `alias_declaration`, `type_definition` | `type_alias` |
 | `#include "x.h"`, `<vector>` | `preproc_include` | `imports` (path and stem) |
 | base classes | `base_class_clause` | `extends` |
-| `f()`, `a.m()`, `p->m()`, `ns::f()`, `T()` | `call_expression`, `field_expression`, `qualified_identifier` | `calls`; `new T()` is not handled |
+| `f()`, `a.m()`, `p->m()`, `ns::f()`, `T()` | `call_expression`, `field_expression`, `qualified_identifier` | `calls` |
+| `new T(…)`, `new T`, `new ns::T{}`, `new T<U>(…)` | `new_expression` | `calls T`, like `T()`; `new std::T` is external; `new int[4]` names no constructor |
 | `std::f()`, `::std::f()`, `std::f<T>()`, `std::chrono::f()` | `call_expression`, `qualified_identifier`, `template_function` | `calls` named `f` (template arguments dropped), external: a program may not add declarations to namespace `std` ([namespace.std]). Not proven in a file that opens `namespace std` itself (a `std::hash` specialization), nor for a bare `f()` after `using namespace std;` |
 
 #### Why the gaps exist
@@ -522,7 +523,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | `#define`, lambdas, locals | Not implemented | no arm for `preproc_def` or `lambda_expression`; locals are skipped |
-| `new T()` and base-constructor calls | Not implemented | no call relation for `new_expression` or the base initializer; ordinary `T()` expressions are calls |
+| Base-constructor calls | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; telling the two apart needs the class's base list |
 | `const int X` is a `variable` | Not implemented | a global `const` gets the same kind as a mutable variable; only enum values are `constant` |
 | A type used only in a declaration (`Widget w;`) | Not implemented | a declaration's type is not a reference |
 | Header and source files are two rows | By design | [crate docs](../../../crates/mct-lang-cpp/src/lib.rs#L3) explicitly choose independent header/source rows and correlate matching names and parents |
@@ -1171,7 +1172,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Relations**
 
 - [x] Calls
-- [~] Constructor call (`new X()` / `X()`): `X()` is a call; `new X()` gives no call relation
+- [x] Constructor call (`new X()` / `X()`): `X()` and `new X()` → `calls X`
 - [ ] Super / base constructor call: `B() : A(1) {}` gives no constructor-call relation to `A`
 - [x] Imports: quoted and angle-bracket `#include`
 - [x] Class extends class: every base, any access, as `extends`
