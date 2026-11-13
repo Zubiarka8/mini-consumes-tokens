@@ -168,9 +168,21 @@ fn class_implements_interface_and_extends_base() {
         .collect();
     assert!(implements.contains(&"Shape"));
 
-    let area = parsed.symbols.iter().find(|s| s.name == "area").unwrap();
-    assert_eq!(area.kind, SymbolKind::Method);
-    assert_eq!(area.parent.as_deref(), Some("Circle"));
+    // The class's method, and the interface's signature it implements.
+    let mut area: Vec<_> = parsed
+        .symbols
+        .iter()
+        .filter(|s| s.name == "area")
+        .map(|s| (s.kind, s.parent.as_deref()))
+        .collect();
+    area.sort_by_key(|a| a.1);
+    assert_eq!(
+        area,
+        [
+            (SymbolKind::Method, Some("Circle")),
+            (SymbolKind::Method, Some("Shape")),
+        ]
+    );
 }
 
 #[test]

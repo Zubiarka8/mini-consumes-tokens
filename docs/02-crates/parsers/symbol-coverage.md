@@ -118,7 +118,7 @@ table emits none yet:
 | Language | Symbols with details | Visibility mapping | Modifiers | Not covered |
 |---|---|---|---|---|
 | Rust | `fn` (free, method, trait, `extern` block), `struct`, `union`, `enum`, `trait`, `type`, associated `type`, `const`, `static` | `pub` → public, `pub(crate)` → crate, `pub(super)`/`pub(in …)` → restricted, `pub(self)` or no keyword → private; none recorded in a trait or `impl Trait for T`, where the trait decides | `async`, `const`, `unsafe`, `extern` (functions); `unsafe` (traits) | closures bound by `let`, enum variants, fields, macro-generated items; parameter defaults (Rust has none) |
-| JS/TS | `function` (and generator), methods, functions or arrows assigned to `const`/`let`/`var` or to a class field, classes, interfaces, type aliases, enums, class fields | class members: `private`/`protected`/`public` keyword, `#name` → private, otherwise public (the language default); none outside a class | `async`, generator (`*`), `static`, `readonly`, `abstract`, `override`, `const` (enums) | CommonJS/`export default` function values, interface members, abstract method signatures, object-literal properties. Types come from TS annotations (`syntax`) or, without one, from a JSDoc `@param {T} name` / `@returns {T}` right above (`doc`); a destructured parameter has no name for JSDoc to match |
+| JS/TS | `function` (and generator), methods, functions or arrows assigned to `const`/`let`/`var` or to a class field, classes, interfaces, type aliases, enums, class fields | class members: `private`/`protected`/`public` keyword, `#name` → private, otherwise public (the language default); none outside a class | `async`, generator (`*`), `static`, `readonly`, `abstract`, `override`, `const` (enums) | CommonJS/`export default` function values, abstract method signatures, object-literal properties. Types come from TS annotations (`syntax`) or, without one, from a JSDoc `@param {T} name` / `@returns {T}` right above (`doc`); a destructured parameter has no name for JSDoc to match |
 | Python | `def` (functions and methods), `class`, PEP 695 `type`, module-level and class-body assignments | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
 | Java | methods, constructors, classes, records, interfaces, annotation types, enums, each declarator of a field declaration | `public`/`protected`/`private`; none → package, but public in an interface or annotation type (the language default) | `abstract`, `static`, `final`, `sealed`, `@Override` → override | record accessors (synthesized, not written), enum constants, `throws` (kept in the signature only). The explicit `Type this` parameter is the receiver; `T...` is variadic |
 | Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes, member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
@@ -178,7 +178,7 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 81% | 29 | 85% | 10 | 0 |
-| JS/TS | 83% | 33 | 80% | 10 | 1 |
+| JS/TS | 86% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
@@ -274,7 +274,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 88% | 50% | 100% | 80% | 100% | 83% |
-| JS/TS | 81% | 80% | 67% | 100% | 80% | 50% | 100% |
+| JS/TS | 81% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
@@ -398,7 +398,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | a bare call `f()` or a same-file function used as a value, with no import or global evidence | `call_expression` `identifier` | targets this file when nothing around it binds `f` and the file declares `f` outside any type (a function, class or module-level binding), or when an enclosing local binds `f` and the file declares no `f` of its own (the local has no symbol, so the call stays unresolved instead of matching another file's `f`). A local shadowing a file-level `f` gives no evidence |
 | `super(…)` in a class declaration | `call_expression` with a `super` function | `calls` the base the `extends` clause names (`Base`, `ns.Base`), with the same global and import evidence as `new Base()`; none for `extends mix(A)` or inside a class expression |
 | `@sealed`, `@ns.track`, `@Component({…})` on a class, field, method or parameter | `decorator` | `calls sealed` / `track` / `Component`, as the decorator function is called with what it decorates; from the decorated class, field or method, and from the method for a parameter's |
-| the receiver of `x.m()` | `call_expression` + `member_expression` `object` | qualified by `x`'s declared type: a TS annotation (`x: T`, `const x: T`), `= new T()`, `new T().m()`, a class field or parameter property (`this.f.m()`). `this.m()` is qualified by the enclosing class when its body declares `m` as a method, field or parameter property; otherwise it is left as before, since `m` may be inherited. A local without a proven type, a call result or any other expression is a member call: ambiguous even with one candidate, and only a `method` can be its target, so a function reached through a module object (`core.f()` on a loaded module) is unresolved. A name that is no local (a top-level object, an import) is left as before. Inherited and interface methods are not found through the qualifier (interface members are not indexed), so such a call is unresolved |
+| the receiver of `x.m()` | `call_expression` + `member_expression` `object` | qualified by `x`'s declared type: a TS annotation (`x: T`, `const x: T`), `= new T()`, `new T().m()`, a class field or parameter property (`this.f.m()`). `this.m()` is qualified by the enclosing class when its body declares `m` as a method, field or parameter property; otherwise it is left as before, since `m` may be inherited. A local without a proven type, a call result or any other expression is a member call: ambiguous even with one candidate, and only a `method` can be its target, so a function reached through a module object (`core.f()` on a loaded module) is unresolved. A name that is no local (a top-level object, an import) is left as before. A value typed by an interface (`cart: Cart`, `cart.total()`) reaches the interface's signature. Inherited methods are not found through the qualifier, so such a call is unresolved. A bare call to a local (`onSaved()` on a destructured parameter) can only reach a function, and `this.m()` outside a class proves no field |
 | a same-file function used as a value (`onclick: toggle`, `.map(card)`, `return wrapped`, `{ toggle }`) | `identifier`, `shorthand_property_identifier` | `references`; a parameter, pattern or non-function `let`/`const` of the same name in an enclosing function hides it, and a function's use of its own name is skipped |
 | JSX `<Button />` | `jsx_opening_element`, `jsx_self_closing_element` | `references` (DOM tags excluded) |
 | a TS type in an annotation, return type, alias value, generic argument or cast (`props: Props`, `useState<Problem>()`) | `type_identifier` | `references`, never to a field (a type annotation can't name a field or an enum member); the enclosing declarations' type parameters are skipped (their constraints are not walked) |
@@ -411,7 +411,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Interface members | Not implemented | `src/lib.rs:29` calls interface members a known limit, not a decision; `walker.rs` skips the body |
 | Overload signatures | Not implemented | only the implementation is a `method_definition` |
 | Repeated code, exact-text search | Not implemented | no token source and no literals for JS/TS |
 | A global is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
@@ -913,7 +912,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Class: `class`
 - [x] Abstract class: `class`
 - [x] Interface / protocol: `interface`
-- [ ] Interface members: neither method signatures nor properties inside an `interface` have a symbol
+- [x] Interface members: a method signature is a `method` and a property signature a `field` of the interface, with its signature; overloads give the first one only
 - [~] Trait / mixin: a mixin factory becomes `function`; the returned class's methods have no parent
 - [x] Enum: `enum`
 - [x] Enum members: `field` of the enum
