@@ -413,6 +413,22 @@ fn is_interface(class_declaration: Node) -> bool {
     children.into_iter().any(|c| c.kind() == "interface")
 }
 
+/// Whether `class_declaration` is an `enum class`: an `enum` class
+/// modifier, or an enum body (`enum class E { A }` misread after an
+/// annotation keeps only the body).
+fn is_enum(class_declaration: Node) -> bool {
+    if find_child(class_declaration, "enum_class_body").is_some() {
+        return true;
+    }
+    find_child(class_declaration, "modifiers").is_some_and(|modifiers| {
+        let mut cursor = modifiers.walk();
+        let found = modifiers.named_children(&mut cursor).any(|m| {
+            m.kind() == "class_modifier" && m.child(0).is_some_and(|k| k.kind() == "enum")
+        });
+        found
+    })
+}
+
 /// The last `identifier` child of a `navigation_expression`
 /// (`receiver.member` → `member`), i.e. the callee name for a
 /// `receiver.method(...)` call — same "outermost field wins" precedent as
@@ -687,6 +703,8 @@ impl<'a> Walker<'a> {
             "class_declaration" | "object_declaration" => {
                 let kind = if node.kind() == "class_declaration" && is_interface(node) {
                     SymbolKind::Interface
+                } else if node.kind() == "class_declaration" && is_enum(node) {
+                    SymbolKind::Enum
                 } else {
                     // `object_declaration` reuses Class — see module doc.
                     SymbolKind::Class
