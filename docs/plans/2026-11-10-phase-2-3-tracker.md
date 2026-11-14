@@ -950,6 +950,21 @@ From `rules.md` and the two messages:
           no resolution changes); database file 39,493,632 bytes either
           side. Dead code 123 -> 123. Lua feature score 60% -> 70%; area
           Search 60% -> 80%.
+    - [x] Bash string literals: each run of fixed text of a `"…"` string,
+          between `$x` / `${…}` / `$(…)` / `$((…))` expansions, and each
+          `'…'` or `$'…'` string go through the shared prose filter into
+          `ParsedFile::literals`. The shared walk's `opaque` kinds now take
+          their closing quote as the delimiter (`'` as well as `"`), and
+          `StringStyle::shell_escapes` keeps a backslash that is no shell
+          escape (`"C:\data"`). Heredoc bodies are not read (grammar: their
+          text before the first expansion is in no node; documented as a
+          gap). Test: `tests/literals.rs` (parser and `search_literals`);
+          the other languages' literal tests are unchanged. Corpus: no
+          changes. Repository snapshot (with `init --force`): 0 -> 530 Bash
+          literals; other languages' literal rows identical; Bash relations
+          unchanged (1852, no resolution changes); database file 39,493,632
+          bytes either side. Dead code 123 -> 123. Bash feature score 60% ->
+          70%; area Search 80% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no

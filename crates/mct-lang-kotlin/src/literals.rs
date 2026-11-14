@@ -26,6 +26,7 @@ pub(crate) fn collect(root: Node, source: &str) -> Vec<StringLiteral> {
             raw: string.kind() == "multiline_string_literal",
             doubled_braces: false,
             doubled_quotes: false,
+            shell_escapes: false,
         })
     })
 }

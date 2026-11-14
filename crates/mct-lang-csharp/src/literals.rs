@@ -40,6 +40,7 @@ fn style(string: Node, source: &str) -> StringStyle {
             raw: true,
             doubled_braces: false,
             doubled_quotes: true,
+            shell_escapes: false,
         },
         "raw_string_literal" => StringStyle {
             raw: true,
@@ -64,6 +65,7 @@ fn style(string: Node, source: &str) -> StringStyle {
                 raw: verbatim || raw,
                 doubled_braces: !raw,
                 doubled_quotes: verbatim,
+                shell_escapes: false,
             }
         }
         _ => StringStyle::default(),
