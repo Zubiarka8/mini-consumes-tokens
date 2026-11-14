@@ -48,6 +48,9 @@ use tree_sitter::{Node, Parser};
 
 mod details;
 mod literals;
+mod tokens;
+
+pub use tokens::PowerShellTokenSource;
 
 pub struct PowerShellParser;
 
