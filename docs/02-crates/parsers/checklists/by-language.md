@@ -26,7 +26,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Java | 23 | 6 | 8 | 0 | 15 |
 | Kotlin | 27 | 7 | 11 | 0 | 7 |
 | C# | 26 | 10 | 9 | 0 | 7 |
-| C++ | 22 | 8 | 8 | 0 | 14 |
+| C++ | 23 | 8 | 7 | 0 | 14 |
 | Go | 15 | 3 | 11 | 0 | 23 |
 | PHP | 30 | 3 | 7 | 0 | 12 |
 | Lua | 14 | 5 | 5 | 0 | 28 |
@@ -498,7 +498,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C++ (`cpp`)
 
-Done 22 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 14
+Done 23 · Partial 8 · Not done 7 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -546,7 +546,7 @@ Done 22 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 14
 **Code quality**
 
 - [~] QU01 Dead code: unused function and class reported; declaration-only case not exercised
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: `#include "lib.h"` also listed as external
