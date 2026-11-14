@@ -1245,7 +1245,7 @@ fn rust_and_python_twins_are_grouped_per_language_by_the_real_token_sources() {
     assert!(text.contains("\nstatus: complete\n"), "{text}");
     assert!(
         text.contains(
-            "\nsupported_languages[10]: cpp,csharp,go,java,javascript_typescript,kotlin,lua,php,python,rust\n"
+            "\nsupported_languages[11]: bash,cpp,csharp,go,java,javascript_typescript,kotlin,lua,php,python,rust\n"
         ),
         "{text}"
     );
