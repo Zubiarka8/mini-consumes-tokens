@@ -22,6 +22,7 @@ use mct_tree_sitter::{find_child, first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod literals;
 
 pub struct CppParser;
 
@@ -77,7 +78,9 @@ impl LanguageParser for CppParser {
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.opens_std = opens_std(root, &file.contents, 0);
         walker.visit_children(root, Ctx::file(module_id), 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 

@@ -917,6 +917,15 @@ From `rules.md` and the two messages:
           (764, no resolution changes); database file 39,493,632 bytes
           either side. Dead code 123 -> 123. C# feature score 60% -> 70%;
           area Search 70% -> 90%.
+    - [x] C++ string literals: each string or raw (`R"(…)"`) string goes
+          through the shared prose filter into `ParsedFile::literals`,
+          escapes resolved unless raw; each piece of a concatenation is its
+          own literal. Test: `tests/literals.rs` (parser and
+          `search_literals`). Corpus: no changes. Repository snapshot (with
+          `init --force`): 0 -> 48 C++ literals; other languages' literal
+          rows identical; C++ relations unchanged (838, no resolution
+          changes); database file 39,493,632 bytes either side. Dead code
+          123 -> 123. C++ feature score 50% -> 60%; area Search 60% -> 80%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
