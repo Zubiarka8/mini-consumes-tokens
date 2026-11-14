@@ -926,6 +926,20 @@ From `rules.md` and the two messages:
           rows identical; C++ relations unchanged (838, no resolution
           changes); database file 39,493,632 bytes either side. Dead code
           123 -> 123. C++ feature score 50% -> 60%; area Search 60% -> 80%.
+    - [x] PHP string literals: each run of fixed text of a single-quoted,
+          double-quoted, heredoc or nowdoc string, between `$x` / `{$…}`
+          interpolations, goes through the shared prose filter into
+          `ParsedFile::literals`; a heredoc's or nowdoc's body node is read
+          as the string. The shared walk now resolves an escape node even
+          in a raw-styled string (`raw` keeps only a fragment's
+          backslashes), so a single-quoted `\'` reads `'` and `C:\data`
+          stays. Test: `tests/literals.rs` (parser and `search_literals`);
+          the other languages' literal tests are unchanged. Corpus: no
+          changes. Repository snapshot (with `init --force`): 0 -> 68 PHP
+          literals; other languages' literal rows identical; PHP relations
+          unchanged (1184, no resolution changes); database file 39,493,632
+          bytes either side. Dead code 123 -> 123. PHP feature score 65% ->
+          75%; area Search 80% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
