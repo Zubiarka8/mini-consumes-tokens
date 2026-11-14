@@ -940,6 +940,16 @@ From `rules.md` and the two messages:
           unchanged (1184, no resolution changes); database file 39,493,632
           bytes either side. Dead code 123 -> 123. PHP feature score 65% ->
           75%; area Search 80% -> 100%.
+    - [x] Lua string literals: each quoted or long (`[[…]]`) string goes
+          through the shared prose filter into `ParsedFile::literals`;
+          escapes (inside `string_content`) are resolved in a quoted string,
+          a long string keeps its backslashes. Test: `tests/literals.rs`
+          (parser and `search_literals`). Corpus: no changes. Repository
+          snapshot (with `init --force`): 0 -> 54 Lua literals; other
+          languages' literal rows identical; Lua relations unchanged (410,
+          no resolution changes); database file 39,493,632 bytes either
+          side. Dead code 123 -> 123. Lua feature score 60% -> 70%; area
+          Search 60% -> 80%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
