@@ -182,7 +182,7 @@ round to the nearest whole percent, with halves rounded up.
 | Java | 83% | 27 | 85% | 10 | 0 |
 | Kotlin | 83% | 35 | 85% | 10 | 0 |
 | C# | 87% | 34 | 80% | 10 | 0 |
-| C++ | 89% | 28 | 60% | 10 | 0 |
+| C++ | 89% | 28 | 70% | 10 | 0 |
 | Go | 78% | 18 | 90% | 10 | 0 |
 | PHP | 88% | 30 | 75% | 10 | 0 |
 | Lua | 89% | 14 | 70% | 10 | 0 |
@@ -278,7 +278,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Java | 80% | 90% | 38% | 100% | 100% | 75% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 100% | 100% | 50% |
 | C# | 94% | 96% | 50% | 88% | 90% | 75% | 67% |
-| C++ | 100% | 94% | 67% | 90% | 80% | 25% | 50% |
+| C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 50% | 50% |
 | Lua | 90% | 100% | 75% | 100% | 80% | 75% | 50% |
@@ -723,7 +723,7 @@ languages:
 
 | Feature | Languages | Where it is decided |
 |---|---|---|
-| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C# | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
+| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++ | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
 | String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
@@ -1229,7 +1229,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Features: Code quality**
 
 - [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a class declared in a header and used only in another file's declaration (`Widget w;`) is reported (#440)
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: C++ token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-cpp/tests/duplicates.rs`)
 
 **Features: Structure**
 
