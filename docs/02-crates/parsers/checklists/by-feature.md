@@ -1197,7 +1197,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 - [x] Python: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
 - [x] JS/TS: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] Java: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
-- [ ] Kotlin: listed under `unsupported_languages`
+- [x] Kotlin: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [ ] C#: listed under `unsupported_languages`
 - [ ] C++: listed under `unsupported_languages`
 - [x] Go: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
@@ -1213,7 +1213,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `mct-cli duplicates` covers the language (it has a token source).
 
-Done 6 · Partial 0 · Not done 6 · Not verified 0 · Not applicable 5
+Done 7 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 5
 
 ## Structure
 

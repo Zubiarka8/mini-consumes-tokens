@@ -1020,6 +1020,21 @@ From `rules.md` and the two messages:
           10,720 -> 11,019, 0 skipped, groups 148 -> 148 (no Java clone that
           large); at 2 lines / 12 tokens, 12 Java groups. Java feature score
           75% -> 85%; area Quality 25% -> 75%.
+    - [x] Kotlin repeated code: `KotlinTokenSource` (`src/tokens.rs`)
+          gives `mct-cli duplicates` the tokens of `.kt` files and is
+          registered in `build_token_sources`. Every `fun` (member,
+          top-level, local, extension, interface; annotations included, as
+          in the symbol) has a callable span matching its symbol;
+          `val f = { … }` / `val f = fun(…) …` outside a class body, whose
+          `Function` symbol spans the whole `val`, gets that span (shared
+          `named_lambda` check). The grammar parses `true`/`false`/`null` as
+          identifiers, so they stay identifier tokens; no body shape is
+          reported (a `function_body` holds one `block`). Test:
+          `tests/duplicates.rs` (through the real index; the named-lambda
+          cases fail without its span). Repository snapshot, defaults:
+          candidates 11,019 -> 11,230, 0 skipped, groups 148 -> 148; at 2
+          lines / 12 tokens, 4 groups with Kotlin members. Kotlin feature
+          score 75% -> 85%; area Quality 50% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no

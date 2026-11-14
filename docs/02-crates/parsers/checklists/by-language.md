@@ -24,7 +24,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Python | 25 | 5 | 8 | 0 | 14 |
 | JS/TS | 27 | 5 | 11 | 0 | 9 |
 | Java | 23 | 6 | 8 | 0 | 15 |
-| Kotlin | 26 | 7 | 12 | 0 | 7 |
+| Kotlin | 27 | 7 | 11 | 0 | 7 |
 | C# | 25 | 10 | 10 | 0 | 7 |
 | C++ | 22 | 8 | 8 | 0 | 14 |
 | Go | 15 | 3 | 11 | 0 | 23 |
@@ -346,7 +346,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Kotlin (`kotlin`)
 
-Done 26 · Partial 7 · Not done 12 · Not verified 0 · Not applicable 7
+Done 27 · Partial 7 · Not done 11 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -401,7 +401,7 @@ Done 26 · Partial 7 · Not done 12 · Not verified 0 · Not applicable 7
 **Code quality**
 
 - [x] QU01 Dead code: top-level function and class reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: alias import adds a false external entry
