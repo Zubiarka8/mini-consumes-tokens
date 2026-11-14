@@ -13,6 +13,7 @@ const GRAMMAR: LiteralGrammar = LiteralGrammar {
     holes: &["string_interpolation"],
     concatenations: &[],
     statements: &[],
+    opaque: &[],
     dollar_names: false,
 };
 

@@ -23,6 +23,9 @@ pub struct LiteralGrammar<'a> {
     pub concatenations: &'a [&'a str],
     /// Statement kinds where a lone string is documentation.
     pub statements: &'a [&'a str],
+    /// String kinds with no fragment children (C#'s `@"…"`): the text
+    /// between the first and the last `"` is one fragment.
+    pub opaque: &'a [&'a str],
     /// A `$` fragment directly followed by a fragment starting with a name
     /// is a `$name` template, a hole: kotlin-ng lexes `"a $x b"` as the
     /// fragments `a `, `$`, `x b` instead of an interpolation node.
@@ -36,6 +39,8 @@ pub struct StringStyle {
     pub raw: bool,
     /// `{{` and `}}` read as one brace (a Python f-string).
     pub doubled_braces: bool,
+    /// `""` reads as one quote (a C# verbatim string).
+    pub doubled_quotes: bool,
 }
 
 /// Every literal of the file under `root`, in source order. `style` reads
@@ -83,6 +88,20 @@ fn push_fragments(
     style: StringStyle,
     literals: &mut LiteralCollector,
 ) {
+    if grammar.opaque.contains(&string.kind()) {
+        let raw_text = string.utf8_text(source.as_bytes()).unwrap_or_default();
+        let body = match (raw_text.find('"'), raw_text.rfind('"')) {
+            (Some(open), Some(close)) if open < close => raw_text.get(open + 1..close),
+            _ => None,
+        };
+        if let Some(body) = body {
+            let visible = body.trim_start();
+            let before = body.get(..body.len() - visible.len()).unwrap_or_default();
+            let line = string.start_position().row as u32 + 1 + before.matches('\n').count() as u32;
+            literals.push(&unescape(body, style), line);
+        }
+        return;
+    }
     let mut text = String::new();
     let mut line = None;
     let mut dollar = false;
@@ -150,8 +169,8 @@ fn flush(text: &mut String, line: &mut Option<u32>, literals: &mut LiteralCollec
 
 /// The text a fragment stands for: `\n`, `\"` and the like resolved (an
 /// escape with no printable meaning reads as a space, a backslash-newline
-/// continuation as nothing), and doubled braces as one when the style says
-/// so. A raw string keeps its backslashes.
+/// continuation as nothing), and doubled braces or quotes as one when the
+/// style says so. A raw string keeps its backslashes.
 fn unescape(fragment: &str, style: StringStyle) -> String {
     let mut out = String::with_capacity(fragment.len());
     let mut chars = fragment.chars().peekable();
@@ -165,6 +184,10 @@ fn unescape(fragment: &str, style: StringStyle) -> String {
             '{' | '}' if style.doubled_braces && chars.peek() == Some(&c) => {
                 chars.next();
                 out.push(c);
+            }
+            '"' if style.doubled_quotes && chars.peek() == Some(&'"') => {
+                chars.next();
+                out.push('"');
             }
             _ => out.push(c),
         }
