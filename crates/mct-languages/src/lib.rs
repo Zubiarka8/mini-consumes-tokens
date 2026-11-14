@@ -39,6 +39,7 @@ pub fn build_token_sources() -> TokenSourceRegistry {
     registry.register(Arc::new(mct_lang_js_ts::JsTsTokenSource));
     registry.register(Arc::new(mct_lang_go::GoTokenSource));
     registry.register(Arc::new(mct_lang_java::JavaTokenSource));
+    registry.register(Arc::new(mct_lang_kotlin::KotlinTokenSource));
     registry
 }
 
@@ -122,6 +123,7 @@ mod tests {
                 "go",
                 "java",
                 "javascript_typescript",
+                "kotlin",
                 "lua",
                 "python",
                 "rust"

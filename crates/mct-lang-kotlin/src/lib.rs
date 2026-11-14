@@ -506,6 +506,9 @@ fn is_promoted_property(class_parameter: Node) -> bool {
 mod details;
 mod literals;
 mod receivers;
+mod tokens;
+
+pub use tokens::KotlinTokenSource;
 
 #[derive(Default)]
 struct Walker<'a> {
@@ -1179,7 +1182,7 @@ impl<'a> Walker<'a> {
 /// The name and value of `val f = { … }` / `val f = fun(…) { … }`: one
 /// plain name (no destructuring, no extension receiver, no delegate)
 /// initialized with exactly a lambda or an anonymous function.
-fn named_lambda(node: Node) -> Option<(Node, Node)> {
+pub(crate) fn named_lambda(node: Node) -> Option<(Node, Node)> {
     let children: Vec<Node> = node.children(&mut node.walk()).collect();
     if children.iter().any(|c| {
         matches!(
