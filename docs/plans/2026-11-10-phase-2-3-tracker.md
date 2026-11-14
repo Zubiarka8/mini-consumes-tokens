@@ -878,6 +878,16 @@ From `rules.md` and the two messages:
           unchanged; Go relations unchanged (1328, no resolution changes);
           database file 39,493,632 bytes either side. Dead code 123 -> 123.
           Go feature score 70% -> 80%; area Search 70% -> 90%.
+    - [x] Java string literals: each string literal or text block goes
+          through the shared prose filter into `ParsedFile::literals`, via
+          `mct_tree_sitter::collect_literals`, escapes resolved and split at
+          a string template's `\{…}` holes. Test: `tests/literals.rs`
+          (parser and `search_literals`). Corpus: no changes. Repository
+          snapshot (with `init --force`): 0 -> 40 Java literals, other
+          languages unchanged; Java relations unchanged (968, no resolution
+          changes); database file 39,493,632 bytes either side. Dead code
+          123 -> 123. Java feature score 65% -> 75%; area Search 80% ->
+          100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
