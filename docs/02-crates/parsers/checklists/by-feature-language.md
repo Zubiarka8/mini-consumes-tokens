@@ -1344,11 +1344,11 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 0 | 9 | 0 | 5 |
+| 4 | 0 | 8 | 0 | 5 |
 
 - [x] Rust: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
 - [x] Python: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
-- [ ] JS/TS: duplicate report lists `javascript_typescript` under `unsupported_languages`
+- [x] JS/TS: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [ ] Java: listed under `unsupported_languages`
 - [ ] Kotlin: listed under `unsupported_languages`
 - [ ] C#: listed under `unsupported_languages`
