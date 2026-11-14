@@ -888,6 +888,21 @@ From `rules.md` and the two messages:
           changes); database file 39,493,632 bytes either side. Dead code
           123 -> 123. Java feature score 65% -> 75%; area Search 80% ->
           100%.
+    - [x] Kotlin string literals: each run of fixed text of a string or
+          raw string (between `$x` / `${…}` templates) goes through the
+          shared prose filter into `ParsedFile::literals`, escapes resolved
+          unless raw. kotlin-ng gives a plain string's `$name` no
+          interpolation node (a `$` fragment before the name), so the
+          shared walk gains `LiteralGrammar::dollar_names` to read it as a
+          template; a `$` before no name (`$ 5`) stays text. Test:
+          `tests/literals.rs` (parser and `search_literals`); the other
+          languages' literal tests are unchanged. Corpus: no changes.
+          Repository snapshot (with `init --force`): 0 -> 48 Kotlin
+          literals, none holding a `$name`; other languages' literal rows
+          identical; Kotlin relations unchanged (806, no resolution
+          changes); database file 39,493,632 bytes either side. Dead code
+          123 -> 123. Kotlin feature score 65% -> 75%; area Search 80% ->
+          100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
