@@ -1035,6 +1035,19 @@ From `rules.md` and the two messages:
           candidates 11,019 -> 11,230, 0 skipped, groups 148 -> 148; at 2
           lines / 12 tokens, 4 groups with Kotlin members. Kotlin feature
           score 75% -> 85%; area Quality 50% -> 100%.
+    - [x] C# repeated code: `CSharpTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.cs` files and is registered
+          in `build_token_sources`. Methods, constructors and local
+          functions (attributes included, as in the symbol) have callable
+          spans matching their symbols; a destructor (`~Cart`), an operator
+          (`operator +`) and a conversion operator (`operator int`) get the
+          name the parser gives them, and a local bound to a lambda gets
+          its declarator's span, so none is skipped. Test:
+          `tests/duplicates.rs` (through the real index; the operator,
+          destructor and bound-lambda case fails without those spans).
+          Repository snapshot, defaults: candidates 11,230 -> 11,440, 0
+          skipped, groups 148 -> 148; at 2 lines / 12 tokens, 2 groups with
+          C# members. C# feature score 70% -> 80%; area Quality 25% -> 75%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
