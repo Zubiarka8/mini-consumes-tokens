@@ -47,6 +47,7 @@ use mct_tree_sitter::{find_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod literals;
 
 pub struct PowerShellParser;
 
@@ -114,7 +115,9 @@ impl LanguageParser for PowerShellParser {
             None,
         );
         walker.visit_children(root, module_id, &module_name, module_id, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
