@@ -30,7 +30,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Go | 15 | 3 | 11 | 0 | 23 |
 | PHP | 31 | 3 | 6 | 0 | 12 |
 | Lua | 14 | 5 | 5 | 0 | 28 |
-| Bash | 12 | 2 | 3 | 0 | 35 |
+| Bash | 13 | 2 | 2 | 0 | 35 |
 | PowerShell | 10 | 4 | 13 | 0 | 25 |
 | HTML | 3 | 1 | 3 | 0 | 0 |
 | CSS | 3 | 1 | 3 | 0 | 0 |
@@ -802,7 +802,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Bash (`bash`)
 
-Done 12 · Partial 2 · Not done 3 · Not verified 0 · Not applicable 35
+Done 13 · Partial 2 · Not done 2 · Not verified 0 · Not applicable 35
 
 **Functions and methods**
 
@@ -830,7 +830,7 @@ Done 12 · Partial 2 · Not done 3 · Not verified 0 · Not applicable 35
 **Code quality**
 
 - [x] QU01 Dead code: unused function reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cart_total` and `order_total` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: resolved `source` path also listed as external
