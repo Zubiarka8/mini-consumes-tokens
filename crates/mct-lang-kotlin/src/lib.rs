@@ -296,7 +296,9 @@ impl LanguageParser for KotlinParser {
         }
 
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -502,6 +504,7 @@ fn is_promoted_property(class_parameter: Node) -> bool {
 }
 
 mod details;
+mod literals;
 mod receivers;
 
 #[derive(Default)]
