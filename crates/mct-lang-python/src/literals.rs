@@ -32,6 +32,7 @@ pub(crate) fn collect(root: Node, source: &str) -> Vec<StringLiteral> {
             raw: prefix.contains('r'),
             doubled_braces: prefix.contains('f') || prefix.contains('t'),
             doubled_quotes: false,
+            shell_escapes: false,
         })
     })
 }
