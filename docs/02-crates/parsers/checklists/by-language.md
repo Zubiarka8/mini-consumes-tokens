@@ -28,7 +28,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | C# | 26 | 10 | 9 | 0 | 7 |
 | C++ | 23 | 8 | 7 | 0 | 14 |
 | Go | 15 | 3 | 11 | 0 | 23 |
-| PHP | 30 | 3 | 7 | 0 | 12 |
+| PHP | 31 | 3 | 6 | 0 | 12 |
 | Lua | 14 | 5 | 5 | 0 | 28 |
 | Bash | 12 | 2 | 3 | 0 | 35 |
 | PowerShell | 10 | 4 | 13 | 0 | 25 |
@@ -650,7 +650,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PHP (`php`)
 
-Done 30 · Partial 3 · Not done 7 · Not verified 0 · Not applicable 12
+Done 31 · Partial 3 · Not done 6 · Not verified 0 · Not applicable 12
 
 **Functions and methods**
 
@@ -701,7 +701,7 @@ Done 30 · Partial 3 · Not done 7 · Not verified 0 · Not applicable 12
 **Code quality**
 
 - [x] QU01 Dead code: function and class reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: resolved `require_once` path also listed as external
