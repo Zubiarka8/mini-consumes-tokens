@@ -31,7 +31,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | PHP | 31 | 3 | 6 | 0 | 12 |
 | Lua | 14 | 5 | 5 | 0 | 28 |
 | Bash | 13 | 2 | 2 | 0 | 35 |
-| PowerShell | 10 | 4 | 13 | 0 | 25 |
+| PowerShell | 11 | 4 | 12 | 0 | 25 |
 | HTML | 3 | 1 | 3 | 0 | 0 |
 | CSS | 3 | 1 | 3 | 0 | 0 |
 | XML | 2 | 0 | 5 | 0 | 0 |
@@ -878,7 +878,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PowerShell (`powershell`)
 
-Done 10 · Partial 4 · Not done 13 · Not verified 0 · Not applicable 25
+Done 11 · Partial 4 · Not done 12 · Not verified 0 · Not applicable 25
 
 **Functions and methods**
 
@@ -915,7 +915,7 @@ Done 10 · Partial 4 · Not done 13 · Not verified 0 · Not applicable 25
 **Code quality**
 
 - [x] QU01 Dead code: unused function reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `Get-CartTotal` and `Get-OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: dot-sourced path also listed as external
