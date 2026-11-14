@@ -23,8 +23,9 @@ pub struct LiteralGrammar<'a> {
     pub concatenations: &'a [&'a str],
     /// Statement kinds where a lone string is documentation.
     pub statements: &'a [&'a str],
-    /// String kinds with no fragment children (C#'s `@"…"`): the text
-    /// between the first and the last `"` is one fragment.
+    /// String kinds with no fragment children (C#'s `@"…"`, a shell's
+    /// `'…'`): the text between the first and the last occurrence of the
+    /// closing quote is one fragment.
     pub opaque: &'a [&'a str],
     /// A `$` fragment directly followed by a fragment starting with a name
     /// is a `$name` template, a hole: kotlin-ng lexes `"a $x b"` as the
@@ -41,6 +42,9 @@ pub struct StringStyle {
     pub doubled_braces: bool,
     /// `""` reads as one quote (a C# verbatim string).
     pub doubled_quotes: bool,
+    /// Only `\"`, `\\`, `` \` ``, `\$` and a backslash-newline are escapes;
+    /// any other backslash stays (a shell's `"…"`).
+    pub shell_escapes: bool,
 }
 
 /// Every literal of the file under `root`, in source order. `style` reads
@@ -90,7 +94,8 @@ fn push_fragments(
 ) {
     if grammar.opaque.contains(&string.kind()) {
         let raw_text = string.utf8_text(source.as_bytes()).unwrap_or_default();
-        let body = match (raw_text.find('"'), raw_text.rfind('"')) {
+        let quote = raw_text.chars().last().unwrap_or('"');
+        let body = match (raw_text.find(quote), raw_text.rfind(quote)) {
             (Some(open), Some(close)) if open < close => raw_text.get(open + 1..close),
             _ => None,
         };
@@ -183,8 +188,13 @@ fn unescape(fragment: &str, style: StringStyle) -> String {
     while let Some(c) = chars.next() {
         match c {
             '\\' if !style.raw => match chars.next() {
+                Some('\'') if style.shell_escapes => out.push_str("\\'"),
                 Some(q @ ('"' | '\'' | '\\' | '`' | '$')) => out.push(q),
                 Some('\n') => {}
+                Some(other) if style.shell_escapes => {
+                    out.push('\\');
+                    out.push(other);
+                }
                 _ => out.push(' '),
             },
             '{' | '}' if style.doubled_braces && chars.peek() == Some(&c) => {
