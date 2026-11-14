@@ -1344,7 +1344,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 10 | 0 | 2 | 0 | 5 |
+| 11 | 0 | 1 | 0 | 5 |
 
 - [x] Rust: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
 - [x] Python: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
@@ -1356,7 +1356,7 @@ Marks:
 - [x] Go: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] PHP: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] Lua: listed as supported by `duplicates` (group not exercised)
-- [ ] Bash: listed under `unsupported_languages`
+- [x] Bash: `cart_total` and `order_total` form a candidate group; listed as supported by `duplicates`
 - [ ] PowerShell: listed under `unsupported_languages`
 - — HTML: HTML is markup; it has no repeated code
 - — CSS: CSS is markup; it has no repeated code
