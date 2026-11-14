@@ -1200,7 +1200,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 - [ ] Kotlin: listed under `unsupported_languages`
 - [ ] C#: listed under `unsupported_languages`
 - [ ] C++: listed under `unsupported_languages`
-- [ ] Go: listed under `unsupported_languages`
+- [x] Go: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 - [ ] PHP: listed under `unsupported_languages`
 - [x] Lua: listed as supported by `duplicates` (group not exercised)
 - [ ] Bash: listed under `unsupported_languages`
@@ -1213,7 +1213,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `mct-cli duplicates` covers the language (it has a token source).
 
-Done 4 · Partial 0 · Not done 8 · Not verified 0 · Not applicable 5
+Done 5 · Partial 0 · Not done 7 · Not verified 0 · Not applicable 5
 
 ## Structure
 
