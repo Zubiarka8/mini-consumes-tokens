@@ -13,6 +13,9 @@ mod aliases;
 mod details;
 mod literals;
 mod receivers;
+mod tokens;
+
+pub use tokens::CSharpTokenSource;
 
 pub struct CSharpParser;
 
@@ -928,7 +931,7 @@ fn callee_identifier(function: Node) -> Option<Node> {
 /// A type reference's bare name: `Foo`, `Foo<T>` → `Foo`, `A.B.Foo` →
 /// `Foo`, `global::Foo` → `Foo`. `None` for predefined, tuple, array and
 /// other types that have no single declared name.
-fn type_base_name(node: Node, source: &str) -> Option<String> {
+pub(crate) fn type_base_name(node: Node, source: &str) -> Option<String> {
     match node.kind() {
         "identifier" => Some(text(node, source).to_string()),
         "generic_name" => find_child(node, "identifier").map(|n| text(n, source).to_string()),
@@ -1041,7 +1044,7 @@ fn last_identifier(node: Node) -> Option<Node> {
 
 /// The lambda or anonymous method a local declarator is bound to
 /// (`twice = x => …`), not one nested deeper in its initializer.
-fn bound_lambda(declarator: Node) -> Option<Node> {
+pub(crate) fn bound_lambda(declarator: Node) -> Option<Node> {
     let mut cursor = declarator.walk();
     let found = declarator.named_children(&mut cursor).find(|c| {
         matches!(
