@@ -1201,7 +1201,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 - [x] C#: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] C++: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] Go: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
-- [ ] PHP: listed under `unsupported_languages`
+- [x] PHP: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] Lua: listed as supported by `duplicates` (group not exercised)
 - [ ] Bash: listed under `unsupported_languages`
 - [ ] PowerShell: listed under `unsupported_languages`
@@ -1213,7 +1213,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `mct-cli duplicates` covers the language (it has a token source).
 
-Done 9 · Partial 0 · Not done 3 · Not verified 0 · Not applicable 5
+Done 10 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 5
 
 ## Structure
 
