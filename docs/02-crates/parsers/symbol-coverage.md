@@ -180,7 +180,7 @@ round to the nearest whole percent, with halves rounded up.
 | Python | 91% | 29 | 95% | 10 | 0 |
 | JS/TS | 89% | 33 | 90% | 10 | 1 |
 | Java | 83% | 27 | 75% | 10 | 0 |
-| Kotlin | 83% | 35 | 65% | 10 | 0 |
+| Kotlin | 83% | 35 | 75% | 10 | 0 |
 | C# | 87% | 34 | 60% | 10 | 0 |
 | C++ | 89% | 28 | 50% | 10 | 0 |
 | Go | 78% | 18 | 80% | 10 | 0 |
@@ -276,7 +276,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Python | 100% | 100% | 50% | 100% | 100% | 100% | 83% |
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 100% | 25% | 67% |
-| Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
+| Kotlin | 83% | 92% | 58% | 88% | 100% | 50% | 50% |
 | C# | 94% | 96% | 50% | 88% | 70% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 50% | 83% |
@@ -464,6 +464,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `enum class` entries | `enum_entry` | `field` |
 | `: Base()`, `: Iface`, `: p.Base<T>()` | `constructor_invocation`, `user_type` | `extends` to a `class` (with `()`); without `()`, `extends` to an `interface` from an interface, else `implements`. A qualified type names its last segment (`Base`, not `p`) |
 | `@Audited`, `@a.b.Audited`, `@field:Inject(…)` on a class, function or property | `annotation` in `modifiers` | `references Audited` from the annotated symbol, to a `class` only |
+| string and raw (`"""…"""`) literals | `string_literal`, `multiline_string_literal` (`string_content`, `escape_sequence`, `interpolation`) | literals for exact-text search, one per run of fixed text between templates, escapes resolved unless raw. A plain string's `$name` has no `interpolation` node (a `$` `string_content` before the name), and is read as one |
 | `import a.b.c`, `import … as x` | `import` | `imports` (alias when present) |
 | `f()`, `obj.m()` | `call_expression`, `navigation_expression` | `calls` |
 | `: Base(4)`, `constructor(x: Int) : super(x)` | `constructor_invocation`, `constructor_delegation_call` | `calls Base` from the class, to a `class` only; `super(…)` only when the header names one supertype without `()`, and to `Any`, external, when it names none |
@@ -717,7 +718,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Go, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-go` and `mct-lang-md` fill `ParsedFile::literals`; Python, JS/TS, Java and Go share `mct_tree_sitter::collect_literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, Go, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-go` and `mct-lang-md` fill `ParsedFile::literals`; Python, JS/TS, Java, Kotlin and Go share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -1089,7 +1090,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a string or raw string (between `$x` / `${…}` templates) that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
