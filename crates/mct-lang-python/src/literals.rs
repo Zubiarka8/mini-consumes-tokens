@@ -16,6 +16,7 @@ const GRAMMAR: LiteralGrammar = LiteralGrammar {
     holes: &["interpolation"],
     concatenations: &["concatenated_string"],
     statements: &["expression_statement"],
+    opaque: &[],
     dollar_names: false,
 };
 
@@ -30,6 +31,7 @@ pub(crate) fn collect(root: Node, source: &str) -> Vec<StringLiteral> {
         Some(StringStyle {
             raw: prefix.contains('r'),
             doubled_braces: prefix.contains('f') || prefix.contains('t'),
+            doubled_quotes: false,
         })
     })
 }
