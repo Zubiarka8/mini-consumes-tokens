@@ -212,14 +212,14 @@ In sections 1 and 2, ✅ indicates that the parser emits the kind or relation, n
 | XAML | ⚠️ | ❌ | ❌ | ❌ | — | — |
 | Markdown | ✅ | ✅ | ✅ | ❌ | — | — |
 
-Only Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP and Bash have a token source, so `mct-cli duplicates` reports every other language as unsupported.
+Only Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash and PowerShell have a token source, so `mct-cli duplicates` reports every other language as unsupported.
 
 ## 4. Tests and fuzzing
 
 - **All 17 crates:** parser tests (`tests/parse.rs`), integration through the real `mct-index` (`tests/index_integration.rs`), a corpus snapshot (`tests/corpus/`), and a `cargo-fuzz` harness in `fuzz/`. All 17 are in the CI `fuzz-smoke` matrix, which runs on Linux and macOS only.
 - **Extra regression coverage:** Kotlin has `tests/scanner_eof.rs` and a `fuzz/regressions` corpus; Markdown has `tests/literals.rs` and a `fuzz/regressions` corpus.
 - **Dependency-graph test (`tests/depgraph.rs`):** present in every crate except XML (it emits no imports) and Markdown (covered by `tests/note_graph.rs` instead).
-- **Token tests (`tests/tokens.rs`):** Rust, Python, Lua and JS/TS. Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP and Bash also have `tests/duplicates.rs`, which runs the real parser and token source through the shared `mct-index` engine.
+- **Token tests (`tests/tokens.rs`):** Rust, Python, Lua and JS/TS. Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash and PowerShell also have `tests/duplicates.rs`, which runs the real parser and token source through the shared `mct-index` engine.
 - **Dead-code test (`tests/dead_code.rs`):** Rust only. The dead-code heuristic itself is shared across languages in `crates/mct-index/src/dead_code.rs`.
 
 ## 5. Pending work per language
@@ -335,7 +335,7 @@ Only Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP and Bash have a to
 
 ## 6. Cross-cutting gaps
 
-- **Duplicate analysis** works only for Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP and Bash (`crates/mct-languages/src/lib.rs`, `build_token_sources`).
+- **Duplicate analysis** works only for Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash and PowerShell (`crates/mct-languages/src/lib.rs`, `build_token_sources`).
 - **Dependency manifests** cover 5 ecosystems: Cargo, npm (`package.json`), pip (`requirements.txt` only), Go modules and LuaRocks (`*.rockspec`). The persisted `dependencies` table holds name and version for every ecosystem and is what the CLI and web read; LuaRocks detail lives in `rockspec_items` and is exposed only through the MCP tools `get_indexing_status` and `get_dependency_graph` (the CLI and web were deliberately not changed). There is no detection for Maven/Gradle, NuGet, CMake/vcpkg/Conan, Composer, or `pyproject.toml`.
 - **Framework modules** under `src/libraries/` (Django, Flask, React, Bootstrap, Tailwind) are test modules only. Production extraction goes through the shared parser. Vue and Svelte are not supported (issue #51).
 - **`CallableSpan` (`callables` in `TokenizedFile`)** is defined in `mct-core` and filled by the shared `mct_tree_sitter::tokenize_source` (`crates/mct-tree-sitter/src/tokens.rs`), which the Rust and Python token sources use; the Lua token source calls `tokenize_tree` directly so it can add the callables that `tokenize_source` cannot name (`M.f = function() end`). The other 14 crates have no token source.
