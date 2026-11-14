@@ -17,6 +17,7 @@ const GRAMMAR: LiteralGrammar = LiteralGrammar {
     holes: &[],
     concatenations: &[],
     statements: &[],
+    opaque: &[],
     dollar_names: false,
 };
 
@@ -26,6 +27,7 @@ pub(crate) fn collect(root: Node, source: &str) -> Vec<StringLiteral> {
         (!is_field_tag(string)).then_some(StringStyle {
             raw: string.kind() == "raw_string_literal",
             doubled_braces: false,
+            doubled_quotes: false,
         })
     })
 }

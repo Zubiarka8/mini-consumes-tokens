@@ -15,6 +15,7 @@ const GRAMMAR: LiteralGrammar = LiteralGrammar {
     holes: &["template_substitution"],
     concatenations: &[],
     statements: &["expression_statement"],
+    opaque: &[],
     dollar_names: false,
 };
 
