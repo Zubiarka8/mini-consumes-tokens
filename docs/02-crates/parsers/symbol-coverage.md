@@ -187,7 +187,7 @@ round to the nearest whole percent, with halves rounded up.
 | PHP | 88% | 30 | 75% | 10 | 0 |
 | Lua | 89% | 14 | 70% | 10 | 0 |
 | Bash | 81% | 8 | 70% | 10 | 0 |
-| PowerShell | 81% | 18 | 50% | 10 | 0 |
+| PowerShell | 81% | 18 | 60% | 10 | 0 |
 
 ## Language by language
 
@@ -283,7 +283,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | PHP | 93% | 89% | 67% | 100% | 100% | 50% | 50% |
 | Lua | 90% | 100% | 75% | 100% | 80% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 100% | 50% | 33% |
-| PowerShell | 90% | 100% | 50% | 80% | 60% | 50% | 33% |
+| PowerShell | 90% | 100% | 50% | 80% | 80% | 50% | 33% |
 
 ### Rust
 
@@ -684,6 +684,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `[string] $Name` in a class | `class_property_definition` | `field` of the class; calls in its value belong to the class |
 | `[string] Speak() { … }`, `Animal() { … }` | `class_method_definition` | `method` of the class (a constructor is named after it); it owns its body's calls |
 | `enum Color { Red; Green = 2 }` | `enum_statement`, `enum_member` | `enum`, parent the file; each member a `field` of it |
+| `"…"`, `@"…"@`, `'…'`, `@'…'@` strings | `expandable_string_literal`, `expandable_here_string_literal`, `verbatim_string_characters`, `verbatim_here_string_characters` | literals for exact-text search, one per run of fixed text between interpolations (`$x`, `$(…)`, `${…}`); backtick escapes resolved, a doubled quote is one, a backslash is text. The grammar gives an expandable string no fragment nodes, so its text is read between the interpolation children |
 | `. .\lib.ps1`, `Import-Module X` | `command` | `imports` (path and stem) |
 | any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls`; only a `function` can be its target, never a method of the same name |
 | `[Location]::new(…)`, `New-Object Location` | `invokation_expression`, `type_literal`; `command` | `calls Location`, whose target must be a `class`; none for a dotted or generic type, another static member or `New-Object -ComObject` |
@@ -724,7 +725,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-csharp`, `mct-lang-cpp`, `mct-lang-go`, `mct-lang-php`, `mct-lang-lua`, `mct-lang-bash` and `mct-lang-md` fill `ParsedFile::literals`; all but Rust and Markdown share `mct_tree_sitter::collect_literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -1477,7 +1478,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [~] Every use: `find_references`: a type literal (`[StorageZone]::Frozen`, `[Location] $x`) references a class or enum of its own file; one of another file (through `using module`) gets no reference
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gap as references
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of an expandable string or here-string (between interpolations) and each verbatim string or here-string that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 

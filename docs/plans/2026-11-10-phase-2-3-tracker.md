@@ -965,6 +965,20 @@ From `rules.md` and the two messages:
           unchanged (1852, no resolution changes); database file 39,493,632
           bytes either side. Dead code 123 -> 123. Bash feature score 60% ->
           70%; area Search 80% -> 100%.
+    - [x] PowerShell string literals: each run of fixed text of an
+          expandable string or here-string (between `$x` / `$(…)` / `${…}`
+          interpolations) and each verbatim string or here-string go
+          through the prose filter into `ParsedFile::literals`. The grammar
+          gives an expandable string no fragment nodes, so the crate reads
+          the text between the interpolation children with its own walk
+          (`src/literals.rs`) instead of the shared one; backtick escapes
+          are resolved, a doubled quote is one quote, a backslash is text.
+          Test: `tests/literals.rs` (parser and `search_literals`).
+          Repository snapshot (with `init --force`): 0 -> 285 PowerShell
+          literals; other languages' literal rows identical; PowerShell
+          relations unchanged (830, no resolution changes); database file
+          39,493,632 bytes either side. Dead code 123 -> 123. PowerShell
+          feature score 50% -> 60%; area Search 60% -> 80%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
