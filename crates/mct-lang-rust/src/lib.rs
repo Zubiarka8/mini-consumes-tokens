@@ -451,12 +451,13 @@ impl<'a> Walker<'a> {
                         && self.imported.contains(name)
                         && !self.bound.contains(name)
                     {
-                        self.push_relation(
+                        let relation = self.push_relation(
                             owner,
                             RelationKind::Calls,
                             name.to_string(),
                             location(child),
                         );
+                        self.qualify(relation, self.bare_target(name, child.start_byte()));
                     }
                     if accessor.is_none() {
                         self.visit(child, owner, impl_type, depth + 1);
@@ -1017,8 +1018,8 @@ impl<'a> Walker<'a> {
     }
 
     /// Whether `name`, written bare in this file, can only be the standard
-    /// library's: imported from `std`/`core`/`alloc` and from nowhere else,
-    /// or one of the prelude's names with nothing in the file that could
+    /// library's: imported from `std`/`core`/`alloc`, and from nowhere else,
+    /// where it is used, or one of the prelude's names with nothing in the file that could
     /// shadow it — no item, `use` or local of that name, and no glob import
     /// that could bring one in where it is used (`at`, a byte offset). The
     /// name alone is never enough.
@@ -1030,17 +1031,20 @@ impl<'a> Walker<'a> {
         if local || self.scope.declared.contains(name) {
             return false;
         }
-        let imported_here = self
-            .scope
-            .other_imports
-            .get(name)
-            .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+        let reaches = |imports: &HashMap<String, Vec<std::ops::Range<usize>>>| {
+            imports
+                .get(name)
+                .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+        };
+        let imported_here = reaches(&self.scope.other_imports)
             || self
                 .scope
                 .variant_globs
                 .iter()
                 .any(|(reach, variants)| reach.contains(&at) && variants.contains(name));
-        if self.scope.std_imports.contains(name) {
+        // An explicit import wins over any glob in its block. Where it
+        // doesn't reach, the name is judged as a prelude name instead.
+        if reaches(&self.scope.std_imports) {
             return !imported_here;
         }
         PRELUDE.contains(&name)
@@ -1105,7 +1109,7 @@ impl<'a> Walker<'a> {
         if local
             || self.scope.declared.contains(name)
             || self.scope.aliases.contains(name)
-            || self.scope.std_imports.contains(name)
+            || self.scope.std_imports.contains_key(name)
         {
             return None;
         }
@@ -1140,7 +1144,7 @@ impl<'a> Walker<'a> {
         let root = root?;
         let local_root = self.scope.declared.contains(root)
             || self.scope.other_imports.contains_key(root)
-            || self.scope.std_imports.contains(root);
+            || self.scope.std_imports.contains_key(root);
         if local_root || may_import_own_package(self.path) {
             return None;
         }
@@ -1527,11 +1531,11 @@ struct FileScope {
     declared: HashSet<String>,
     /// Item and standard import scopes that can shadow a primitive type.
     primitive_shadows: HashMap<String, Vec<std::ops::Range<usize>>>,
-    /// Names a `use` of a `std`/`core`/`alloc` path brings in.
-    std_imports: HashSet<String>,
-    /// Names any other `use` brings in, each with the byte ranges of the
-    /// blocks, modules or file its imports are written in: like a glob, an
-    /// import reaches only its own block.
+    /// Names a `use` of a `std`/`core`/`alloc` path brings in, each with the
+    /// byte ranges of the blocks, modules or file its imports are written
+    /// in: like a glob, an import reaches only its own block.
+    std_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
+    /// Names any other `use` brings in, with the same byte ranges.
     other_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
     /// The crate each of those imports reaches its item in (`serde_json` in
     /// `use serde_json::Value`; none for a `crate::`/`self::`/`super::`
@@ -1618,9 +1622,13 @@ fn collect_scope_at(
                             .or_default()
                             .push(reach.clone());
                     }
-                    scope
-                        .std_imports
-                        .extend(names.into_iter().map(|used| used.name));
+                    for used in names {
+                        scope
+                            .std_imports
+                            .entry(used.name)
+                            .or_default()
+                            .push(reach.clone());
+                    }
                 } else {
                     for used in names {
                         if used.alias {
