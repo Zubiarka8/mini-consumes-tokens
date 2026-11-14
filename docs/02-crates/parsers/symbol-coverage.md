@@ -185,7 +185,7 @@ round to the nearest whole percent, with halves rounded up.
 | C++ | 89% | 28 | 60% | 10 | 0 |
 | Go | 78% | 18 | 80% | 10 | 0 |
 | PHP | 88% | 30 | 75% | 10 | 0 |
-| Lua | 89% | 14 | 60% | 10 | 0 |
+| Lua | 89% | 14 | 70% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
 | PowerShell | 81% | 18 | 50% | 10 | 0 |
 
@@ -281,7 +281,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | C++ | 100% | 94% | 67% | 90% | 80% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 50% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 50% | 50% |
-| Lua | 90% | 100% | 75% | 100% | 60% | 75% | 50% |
+| Lua | 90% | 100% | 75% | 100% | 80% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
 | PowerShell | 90% | 100% | 50% | 80% | 60% | 50% | 33% |
 
@@ -637,6 +637,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `self.x = …` in `function T:m()` (and closures inside it) | `assignment_statement` + `dot_index_expression` on `self` | `field` of `T` at its first assignment, unless `T` already declares `x`; an explicit `self` parameter or a plain function gives none, since `self`'s table is unknown there |
 | `setmetatable({ k = v }, T)`, `local o = setmetatable({}, T)` then `o.x = …` (`{ __index = T }` too) | `function_call` + `table_constructor`, `assignment_statement` | `field` `k` / `x` of `T` at its first declaration, when `T` is a class of this file and `setmetatable` the global (or `local setmetatable = setmetatable`); `o:m()` is qualified by `T`, and `o.f()` / `self.f()` too when `T` declares `f` here. A local rebound to anything else stops being an instance |
 | `local x` inside a function, loop variables | `variable_declaration`, `for_numeric_clause` | `variable`, parent the function |
+| quoted and long (`[[…]]`, `[==[…]==]`) strings | `string` (`string_content`, its `escape_sequence` inside) | literals for exact-text search, escapes resolved in a quoted string, a long string kept as written |
 | `require("x")` | `function_call` | `imports` |
 | `f()`, `M.f()`, `o:m()` | `function_call` | `calls` |
 | `self:m()` in `function T:x()`, `o:m()` | `function_call` + `method_index_expression` | `calls` qualified by `T`; any other receiver is a member call (type unknown) |
@@ -721,7 +722,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-csharp`, `mct-lang-cpp`, `mct-lang-go`, `mct-lang-php` and `mct-lang-md` fill `ParsedFile::literals`; all but Rust and Markdown share `mct_tree_sitter::collect_literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-csharp`, `mct-lang-cpp`, `mct-lang-go`, `mct-lang-php`, `mct-lang-lua` and `mct-lang-md` fill `ParsedFile::literals`; all but Rust and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -1382,7 +1383,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [~] Every use: `find_references`: a class used as a call's qualifier (`Animal.new()`, `W.Widget.make()`) is referenced when the same file declares it; in a file that reaches it through `require` it gets no reference, and only the call to `make` resolves
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each quoted or long (`[[…]]`) string that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
