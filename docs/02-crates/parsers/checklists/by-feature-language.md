@@ -1344,13 +1344,13 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 0 | 6 | 0 | 5 |
+| 7 | 0 | 5 | 0 | 5 |
 
 - [x] Rust: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
 - [x] Python: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
 - [x] JS/TS: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] Java: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
-- [ ] Kotlin: listed under `unsupported_languages`
+- [x] Kotlin: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [ ] C#: listed under `unsupported_languages`
 - [ ] C++: listed under `unsupported_languages`
 - [x] Go: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`

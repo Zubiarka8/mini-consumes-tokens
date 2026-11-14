@@ -180,7 +180,7 @@ round to the nearest whole percent, with halves rounded up.
 | Python | 91% | 29 | 95% | 10 | 0 |
 | JS/TS | 89% | 33 | 100% | 10 | 1 |
 | Java | 83% | 27 | 85% | 10 | 0 |
-| Kotlin | 83% | 35 | 75% | 10 | 0 |
+| Kotlin | 83% | 35 | 85% | 10 | 0 |
 | C# | 87% | 34 | 70% | 10 | 0 |
 | C++ | 89% | 28 | 60% | 10 | 0 |
 | Go | 78% | 18 | 90% | 10 | 0 |
@@ -276,7 +276,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Python | 100% | 100% | 50% | 100% | 100% | 100% | 83% |
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 100% | 100% |
 | Java | 80% | 90% | 38% | 100% | 100% | 75% | 67% |
-| Kotlin | 83% | 92% | 58% | 88% | 100% | 50% | 50% |
+| Kotlin | 83% | 92% | 58% | 88% | 100% | 100% | 50% |
 | C# | 94% | 96% | 50% | 88% | 90% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
@@ -723,7 +723,7 @@ languages:
 
 | Feature | Languages | Where it is decided |
 |---|---|---|
-| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
+| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
 | String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
@@ -1101,7 +1101,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Features: Code quality**
 
 - [x] Dead code: `find_dead_code`, `mct-cli dead-code`: top-level functions and classes; methods skipped
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: Kotlin token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-kotlin/tests/duplicates.rs`). Secondary constructors are no symbol, so they are no candidate
 
 **Features: Structure**
 
