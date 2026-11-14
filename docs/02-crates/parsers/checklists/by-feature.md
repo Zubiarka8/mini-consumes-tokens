@@ -1204,7 +1204,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 - [x] PHP: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] Lua: listed as supported by `duplicates` (group not exercised)
 - [x] Bash: `cart_total` and `order_total` form a candidate group; listed as supported by `duplicates`
-- [ ] PowerShell: listed under `unsupported_languages`
+- [x] PowerShell: `Get-CartTotal` and `Get-OrderTotal` form a candidate group; listed as supported by `duplicates`
 - — HTML: HTML is markup; it has no repeated code
 - — CSS: CSS is markup; it has no repeated code
 - — XML: XML is markup; it has no repeated code
@@ -1213,7 +1213,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `mct-cli duplicates` covers the language (it has a token source).
 
-Done 11 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 5
+Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 ## Structure
 
