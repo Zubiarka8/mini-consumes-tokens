@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 89% | 33 | 90% | 10 | 1 |
 | Java | 83% | 27 | 75% | 10 | 0 |
 | Kotlin | 83% | 35 | 75% | 10 | 0 |
-| C# | 87% | 34 | 60% | 10 | 0 |
+| C# | 87% | 34 | 70% | 10 | 0 |
 | C++ | 89% | 28 | 50% | 10 | 0 |
 | Go | 78% | 18 | 80% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 100% | 25% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 100% | 50% | 50% |
-| C# | 94% | 96% | 50% | 88% | 70% | 25% | 67% |
+| C# | 94% | 96% | 50% | 88% | 90% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 50% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
@@ -502,6 +502,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `Func<int, int> f = x => …;`, `Action f = delegate { … };` in a body | `local_declaration_statement` declarator with a `lambda_expression` / `anonymous_method_expression` value | `function`, no parent, like a local function; it owns the lambda's calls, so `f(2)` reaches it. A field holding a lambda stays a `field`; a lambda passed as an argument declares nothing |
 | `delegate` | `delegate_declaration` | `type_alias` |
 | `: Base, IFoo` | base list | `extends` / `implements` by the `IFoo` heuristic |
+| plain, verbatim (`@"…"`), raw (`"""…"""`) and interpolated (`$"…"`, `$@"…"`, `$"""…"""`) strings | `string_literal`, `verbatim_string_literal`, `raw_string_literal`, `interpolated_string_expression` | literals for exact-text search, one per run of fixed text between `{…}` holes; escapes resolved in a plain or interpolated string, `""` one quote in a verbatim one, `{{` one brace in a non-raw interpolated one |
 | `using N;`, `using static`, `using A = N.T;` | `using_directive` | `imports`; an alias imports its target path only, and a use of the alias in its file (`new A()`, `A.M()`) uses the target (external under `System`/`Microsoft`); a `global using` alias is not followed |
 | `f()`, `a?.F()`, `new T()` | `invocation_expression`, `conditional_access_expression`, `object_creation_expression` | `calls`; a field is never the target of `new T()` |
 | the receiver of `x.M()`, `x?.M()` | `member_access_expression` `expression`, `conditional_access_expression` `condition` | qualified by `x`'s declared type: a parameter, a typed local (`T?` and `List<T>` name `T` and `List`), `var x = new T()`, a `foreach`, pattern (`is T x`), `out` or `catch` variable, `new T().M()`, a field, a property or a primary constructor parameter (`this.f.M()` too). A predefined type (`string`) is its own qualifier, so no repository method is its target. A capitalized name that is no local or field (`Money.Of()`, a static class) is its own qualifier, and the call also `references` it with a `class` target (`static` is class-only), so a struct, delegate or BCL qualifier (`Sku.Parse()`, `Math.Max()`) stays unresolved. `this.M()` is qualified by the enclosing type when its body declares `M`; otherwise it is left as before, since `M` may be inherited. A lambda parameter, `var x = F()`, a call result or any other expression is a member call: ambiguous even with one candidate. `base.M()` and a lowercase name that is no local or field are left as before. Inherited methods and extension methods (their parent is the static class) are not found through the qualifier, so such a call is unresolved |
@@ -718,7 +719,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, Go, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-go` and `mct-lang-md` fill `ParsedFile::literals`; Python, JS/TS, Java, Kotlin and Go share `mct_tree_sitter::collect_literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, Go, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-csharp`, `mct-lang-go` and `mct-lang-md` fill `ParsedFile::literals`; Python, JS/TS, Java, Kotlin, C# and Go share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -1157,7 +1158,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`: a static class used only as a qualifier (`Helpers.HelperFn()`) is referenced; a struct qualifier's reference stays unresolved
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a plain, verbatim, raw or interpolated string (between `{…}` holes) that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
