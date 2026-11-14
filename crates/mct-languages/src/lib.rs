@@ -37,6 +37,7 @@ pub fn build_token_sources() -> TokenSourceRegistry {
     registry.register(Arc::new(mct_lang_python::PythonTokenSource));
     registry.register(Arc::new(mct_lang_lua::LuaTokenSource));
     registry.register(Arc::new(mct_lang_js_ts::JsTsTokenSource));
+    registry.register(Arc::new(mct_lang_go::GoTokenSource));
     registry
 }
 
@@ -112,11 +113,11 @@ mod tests {
     }
 
     #[test]
-    fn token_sources_cover_rust_python_lua_and_js_ts_with_their_parsers_ids() {
+    fn token_sources_cover_their_parsers_ids() {
         let sources = build_token_sources();
         assert_eq!(
             sources.language_ids(),
-            ["javascript_typescript", "lua", "python", "rust"]
+            ["go", "javascript_typescript", "lua", "python", "rust"]
         );
         // A token source is selected by an indexed file's `language`, which
         // is its parser's id.
