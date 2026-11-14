@@ -23,7 +23,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Rust | 36 | 0 | 0 | 0 | 17 |
 | Python | 25 | 5 | 8 | 0 | 14 |
 | JS/TS | 27 | 5 | 11 | 0 | 9 |
-| Java | 22 | 6 | 9 | 0 | 15 |
+| Java | 23 | 6 | 8 | 0 | 15 |
 | Kotlin | 26 | 7 | 12 | 0 | 7 |
 | C# | 25 | 10 | 10 | 0 | 7 |
 | C++ | 22 | 8 | 8 | 0 | 14 |
@@ -270,7 +270,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Java (`java`)
 
-Done 22 · Partial 6 · Not done 9 · Not verified 0 · Not applicable 15
+Done 23 · Partial 6 · Not done 8 · Not verified 0 · Not applicable 15
 
 **Functions and methods**
 
@@ -317,7 +317,7 @@ Done 22 · Partial 6 · Not done 9 · Not verified 0 · Not applicable 15
 **Code quality**
 
 - [~] QU01 Dead code: only types: `P_UnusedK` reported, `p_unused` method skipped
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: local imports resolve, but each import duplicates resolved/ambiguous rows; JDK import duplicates external/unresolved rows

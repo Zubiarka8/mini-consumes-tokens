@@ -1008,6 +1008,18 @@ From `rules.md` and the two messages:
           candidates 10,483 -> 10,720, 0 skipped, groups 147 -> 148 (one Go
           group in the corpus `ledger/account.go`, SUSPICIOUS). Go feature
           score 80% -> 90%; area Quality 50% -> 100%.
+    - [x] Java repeated code: `JavaTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.java` files and is registered
+          in `build_token_sources`. Methods and constructors (annotations
+          included, as in the symbol) have callable spans matching their
+          symbols; a record component, whose accessor the parser indexes
+          over the component, gets the component's span, so it is analyzed
+          (one line, never grouped) instead of skipped. Test:
+          `tests/duplicates.rs` (through the real index; the record case
+          fails without its span). Repository snapshot, defaults: candidates
+          10,720 -> 11,019, 0 skipped, groups 148 -> 148 (no Java clone that
+          large); at 2 lines / 12 tokens, 12 Java groups. Java feature score
+          75% -> 85%; area Quality 25% -> 75%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
