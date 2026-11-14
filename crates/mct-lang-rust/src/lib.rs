@@ -410,12 +410,13 @@ impl<'a> Walker<'a> {
                         && self.imported.contains(name)
                         && !self.bound.contains(name)
                     {
-                        self.push_relation(
+                        let relation = self.push_relation(
                             owner,
                             RelationKind::Calls,
                             name.to_string(),
                             location(child),
                         );
+                        self.qualify(relation, self.std_target(name, child.start_byte()));
                     }
                     if accessor.is_none() {
                         self.visit(child, owner, impl_type, depth + 1);
@@ -911,8 +912,8 @@ impl<'a> Walker<'a> {
     }
 
     /// Whether `name`, written bare in this file, can only be the standard
-    /// library's: imported from `std`/`core`/`alloc` and from nowhere else,
-    /// or one of the prelude's names with nothing in the file that could
+    /// library's: imported from `std`/`core`/`alloc`, and from nowhere else,
+    /// where it is used, or one of the prelude's names with nothing in the file that could
     /// shadow it — no item, `use` or local of that name, and no glob import
     /// that could bring one in where it is used (`at`, a byte offset). The
     /// name alone is never enough.
@@ -924,17 +925,20 @@ impl<'a> Walker<'a> {
         if local || self.scope.declared.contains(name) {
             return false;
         }
-        let imported_here = self
-            .scope
-            .other_imports
-            .get(name)
-            .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+        let reaches = |imports: &HashMap<String, Vec<std::ops::Range<usize>>>| {
+            imports
+                .get(name)
+                .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+        };
+        let imported_here = reaches(&self.scope.other_imports)
             || self
                 .scope
                 .variant_globs
                 .iter()
                 .any(|(reach, variants)| reach.contains(&at) && variants.contains(name));
-        if self.scope.std_imports.contains(name) {
+        // An explicit import wins over any glob in its block. Where it
+        // doesn't reach, the name is judged as a prelude name instead.
+        if reaches(&self.scope.std_imports) {
             return !imported_here;
         }
         PRELUDE.contains(&name)
@@ -1238,11 +1242,11 @@ struct FileScope {
     /// unless a glob over their enum brings them in (`Level::Debug` doesn't
     /// shadow the `Debug` derive).
     declared: HashSet<String>,
-    /// Names a `use` of a `std`/`core`/`alloc` path brings in.
-    std_imports: HashSet<String>,
-    /// Names any other `use` brings in, each with the byte ranges of the
-    /// blocks, modules or file its imports are written in: like a glob, an
-    /// import reaches only its own block.
+    /// Names a `use` of a `std`/`core`/`alloc` path brings in, each with the
+    /// byte ranges of the blocks, modules or file its imports are written
+    /// in: like a glob, an import reaches only its own block.
+    std_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
+    /// Names any other `use` brings in, with the same byte ranges.
     other_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
     /// Byte ranges of the blocks, modules or file where a glob import
     /// (`use m::*`) could bring in names this file can't see: the glob
@@ -1311,17 +1315,13 @@ fn collect_scope_at(
                 let reach = node.parent().map_or(0..source.len(), |block| {
                     block.start_byte()..block.end_byte()
                 });
-                let names = names.into_iter().map(|used| used.name);
-                if is_std_path(text(argument, source)) {
-                    scope.std_imports.extend(names);
+                let imports = if is_std_path(text(argument, source)) {
+                    &mut scope.std_imports
                 } else {
-                    for name in names {
-                        scope
-                            .other_imports
-                            .entry(name)
-                            .or_default()
-                            .push(reach.clone());
-                    }
+                    &mut scope.other_imports
+                };
+                for used in names {
+                    imports.entry(used.name).or_default().push(reach.clone());
                 }
                 let mut found = Vec::new();
                 collect_globs(argument, source, false, &mut found, depth + 1);
