@@ -25,7 +25,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | JS/TS | 27 | 5 | 11 | 0 | 9 |
 | Java | 23 | 6 | 8 | 0 | 15 |
 | Kotlin | 27 | 7 | 11 | 0 | 7 |
-| C# | 25 | 10 | 10 | 0 | 7 |
+| C# | 26 | 10 | 9 | 0 | 7 |
 | C++ | 22 | 8 | 8 | 0 | 14 |
 | Go | 15 | 3 | 11 | 0 | 23 |
 | PHP | 30 | 3 | 7 | 0 | 12 |
@@ -422,7 +422,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C# (`csharp`)
 
-Done 25 · Partial 10 · Not done 10 · Not verified 0 · Not applicable 7
+Done 26 · Partial 10 · Not done 9 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -477,7 +477,7 @@ Done 25 · Partial 10 · Not done 10 · Not verified 0 · Not applicable 7
 **Code quality**
 
 - [~] QU01 Dead code: methods skipped; unused class reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: `using Audit` is recorded as an ambiguous import to two file modules
