@@ -39,12 +39,25 @@ use mct_tree_sitter::{first_error, module_location};
 use tree_sitter::Parser;
 
 mod literals;
+mod tokens;
 mod walker;
 
 use walker::Walker;
 
+pub use tokens::JsTsTokenSource;
+
 #[cfg(test)]
 mod libraries;
+
+/// The grammar for a file, by extension: TypeScript for `.ts`/`.mts`/`.cts`,
+/// TSX for `.tsx`, JavaScript (with JSX) otherwise.
+pub(crate) fn grammar_for(relative_path: &str) -> tree_sitter::Language {
+    match relative_path.rsplit('.').next().unwrap_or_default() {
+        "ts" | "mts" | "cts" => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        "tsx" => tree_sitter_typescript::LANGUAGE_TSX.into(),
+        _ => tree_sitter_javascript::LANGUAGE.into(),
+    }
+}
 
 pub struct JsTsParser;
 
@@ -58,12 +71,7 @@ impl LanguageParser for JsTsParser {
     }
 
     fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError> {
-        let extension = file.relative_path.rsplit('.').next().unwrap_or_default();
-        let language: tree_sitter::Language = match extension {
-            "ts" | "mts" | "cts" => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
-            "tsx" => tree_sitter_typescript::LANGUAGE_TSX.into(),
-            _ => tree_sitter_javascript::LANGUAGE.into(),
-        };
+        let language = grammar_for(&file.relative_path);
 
         let mut parser = Parser::new();
         #[allow(clippy::expect_used)]
