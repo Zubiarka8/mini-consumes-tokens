@@ -16,7 +16,10 @@ mod details;
 mod jdk;
 mod literals;
 mod receivers;
+mod tokens;
 use receivers::Bindings;
+
+pub use tokens::JavaTokenSource;
 
 pub struct JavaParser;
 
