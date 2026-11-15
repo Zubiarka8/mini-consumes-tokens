@@ -1387,6 +1387,10 @@ From `rules.md` and the two messages:
   - [ ] The committed Vite bundles (`crates/mct-cli/src/web/*-dist/`) give
         23 candidates. `.mctignore` is git-ignored here, so excluding them
         is the user's local choice, not a repository change.
+  - [x] Go, assertions and type switches: the type in `o.(Marker)` and in a
+        `case Row, *Cfg:` is a `references` relation with the evidence a
+        declared type gets; `nil` and predeclared types give none. Stacked on
+        #442. Corpus: 1298 -> 1305 relations.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
