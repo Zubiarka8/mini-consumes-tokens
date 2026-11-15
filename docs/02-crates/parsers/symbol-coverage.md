@@ -540,7 +540,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | Lambdas, locals | Not implemented | no arm for `lambda_expression`; locals are skipped |
 | Base-constructor calls of an out-of-line constructor whose class is defined in another file | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition it can't tell a base from a member |
-| A type used only in a declaration (`Widget w;`) | Not implemented | a declaration's type is not a reference |
+| A type declared in another file and used only in a declaration (`Widget w;`) | Model limit | a by-name match can't be limited to types, so an unpinned reference could reach a method or constructor named like the type; only a type of the same file is pinned (#440) |
 | Header and source files are two rows | By design | [crate docs](../../../crates/mct-lang-cpp/src/lib.rs#L3) explicitly choose independent header/source rows and correlate matching names and parents |
 | Some valid C++ is rejected | Grammar | tree-sitter-cpp 0.23.4, issue #82 |
 
@@ -1208,13 +1208,13 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a class used only in a declaration (`Widget w;`) gets no reference
+- [~] Every use: `find_references`: a type named in a declaration (`Widget w;`, a field, a parameter, a return type) is referenced when the same file declares it, and an external reference when written through `std::`; a type declared only in another file (the header) gets no reference (#440)
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
 **Features: Code quality**
 
-- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a class used only in a declaration (`Widget w;`) is reported
+- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a class declared in a header and used only in another file's declaration (`Widget w;`) is reported (#440)
 - [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
 
 **Features: Structure**
@@ -1512,9 +1512,10 @@ the other documents.
    the import counts as a use. A qualified `util::helper_fn()` inside a macro,
    with only `mod util;` and no helper import, **is** a false positive.
 7. **C++ and Go:** using a type only to declare a variable (`Widget w;`,
-   `var w Widget`) gives no relation. The type is reported as dead code even
-   though it is used. A Go composite literal (`util.Widget{}`) references
-   its type.
+   `var w Widget`) gives no relation when the type is declared in another
+   file. The type is reported as dead code even though it is used (#440).
+   A C++ declaration in the type's own file references it, and a Go
+   composite literal (`util.Widget{}`) references its type.
 8. **C#:** a struct used only as a qualifier (`Sku.Parse()`) gets an
    unresolved reference. The struct is reported as dead code. A static
    class used that way (`Helpers.HelperFn()`) is referenced.
