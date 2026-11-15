@@ -754,6 +754,17 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Lua: a function of this file used by name as a call argument
+        (`table.sort(t, cmp)`) or a table field value (`{ on = handler }`)
+        is a `references` relation, so the callback is not dead code; a
+        parameter that shadows it, a variable or an unknown name records
+        nothing. Corpus: +4 relations (`compare_locations`, `tick`, `cors`,
+        `require_tenant`, all callbacks); symbols unchanged. Probe on a tiny
+        tree: dead code listed `cmp` and `handler` before. Test:
+        `mct-lang-lua/tests/function_values.rs`. The same probe shows the
+        same false positives for Kotlin (`::parse`), PHP (`'shout'` string
+        callable), C++ (`std::transform(…, dbl)`) and Bash (`trap cleanup
+        EXIT`); Java method references and C# method groups were fine.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
