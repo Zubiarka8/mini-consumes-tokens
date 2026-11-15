@@ -973,7 +973,55 @@ impl<'a> Walker<'a> {
                 }
                 self.visit_children(node, owner, type_name, depth + 1);
             }
+            // `::parse`, `Box::size`: the function is named, not called.
+            "callable_reference" => {
+                self.push_callable_reference(node, owner);
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
+            // `Box::size` parses as a navigation with a `::` operator.
+            "navigation_expression"
+                if node
+                    .children(&mut node.walk())
+                    .any(|c| !c.is_named() && c.kind() == "::") =>
+            {
+                self.push_callable_reference(node, owner);
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             _ => self.visit_children(node, owner, type_name, depth + 1),
+        }
+    }
+
+    /// A callable reference is a `References` relation to the function it
+    /// names. A `Type::name` reference is qualified by `Type`; a bound
+    /// `value::name` has no known type, so it is a member name only.
+    /// `Type::class` names no function.
+    fn push_callable_reference(&mut self, node: Node, owner: SymbolId) {
+        let mut cursor = node.walk();
+        let parts: Vec<Node> = node.named_children(&mut cursor).collect();
+        let Some((name_node, receiver)) = parts.split_last() else {
+            return;
+        };
+        if !matches!(name_node.kind(), "identifier" | "simple_identifier") {
+            return;
+        }
+        let name = text(*name_node, self.source).to_string();
+        if name == "class" {
+            return;
+        }
+        let qualifier = receiver
+            .first()
+            .map(|r| text(*r, self.source).trim().to_string())
+            .filter(|r| r.starts_with(|c: char| c.is_ascii_uppercase()));
+        let has_receiver = !receiver.is_empty();
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::References, name, location(*name_node));
+        if self.relations.len() > relation && has_receiver {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                qualifier,
+                member: true,
+                ..Default::default()
+            });
         }
     }
 

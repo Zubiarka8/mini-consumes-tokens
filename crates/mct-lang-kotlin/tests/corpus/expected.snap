@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=488 relations=835 name_matched_across_files=113
+# language=kotlin files=5 symbols=488 relations=855 name_matched_across_files=115
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -208,6 +208,7 @@ R 170:44 calls OrderService::dashboard -> countByState (name-matched: order/Orde
 R 170:38 calls OrderService::dashboard -> all
 R 172:77 calls OrderService::packingSlip -> let
 R 172:55 calls OrderService::packingSlip -> findByNumber
+R 172:83 references OrderService::packingSlip -> renderSlip
 R 180:90 calls WarehouseApp -> emptyMap
 R 184:32 calls Response::ok -> Response
 R 185:37 calls Response::created -> Response
@@ -235,6 +236,8 @@ R 229:48 calls requireScope -> removePrefix
 R 230:61 calls requireScope -> orEmpty
 R 230:43 calls requireScope -> let
 R 230:25 calls requireScope -> let
+R 230:37 references requireScope -> get
+R 230:54 references requireScope -> parse
 R 232:26 calls requireScope -> Response
 R 233:32 calls requireScope -> Response
 R 234:17 calls requireScope -> handler
@@ -247,6 +250,7 @@ R 241:5 calls orderRoutes -> get
 R 242:31 calls orderRoutes -> split (name-matched: money/Money.kt)
 R 243:38 calls orderRoutes -> let
 R 243:17 calls orderRoutes -> packingSlip
+R 243:52 references orderRoutes -> ok
 R 243:68 calls orderRoutes -> notFound
 R 245:5 calls orderRoutes -> post
 R 246:69 calls orderRoutes -> badRequest
@@ -293,12 +297,15 @@ R 290:70 calls main -> mapOf
 R 296:5 calls main -> println
 R 298:39 calls main -> forEach
 R 298:23 calls main -> map
+R 298:29 references main -> describe (name-matched: inventory/Inventory.kt)
+R 298:49 references main -> println
 R 299:22 calls main -> forEach
 R 299:32 calls main -> println
 R 300:9 calls main -> println
 R 300:25 calls main -> dashboard
 R 303:46 calls main -> let
 R 303:17 calls main -> packingSlip
+R 303:52 references main -> println
 
 == inventory/Inventory.kt (309 lines)
 S 1-309 module Inventory
@@ -418,6 +425,9 @@ R 26:73 implements Location -> Comparable
 R 27:41 calls Inventory -> startsWith
 R 29:18 overrides Location::compareTo -> compareTo
 R 30:9 calls Location::compareTo -> compareValuesBy
+R 30:48 references Location::compareTo -> zone
+R 30:64 references Location::compareTo -> aisle
+R 30:81 references Location::compareTo -> level
 R 32:18 overrides Location::toString -> toString
 R 32:18 overrides Location::toString -> toString
 R 32:44 calls Location::toString -> format (name-matched: money/Money.kt)
@@ -471,10 +481,13 @@ R 190:25 calls Inventory::reserve -> reserveLine
 R 193:18 calls Inventory::reserve -> forEach
 R 193:28 calls Inventory::reserve -> undo
 R 196:14 calls Inventory::reserve -> forEach
+R 196:32 references Inventory::reserve -> stockReserved
 R 197:40 calls Inventory::reserve -> forEach
 R 197:29 calls Inventory::reserve -> distinct
 R 197:14 calls Inventory::reserve -> map
+R 197:50 references Inventory::reserve -> checkReorderPoint
 R 198:14 calls Inventory::reserve -> map
+R 198:31 references Inventory::reserve -> id
 R 202:31 calls Inventory::reserveLine -> instant
 R 205:14 calls Inventory::reserveLine -> maxByOrNull
 R 204:14 calls Inventory::reserveLine -> filter
@@ -1004,6 +1017,7 @@ R 133:20 calls Order::moveTo -> canMoveTo
 R 133:45 calls Order::moveTo -> IllegalTransitionException
 R 144:19 calls Order::addLine -> CurrencyMismatchException (name-matched: money/Money.kt)
 R 156:17 calls Order::drainEvents -> forEach
+R 156:31 references Order::drainEvents -> accept
 R 157:17 calls Order::drainEvents -> clear (name-matched: money/Money.kt)
 R 165:13 calls Order::summary -> trimMargin
 R 167:18 overrides Order::toString -> toString
@@ -1013,6 +1027,7 @@ R 173:74 calls Order::place -> apply
 R 173:20 calls Order::place -> Order
 R 173:34 calls Order::place -> random
 R 174:23 calls Order::place -> forEach
+R 174:33 references Order::place -> addLine
 R 175:17 calls Order::place -> record
 R 175:35 calls Order::place -> Placed
 R 175:68 calls Order::place -> toList
@@ -1028,6 +1043,7 @@ R 208:71 calls isStale -> toMinutes
 R 208:41 calls isStale -> between
 R 208:49 calls isStale -> placedAt
 R 211:12 calls Collection::stalePayments -> filter
+R 211:21 references Collection::stalePayments -> isStale
 R 225:47 calls Order -> emptySet
 R 227:76 calls OrderValidator::validate -> buildList
 R 228:24 calls OrderValidator::validate -> isBlank
@@ -1064,6 +1080,7 @@ R 266:18 overrides OrderHistory::accept -> accept
 R 267:9 calls OrderHistory::accept -> require
 R 273:53 calls OrderHistory::lastState -> let
 R 273:39 calls OrderHistory::lastState -> lastOrNull
+R 273:59 references OrderHistory::lastState -> stateAfter
 R 275:41 calls OrderHistory::lines -> map
 R 275:59 calls OrderHistory::lines -> describe
 R 292:22 calls rule -> repeat
@@ -1215,6 +1232,7 @@ R 72:96 calls VolumeDiscount::discount -> zero (name-matched: money/Money.kt)
 R 78:62 implements LoyaltyDiscount -> DiscountRule
 R 79:18 overrides LoyaltyDiscount::discount -> discount
 R 80:45 calls LoyaltyDiscount::discount -> let
+R 80:56 references LoyaltyDiscount::discount -> get (name-matched: app/WarehouseApp.kt)
 R 86:102 implements CouponDiscount -> DiscountRule
 R 87:18 overrides CouponDiscount::discount -> discount
 R 88:38 calls CouponDiscount::discount -> min
@@ -1306,12 +1324,14 @@ R 243:37 calls importPriceList -> isNotBlank
 R 243:59 calls importPriceList -> startsWith
 R 245:42 calls importPriceList -> map
 R 245:31 calls importPriceList -> split (name-matched: money/Money.kt)
+R 245:54 references importPriceList -> trim
 R 247:17 calls importPriceList -> require
 R 249:37 calls importPriceList -> of (name-matched: money/Money.kt)
 R 249:40 calls importPriceList -> BigDecimal
 R 249:69 calls importPriceList -> parse (name-matched: app/WarehouseApp.kt)
 R 251:27 calls importPriceList -> ImportError
 R 259:11 calls missingPrices -> filterNot
+R 259:29 references missingPrices -> containsKey
 R 263:5 calls Map::convertedTo -> mapValues
 R 263:37 calls Map::convertedTo -> convert (name-matched: money/Money.kt)
 R 269:18 calls Quote::cashTotal -> ofMinor (name-matched: money/Money.kt)

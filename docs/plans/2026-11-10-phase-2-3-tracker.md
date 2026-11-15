@@ -754,6 +754,18 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Kotlin: a callable reference (`::parse`, `Box::size`, `tokens::get`)
+        is a `references` relation to the function it names, so a function
+        used only that way is not dead code. `Type::name` is qualified by
+        `Type`; a bound `value::name` is a member name only; `Type::class`
+        names no function. Corpus: +20 references (`::println`, `::get`,
+        `Scope::parse`, `::describe`…), symbols unchanged. One is
+        name-matched to the wrong candidate: `::describe` in
+        `WarehouseApp.kt` (the top-level `describe(event)` of `Order.kt`)
+        lands on `Inventory.describe()`, the same name-only choice a bare
+        `describe(e)` call gets today. Probe on a tiny tree: dead code
+        listed `parse` and `twice` before. Test:
+        `mct-lang-kotlin/tests/callable_references.rs`.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
