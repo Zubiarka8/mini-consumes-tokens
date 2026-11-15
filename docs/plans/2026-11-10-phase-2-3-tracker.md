@@ -401,6 +401,16 @@ From `rules.md` and the two messages:
           symbols): the same 3 become constants; no relation names them, so
           resolution is unchanged; dead code 0 -> 0. Java scores 83% -> 85%
           and 38% -> 50% (fields and constants).
+    - [x] CSS statement at-rules with a string prelude: `@source "./";`
+          and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
+          rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
+          (ERR-023). On the at-rule lines an error covers, the string bytes
+          become `x` in a same-offset reparse, kept only when clean. Test:
+          `tests/at_rule_strings.rs` (real errors still rejected). This
+          repository's 23 tracked CSS files: 2 failures -> 1 (the malformed
+          fixture); `styles.css` gives 42 symbols and 6 relations. ERR-023
+          is `RESOLVED`; ERR-024 (untracked generated CSS) was not
+          re-checked.
     - [x] C# supertypes: an `extends`/`implements` entry names a type, so
           the first entry of a class (its base class, unless named like an
           interface) targets a `class` and every other entry an
