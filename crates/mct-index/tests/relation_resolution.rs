@@ -3,7 +3,7 @@
 //! only on parser evidence, and walks never cross an unproven edge.
 //!
 //! Uses a toy parser, one symbol per line:
-//! `def NAME [in PARENT] [calls TARGET [q=QUALIFIER] [path=PATH] [lang=LANG] [mod=MODULE] [member] [ext]]`,
+//! `def NAME [in PARENT] [extends SUPER] [calls TARGET [q=QUALIFIER] [path=PATH] [lang=LANG] [mod=MODULE] [member] [ext]]`,
 //! registered for two languages (`alpha` = `.a`, `beta` = `.b`).
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
@@ -62,6 +62,21 @@ impl mct_core::LanguageParser for FakeParser {
                 parent,
                 level: None,
             });
+            if let Some(at) = rest.iter().position(|w| *w == "extends") {
+                parsed.relation_targets.push(RelationTarget {
+                    relation: parsed.relations.len(),
+                    ..Default::default()
+                });
+                parsed.relations.push(SymbolRelation {
+                    from: id,
+                    kind: RelationKind::Extends,
+                    to_name: rest[at + 1].to_string(),
+                    location: Location {
+                        end_line: None,
+                        ..location
+                    },
+                });
+            }
             let Some(at) = rest.iter().position(|w| *w == "calls") else {
                 continue;
             };
@@ -497,4 +512,74 @@ fn every_hit_carries_the_evidence_for_its_resolution() {
         evidence("nothing"),
         (Resolution::Unresolved, ResolutionEvidence::None)
     );
+}
+
+/// `line parent` of the one call made by `from` and its resolution.
+fn resolved_call(index: &Index, from: &str) -> (Resolution, Option<(u32, Option<String>)>) {
+    let hit = call_of(index, from);
+    let target = hit.target_id.map(|id| {
+        let symbol = index.symbols_by_ids(&[id]).unwrap().remove(0);
+        (symbol.line, symbol.parent)
+    });
+    (hit.resolution, target)
+}
+
+#[test]
+fn a_type_qualified_call_reaches_a_method_its_direct_supertype_declares() {
+    let (_dir, index) = index_of(&[(
+        "a.a",
+        "def Base\n\
+         def find in Base\n\
+         def Child extends Base\n\
+         def main calls find q=Child\n",
+    )]);
+    assert_eq!(
+        resolved_call(&index, "main"),
+        (Resolution::Resolved, Some((2, Some("Base".to_string()))))
+    );
+}
+
+#[test]
+fn a_method_the_type_declares_shadows_its_supertype_s() {
+    let (_dir, index) = index_of(&[(
+        "a.a",
+        "def Base\n\
+         def find in Base\n\
+         def Child extends Base\n\
+         def find in Child\n\
+         def main calls find q=Child\n",
+    )]);
+    assert_eq!(
+        resolved_call(&index, "main"),
+        (Resolution::Resolved, Some((4, Some("Child".to_string()))))
+    );
+}
+
+#[test]
+fn a_supertype_is_only_one_the_index_records_for_that_type() {
+    // No inheritance relation; a grandparent (one hop further); and a
+    // same-named type of another language that extends `Base`.
+    let (_dir, index) = index_of(&[
+        (
+            "a.a",
+            "def Base\n\
+             def find in Base\n\
+             def Grand\n\
+             def old in Grand\n\
+             def Middle extends Grand\n\
+             def Child extends Middle\n\
+             def Loner\n\
+             def alone calls find q=Loner\n\
+             def far calls old q=Child\n\
+             def foreign calls find q=Other\n",
+        ),
+        ("b.b", "def Other extends Base\n"),
+    ]);
+    for from in ["alone", "far", "foreign"] {
+        assert_eq!(
+            resolved_call(&index, from),
+            (Resolution::Unresolved, None),
+            "{from}"
+        );
+    }
 }
