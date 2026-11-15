@@ -5,7 +5,8 @@
 //! type set, not an embedding, and gives none. A bare name is a
 //! declaration of this package; `pkg.T` through a standard package is
 //! external, through an unaliased repository import a declaration of
-//! `pkg`, and through anything else proves nothing.
+//! `pkg`, through an aliased one a declaration under the import path's last
+//! directory, and through anything else proves nothing.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -64,7 +65,10 @@ fn embeddings(parsed: &ParsedFile) -> Vec<String> {
                 Some(t) if t.external => "external".to_string(),
                 Some(t) => format!(
                     "{}{}",
-                    t.qualifier.as_deref().unwrap_or("?"),
+                    t.qualifier
+                        .clone()
+                        .or_else(|| t.module.as_ref().map(|m| format!("dir:{m}")))
+                        .unwrap_or_else(|| "?".to_string()),
                     t.kind.map(|k| format!(" {k:?}")).unwrap_or_default()
                 ),
             };
@@ -83,7 +87,7 @@ fn an_embedded_type_is_extended() {
             "17 Cart -> Base shop",
             "18 Cart -> Audit shop",
             "19 Cart -> Basket store",
-            "20 Cart -> Conn -",
+            "20 Cart -> Conn dir:database",
             "21 Cart -> List shop",
         ]
     );
