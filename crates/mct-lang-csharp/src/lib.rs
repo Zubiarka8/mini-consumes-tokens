@@ -317,9 +317,16 @@ impl<'a> Walker<'a> {
                         let Some(name_node) = declarator.child_by_field_name("name") else {
                             continue;
                         };
+                        let kind = if node.kind() == "field_declaration"
+                            && has_modifier(node, self.source, "const")
+                        {
+                            SymbolKind::Constant
+                        } else {
+                            SymbolKind::Field
+                        };
                         let id = self.push_symbol(
                             text(name_node, self.source).to_string(),
-                            SymbolKind::Field,
+                            kind,
                             location(declarator),
                             parent.clone(),
                         );
@@ -831,10 +838,14 @@ fn override_supertypes(node: Node, kind: SymbolKind, source: &str) -> Vec<Supert
 
 /// Whether `declaration`'s modifiers include `override`.
 fn has_override_modifier(declaration: Node, source: &str) -> bool {
+    has_modifier(declaration, source, "override")
+}
+
+fn has_modifier(declaration: Node, source: &str, modifier: &str) -> bool {
     let mut cursor = declaration.walk();
     let found = declaration
         .children(&mut cursor)
-        .any(|c| c.kind() == "modifier" && text(c, source) == "override");
+        .any(|c| c.kind() == "modifier" && text(c, source) == modifier);
     found
 }
 
