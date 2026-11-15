@@ -722,10 +722,14 @@ From `rules.md` and the two messages:
         changes state, dead code unchanged at 123. In the dead-code
         fixture the outer `delegate`, which nothing calls, is now a
         candidate: the call no longer counts for it by name. Tests:
-        `mct-lang-rust/tests/inline_modules.rs`, `dead_code.rs`.
+        `mct-lang-rust/tests/inline_modules.rs`, `dead_code.rs`. A path
+        whose modules are all inline in the calling file also names that
+        file as its target, so another file's same-named `mod` (or an
+        `impl From<Id> for u64` under a local `mod u64`) is not a
+        candidate (`primitive_conversions.rs`).
   - [ ] `m::Type::f()`: the method's parent is the type, so the module
         evidence finds no candidate. Matching it needs the view to look at
-        the type's parent (a migration), so an issue first.
+        the type's parent (a migration): #478.
 - [~] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
