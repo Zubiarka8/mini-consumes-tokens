@@ -45,7 +45,7 @@ fn an_annotated_enum_class_keeps_its_entries() {
     assert_eq!(
         symbols(&parsed),
         [
-            (SymbolKind::Class, "Color", 2, 1),
+            (SymbolKind::Enum, "Color", 2, 1),
             (SymbolKind::Field, "RED", 2, 20),
             (SymbolKind::Class, "After", 4, 1),
         ]
