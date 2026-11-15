@@ -161,6 +161,37 @@ impl<'a> Walker<'a> {
         );
     }
 
+    /// `type_id` names a type in a declaration or an expression: a
+    /// `references` relation from `owner`. A type parameter, the type of a
+    /// `new` (already a call), a supertype (already `extends`/`implements`)
+    /// and a qualifier of a scoped name record nothing. A type a
+    /// single-type import binds to the JDK is external (D9).
+    fn push_type_use(&mut self, type_id: Node, owner: SymbolId) {
+        let name = text(type_id, self.source);
+        if is_declaration_or_covered_position(type_id)
+            || is_type_parameter(type_id, name, self.source)
+        {
+            return;
+        }
+        if self.jdk.is_jdk(name)
+            && type_id
+                .parent()
+                .is_some_and(|p| p.kind() != "scoped_type_identifier")
+        {
+            self.relation_targets.push(RelationTarget {
+                relation: self.relations.len(),
+                external: true,
+                ..Default::default()
+            });
+        }
+        self.push_relation(
+            owner,
+            RelationKind::References,
+            name.to_string(),
+            location(type_id),
+        );
+    }
+
     /// A `references` relation from `from` to the annotation type each
     /// annotation on `declaration` names (JLS §9.7): `Audited` for `@Audited`
     /// or `@shop.meta.Audited(…)`. Annotation types are indexed as
@@ -446,6 +477,13 @@ impl<'a> Walker<'a> {
                     .extend(receivers::type_parameters(node, self.source));
                 let scanned = self.scan_locals(node);
                 let outer_locals = std::mem::replace(&mut self.locals, scanned);
+                // The return type and the `throws` clause name types too.
+                if let Some(returned) = node.child_by_field_name("type") {
+                    self.visit(returned, id, type_name, depth + 1);
+                }
+                if let Some(throws) = find_child(node, "throws") {
+                    self.visit_children(throws, id, type_name, depth + 1);
+                }
                 if let Some(params) = node.child_by_field_name("parameters") {
                     self.visit_children(params, id, type_name, depth + 1);
                 }
@@ -457,6 +495,7 @@ impl<'a> Walker<'a> {
             }
             "field_declaration" => {
                 let mut cursor = node.walk();
+                let mut typed = false;
                 for declarator in node.children(&mut cursor) {
                     if declarator.kind() == "variable_declarator" {
                         if let Some(name_node) = declarator.child_by_field_name("name") {
@@ -473,6 +512,14 @@ impl<'a> Walker<'a> {
                                 self.source,
                             ));
                             self.push_annotations(node, id);
+                            // The field's type is named once, whatever the
+                            // number of declarators.
+                            if !typed {
+                                typed = true;
+                                if let Some(ty) = node.child_by_field_name("type") {
+                                    self.visit(ty, id, type_name, depth + 1);
+                                }
+                            }
                         }
                         // The initializer runs like an initializer block:
                         // its calls and anonymous classes are the type's.
@@ -484,6 +531,16 @@ impl<'a> Walker<'a> {
                         }
                     }
                 }
+            }
+            // A type named in a declaration or an expression: `Config config`,
+            // `List<Row>`, `(Out) x`, `x instanceof Marker`.
+            "type_identifier" => self.push_type_use(node, owner),
+            // `Kind.class` names the type `Kind`.
+            "class_literal" => {
+                if let Some(name) = node.named_child(0).filter(|n| n.kind() == "identifier") {
+                    self.push_type_use(name, owner);
+                }
+                self.visit_children(node, owner, type_name, depth + 1);
             }
             "import_declaration" => {
                 if let Some(path) = node.named_child(0) {
@@ -809,4 +866,65 @@ fn has_override_annotation(method: Node, source: &str) -> bool {
             })
     });
     found
+}
+
+/// Positions where a `type_identifier` is not a plain use of the type: the
+/// type of a `new` (a call), a supertype clause (an `extends`/`implements`),
+/// the declaration of a type parameter, or a package-like qualifier of a
+/// scoped name (only its last segment names the type).
+fn is_declaration_or_covered_position(node: Node) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    match parent.kind() {
+        "type_parameter" => true,
+        "scoped_type_identifier" => {
+            let mut cursor = parent.walk();
+            let last = parent
+                .named_children(&mut cursor)
+                .filter(|c| c.kind() == "type_identifier")
+                .last();
+            last.is_none_or(|l| l.id() != node.id()) || is_covered_in_supertype_or_new(parent)
+        }
+        _ => is_covered_in_supertype_or_new(node),
+    }
+}
+
+fn is_covered_in_supertype_or_new(node: Node) -> bool {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        match ancestor.kind() {
+            "superclass" | "super_interfaces" | "extends_interfaces" | "permits" => return true,
+            "object_creation_expression" => {
+                return ancestor.child_by_field_name("type").is_some_and(|t| {
+                    t.start_byte() <= node.start_byte() && node.end_byte() <= t.end_byte()
+                })
+            }
+            "class_body" | "interface_body" | "enum_body" | "block" | "method_declaration" => {
+                return false
+            }
+            _ => current = ancestor.parent(),
+        }
+    }
+    false
+}
+
+/// Whether `name` is a type parameter (`<T>`) of a declaration enclosing
+/// `node`.
+fn is_type_parameter(node: Node, name: &str, source: &str) -> bool {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        if let Some(parameters) = ancestor.child_by_field_name("type_parameters") {
+            let mut cursor = parameters.walk();
+            let declares = parameters.named_children(&mut cursor).any(|p| {
+                p.kind() == "type_parameter"
+                    && p.named_child(0).is_some_and(|n| text(n, source) == name)
+            });
+            if declares {
+                return true;
+            }
+        }
+        current = ancestor.parent();
+    }
+    false
 }

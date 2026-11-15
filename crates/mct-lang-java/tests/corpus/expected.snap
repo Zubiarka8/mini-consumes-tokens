@@ -1,4 +1,4 @@
-# language=java files=6 symbols=432 relations=1055 name_matched_across_files=149
+# language=java files=6 symbols=432 relations=1666 name_matched_across_files=255
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -115,8 +115,10 @@ R 30:1 imports OrderService -> Collectors
 R 30:1 imports OrderService -> groupingBy
 R 31:1 imports OrderService -> Collectors
 R 31:1 imports OrderService -> counting
+R 40:26 references OrderService::LOG -> Logger
 R 40:46 calls OrderService -> getLogger
 R 40:75 calls OrderService -> getName
+R 40:56 references OrderService -> OrderService
 R 45:21 calls OrderService -> requireNonNull
 R 46:28 calls OrderService -> isEmpty
 R 47:27 calls OrderService -> IllegalArgumentException
@@ -124,21 +126,53 @@ R 56:80 implements OrderService::Accepted -> Outcome
 R 59:87 implements OrderService::PendingApproval -> Outcome
 R 62:54 implements OrderService::Rejected -> Outcome
 R 66:6 references OrderService::PriceList -> FunctionalInterface
+R 68:9 references PriceList::unitPrice -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 68:25 references PriceList::unitPrice -> String
+R 68:37 references PriceList::unitPrice -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 73:23 references OrderNumbers::sequence -> AtomicLong
 R 73:49 calls OrderService -> AtomicLong
+R 74:23 references OrderNumbers::clock -> Clock
+R 76:29 references OrderNumbers::OrderNumbers -> Clock
+R 80:16 references OrderNumbers::next -> String
 R 81:45 calls OrderNumbers::next -> getYear
 R 81:34 calls OrderNumbers::next -> now
 R 82:34 calls OrderNumbers::next -> formatted
 R 82:59 calls OrderNumbers::next -> incrementAndGet
+R 86:30 references OrderService::orders -> Orders (name-matched: com/example/warehouse/persistence/Repository.java)
+R 87:19 references OrderService::inventory -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 88:19 references OrderService::prices -> PriceList
+R 89:19 references OrderService::rates -> ExchangeRates (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 90:19 references OrderService::numbers -> OrderNumbers
+R 91:19 references OrderService::clock -> Clock
+R 92:19 references OrderService::largeOrderThreshold -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 93:19 references OrderService::subscribers -> List
+R 93:24 references OrderService::subscribers -> Consumer
+R 93:33 references OrderService::subscribers -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 93:64 calls OrderService -> ArrayList
+R 95:36 references OrderService::OrderService -> Orders (name-matched: com/example/warehouse/persistence/Repository.java)
+R 95:51 references OrderService::OrderService -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 95:72 references OrderService::OrderService -> PriceList
+R 96:25 references OrderService::OrderService -> ExchangeRates (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 96:46 references OrderService::OrderService -> Clock
+R 96:59 references OrderService::OrderService -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 102:28 calls OrderService::OrderService -> OrderNumbers
+R 106:27 references OrderService::subscribe -> Consumer
+R 106:36 references OrderService::subscribe -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 107:21 calls OrderService::subscribe -> add
 R 114:6 references OrderService::place -> Transactional (name-matched: com/example/warehouse/persistence/Repository.java)
+R 115:12 references OrderService::place -> Outcome
+R 115:26 references OrderService::place -> PlaceOrder
+R 116:9 references OrderService::place -> List
+R 116:14 references OrderService::place -> Line (name-matched: com/example/warehouse/order/Order.java)
 R 116:28 calls OrderService::place -> priceLines
+R 117:9 references OrderService::place -> Instant
 R 117:29 calls OrderService::place -> instant
+R 118:9 references OrderService::place -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 118:29 calls OrderService::place -> place
 R 118:43 calls OrderService::place -> next
 R 118:59 calls OrderService::place -> customerId
 R 118:81 calls OrderService::place -> currency
+R 119:9 references OrderService::place -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 119:35 calls OrderService::place -> convert (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 119:49 calls OrderService::place -> total
 R 119:82 calls OrderService::place -> now
@@ -151,6 +185,7 @@ R 123:46 calls OrderService::place -> id
 R 123:58 calls OrderService::place -> number
 R 123:74 calls OrderService::place -> total
 R 126:13 calls OrderService::place -> reserve
+R 127:18 references OrderService::place -> OutOfStockException (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 128:19 calls OrderService::place -> cancel
 R 128:47 calls OrderService::place -> sku (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 129:13 calls OrderService::place -> save
@@ -162,12 +197,18 @@ R 133:35 calls OrderService::place -> id
 R 133:47 calls OrderService::place -> number
 R 133:63 calls OrderService::place -> total
 R 136:6 references OrderService::approve -> Transactional (name-matched: com/example/warehouse/persistence/Repository.java)
+R 137:12 references OrderService::approve -> Outcome
+R 137:34 references OrderService::approve -> Id (name-matched: com/example/warehouse/order/Order.java)
+R 137:59 references OrderService::approve -> String
+R 138:9 references OrderService::approve -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 138:30 calls OrderService::approve -> getById (name-matched: com/example/warehouse/persistence/Repository.java)
+R 139:9 references OrderService::approve -> Instant
 R 139:29 calls OrderService::approve -> instant
 R 141:19 calls OrderService::approve -> cancel
 R 142:13 calls OrderService::approve -> save
 R 143:24 calls OrderService::approve -> Rejected
 R 146:13 calls OrderService::approve -> reserve
+R 147:18 references OrderService::approve -> OutOfStockException (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 148:19 calls OrderService::approve -> cancel
 R 148:62 calls OrderService::approve -> sku (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 149:13 calls OrderService::approve -> save
@@ -179,6 +220,10 @@ R 153:35 calls OrderService::approve -> id
 R 153:47 calls OrderService::approve -> number
 R 153:63 calls OrderService::approve -> total
 R 156:6 references OrderService::confirmPayment -> Transactional (name-matched: com/example/warehouse/persistence/Repository.java)
+R 157:32 references OrderService::confirmPayment -> String
+R 157:52 references OrderService::confirmPayment -> String
+R 157:70 references OrderService::confirmPayment -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 158:9 references OrderService::confirmPayment -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 160:14 calls OrderService::confirmPayment -> orElseThrow
 R 159:14 calls OrderService::confirmPayment -> map (name-matched: com/example/warehouse/persistence/Repository.java)
 R 158:30 calls OrderService::confirmPayment -> findIdByNumber (name-matched: com/example/warehouse/persistence/Repository.java)
@@ -187,17 +232,33 @@ R 161:15 calls OrderService::confirmPayment -> pay (name-matched: com/example/wa
 R 161:44 calls OrderService::confirmPayment -> instant
 R 162:9 calls OrderService::confirmPayment -> save
 R 165:6 references OrderService::cancel -> Transactional (name-matched: com/example/warehouse/persistence/Repository.java)
+R 166:30 references OrderService::cancel -> Id (name-matched: com/example/warehouse/order/Order.java)
+R 166:37 references OrderService::cancel -> String
+R 167:9 references OrderService::cancel -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 167:30 calls OrderService::cancel -> getById (name-matched: com/example/warehouse/persistence/Repository.java)
 R 168:15 calls OrderService::cancel -> cancel
 R 168:36 calls OrderService::cancel -> instant
 R 169:19 calls OrderService::cancel -> release (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 170:9 calls OrderService::cancel -> save
+R 173:26 references OrderService::reserve -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 173:39 references OrderService::reserve -> Instant
+R 174:9 references OrderService::reserve -> List
+R 174:14 references OrderService::reserve -> String
 R 174:49 calls OrderService::reserve -> reserve
 R 175:15 calls OrderService::reserve -> reserve
+R 178:13 references OrderService::priceLines -> List
+R 178:18 references OrderService::priceLines -> Line (name-matched: com/example/warehouse/order/Order.java)
+R 178:35 references OrderService::priceLines -> PlaceOrder
+R 179:9 references OrderService::priceLines -> List
+R 179:14 references OrderService::priceLines -> Line (name-matched: com/example/warehouse/order/Order.java)
 R 179:32 calls OrderService::priceLines -> ArrayList
+R 181:18 references OrderService::priceLines -> Entry (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 181:24 references OrderService::priceLines -> String
+R 181:32 references OrderService::priceLines -> Integer
 R 181:91 calls OrderService::priceLines -> entrySet
 R 181:53 calls OrderService::priceLines -> LinkedHashMap
 R 181:77 calls OrderService::priceLines -> quantities
+R 182:13 references OrderService::priceLines -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 182:34 calls OrderService::priceLines -> unitPrice
 R 182:50 calls OrderService::priceLines -> getKey
 R 182:68 calls OrderService::priceLines -> currency
@@ -205,21 +266,34 @@ R 183:19 calls OrderService::priceLines -> add
 R 183:27 calls OrderService::priceLines -> Line (name-matched: com/example/warehouse/order/Order.java)
 R 183:48 calls OrderService::priceLines -> getKey
 R 183:64 calls OrderService::priceLines -> getValue
+R 188:23 references OrderService::save -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 189:9 references OrderService::save -> List
+R 189:14 references OrderService::save -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 189:42 calls OrderService::save -> ArrayList
 R 190:15 calls OrderService::save -> drainEvents (name-matched: com/example/warehouse/order/Order.java)
 R 191:16 calls OrderService::save -> save
+R 192:14 references OrderService::save -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 193:17 calls OrderService::save -> log
+R 193:49 references OrderService::save -> Object
 R 193:65 calls OrderService::save -> number
 R 193:81 calls OrderService::save -> describe (name-matched: com/example/warehouse/order/Order.java)
 R 194:25 calls OrderService::save -> forEach
 R 194:40 calls OrderService::save -> accept
+R 202:12 references OrderService::find -> Optional
+R 202:21 references OrderService::find -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 202:33 references OrderService::find -> String
 R 203:46 calls OrderService::find -> flatMap
 R 203:23 calls OrderService::find -> findIdByNumber (name-matched: com/example/warehouse/persistence/Repository.java)
+R 206:12 references OrderService::countByState -> Map
+R 206:22 references OrderService::countByState -> State (name-matched: com/example/warehouse/order/Order.java)
+R 206:29 references OrderService::countByState -> Long
 R 207:50 calls OrderService::countByState -> collect
 R 207:41 calls OrderService::countByState -> stream
 R 207:23 calls OrderService::countByState -> findAll (name-matched: com/example/warehouse/persistence/Repository.java)
 R 207:58 calls OrderService::countByState -> groupingBy
 R 207:83 calls OrderService::countByState -> counting
+R 210:12 references OrderService::largest -> List
+R 210:17 references OrderService::largest -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 214:14 calls OrderService::largest -> toList
 R 213:14 calls OrderService::largest -> limit
 R 212:14 calls OrderService::largest -> sorted
@@ -228,15 +302,36 @@ R 211:23 calls OrderService::largest -> findAll (name-matched: com/example/wareh
 R 212:74 calls OrderService::largest -> reversed
 R 212:32 calls OrderService::largest -> comparing
 R 212:62 calls OrderService::largest -> byAmount (name-matched: com/example/warehouse/money/Money.java)
+R 217:12 references OrderService::revenueSince -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 217:31 references OrderService::revenueSince -> Duration
+R 218:9 references OrderService::revenueSince -> Instant
 R 218:28 calls OrderService::revenueSince -> instant
 R 219:23 calls OrderService::revenueSince -> revenue
 R 219:48 calls OrderService::revenueSince -> minus (name-matched: com/example/warehouse/money/Money.java)
+R 224:23 references DailyReport::byState -> Map
+R 224:33 references DailyReport::byState -> State (name-matched: com/example/warehouse/order/Order.java)
+R 224:40 references DailyReport::byState -> Long
+R 225:23 references DailyReport::revenue -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 226:23 references DailyReport::largest -> List
+R 226:28 references DailyReport::largest -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 228:29 references DailyReport::DailyReport -> Map
+R 228:39 references DailyReport::DailyReport -> State (name-matched: com/example/warehouse/order/Order.java)
+R 228:46 references DailyReport::DailyReport -> Long
+R 228:61 references DailyReport::DailyReport -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 228:76 references DailyReport::DailyReport -> List
+R 228:81 references DailyReport::DailyReport -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 234:23 references DailyReport::build -> DailyReport
+R 234:41 references DailyReport::build -> OrderService
 R 235:24 calls DailyReport::build -> DailyReport
 R 236:25 calls DailyReport::build -> countByState
 R 237:25 calls DailyReport::build -> revenueSince
 R 237:47 calls DailyReport::build -> ofDays
 R 238:25 calls DailyReport::build -> largest
+R 241:33 references DailyReport::count -> State (name-matched: com/example/warehouse/order/Order.java)
 R 242:28 calls DailyReport::count -> getOrDefault
+R 245:16 references DailyReport::revenue -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 249:16 references DailyReport::render -> String
+R 250:13 references DailyReport::render -> StringBuilder
 R 250:37 calls DailyReport::render -> StringBuilder
 R 251:53 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
 R 251:37 calls DailyReport::render -> append (name-matched: com/example/warehouse/persistence/Repository.java)
@@ -255,13 +350,18 @@ R 253:42 calls DailyReport::render -> append (name-matched: com/example/warehous
 R 253:68 calls DailyReport::render -> number
 R 253:103 calls DailyReport::render -> total
 R 254:24 calls DailyReport::render -> toString (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 259:12 references OrderService::expiryJob -> Runnable
 R 260:20 calls OrderService::expiryJob -> Runnable
 R 263:14 references OrderService::run -> Override
 R 264:25 overrides OrderService::run -> run
 R 266:41 calls OrderService::run -> expire (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 268:25 calls OrderService::run -> info
+R 275:19 references OrderService::demo -> OrderService
+R 275:37 references OrderService::demo -> Clock
+R 276:20 references OrderService::demo -> Orders (name-matched: com/example/warehouse/persistence/Repository.java)
 R 276:51 calls OrderService::demo -> Orders (name-matched: com/example/warehouse/persistence/Repository.java)
 R 276:79 calls OrderService::demo -> Outbox (name-matched: com/example/warehouse/persistence/Repository.java)
+R 277:9 references OrderService::demo -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 277:35 calls OrderService::demo -> Inventory (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 277:61 calls OrderService::demo -> ofMinutes
 R 277:95 calls OrderService::demo -> noop (name-matched: com/example/warehouse/inventory/Inventory.java)
@@ -269,23 +369,32 @@ R 278:19 calls OrderService::demo -> receive (name-matched: com/example/warehous
 R 278:58 calls OrderService::demo -> parse (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 279:19 calls OrderService::demo -> receive (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 279:58 calls OrderService::demo -> parse (name-matched: com/example/warehouse/inventory/Inventory.java)
+R 280:9 references OrderService::demo -> PriceList
 R 281:38 calls OrderService::demo -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 282:38 calls OrderService::demo -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 283:34 calls OrderService::demo -> IllegalArgumentException
+R 285:9 references OrderService::demo -> ExchangeRates (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 285:45 calls OrderService::demo -> identity (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 286:20 calls OrderService::demo -> OrderService
 R 286:80 calls OrderService::demo -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 289:29 references OrderService::main -> String
+R 290:9 references OrderService::main -> OrderService
 R 290:32 calls OrderService::main -> demo
 R 290:43 calls OrderService::main -> systemUTC
 R 291:17 calls OrderService::main -> subscribe
 R 291:47 calls OrderService::main -> println
 R 291:61 calls OrderService::main -> describe (name-matched: com/example/warehouse/order/Order.java)
+R 292:9 references OrderService::main -> Outcome
 R 292:35 calls OrderService::main -> place
 R 292:45 calls OrderService::main -> PlaceOrder
 R 292:86 calls OrderService::main -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 293:9 references OrderService::main -> String
+R 294:18 references OrderService::main -> Accepted
 R 294:48 calls OrderService::main -> number
 R 294:71 calls OrderService::main -> total
+R 295:18 references OrderService::main -> PendingApproval
 R 295:68 calls OrderService::main -> number
+R 296:18 references OrderService::main -> Rejected
 R 296:49 calls OrderService::main -> reason
 R 298:20 calls OrderService::main -> println
 R 299:40 calls OrderService::main -> equals (name-matched: com/example/warehouse/money/Money.java)
@@ -405,6 +514,9 @@ R 20:1 imports Inventory -> Collectors
 R 21:1 imports Inventory -> Stream
 R 21:1 imports Inventory -> Stream
 R 31:74 implements Inventory::Location -> Comparable
+R 32:23 references Location::parse -> Location
+R 32:38 references Location::parse -> String
+R 33:13 references Location::parse -> String
 R 33:35 calls Location::parse -> split (name-matched: com/example/warehouse/money/Money.java)
 R 35:27 calls Location::parse -> IllegalArgumentException
 R 37:24 calls Location::parse -> Location
@@ -413,6 +525,7 @@ R 37:79 calls Location::parse -> parseInt
 R 41:25 calls Location::isChilled -> startsWith
 R 44:10 references Location::compareTo -> Override
 R 45:20 overrides Location::compareTo -> compareTo
+R 45:30 references Location::compareTo -> Location
 R 49:18 calls Location::compareTo -> compare
 R 48:18 calls Location::compareTo -> thenComparingInt
 R 47:18 calls Location::compareTo -> thenComparingInt
@@ -420,50 +533,111 @@ R 46:31 calls Location::compareTo -> comparing
 R 52:10 references Location::toString -> Override
 R 53:23 overrides Location::toString -> toString
 R 53:23 overrides Location::toString -> toString
+R 53:16 references Location::toString -> String
 R 54:33 calls Location::toString -> formatted
+R 60:23 references StockLevel::sku -> String
+R 61:23 references StockLevel::location -> Location
+R 65:20 references StockLevel::StockLevel -> String
+R 65:32 references StockLevel::StockLevel -> Location
+R 71:16 references StockLevel::sku -> String
+R 75:16 references StockLevel::location -> Location
 R 92:17 calls StockLevel::tryReserve -> available
 R 100:29 calls StockLevel::release -> max (name-matched: com/example/warehouse/money/Money.java)
 R 104:13 calls StockLevel::consume -> release
+R 115:34 references Reservation::isExpired -> Instant
 R 116:31 calls Reservation::isExpired -> isAfter
 R 121:53 extends Inventory::OutOfStockException -> RuntimeException
+R 122:23 references OutOfStockException::sku -> String
+R 126:36 references OutOfStockException::OutOfStockException -> String
 R 127:13 calls OutOfStockException::OutOfStockException -> RuntimeException
+R 133:16 references OutOfStockException::sku -> String
+R 144:28 references Listener::stockReserved -> Reservation
+R 146:28 references Listener::stockReleased -> Reservation
+R 146:53 references Listener::stockReleased -> String
+R 148:42 references Listener::reorderPointReached -> String
+R 151:16 references Listener::noop -> Listener
 R 152:24 calls Listener::noop -> Listener
 R 153:18 references Listener::stockReserved -> Override
 R 154:29 overrides Listener::stockReserved -> stockReserved
+R 154:43 references Listener::stockReserved -> Reservation
 R 157:18 references Listener::stockReleased -> Override
 R 158:29 overrides Listener::stockReleased -> stockReleased
+R 158:43 references Listener::stockReleased -> Reservation
+R 158:68 references Listener::stockReleased -> String
+R 168:19 references Inventory::levels -> Map
+R 168:23 references Inventory::levels -> String
+R 168:31 references Inventory::levels -> List
+R 168:36 references Inventory::levels -> StockLevel
 R 168:62 calls Inventory -> HashMap
+R 169:19 references Inventory::reservations -> Map
+R 169:23 references Inventory::reservations -> String
+R 169:31 references Inventory::reservations -> Reservation
 R 169:63 calls Inventory -> HashMap
+R 170:19 references Inventory::reorderPoints -> Map
+R 170:23 references Inventory::reorderPoints -> String
+R 170:31 references Inventory::reorderPoints -> Integer
 R 170:60 calls Inventory -> HashMap
+R 171:19 references Inventory::lock -> Lock
 R 171:35 calls Inventory -> ReentrantLock
+R 172:19 references Inventory::clock -> Clock
+R 173:19 references Inventory::reservationTtl -> Duration
+R 174:19 references Inventory::listener -> Listener
+R 176:22 references Inventory::Inventory -> Clock
+R 176:35 references Inventory::Inventory -> Duration
+R 176:60 references Inventory::Inventory -> Listener
+R 186:25 references Inventory::receive -> String
+R 186:37 references Inventory::receive -> Location
 R 187:9 calls Inventory::receive -> withLock
 R 187:47 calls Inventory::receive -> receive
 R 187:24 calls Inventory::receive -> levelAt
+R 190:33 references Inventory::setReorderPoint -> String
 R 191:23 calls Inventory::setReorderPoint -> put
+R 194:26 references Inventory::available -> String
 R 195:71 calls Inventory::available -> sum
 R 195:39 calls Inventory::available -> mapToInt
 R 195:30 calls Inventory::available -> stream
 R 195:16 calls Inventory::available -> levelsOf
+R 198:12 references Inventory::availableByLocation -> Map
+R 198:16 references Inventory::availableByLocation -> Location
+R 198:26 references Inventory::availableByLocation -> Integer
+R 198:55 references Inventory::availableByLocation -> String
 R 201:14 calls Inventory::availableByLocation -> collect
 R 200:14 calls Inventory::availableByLocation -> filter
 R 199:30 calls Inventory::availableByLocation -> stream
 R 199:16 calls Inventory::availableByLocation -> levelsOf
 R 200:36 calls Inventory::availableByLocation -> available
 R 201:33 calls Inventory::availableByLocation -> toMap
+R 204:13 references Inventory::levelsOf -> List
+R 204:18 references Inventory::levelsOf -> StockLevel
+R 204:39 references Inventory::levelsOf -> String
 R 205:23 calls Inventory::levelsOf -> getOrDefault
 R 205:46 calls Inventory::levelsOf -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 208:13 references Inventory::levelAt -> StockLevel
+R 208:32 references Inventory::levelAt -> String
+R 208:44 references Inventory::levelAt -> Location
+R 209:9 references Inventory::levelAt -> List
+R 209:14 references Inventory::levelAt -> StockLevel
 R 209:40 calls Inventory::levelAt -> computeIfAbsent
 R 209:70 calls Inventory::levelAt -> ArrayList
+R 210:14 references Inventory::levelAt -> StockLevel
 R 211:34 calls Inventory::levelAt -> equals (name-matched: com/example/warehouse/money/Money.java)
 R 211:23 calls Inventory::levelAt -> location
+R 215:9 references Inventory::levelAt -> StockLevel
 R 215:34 calls Inventory::levelAt -> StockLevel
 R 216:14 calls Inventory::levelAt -> add
+R 228:12 references Inventory::reserve -> List
+R 228:17 references Inventory::reserve -> String
+R 228:33 references Inventory::reserve -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 229:14 calls Inventory::reserve -> lock
+R 231:13 references Inventory::reserve -> List
+R 231:18 references Inventory::reserve -> Reservation
 R 231:42 calls Inventory::reserve -> ArrayList
+R 233:22 references Inventory::reserve -> Line (name-matched: com/example/warehouse/order/Order.java)
 R 233:40 calls Inventory::reserve -> lines (name-matched: com/example/warehouse/order/Order.java)
 R 234:26 calls Inventory::reserve -> addAll
 R 234:33 calls Inventory::reserve -> reserveLine
 R 234:51 calls Inventory::reserve -> id
+R 236:22 references Inventory::reserve -> OutOfStockException
 R 237:22 calls Inventory::reserve -> forEach
 R 237:35 calls Inventory::reserve -> undo
 R 240:18 calls Inventory::reserve -> forEach
@@ -474,8 +648,15 @@ R 242:55 calls Inventory::reserve -> toList
 R 242:34 calls Inventory::reserve -> map (name-matched: com/example/warehouse/persistence/Repository.java)
 R 242:25 calls Inventory::reserve -> stream
 R 244:18 calls Inventory::reserve -> unlock
+R 248:13 references Inventory::reserveLine -> List
+R 248:18 references Inventory::reserveLine -> Reservation
+R 248:49 references Inventory::reserveLine -> Id (name-matched: com/example/warehouse/order/Order.java)
+R 248:61 references Inventory::reserveLine -> Line (name-matched: com/example/warehouse/order/Order.java)
+R 249:9 references Inventory::reserveLine -> Instant
 R 249:45 calls Inventory::reserveLine -> plus (name-matched: com/example/warehouse/money/Money.java)
 R 249:35 calls Inventory::reserveLine -> instant
+R 250:9 references Inventory::reserveLine -> Optional
+R 250:18 references Inventory::reserveLine -> StockLevel
 R 252:14 calls Inventory::reserveLine -> max (name-matched: com/example/warehouse/money/Money.java)
 R 251:14 calls Inventory::reserveLine -> filter
 R 250:60 calls Inventory::reserveLine -> stream
@@ -495,8 +676,17 @@ R 254:77 calls Inventory::reserveLine -> location
 R 254:71 calls Inventory::reserveLine -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 254:94 calls Inventory::reserveLine -> quantity
 R 256:16 calls Inventory::reserveLine -> splitLine
+R 259:13 references Inventory::splitLine -> List
+R 259:18 references Inventory::splitLine -> Reservation
+R 259:47 references Inventory::splitLine -> Id (name-matched: com/example/warehouse/order/Order.java)
+R 259:59 references Inventory::splitLine -> Line (name-matched: com/example/warehouse/order/Order.java)
+R 259:70 references Inventory::splitLine -> Instant
 R 260:30 calls Inventory::splitLine -> quantity
+R 261:9 references Inventory::splitLine -> List
+R 261:14 references Inventory::splitLine -> Reservation
 R 261:39 calls Inventory::splitLine -> ArrayList
+R 262:9 references Inventory::splitLine -> Iterator
+R 262:18 references Inventory::splitLine -> StockLevel
 R 264:14 calls Inventory::splitLine -> iterator
 R 263:14 calls Inventory::splitLine -> sorted
 R 262:64 calls Inventory::splitLine -> stream
@@ -505,6 +695,7 @@ R 262:57 calls Inventory::splitLine -> sku
 R 263:68 calls Inventory::splitLine -> reversed
 R 263:32 calls Inventory::splitLine -> comparingInt
 R 265:44 calls Inventory::splitLine -> hasNext
+R 266:13 references Inventory::splitLine -> StockLevel
 R 266:43 calls Inventory::splitLine -> next (name-matched: com/example/warehouse/app/OrderService.java)
 R 267:29 calls Inventory::splitLine -> min (name-matched: com/example/warehouse/money/Money.java)
 R 267:50 calls Inventory::splitLine -> available
@@ -519,16 +710,25 @@ R 275:23 calls Inventory::splitLine -> OutOfStockException
 R 275:48 calls Inventory::splitLine -> sku
 R 275:60 calls Inventory::splitLine -> quantity
 R 275:77 calls Inventory::splitLine -> quantity
+R 280:13 references Inventory::newReservation -> Reservation
+R 280:46 references Inventory::newReservation -> Id (name-matched: com/example/warehouse/order/Order.java)
+R 280:58 references Inventory::newReservation -> String
+R 280:70 references Inventory::newReservation -> Location
+R 280:103 references Inventory::newReservation -> Instant
+R 281:9 references Inventory::newReservation -> Reservation
 R 281:39 calls Inventory::newReservation -> Reservation
 R 281:69 calls Inventory::newReservation -> toString
 R 281:56 calls Inventory::newReservation -> randomUUID
 R 282:22 calls Inventory::newReservation -> put
 R 282:38 calls Inventory::newReservation -> id
+R 287:31 references Inventory::release -> Id (name-matched: com/example/warehouse/order/Order.java)
+R 287:43 references Inventory::release -> String
 R 288:9 calls Inventory::release -> withLock
 R 288:48 calls Inventory::release -> forEach
 R 288:24 calls Inventory::release -> reservationsOf
 R 289:13 calls Inventory::release -> undo
 R 290:22 calls Inventory::release -> stockReleased
+R 295:31 references Inventory::consume -> Id (name-matched: com/example/warehouse/order/Order.java)
 R 296:9 calls Inventory::consume -> withLock
 R 296:48 calls Inventory::consume -> forEach
 R 296:24 calls Inventory::consume -> reservationsOf
@@ -539,20 +739,29 @@ R 297:32 calls Inventory::consume -> location
 R 297:54 calls Inventory::consume -> quantity
 R 298:26 calls Inventory::consume -> remove
 R 298:35 calls Inventory::consume -> id
+R 304:9 references Inventory::expire -> Instant
 R 304:29 calls Inventory::expire -> instant
 R 305:34 implements Inventory::Expired -> Predicate
 R 308:14 references Expired::test -> Override
 R 309:28 overrides Expired::test -> test
+R 309:33 references Expired::test -> Reservation
 R 310:47 calls Expired::test -> isExpired
+R 317:9 references Inventory::expire -> Expired
 R 317:31 calls Inventory::expire -> Expired
 R 318:14 calls Inventory::expire -> lock
+R 320:13 references Inventory::expire -> List
+R 320:18 references Inventory::expire -> Reservation
 R 320:84 calls Inventory::expire -> toList
 R 320:68 calls Inventory::expire -> filter
 R 320:59 calls Inventory::expire -> stream
 R 320:50 calls Inventory::expire -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 321:18 references Inventory::expire -> Reservation
 R 322:17 calls Inventory::expire -> undo
 R 323:26 calls Inventory::expire -> stockReleased
 R 326:18 calls Inventory::expire -> unlock
+R 331:13 references Inventory::reservationsOf -> Stream
+R 331:20 references Inventory::reservationsOf -> Reservation
+R 331:54 references Inventory::reservationsOf -> Id (name-matched: com/example/warehouse/order/Order.java)
 R 335:14 calls Inventory::reservationsOf -> stream
 R 334:14 calls Inventory::reservationsOf -> toList
 R 333:14 calls Inventory::reservationsOf -> filter
@@ -560,6 +769,8 @@ R 332:38 calls Inventory::reservationsOf -> stream
 R 332:29 calls Inventory::reservationsOf -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 333:38 calls Inventory::reservationsOf -> equals (name-matched: com/example/warehouse/money/Money.java)
 R 333:28 calls Inventory::reservationsOf -> orderId
+R 338:23 references Inventory::undo -> Reservation
+R 338:48 references Inventory::undo -> String
 R 339:60 calls Inventory::undo -> release
 R 339:9 calls Inventory::undo -> levelAt
 R 339:29 calls Inventory::undo -> sku
@@ -567,9 +778,12 @@ R 339:48 calls Inventory::undo -> location
 R 339:80 calls Inventory::undo -> quantity
 R 340:22 calls Inventory::undo -> remove
 R 340:41 calls Inventory::undo -> id
+R 343:36 references Inventory::checkReorderPoint -> String
+R 344:9 references Inventory::checkReorderPoint -> Integer
 R 344:39 calls Inventory::checkReorderPoint -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 345:25 calls Inventory::checkReorderPoint -> available
 R 347:22 calls Inventory::checkReorderPoint -> reorderPointReached
+R 351:27 references Inventory::withLock -> Runnable
 R 352:14 calls Inventory::withLock -> lock
 R 354:20 calls Inventory::withLock -> run (name-matched: com/example/warehouse/app/OrderService.java)
 R 356:18 calls Inventory::withLock -> unlock
@@ -673,95 +887,200 @@ R 23:1 imports ExchangeRates -> Supplier
 R 24:1 imports ExchangeRates -> Logger
 R 24:1 imports ExchangeRates -> Logger
 R 30:2 references ExchangeRates -> FunctionalInterface
+R 34:5 references ExchangeRates::rate -> BigDecimal
+R 34:21 references ExchangeRates::rate -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 34:36 references ExchangeRates::rate -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 34:49 references ExchangeRates::rate -> LocalDate
+R 36:13 references ExchangeRates::convert -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 36:27 references ExchangeRates::convert -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 36:41 references ExchangeRates::convert -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 36:54 references ExchangeRates::convert -> LocalDate
 R 37:20 calls ExchangeRates::convert -> currency (name-matched: com/example/warehouse/app/OrderService.java)
+R 40:9 references ExchangeRates::convert -> BigDecimal
 R 40:27 calls ExchangeRates::convert -> rate
 R 40:39 calls ExchangeRates::convert -> currency (name-matched: com/example/warehouse/app/OrderService.java)
 R 41:22 calls ExchangeRates::convert -> of
 R 41:41 calls ExchangeRates::convert -> multiply
 R 41:32 calls ExchangeRates::convert -> amount (name-matched: com/example/warehouse/money/Money.java)
+R 44:13 references ExchangeRates::convertToday -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 44:32 references ExchangeRates::convertToday -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 44:46 references ExchangeRates::convertToday -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 44:59 references ExchangeRates::convertToday -> Clock
 R 45:16 calls ExchangeRates::convertToday -> convert
 R 45:46 calls ExchangeRates::convertToday -> now
+R 48:12 references ExchangeRates::fixed -> ExchangeRates
+R 48:32 references ExchangeRates::fixed -> Map
+R 48:36 references ExchangeRates::fixed -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 48:46 references ExchangeRates::fixed -> BigDecimal
 R 49:20 calls ExchangeRates::fixed -> FixedRates
+R 52:12 references ExchangeRates::identity -> ExchangeRates
 R 55:27 calls ExchangeRates::identity -> UnknownRateException
 R 66:6 references ExchangeRates::ThreadSafe -> Documented
 R 67:6 references ExchangeRates::ThreadSafe -> Retention
 R 68:6 references ExchangeRates::ThreadSafe -> Target
+R 70:9 references ExchangeRates -> String
 R 74:6 references ExchangeRates::Remote -> Retention
 R 75:6 references ExchangeRates::Remote -> Target
 R 85:6 references ExchangeRates::RateSource -> FunctionalInterface
+R 87:9 references RateSource::eurRates -> Map
+R 87:13 references RateSource::eurRates -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 87:23 references RateSource::eurRates -> BigDecimal
+R 87:67 references RateSource::eurRates -> RateSourceException
+R 87:44 references RateSource::eurRates -> LocalDate
+R 89:17 references RateSource::withFallback -> RateSource
+R 89:41 references RateSource::withFallback -> RateSource
+R 90:13 references RateSource::withFallback -> RateSource
 R 93:36 calls RateSource::withFallback -> eurRates
+R 94:26 references RateSource::withFallback -> RateSourceException
 R 95:47 calls RateSource::withFallback -> warning
 R 95:28 calls RateSource::withFallback -> getLogger
 R 95:85 calls RateSource::withFallback -> getMessage
 R 96:37 calls RateSource::withFallback -> eurRates
 R 103:39 extends ExchangeRates::RateSourceException -> Exception
+R 104:36 references RateSourceException::RateSourceException -> String
+R 104:52 references RateSourceException::RateSourceException -> Throwable
 R 105:13 calls RateSourceException::RateSourceException -> Exception
 R 110:40 extends ExchangeRates::UnknownRateException -> IllegalStateException
+R 111:37 references UnknownRateException::UnknownRateException -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 111:52 references UnknownRateException::UnknownRateException -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 111:65 references UnknownRateException::UnknownRateException -> LocalDate
 R 112:13 calls UnknownRateException::UnknownRateException -> IllegalStateException
 R 121:6 references ExchangeRates::FixedRates -> ThreadSafe
 R 122:39 implements ExchangeRates::FixedRates -> ExchangeRates
+R 123:23 references FixedRates::perEuro -> Map
+R 123:27 references FixedRates::perEuro -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 123:37 references FixedRates::perEuro -> BigDecimal
+R 125:20 references FixedRates::FixedRates -> Map
+R 125:24 references FixedRates::FixedRates -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 125:34 references FixedRates::FixedRates -> BigDecimal
+R 126:13 references FixedRates::FixedRates -> EnumMap
+R 126:21 references FixedRates::FixedRates -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 126:31 references FixedRates::FixedRates -> BigDecimal
 R 126:54 calls FixedRates::FixedRates -> EnumMap
+R 126:64 references FixedRates::FixedRates -> Currency (name-matched: com/example/warehouse/money/Money.java)
 R 127:18 calls FixedRates::FixedRates -> putAll
 R 128:18 calls FixedRates::FixedRates -> put
 R 132:10 references FixedRates::rate -> Override
 R 133:27 overrides FixedRates::rate -> rate
+R 133:16 references FixedRates::rate -> BigDecimal
+R 133:32 references FixedRates::rate -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 133:47 references FixedRates::rate -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 133:60 references FixedRates::rate -> LocalDate
+R 134:13 references FixedRates::rate -> BigDecimal
 R 134:35 calls FixedRates::rate -> lookup
+R 135:13 references FixedRates::rate -> BigDecimal
 R 135:33 calls FixedRates::rate -> lookup
 R 136:27 calls FixedRates::rate -> divide
+R 139:17 references FixedRates::lookup -> BigDecimal
+R 139:35 references FixedRates::lookup -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 139:54 references FixedRates::lookup -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 139:70 references FixedRates::lookup -> LocalDate
+R 140:13 references FixedRates::lookup -> BigDecimal
 R 140:39 calls FixedRates::lookup -> get
 R 142:27 calls FixedRates::lookup -> UnknownRateException
 R 152:6 references ExchangeRates::CachedRates -> ThreadSafe
 R 153:40 implements ExchangeRates::CachedRates -> ExchangeRates
 R 153:55 implements ExchangeRates::CachedRates -> AutoCloseable
+R 154:23 references CachedRates::source -> RateSource
+R 155:23 references CachedRates::clock -> Clock
+R 156:23 references CachedRates::ttl -> Duration
+R 157:23 references CachedRates::cache -> Map
+R 157:27 references CachedRates::cache -> LocalDate
+R 157:38 references CachedRates::cache -> Entry
 R 157:57 calls ExchangeRates -> HashMap
+R 158:23 references CachedRates::lock -> ReentrantReadWriteLock
 R 158:57 calls ExchangeRates -> ReentrantReadWriteLock
+R 159:23 references CachedRates::stats -> Map
+R 159:27 references CachedRates::stats -> String
+R 159:35 references CachedRates::stats -> Long
 R 159:53 calls ExchangeRates -> ConcurrentHashMap
+R 162:29 references Entry::isFresh -> Instant
+R 162:42 references Entry::isFresh -> Duration
 R 163:43 calls Entry::isFresh -> isAfter
 R 163:33 calls Entry::isFresh -> plus (name-matched: com/example/warehouse/money/Money.java)
+R 167:28 references CachedRates::CachedRates -> RateSource
+R 167:47 references CachedRates::CachedRates -> Clock
+R 167:60 references CachedRates::CachedRates -> Duration
 R 173:10 references CachedRates::rate -> Override
 R 174:10 references CachedRates::rate -> Remote
 R 175:27 overrides CachedRates::rate -> rate
 R 175:27 overrides CachedRates::rate -> rate
+R 175:16 references CachedRates::rate -> BigDecimal
+R 175:32 references CachedRates::rate -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 175:47 references CachedRates::rate -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 175:60 references CachedRates::rate -> LocalDate
+R 176:13 references CachedRates::rate -> Map
+R 176:17 references CachedRates::rate -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 176:27 references CachedRates::rate -> BigDecimal
 R 176:47 calls CachedRates::rate -> ratesFor
+R 177:13 references CachedRates::rate -> BigDecimal
 R 178:18 calls CachedRates::rate -> orElseThrow
 R 177:44 calls CachedRates::rate -> ofNullable
 R 177:61 calls CachedRates::rate -> get
 R 178:40 calls CachedRates::rate -> UnknownRateException
+R 179:13 references CachedRates::rate -> BigDecimal
 R 180:18 calls CachedRates::rate -> orElseThrow
 R 179:42 calls CachedRates::rate -> ofNullable
 R 179:59 calls CachedRates::rate -> get
 R 180:40 calls CachedRates::rate -> UnknownRateException
 R 181:13 calls CachedRates::rate -> count
 R 182:27 calls CachedRates::rate -> divide
+R 185:17 references CachedRates::ratesFor -> Map
+R 185:21 references CachedRates::ratesFor -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 185:31 references CachedRates::ratesFor -> BigDecimal
+R 185:52 references CachedRates::ratesFor -> LocalDate
+R 186:13 references CachedRates::ratesFor -> Instant
 R 186:33 calls CachedRates::ratesFor -> instant
 R 187:29 calls CachedRates::ratesFor -> lock
 R 187:18 calls CachedRates::ratesFor -> readLock
+R 189:17 references CachedRates::ratesFor -> Entry
 R 189:37 calls CachedRates::ratesFor -> get
 R 190:44 calls CachedRates::ratesFor -> isFresh
 R 191:34 calls CachedRates::ratesFor -> rates
 R 194:33 calls CachedRates::ratesFor -> unlock
 R 194:22 calls CachedRates::ratesFor -> readLock
 R 196:20 calls CachedRates::ratesFor -> refresh
+R 199:17 references CachedRates::refresh -> Map
+R 199:21 references CachedRates::refresh -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 199:31 references CachedRates::refresh -> BigDecimal
+R 199:51 references CachedRates::refresh -> LocalDate
+R 199:67 references CachedRates::refresh -> Instant
 R 200:30 calls CachedRates::refresh -> lock
 R 200:18 calls CachedRates::refresh -> writeLock
+R 202:17 references CachedRates::refresh -> Entry
 R 202:37 calls CachedRates::refresh -> get
 R 203:44 calls CachedRates::refresh -> isFresh
 R 204:34 calls CachedRates::refresh -> rates
+R 206:17 references CachedRates::refresh -> Map
+R 206:21 references CachedRates::refresh -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 206:31 references CachedRates::refresh -> BigDecimal
 R 206:52 calls CachedRates::refresh -> load
 R 207:23 calls CachedRates::refresh -> put
 R 207:37 calls CachedRates::refresh -> Entry
 R 208:17 calls CachedRates::refresh -> count
 R 211:34 calls CachedRates::refresh -> unlock
 R 211:22 calls CachedRates::refresh -> writeLock
+R 215:17 references CachedRates::load -> Map
+R 215:21 references CachedRates::load -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 215:31 references CachedRates::load -> BigDecimal
+R 215:48 references CachedRates::load -> LocalDate
+R 217:17 references CachedRates::load -> Map
+R 217:21 references CachedRates::load -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 217:31 references CachedRates::load -> BigDecimal
 R 217:55 calls CachedRates::load -> EnumMap
 R 217:72 calls CachedRates::load -> eurRates
 R 218:23 calls CachedRates::load -> put
+R 220:22 references CachedRates::load -> RateSourceException
 R 221:17 calls CachedRates::load -> count
 R 222:27 calls CachedRates::load -> IllegalStateException
 R 228:13 calls CachedRates::warmUp -> refresh
 R 228:31 calls CachedRates::warmUp -> now
 R 228:49 calls CachedRates::warmUp -> instant
+R 231:16 references CachedRates::stats -> Map
+R 231:20 references CachedRates::stats -> String
+R 231:28 references CachedRates::stats -> Long
 R 232:24 calls CachedRates::stats -> copyOf
+R 235:28 references CachedRates::count -> String
 R 236:19 calls CachedRates::count -> merge
 R 239:10 references CachedRates::close -> Override
 R 240:21 overrides CachedRates::close -> close
@@ -772,22 +1091,45 @@ R 243:23 calls CachedRates::close -> clear
 R 245:34 calls CachedRates::close -> unlock
 R 245:22 calls CachedRates::close -> writeLock
 R 254:39 implements ExchangeRates::Memo -> Function
+R 255:23 references Memo::values -> Map
 R 255:46 calls ExchangeRates -> ConcurrentHashMap
+R 256:23 references Memo::compute -> Function
+R 258:21 references Memo::Memo -> Function
 R 262:10 references Memo::apply -> Override
 R 263:18 overrides Memo::apply -> apply
 R 264:27 calls Memo::apply -> computeIfAbsent
+R 267:30 references Memo::of -> Memo
+R 267:44 references Memo::of -> Function
 R 268:24 calls Memo::of -> Memo
+R 271:20 references Memo::andThenMemo -> Memo
+R 271:43 references Memo::andThenMemo -> Function
 R 272:25 calls Memo::andThenMemo -> of
 R 272:40 calls Memo::andThenMemo -> apply
 R 272:46 calls Memo::andThenMemo -> apply
+R 277:12 references ExchangeRates::constant -> RateSource
+R 277:32 references ExchangeRates::constant -> Map
+R 277:36 references ExchangeRates::constant -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 277:46 references ExchangeRates::constant -> BigDecimal
 R 278:20 calls ExchangeRates::constant -> RateSource
 R 281:14 references ExchangeRates::eurRates -> Override
 R 282:46 overrides ExchangeRates::eurRates -> eurRates
+R 282:20 references ExchangeRates::eurRates -> Map
+R 282:24 references ExchangeRates::eurRates -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 282:34 references ExchangeRates::eurRates -> BigDecimal
+R 282:55 references ExchangeRates::eurRates -> LocalDate
 R 287:14 references ExchangeRates::toString -> Override
 R 288:27 overrides ExchangeRates::toString -> toString
+R 288:20 references ExchangeRates::toString -> String
+R 295:12 references ExchangeRates::lazyDefault -> Supplier
+R 295:21 references ExchangeRates::lazyDefault -> ExchangeRates
+R 295:48 references ExchangeRates::lazyDefault -> Clock
 R 296:20 calls ExchangeRates::lazyDefault -> Supplier
+R 297:30 references ExchangeRates::instance -> ExchangeRates
 R 299:14 references ExchangeRates::get -> Override
 R 300:34 overrides ExchangeRates::get -> get
+R 300:20 references ExchangeRates::get -> ExchangeRates
+R 301:17 references ExchangeRates::get -> ExchangeRates
+R 306:29 references ExchangeRates::get -> RateSource
 R 306:46 calls ExchangeRates::get -> constant
 R 306:59 calls ExchangeRates::get -> of
 R 306:80 calls ExchangeRates::get -> BigDecimal
@@ -896,6 +1238,12 @@ R 14:1 imports Money -> Collectors
 R 16:1 imports Money -> Objects
 R 16:1 imports Money -> requireNonNull
 R 25:37 implements Money -> Comparable
+R 35:23 references Currency::symbol -> String
+R 37:29 references Currency::Currency -> String
+R 46:16 references Currency::symbol -> String
+R 50:23 references Currency::parse -> Currency
+R 50:38 references Currency::parse -> String
+R 51:18 references Currency::parse -> Currency
 R 51:31 calls Currency::parse -> values (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 52:30 calls Currency::parse -> equalsIgnoreCase
 R 52:23 calls Currency::parse -> name
@@ -903,22 +1251,44 @@ R 52:52 calls Currency::parse -> trim
 R 56:23 calls Currency::parse -> IllegalArgumentException
 R 63:14 references HALF_EVEN::mode -> Override
 R 64:26 overrides HALF_EVEN::mode -> mode
+R 64:13 references HALF_EVEN::mode -> RoundingMode
 R 69:14 references HALF_UP::mode -> Override
 R 70:26 overrides HALF_UP::mode -> mode
+R 70:13 references HALF_UP::mode -> RoundingMode
 R 75:14 references DOWN::mode -> Override
 R 76:26 overrides DOWN::mode -> mode
+R 76:13 references DOWN::mode -> RoundingMode
+R 81:18 references RoundingPolicy::mode -> RoundingMode
+R 84:26 references Money::DEFAULT_ROUNDING -> RoundingPolicy
+R 86:19 references Money::amount -> BigDecimal
+R 87:19 references Money::currency -> Currency
+R 89:19 references Money::Money -> BigDecimal
+R 89:38 references Money::Money -> Currency
 R 90:25 calls Money::Money -> requireNonNull
 R 91:56 calls Money::Money -> setScale
 R 91:23 calls Money::Money -> requireNonNull
 R 91:74 calls Money::Money -> scale
 R 91:100 calls Money::Money -> mode
+R 98:19 references Money::of -> Money
+R 98:28 references Money::of -> BigDecimal
+R 98:47 references Money::of -> Currency
 R 99:20 calls Money::of -> Money
+R 102:19 references Money::of -> Money
+R 102:28 references Money::of -> String
+R 102:43 references Money::of -> Currency
 R 103:16 calls Money::of -> of
 R 103:23 calls Money::of -> BigDecimal
+R 106:19 references Money::of -> Money
+R 106:45 references Money::of -> Currency
 R 107:16 calls Money::of -> of
 R 107:30 calls Money::of -> valueOf
 R 107:59 calls Money::of -> scale
+R 110:19 references Money::zero -> Money
+R 110:30 references Money::zero -> Currency
 R 111:16 calls Money::zero -> of
+R 115:19 references Money::parse -> Money
+R 115:31 references Money::parse -> String
+R 116:9 references Money::parse -> String
 R 116:38 calls Money::parse -> split
 R 116:31 calls Money::parse -> trim
 R 118:23 calls Money::parse -> MoneyFormatException
@@ -928,46 +1298,72 @@ R 122:24 calls Money::parse -> of
 R 122:46 calls Money::parse -> parse
 R 124:20 calls Money::parse -> of
 R 124:42 calls Money::parse -> parse
+R 125:18 references Money::parse -> NumberFormatException
 R 126:23 calls Money::parse -> MoneyFormatException
 R 126:52 calls Money::parse -> getMessage
+R 134:12 references Money::amount -> BigDecimal
+R 138:12 references Money::currency -> Currency
 R 143:56 calls Money::minorUnits -> longValueExact
 R 143:23 calls Money::minorUnits -> movePointRight
 R 143:47 calls Money::minorUnits -> scale
 R 147:23 calls Money::isZero -> signum
 R 151:23 calls Money::isNegative -> signum
 R 155:23 calls Money::isPositive -> signum
+R 162:12 references Money::plus -> Money
+R 162:23 references Money::plus -> Money
 R 163:9 calls Money::plus -> requireSameCurrency
 R 164:20 calls Money::plus -> Money
 R 164:33 calls Money::plus -> add
+R 167:12 references Money::minus -> Money
+R 167:24 references Money::minus -> Money
 R 168:9 calls Money::minus -> requireSameCurrency
 R 169:20 calls Money::minus -> Money
 R 169:33 calls Money::minus -> subtract
+R 172:12 references Money::times -> Money
 R 173:20 calls Money::times -> Money
 R 173:33 calls Money::times -> multiply
 R 173:53 calls Money::times -> valueOf
+R 176:12 references Money::times -> Money
+R 176:24 references Money::times -> BigDecimal
 R 177:20 calls Money::times -> Money
 R 177:33 calls Money::times -> multiply
+R 180:12 references Money::negate -> Money
 R 181:20 calls Money::negate -> Money
 R 181:33 calls Money::negate -> negate
+R 184:12 references Money::percent -> Money
+R 184:26 references Money::percent -> BigDecimal
 R 185:16 calls Money::percent -> times
 R 185:27 calls Money::percent -> movePointLeft
+R 188:12 references Money::max -> Money
+R 188:22 references Money::max -> Money
 R 189:16 calls Money::max -> compareTo
+R 192:12 references Money::min -> Money
+R 192:22 references Money::min -> Money
 R 193:16 calls Money::min -> compareTo
+R 200:12 references Money::split -> List
+R 200:17 references Money::split -> Money
 R 202:23 calls Money::split -> IllegalArgumentException
 R 204:22 calls Money::split -> minorUnits
+R 207:9 references Money::split -> List
+R 207:14 references Money::split -> Money
 R 207:34 calls Money::split -> ArrayList
 R 210:20 calls Money::split -> add
 R 210:24 calls Money::split -> of
 R 212:28 calls Money::split -> unmodifiableList
+R 216:12 references Money::allocate -> Allocation
 R 217:27 calls Money::allocate -> of
+R 220:38 references Money::requireSameCurrency -> Money
 R 222:23 calls Money::requireSameCurrency -> CurrencyMismatchException
 R 230:6 references Money::compareTo -> Override
 R 231:16 overrides Money::compareTo -> compareTo
+R 231:26 references Money::compareTo -> Money
 R 232:9 calls Money::compareTo -> requireSameCurrency
 R 233:23 calls Money::compareTo -> compareTo
 R 236:6 references Money::equals -> Override
 R 237:20 overrides Money::equals -> equals
 R 237:20 overrides Money::equals -> equals
+R 237:27 references Money::equals -> Object
+R 241:28 references Money::equals -> Money
 R 244:53 calls Money::equals -> compareTo
 R 247:6 references Money::hashCode -> Override
 R 248:16 overrides Money::hashCode -> hashCode
@@ -977,19 +1373,39 @@ R 249:36 calls Money::hashCode -> stripTrailingZeros
 R 252:6 references Money::toString -> Override
 R 253:19 overrides Money::toString -> toString
 R 253:19 overrides Money::toString -> toString
+R 253:12 references Money::toString -> String
 R 254:23 calls Money::toString -> toPlainString
 R 254:56 calls Money::toString -> name
+R 257:12 references Money::format -> String
+R 257:26 references Money::format -> Locale
+R 258:9 references Money::format -> NumberFormat
 R 258:44 calls Money::format -> getCurrencyInstance
 R 259:16 calls Money::format -> setCurrency
 R 259:47 calls Money::format -> getInstance
 R 259:68 calls Money::format -> name
 R 260:23 calls Money::format -> format
+R 268:19 references Money::summing -> Collector
+R 268:29 references Money::summing -> Money
+R 268:39 references Money::summing -> Money
+R 268:54 references Money::summing -> Currency
+R 269:9 references Money::summing -> BinaryOperator
+R 269:24 references Money::summing -> Money
 R 270:27 calls Money::summing -> reducing
 R 270:36 calls Money::summing -> zero
+R 273:19 references Money::byAmount -> Comparator
+R 273:30 references Money::byAmount -> Money
 R 274:27 calls Money::byAmount -> comparing
+R 283:23 references Allocation::shares -> List
+R 283:28 references Allocation::shares -> Money
+R 285:28 references Allocation::Allocation -> List
+R 285:33 references Allocation::Allocation -> Money
+R 289:16 references Allocation::of -> Allocation
+R 289:30 references Allocation::of -> Money
 R 293:31 calls Allocation::of -> IllegalArgumentException
 R 298:27 calls Allocation::of -> IllegalArgumentException
 R 300:32 calls Allocation::of -> minorUnits
+R 302:13 references Allocation::of -> List
+R 302:18 references Allocation::of -> Money
 R 302:38 calls Allocation::of -> ArrayList
 R 305:24 calls Allocation::of -> add
 R 305:34 calls Allocation::of -> of
@@ -1002,7 +1418,11 @@ R 309:56 calls Allocation::of -> of
 R 309:68 calls Allocation::of -> currency
 R 312:24 calls Allocation::of -> Allocation
 R 312:47 calls Allocation::of -> unmodifiableList
+R 315:16 references Allocation::shares -> List
+R 315:21 references Allocation::shares -> Money
+R 319:16 references Allocation::share -> Money
 R 320:27 calls Allocation::share -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
+R 323:16 references Allocation::total -> Money
 R 324:36 calls Allocation::total -> collect
 R 324:27 calls Allocation::total -> stream
 R 324:44 calls Allocation::total -> summing
@@ -1012,12 +1432,22 @@ R 331:13 calls Money -> requireNonNull
 R 332:13 calls Money -> requireNonNull
 R 333:21 calls Money -> compareTo
 R 334:27 calls Money -> IllegalArgumentException
+R 338:33 references Range::contains -> Money
 R 339:26 calls Range::contains -> compareTo
 R 339:55 calls Range::contains -> compareTo
+R 342:16 references Range::width -> Money
 R 343:24 calls Range::width -> minus
 R 348:59 extends Money::CurrencyMismatchException -> IllegalArgumentException
+R 349:23 references CurrencyMismatchException::expected -> Currency
+R 350:23 references CurrencyMismatchException::actual -> Currency
+R 352:42 references CurrencyMismatchException::CurrencyMismatchException -> Currency
+R 352:61 references CurrencyMismatchException::CurrencyMismatchException -> Currency
 R 353:13 calls CurrencyMismatchException::CurrencyMismatchException -> IllegalArgumentException
+R 358:16 references CurrencyMismatchException::expected -> Currency
+R 362:16 references CurrencyMismatchException::actual -> Currency
 R 368:54 extends Money::MoneyFormatException -> IllegalArgumentException
+R 369:37 references MoneyFormatException::MoneyFormatException -> String
+R 369:51 references MoneyFormatException::MoneyFormatException -> String
 R 370:13 calls MoneyFormatException::MoneyFormatException -> IllegalArgumentException
 
 == com/example/warehouse/order/Order.java (336 lines)
@@ -1151,41 +1581,68 @@ R 14:1 imports Order -> UUID
 R 15:1 imports Order -> Consumer
 R 15:1 imports Order -> Consumer
 R 27:21 calls Order -> requireNonNull
+R 30:23 references Id::random -> Id
 R 31:24 calls Id::random -> Id
 R 31:32 calls Id::random -> randomUUID
+R 34:23 references Id::parse -> Id
+R 34:32 references Id::parse -> String
 R 35:24 calls Id::parse -> Id
 R 35:32 calls Id::parse -> fromString
 R 43:27 calls Order -> IllegalArgumentException
 R 45:21 calls Order -> requireNonNull
+R 48:16 references Line::subtotal -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 49:30 calls Line::subtotal -> times (name-matched: com/example/warehouse/money/Money.java)
+R 52:16 references Line::withQuantity -> Line
 R 53:24 calls Line::withQuantity -> Line
 R 63:14 references NEW::next -> Override
 R 64:24 overrides NEW::next -> next
+R 64:13 references NEW::next -> Set
+R 64:17 references NEW::next -> State
 R 65:32 calls NEW::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 69:14 references RESERVED::next -> Override
 R 70:24 overrides RESERVED::next -> next
+R 70:13 references RESERVED::next -> Set
+R 70:17 references RESERVED::next -> State
 R 71:32 calls RESERVED::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 75:14 references PAID::next -> Override
 R 76:24 overrides PAID::next -> next
+R 76:13 references PAID::next -> Set
+R 76:17 references PAID::next -> State
 R 77:32 calls PAID::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 81:14 references PICKED::next -> Override
 R 82:24 overrides PICKED::next -> next
+R 82:13 references PICKED::next -> Set
+R 82:17 references PICKED::next -> State
 R 83:32 calls PICKED::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 87:14 references SHIPPED::next -> Override
 R 88:24 overrides SHIPPED::next -> next
+R 88:13 references SHIPPED::next -> Set
+R 88:17 references SHIPPED::next -> State
 R 89:32 calls SHIPPED::next -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 93:14 references INVOICED::next -> Override
 R 94:24 overrides INVOICED::next -> next
+R 94:13 references INVOICED::next -> Set
+R 94:17 references INVOICED::next -> State
 R 95:32 calls INVOICED::next -> noneOf
+R 95:39 references INVOICED::next -> State
 R 98:14 references INVOICED::isTerminal -> Override
 R 99:21 overrides INVOICED::isTerminal -> isTerminal
 R 104:14 references CANCELLED::next -> Override
 R 105:24 overrides CANCELLED::next -> next
+R 105:13 references CANCELLED::next -> Set
+R 105:17 references CANCELLED::next -> State
 R 106:32 calls CANCELLED::next -> noneOf
+R 106:39 references CANCELLED::next -> State
 R 109:14 references CANCELLED::isTerminal -> Override
 R 110:21 overrides CANCELLED::isTerminal -> isTerminal
+R 115:18 references State::next -> Set
+R 115:22 references State::next -> State
+R 121:27 references State::canMoveTo -> State
 R 122:27 calls State::canMoveTo -> contains (name-matched: com/example/warehouse/money/Money.java)
 R 122:20 calls State::canMoveTo -> next
+R 128:9 references OrderEvent::orderId -> Id
+R 130:9 references OrderEvent::at -> Instant
+R 132:17 references OrderEvent::type -> String
 R 133:31 calls OrderEvent::type -> getSimpleName
 R 133:20 calls OrderEvent::type -> getClass
 R 137:98 implements Order::Placed -> OrderEvent
@@ -1196,27 +1653,64 @@ R 149:101 implements Order::Shipped -> OrderEvent
 R 152:85 implements Order::Invoiced -> OrderEvent
 R 155:79 implements Order::Cancelled -> OrderEvent
 R 159:66 extends Order::IllegalTransitionException -> IllegalStateException
+R 160:23 references IllegalTransitionException::from -> State
+R 161:23 references IllegalTransitionException::to -> State
+R 163:43 references IllegalTransitionException::IllegalTransitionException -> State
+R 163:55 references IllegalTransitionException::IllegalTransitionException -> State
 R 164:13 calls IllegalTransitionException::IllegalTransitionException -> IllegalStateException
+R 169:16 references IllegalTransitionException::from -> State
+R 173:16 references IllegalTransitionException::to -> State
+R 182:19 references Order::id -> Id
+R 183:19 references Order::number -> String
+R 184:19 references Order::customerId -> String
+R 185:19 references Order::currency -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 186:19 references Order::lines -> List
+R 186:24 references Order::lines -> Line
 R 186:42 calls Order -> ArrayList
+R 187:19 references Order::pending -> List
+R 187:24 references Order::pending -> OrderEvent
 R 187:50 calls Order -> ArrayList
+R 188:13 references Order::state -> State
+R 189:13 references Order::trackingNumber -> String
+R 191:19 references Order::Order -> Id
+R 191:26 references Order::Order -> String
+R 191:41 references Order::Order -> String
+R 191:60 references Order::Order -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 199:19 references Order::place -> Order
+R 199:31 references Order::place -> String
+R 199:46 references Order::place -> String
+R 199:65 references Order::place -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 199:84 references Order::place -> List
+R 199:89 references Order::place -> Line
+R 199:102 references Order::place -> Instant
 R 200:19 calls Order::place -> isEmpty
 R 201:23 calls Order::place -> IllegalArgumentException
+R 203:9 references Order::place -> Order
 R 203:27 calls Order::place -> Order
 R 203:36 calls Order::place -> random
 R 204:15 calls Order::place -> forEach
 R 205:15 calls Order::place -> record
 R 205:26 calls Order::place -> Placed
 R 205:64 calls Order::place -> copyOf
+R 209:26 references Order::addLine -> Line
 R 210:30 calls Order::addLine -> currency
 R 210:18 calls Order::addLine -> unitPrice
 R 211:29 calls Order::addLine -> CurrencyMismatchException (name-matched: com/example/warehouse/money/Money.java)
 R 211:82 calls Order::addLine -> currency
 R 211:70 calls Order::addLine -> unitPrice
 R 213:15 calls Order::addLine -> add
+R 220:12 references Order::reserve -> Reserved
+R 220:29 references Order::reserve -> List
+R 220:34 references Order::reserve -> String
+R 220:58 references Order::reserve -> Instant
 R 221:9 calls Order::reserve -> moveTo
 R 222:16 calls Order::reserve -> record
 R 222:27 calls Order::reserve -> Reserved
 R 222:49 calls Order::reserve -> copyOf
+R 225:12 references Order::pay -> Paid
+R 225:21 references Order::pay -> String
+R 225:39 references Order::pay -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 225:53 references Order::pay -> Instant
 R 226:21 calls Order::pay -> equals (name-matched: com/example/warehouse/money/Money.java)
 R 226:28 calls Order::pay -> total
 R 227:23 calls Order::pay -> IllegalArgumentException
@@ -1224,46 +1718,84 @@ R 227:88 calls Order::pay -> total
 R 229:9 calls Order::pay -> moveTo
 R 230:16 calls Order::pay -> record
 R 230:27 calls Order::pay -> Paid
+R 233:12 references Order::pick -> Picked
+R 233:24 references Order::pick -> String
+R 233:39 references Order::pick -> Instant
 R 234:9 calls Order::pick -> moveTo
 R 235:16 calls Order::pick -> record
 R 235:27 calls Order::pick -> Picked
+R 238:12 references Order::ship -> Shipped
+R 238:25 references Order::ship -> String
+R 238:41 references Order::ship -> String
+R 238:64 references Order::ship -> Instant
 R 239:9 calls Order::ship -> moveTo
 R 241:16 calls Order::ship -> record
 R 241:27 calls Order::ship -> Shipped
+R 244:12 references Order::invoice -> Invoiced
+R 244:29 references Order::invoice -> String
+R 244:51 references Order::invoice -> Instant
 R 245:9 calls Order::invoice -> moveTo
 R 246:16 calls Order::invoice -> record
 R 246:27 calls Order::invoice -> Invoiced
+R 249:12 references Order::cancel -> Cancelled
+R 249:29 references Order::cancel -> String
+R 249:44 references Order::cancel -> Instant
 R 250:9 calls Order::cancel -> moveTo
 R 251:16 calls Order::cancel -> record
 R 251:27 calls Order::cancel -> Cancelled
+R 254:25 references Order::moveTo -> State
 R 255:20 calls Order::moveTo -> canMoveTo
 R 256:23 calls Order::moveTo -> IllegalTransitionException
 R 262:17 calls Order::record -> add
+R 270:12 references Order::id -> Id
+R 274:12 references Order::number -> String
+R 278:12 references Order::customerId -> String
+R 282:12 references Order::state -> State
+R 286:12 references Order::lines -> List
+R 286:17 references Order::lines -> Line
 R 287:28 calls Order::lines -> unmodifiableList
+R 290:12 references Order::trackingNumber -> Optional
+R 290:21 references Order::trackingNumber -> String
 R 291:25 calls Order::trackingNumber -> ofNullable
+R 294:12 references Order::total -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 295:51 calls Order::total -> collect
 R 295:31 calls Order::total -> map (name-matched: com/example/warehouse/persistence/Repository.java)
 R 295:22 calls Order::total -> stream
 R 295:65 calls Order::total -> summing (name-matched: com/example/warehouse/money/Money.java)
+R 298:28 references Order::isLarge -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 299:24 calls Order::isLarge -> compareTo (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 299:16 calls Order::isLarge -> total
+R 303:29 references Order::drainEvents -> Consumer
+R 303:46 references Order::drainEvents -> OrderEvent
 R 304:17 calls Order::drainEvents -> forEach
 R 305:17 calls Order::drainEvents -> clear
+R 309:19 references Order::describe -> String
+R 309:35 references Order::describe -> OrderEvent
+R 311:18 references Order::describe -> Placed
 R 311:57 calls Order::describe -> size (name-matched: com/example/warehouse/persistence/Repository.java)
 R 311:49 calls Order::describe -> lines
+R 312:18 references Order::describe -> Reserved
 R 312:65 calls Order::describe -> size (name-matched: com/example/warehouse/persistence/Repository.java)
 R 312:48 calls Order::describe -> reservationIds
+R 313:18 references Order::describe -> Paid
 R 313:40 calls Order::describe -> amount
+R 314:18 references Order::describe -> Picked
 R 314:47 calls Order::describe -> picker
+R 315:18 references Order::describe -> Shipped
 R 315:51 calls Order::describe -> carrier
 R 315:72 calls Order::describe -> trackingNumber
+R 316:18 references Order::describe -> Invoiced
 R 316:51 calls Order::describe -> invoiceNumber
+R 317:18 references Order::describe -> Cancelled
 R 317:51 calls Order::describe -> reason
+R 322:12 references Order::summary -> String
+R 323:9 references Order::summary -> String
 R 329:25 calls Order::summary -> formatted
 R 329:68 calls Order::summary -> size (name-matched: com/example/warehouse/persistence/Repository.java)
 R 329:76 calls Order::summary -> total
 R 332:6 references Order::toString -> Override
 R 333:19 overrides Order::toString -> toString
+R 333:12 references Order::toString -> String
 R 334:58 calls Order::toString -> total
 
 == com/example/warehouse/persistence/Repository.java (303 lines)
@@ -1375,34 +1907,51 @@ R 24:1 imports Repository -> Function
 R 25:1 imports Repository -> DataSource
 R 25:1 imports Repository -> DataSource
 R 34:44 extends Repository -> AutoCloseable
+R 36:5 references Repository::findById -> Optional
+R 38:5 references Repository::findAll -> List
 R 45:29 calls Repository::getById -> orElseThrow
 R 45:16 calls Repository::getById -> findById
 R 45:51 calls Repository::getById -> NotFoundException
 R 49:29 calls Repository::exists -> isPresent
 R 49:16 calls Repository::exists -> findById
+R 52:26 references Repository::saveAll -> Collection
 R 53:20 calls Repository::saveAll -> forEach
 R 56:6 references Repository::close -> Override
 R 57:18 overrides Repository::close -> close
 R 61:6 references Repository::Transactional -> Retention
 R 62:6 references Repository::Transactional -> Target
 R 70:37 extends Repository::NotFoundException -> RuntimeException
+R 71:34 references NotFoundException::NotFoundException -> Object
 R 72:13 calls NotFoundException::NotFoundException -> RuntimeException
 R 77:40 extends Repository::PersistenceException -> RuntimeException
+R 78:23 references PersistenceException::sql -> String
+R 80:37 references PersistenceException::PersistenceException -> String
+R 80:49 references PersistenceException::PersistenceException -> SQLException
 R 81:13 calls PersistenceException::PersistenceException -> RuntimeException
 R 81:25 calls PersistenceException::PersistenceException -> getMessage
+R 85:16 references PersistenceException::sql -> String
+R 92:27 references Page::of -> Page
+R 92:38 references Page::of -> List
 R 93:36 calls Page::of -> size
 R 94:24 calls Page::of -> Page
 R 94:46 calls Page::of -> subList
 R 98:35 calls Page::nextOffset -> size
 R 103:6 references Repository::RowMapper -> FunctionalInterface
+R 105:36 references RowMapper::map -> SQLException
+R 105:15 references RowMapper::map -> ResultSet
 R 113:38 implements Repository::InMemory -> Repository
+R 114:23 references InMemory::rows -> Map
 R 114:45 calls Repository -> ConcurrentHashMap
+R 115:23 references InMemory::idOf -> Function
+R 117:25 references InMemory::InMemory -> Function
 R 121:10 references InMemory::findById -> Override
 R 122:28 overrides InMemory::findById -> findById
+R 122:16 references InMemory::findById -> Optional
 R 123:29 calls InMemory::findById -> ofNullable
 R 123:45 calls InMemory::findById -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 126:10 references InMemory::findAll -> Override
 R 127:24 overrides InMemory::findAll -> findAll
+R 127:16 references InMemory::findAll -> List
 R 128:69 calls InMemory::findAll -> toList
 R 128:56 calls InMemory::findAll -> limit
 R 128:43 calls InMemory::findAll -> skip
@@ -1417,9 +1966,18 @@ R 137:24 overrides InMemory::delete -> delete
 R 138:25 calls InMemory::delete -> remove
 R 142:25 calls InMemory::size -> size
 R 151:43 implements Repository::Jdbc -> Repository
+R 152:25 references Jdbc::dataSource -> DataSource
+R 153:25 references Jdbc::table -> String
+R 155:24 references Jdbc::Jdbc -> DataSource
+R 155:47 references Jdbc::Jdbc -> String
+R 160:28 references Jdbc::mapper -> RowMapper
+R 162:28 references Jdbc::insertValues -> Object
+R 164:28 references Jdbc::insertSql -> String
 R 166:10 references Jdbc::findById -> Override
 R 167:10 references Jdbc::findById -> Transactional
 R 168:28 overrides Jdbc::findById -> findById
+R 168:16 references Jdbc::findById -> Optional
+R 169:13 references Jdbc::findById -> List
 R 169:29 calls Jdbc::findById -> query
 R 169:79 calls Jdbc::findById -> mapper
 R 170:35 calls Jdbc::findById -> findFirst
@@ -1427,6 +1985,7 @@ R 170:26 calls Jdbc::findById -> stream
 R 173:10 references Jdbc::findAll -> Override
 R 174:10 references Jdbc::findAll -> Transactional
 R 175:24 overrides Jdbc::findAll -> findAll
+R 175:16 references Jdbc::findAll -> List
 R 176:20 calls Jdbc::findAll -> query
 R 176:86 calls Jdbc::findAll -> mapper
 R 179:10 references Jdbc::save -> Override
@@ -1439,30 +1998,61 @@ R 185:10 references Jdbc::delete -> Override
 R 186:10 references Jdbc::delete -> Transactional
 R 187:24 overrides Jdbc::delete -> delete
 R 188:20 calls Jdbc::delete -> update
+R 191:23 references Jdbc::query -> List
+R 191:37 references Jdbc::query -> String
+R 191:49 references Jdbc::query -> RowMapper
+R 191:73 references Jdbc::query -> Object
+R 192:18 references Jdbc::query -> Connection
 R 192:44 calls Jdbc::query -> getConnection
+R 193:18 references Jdbc::query -> PreparedStatement
 R 193:41 calls Jdbc::query -> prepare
+R 194:18 references Jdbc::query -> ResultSet
 R 194:36 calls Jdbc::query -> executeQuery
+R 195:17 references Jdbc::query -> List
 R 195:35 calls Jdbc::query -> ArrayList
 R 196:27 calls Jdbc::query -> next (name-matched: com/example/warehouse/app/OrderService.java)
 R 197:25 calls Jdbc::query -> add
 R 197:39 calls Jdbc::query -> map
+R 200:22 references Jdbc::query -> SQLException
 R 201:27 calls Jdbc::query -> PersistenceException
+R 205:30 references Jdbc::update -> String
+R 205:42 references Jdbc::update -> Object
+R 206:18 references Jdbc::update -> Connection
 R 206:44 calls Jdbc::update -> getConnection
+R 207:18 references Jdbc::update -> PreparedStatement
 R 207:41 calls Jdbc::update -> prepare
 R 208:27 calls Jdbc::update -> executeUpdate
+R 209:22 references Jdbc::update -> SQLException
 R 210:27 calls Jdbc::update -> PersistenceException
+R 214:24 references Jdbc::prepare -> PreparedStatement
+R 214:101 references Jdbc::prepare -> SQLException
+R 214:50 references Jdbc::prepare -> Connection
+R 214:64 references Jdbc::prepare -> String
+R 214:76 references Jdbc::prepare -> Object
+R 215:13 references Jdbc::prepare -> PreparedStatement
 R 215:38 calls Jdbc::prepare -> prepareStatement
 R 217:20 calls Jdbc::prepare -> setObject
 R 224:32 extends Repository::Orders -> Jdbc
+R 225:30 references Orders::INSERT -> String
+R 231:23 references Orders::outbox -> Outbox
+R 233:23 references Orders::Orders -> DataSource
+R 233:46 references Orders::Orders -> Outbox
 R 234:13 calls Orders::Orders -> Jdbc
 R 238:10 references Orders::mapper -> Override
 R 239:36 overrides Orders::mapper -> mapper
+R 239:19 references Orders::mapper -> RowMapper
+R 239:29 references Orders::mapper -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 241:27 calls Orders::mapper -> UnsupportedOperationException
 R 245:10 references Orders::insertSql -> Override
 R 246:26 overrides Orders::insertSql -> insertSql
+R 246:19 references Orders::insertSql -> String
 R 250:10 references Orders::insertValues -> Override
 R 251:28 overrides Orders::insertValues -> insertValues
+R 251:19 references Orders::insertValues -> Object
+R 251:41 references Orders::insertValues -> Order (name-matched: com/example/warehouse/order/Order.java)
+R 252:13 references Orders::insertValues -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 252:33 calls Orders::insertValues -> total (name-matched: com/example/warehouse/app/OrderService.java)
+R 253:24 references Orders::insertValues -> Object
 R 254:28 calls Orders::insertValues -> value (name-matched: com/example/warehouse/order/Order.java)
 R 254:23 calls Orders::insertValues -> id (name-matched: com/example/warehouse/app/OrderService.java)
 R 254:43 calls Orders::insertValues -> number (name-matched: com/example/warehouse/app/OrderService.java)
@@ -1475,15 +2065,29 @@ R 255:39 calls Orders::insertValues -> currency (name-matched: com/example/wareh
 R 259:10 references Orders::save -> Override
 R 260:10 references Orders::save -> Transactional
 R 261:21 overrides Orders::save -> save
+R 261:26 references Orders::save -> Order (name-matched: com/example/warehouse/order/Order.java)
 R 262:19 calls Orders::save -> save
 R 263:19 calls Orders::save -> drainEvents (name-matched: com/example/warehouse/order/Order.java)
 R 266:10 references Orders::findIdByNumber -> Transactional
+R 267:16 references Orders::findIdByNumber -> Optional
+R 267:31 references Orders::findIdByNumber -> Id (name-matched: com/example/warehouse/order/Order.java)
+R 267:50 references Orders::findIdByNumber -> String
+R 268:13 references Orders::findIdByNumber -> List
+R 268:24 references Orders::findIdByNumber -> Id (name-matched: com/example/warehouse/order/Order.java)
 R 268:34 calls Orders::findIdByNumber -> query
 R 270:33 calls Orders::findIdByNumber -> Id (name-matched: com/example/warehouse/order/Order.java)
 R 270:39 calls Orders::findIdByNumber -> getObject
+R 270:60 references Orders::findIdByNumber -> util
+R 270:65 references Orders::findIdByNumber -> UUID
 R 272:33 calls Orders::findIdByNumber -> findFirst
 R 272:24 calls Orders::findIdByNumber -> stream
 R 275:10 references Orders::revenue -> Transactional
+R 276:16 references Orders::revenue -> Money (name-matched: com/example/warehouse/money/Money.java)
+R 276:30 references Orders::revenue -> Currency (name-matched: com/example/warehouse/money/Money.java)
+R 276:49 references Orders::revenue -> Instant
+R 276:63 references Orders::revenue -> Instant
+R 277:13 references Orders::revenue -> List
+R 277:18 references Orders::revenue -> Money (name-matched: com/example/warehouse/money/Money.java)
 R 277:34 calls Orders::revenue -> query
 R 279:29 calls Orders::revenue -> of
 R 279:35 calls Orders::revenue -> getBigDecimal
@@ -1493,8 +2097,15 @@ R 280:66 calls Orders::revenue -> from (name-matched: com/example/warehouse/orde
 R 281:36 calls Orders::revenue -> collect
 R 281:27 calls Orders::revenue -> stream
 R 281:50 calls Orders::revenue -> summing (name-matched: com/example/warehouse/money/Money.java)
+R 287:23 references Outbox::buffer -> List
+R 287:28 references Outbox::buffer -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 287:53 calls Repository -> ArrayList
+R 289:28 references Outbox::append -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 290:20 calls Outbox::append -> add
+R 293:16 references Outbox::drain -> List
+R 293:21 references Outbox::drain -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
+R 294:13 references Outbox::drain -> List
+R 294:18 references Outbox::drain -> OrderEvent (name-matched: com/example/warehouse/order/Order.java)
 R 294:41 calls Outbox::drain -> copyOf
 R 295:20 calls Outbox::drain -> clear
 R 300:27 calls Outbox::size -> size
