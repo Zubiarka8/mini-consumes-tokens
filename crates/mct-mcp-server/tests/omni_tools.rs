@@ -713,7 +713,7 @@ async fn get_indexing_status_reports_every_language_and_the_detected_manifests()
     );
 
     assert!(
-        text.contains("31 files indexed, 123 symbols total."),
+        text.contains("31 files indexed, 125 symbols total."),
         "got: {text}"
     );
     assert!(text.contains("Coverage by language:"), "got: {text}");
@@ -799,7 +799,7 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
     );
     assert!(
         forced.starts_with(
-            "Reindex complete: 31 parsed, 0 unchanged, 0 removed, 123 symbols written."
+            "Reindex complete: 31 parsed, 0 unchanged, 0 removed, 125 symbols written."
         ),
         "force must bypass the hash check for every file: {forced}"
     );
@@ -812,7 +812,7 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
             .unwrap(),
     );
     assert!(
-        status.contains("31 files indexed, 123 symbols total."),
+        status.contains("31 files indexed, 125 symbols total."),
         "got: {status}"
     );
 }

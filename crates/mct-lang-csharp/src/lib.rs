@@ -5,10 +5,17 @@ use mct_core::{
     SymbolDetail, SymbolId, SymbolKind, SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{find_child, first_error, location, Supertype};
+use std::collections::HashMap;
+
 use tree_sitter::{Node, Parser};
 
+mod aliases;
 mod details;
+mod literals;
 mod receivers;
+mod tokens;
+
+pub use tokens::CSharpTokenSource;
 
 pub struct CSharpParser;
 
@@ -57,7 +64,9 @@ impl LanguageParser for CSharpParser {
         module_location.end_line = Some(walker.file_end);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -87,6 +96,8 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 struct Walker<'a> {
     source: &'a str,
+    /// `using Alias = Target;` aliases this file declares: alias → target.
+    aliases: HashMap<String, String>,
     file_end: u32,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
@@ -106,6 +117,7 @@ impl<'a> Walker<'a> {
     fn new(source: &'a str, file_end: u32) -> Self {
         Self {
             source,
+            aliases: HashMap::new(),
             file_end,
             symbols: Vec::new(),
             relations: Vec::new(),
@@ -251,6 +263,13 @@ impl<'a> Walker<'a> {
             // A local function (in a method body or among top-level
             // statements) is a plain function with no owning type; its
             // calls attach to it, not to the enclosing method.
+            // A local bound to a lambda or anonymous method (`Func<int>
+            // f = () => …;`) is a function, like a local function: it owns
+            // the calls in its body, so a call through the local reaches
+            // it. Any other declarator is walked as before, under `owner`.
+            "local_declaration_statement" if has_named_lambda(node) => {
+                self.visit_local_declaration(node, owner, type_name, depth);
+            }
             "local_function_statement" => {
                 let name = self.field_text(node, "name");
                 let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
@@ -323,6 +342,7 @@ impl<'a> Walker<'a> {
                             location(declarator),
                             parent.clone(),
                         );
+
                         self.details
                             .push(details::field_detail(node, declarator, id, self.source));
                         // A field-like `override event` (a plain field
@@ -351,8 +371,14 @@ impl<'a> Walker<'a> {
                 }
             }
             "using_directive" => {
+                self.record_using_alias(node);
                 self.push_namespace_import(owner, node);
-                if let Some(path) = node.named_child(0) {
+                // `using Alias = A.B;` names no imported `Alias`: only the
+                // namespace import above records it.
+                let path = node
+                    .named_child(0)
+                    .filter(|_| aliases::alias_parts(node).is_none());
+                if let Some(path) = path {
                     if let Some(last) = last_identifier(path) {
                         self.push_relation(
                             owner,
@@ -388,7 +414,7 @@ impl<'a> Walker<'a> {
                         let name = text(name_node, self.source);
                         // `nameof(x)` is an operator, not a call.
                         if !(name == "nameof" && function.kind() == "identifier") {
-                            self.push_receiver(function, name);
+                            let type_qualifier = self.push_receiver(function, name);
                             // location(name_node), not location(node): a
                             // chained call (`a.F(x).F(y)`) has its outer and
                             // inner invocation_expression both start at `a`,
@@ -400,6 +426,9 @@ impl<'a> Walker<'a> {
                                 name.to_string(),
                                 location(name_node),
                             );
+                            if let Some(qualifier) = type_qualifier {
+                                self.push_type_qualifier(owner, qualifier);
+                            }
                         }
                     }
                     self.visit(function, owner, type_name, depth + 1);
@@ -410,9 +439,26 @@ impl<'a> Walker<'a> {
             }
             // `new T(…)` calls T's constructor: recorded as a call to the
             // type's bare name, as `T(…)` is in languages without `new`.
+            // A type is never a field, so a same-named field is no target.
             "object_creation_expression" => {
                 if let Some(type_node) = node.child_by_field_name("type") {
-                    if let Some(name) = type_base_name(type_node, self.source) {
+                    // `new Alias()` constructs the alias's target; only a
+                    // bare name can be an alias (`new M.Money()` is not).
+                    let aliased = (type_node.kind() == "identifier")
+                        .then(|| self.alias_target(text(type_node, self.source)))
+                        .flatten()
+                        .map(str::to_string);
+                    let external = aliased.as_deref().is_some_and(is_framework_name);
+                    let name = aliased
+                        .map(|target| base_of(&target).to_string())
+                        .or_else(|| type_base_name(type_node, self.source));
+                    if let Some(name) = name {
+                        self.relation_targets.push(RelationTarget {
+                            relation: self.relations.len(),
+                            not_field: true,
+                            external,
+                            ..Default::default()
+                        });
                         self.push_relation(owner, RelationKind::Calls, name, location(type_node));
                     }
                 }
@@ -451,6 +497,9 @@ impl<'a> Walker<'a> {
             }
         }
         if let Some(params) = find_child(node, "parameter_list") {
+            if node.kind() == "record_declaration" {
+                self.push_positional_properties(node, params, &name);
+            }
             self.visit_children(params, id, Some(&name), depth + 1);
         }
         let Some(body) = node.child_by_field_name("body") else {
@@ -480,6 +529,39 @@ impl<'a> Walker<'a> {
         self.locals = outer_locals;
         self.classes.pop();
         self.supertypes.pop();
+    }
+
+    /// A record's positional parameters (`record Point(int X)`): each is a
+    /// public property the compiler generates, so a `Field` of the record,
+    /// unless the body declares a member of that name, which replaces it.
+    /// A class or struct primary-constructor parameter is no member.
+    fn push_positional_properties(&mut self, record: Node, params: Node, record_name: &str) {
+        let declared = record
+            .child_by_field_name("body")
+            .map(|body| member_names(body, self.source))
+            .unwrap_or_default();
+        let mut cursor = params.walk();
+        let parameters: Vec<Node> = params
+            .named_children(&mut cursor)
+            .filter(|p| p.kind() == "parameter")
+            .collect();
+        for param in parameters {
+            let Some(name_node) = param.child_by_field_name("name") else {
+                continue;
+            };
+            let name = text(name_node, self.source).to_string();
+            if declared.contains(&name) {
+                continue;
+            }
+            let id = self.push_symbol(
+                name,
+                SymbolKind::Field,
+                location(param),
+                Some(record_name.to_string()),
+            );
+            self.details
+                .push(details::positional_property_detail(param, id, self.source));
+        }
     }
 
     /// `base_list` is unified in this grammar — C# doesn't syntactically
@@ -536,6 +618,37 @@ impl<'a> Walker<'a> {
     ///
     /// Its locals' declared types are known while its body is walked; a
     /// local function also sees the enclosing member's.
+    fn visit_local_declaration(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        type_name: Option<&str>,
+        depth: u32,
+    ) {
+        let Some(variables) = find_child(node, "variable_declaration") else {
+            return;
+        };
+        let mut cursor = variables.walk();
+        for part in variables.named_children(&mut cursor) {
+            let lambda = (part.kind() == "variable_declarator")
+                .then(|| bound_lambda(part))
+                .flatten();
+            let (Some(lambda), Some(name)) = (lambda, part.child_by_field_name("name")) else {
+                self.visit(part, owner, type_name, depth + 1);
+                continue;
+            };
+            let id = self.push_symbol(
+                text(name, self.source).to_string(),
+                SymbolKind::Function,
+                location(part),
+                None,
+            );
+            self.details
+                .push(details::lambda_detail(part, lambda, id, self.source));
+            self.visit_callable(lambda, id, type_name, depth + 1);
+        }
+    }
+
     fn visit_callable(&mut self, node: Node, id: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut locals = self.locals.clone();
         let mut cursor = node.walk();
@@ -564,7 +677,12 @@ impl<'a> Walker<'a> {
             self.push_initializer_call(node, init, id, type_name);
             self.visit_children(init, id, type_name, depth + 1);
         }
-        if let Some(body) = node.child_by_field_name("body") {
+        let body = node.child_by_field_name("body").or_else(|| {
+            (node.kind() == "anonymous_method_expression")
+                .then(|| find_child(node, "block"))
+                .flatten()
+        });
+        if let Some(body) = body {
             self.visit_children(body, id, type_name, depth + 1);
         }
     }
@@ -647,13 +765,17 @@ impl<'a> Walker<'a> {
     /// type is not proven. A bare call, `base.M()`, `this.M()` on a method
     /// the class does not declare (it may be inherited) and a lowercase name
     /// that is no local or field (a namespace) record nothing.
-    fn push_receiver(&mut self, function: Node, method: &str) {
+    ///
+    /// Returns the receiver when it is a capitalized name that is no local
+    /// or field (`Helpers.F()`): a type the call also uses.
+    fn push_receiver<'t>(&mut self, function: Node<'t>, method: &str) -> Option<Node<'t>> {
         let receiver = match function.kind() {
             "member_access_expression" => function.child_by_field_name("expression"),
             "conditional_access_expression" => function.child_by_field_name("condition"),
             "member_binding_expression" => None,
-            _ => return,
+            _ => return None,
         };
+        let mut type_qualifier = None;
         let class = self.classes.last();
         let typed = |ty: Option<String>| {
             let member = ty.is_none();
@@ -662,9 +784,9 @@ impl<'a> Walker<'a> {
         let (qualifier, member) = match receiver.map(|r| (r, r.kind())) {
             Some((_, "this")) => match class {
                 Some(class) if class.methods.contains(method) => (Some(class.name.clone()), false),
-                _ => return,
+                _ => return None,
             },
-            Some((_, "base")) => return,
+            Some((_, "base")) => return None,
             Some((r, "identifier")) => {
                 let name = text(r, self.source);
                 match self
@@ -673,8 +795,19 @@ impl<'a> Walker<'a> {
                     .or_else(|| class.and_then(|c| c.fields.get(name)))
                 {
                     Some(ty) => typed(ty.clone()),
-                    None if name.starts_with(char::is_uppercase) => (Some(name.to_string()), false),
-                    None => return,
+                    // `Alias.M()`: the alias names its target type.
+                    None if self.alias_target(name).is_some() => {
+                        type_qualifier = Some(r);
+                        (
+                            self.alias_target(name).map(|t| base_of(t).to_string()),
+                            false,
+                        )
+                    }
+                    None if name.starts_with(char::is_uppercase) => {
+                        type_qualifier = Some(r);
+                        (Some(name.to_string()), false)
+                    }
+                    None => return None,
                 }
             }
             // `this.f.M()`: the field's declared type.
@@ -704,6 +837,30 @@ impl<'a> Walker<'a> {
             member,
             ..Default::default()
         });
+        type_qualifier
+    }
+
+    /// `references` the type a static call names (`Helpers` in
+    /// `Helpers.F()`). `static` is a class-only modifier, so only a `class`
+    /// is its target, never a method or field named like it.
+    fn push_type_qualifier(&mut self, owner: SymbolId, qualifier: Node) {
+        // `Alias.M()` uses the alias's target (`JsonSerializer`).
+        let aliased = self
+            .alias_target(text(qualifier, self.source))
+            .map(str::to_string);
+        let external = aliased.as_deref().is_some_and(is_framework_name);
+        let name = aliased.map_or_else(
+            || text(qualifier, self.source).to_string(),
+            |target| base_of(&target).to_string(),
+        );
+        let relation = self.relations.len();
+        self.push_relation(owner, RelationKind::References, name, location(qualifier));
+        self.relation_targets.push(RelationTarget {
+            relation,
+            external,
+            kind: Some(SymbolKind::Class),
+            ..Default::default()
+        });
     }
 
     fn finish(self) -> ParsedFile {
@@ -729,7 +886,11 @@ impl<'a> Walker<'a> {
         }
         // `using Alias = A.B;` names its target last.
         let mut cursor = node.walk();
-        let Some(path) = node.named_children(&mut cursor).last() else {
+        let Some(path) = node
+            .named_children(&mut cursor)
+            .last()
+            .filter(|path| aliases::is_name(*path))
+        else {
             return;
         };
         let name: String = text(path, self.source).split_whitespace().collect();
@@ -737,8 +898,7 @@ impl<'a> Walker<'a> {
         if name.is_empty() || name.contains('<') {
             return;
         }
-        let root = name.split('.').next().unwrap_or_default();
-        let external = matches!(root, "System" | "Microsoft");
+        let external = is_framework_name(&name);
         let relation = self.relations.len();
         self.push_relation(owner, RelationKind::Imports, name, location(node));
         self.relation_targets.push(RelationTarget {
@@ -771,7 +931,7 @@ fn callee_identifier(function: Node) -> Option<Node> {
 /// A type reference's bare name: `Foo`, `Foo<T>` → `Foo`, `A.B.Foo` →
 /// `Foo`, `global::Foo` → `Foo`. `None` for predefined, tuple, array and
 /// other types that have no single declared name.
-fn type_base_name(node: Node, source: &str) -> Option<String> {
+pub(crate) fn type_base_name(node: Node, source: &str) -> Option<String> {
     match node.kind() {
         "identifier" => Some(text(node, source).to_string()),
         "generic_name" => find_child(node, "identifier").map(|n| text(n, source).to_string()),
@@ -780,6 +940,33 @@ fn type_base_name(node: Node, source: &str) -> Option<String> {
             .and_then(|n| type_base_name(n, source)),
         _ => None,
     }
+}
+
+/// Names of the properties and fields `body` declares directly.
+fn member_names(body: Node, source: &str) -> std::collections::HashSet<String> {
+    let mut names = std::collections::HashSet::new();
+    let mut cursor = body.walk();
+    for member in body.named_children(&mut cursor) {
+        match member.kind() {
+            "property_declaration" => {
+                if let Some(name) = member.child_by_field_name("name") {
+                    names.insert(text(name, source).to_string());
+                }
+            }
+            "field_declaration" => {
+                if let Some(variables) = find_child(member, "variable_declaration") {
+                    let mut inner = variables.walk();
+                    for declarator in variables.named_children(&mut inner) {
+                        if let Some(name) = declarator.child_by_field_name("name") {
+                            names.insert(text(name, source).to_string());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    names
 }
 
 /// `IFoo`: an `I`, an upper-case letter, then a lower-case one — the .NET
@@ -853,4 +1040,42 @@ fn last_identifier(node: Node) -> Option<Node> {
         "qualified_name" => node.child_by_field_name("name").and_then(last_identifier),
         _ => None,
     }
+}
+
+/// The lambda or anonymous method a local declarator is bound to
+/// (`twice = x => …`), not one nested deeper in its initializer.
+pub(crate) fn bound_lambda(declarator: Node) -> Option<Node> {
+    let mut cursor = declarator.walk();
+    let found = declarator.named_children(&mut cursor).find(|c| {
+        matches!(
+            c.kind(),
+            "lambda_expression" | "anonymous_method_expression"
+        )
+    });
+    found
+}
+
+fn has_named_lambda(declaration: Node) -> bool {
+    find_child(declaration, "variable_declaration").is_some_and(|variables| {
+        let mut cursor = variables.walk();
+        let found = variables
+            .named_children(&mut cursor)
+            .any(|d| d.kind() == "variable_declarator" && bound_lambda(d).is_some());
+        found
+    })
+}
+
+/// A name under `System` or `Microsoft` (`System.Text.Json.JsonSerializer`,
+/// `global::System.IO`): the framework, never the repository.
+fn is_framework_name(name: &str) -> bool {
+    let name = name.strip_prefix("global::").unwrap_or(name);
+    let root = name.split('.').next().unwrap_or_default();
+    matches!(root, "System" | "Microsoft")
+}
+
+/// The last segment of a dotted name without type arguments:
+/// `System.Collections.Generic.List<string>` → `List`.
+fn base_of(name: &str) -> &str {
+    let name = name.split('<').next().unwrap_or(name);
+    name.rsplit(['.', ':']).next().unwrap_or(name)
 }

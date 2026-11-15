@@ -592,6 +592,26 @@ fn a_struct_pattern_shorthand_binding_shadows_a_same_named_function() {
     );
 }
 
+#[test]
+fn a_match_guard_uses_a_function_its_pattern_does_not_bind() {
+    // A guard (`None if text.is_some_and(is_final)`) is an expression, not
+    // part of the pattern: `is_final` there is the function passed as a
+    // value, and only the pattern's own names are locals of the arm.
+    let parsed = parse(
+        r#"
+        fn is_final(s: &str) -> bool { s == "Final" }
+        fn kind(text: Option<&str>) -> u8 {
+            match text {
+                None => 0,
+                Some(_) if text.is_some_and(is_final) => 1,
+                Some(rest) => rest.len() as u8,
+            }
+        }
+        "#,
+    );
+    assert_eq!(value_references(&parsed), vec!["is_final"]);
+}
+
 /// `(to_name, evidence)` of every call, in source order; the evidence's
 /// `relation` index is zeroed for terse expectations.
 fn call_evidence(parsed: &mct_core::ParsedFile) -> Vec<(String, RelationTarget)> {
