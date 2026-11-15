@@ -346,6 +346,16 @@ impl<'a> Walker<'a> {
                     self.visit(operand, owner, package_name, depth + 1);
                 }
             }
+            // `o.(Marker)` and `case Row, *Cfg:` of a type switch name the
+            // type they test for.
+            "type_assertion_expression" | "type_case" => {
+                let mut cursor = node.walk();
+                let types: Vec<Node> = node.children_by_field_name("type", &mut cursor).collect();
+                for ty in types.into_iter().filter(|t| text(*t, self.source) != "nil") {
+                    self.push_declared_type(owner, ty, package_name, depth + 1);
+                }
+                self.visit_children(node, owner, package_name, depth + 1);
+            }
             _ => self.visit_children(node, owner, package_name, depth + 1),
         }
     }
