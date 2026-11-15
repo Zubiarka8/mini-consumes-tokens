@@ -1892,8 +1892,17 @@ fn collect_identifiers(node: Node, source: &str, out: &mut HashSet<String>, dept
         out.insert(text(node, source).to_string());
         return;
     }
+    // A match arm's guard (`None if text.is_some_and(is_final)`) is an
+    // expression the arm evaluates, not part of its pattern: its names are
+    // uses, never bindings.
+    let guard = (node.kind() == "match_pattern")
+        .then(|| node.child_by_field_name("condition"))
+        .flatten();
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
+        if guard.is_some_and(|g| g.id() == child.id()) {
+            continue;
+        }
         collect_identifiers(child, source, out, depth + 1);
     }
 }
