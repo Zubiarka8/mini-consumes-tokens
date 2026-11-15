@@ -172,7 +172,7 @@ Likely affected tests:
 
 Use it when you are about to edit one symbol and want everything around it in one call: its definition with the doc comment and source, and every caller, callee, dependency and related test, each listed once with its signature. It replaces `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files.
 
-- `symbol` (required), `path` and `language` (to pick one definition when the name is ambiguous), `depth`, `limit` (default 30), `source_lines` (default 40, max 200), `format`.
+- `symbol` (required), `path` and `language` (to pick one definition when the name is ambiguous), `depth`, `limit` (default 30), `source_lines` (default 40, max 200), `source_offset` (page past the cap, default 0), `format`.
 - `detail` (`overview`, `summary`, `detailed`) and `max_tokens` select the level of detail and an estimated response budget. When the budget is tight, the response can lower detail or omit rows and reports what was cut.
 - Related symbols merge their roles into one entry. File-level importers and unresolved callee names appear in footers; ambiguous callees are listed separately as uncertain instead of being guessed.
 
