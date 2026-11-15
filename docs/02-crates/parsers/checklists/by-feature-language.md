@@ -1344,20 +1344,20 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 0 | 9 | 0 | 5 |
+| 12 | 0 | 0 | 0 | 5 |
 
 - [x] Rust: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
 - [x] Python: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
-- [ ] JS/TS: duplicate report lists `javascript_typescript` under `unsupported_languages`
-- [ ] Java: listed under `unsupported_languages`
-- [ ] Kotlin: listed under `unsupported_languages`
-- [ ] C#: listed under `unsupported_languages`
-- [ ] C++: listed under `unsupported_languages`
-- [ ] Go: listed under `unsupported_languages`
-- [ ] PHP: listed under `unsupported_languages`
+- [x] JS/TS: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] Java: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] Kotlin: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] C#: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] C++: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] Go: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] PHP: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] Lua: listed as supported by `duplicates` (group not exercised)
-- [ ] Bash: listed under `unsupported_languages`
-- [ ] PowerShell: listed under `unsupported_languages`
+- [x] Bash: `cart_total` and `order_total` form a candidate group; listed as supported by `duplicates`
+- [x] PowerShell: `Get-CartTotal` and `Get-OrderTotal` form a candidate group; listed as supported by `duplicates`
 - — HTML: HTML is markup; it has no repeated code
 - — CSS: CSS is markup; it has no repeated code
 - — XML: XML is markup; it has no repeated code
