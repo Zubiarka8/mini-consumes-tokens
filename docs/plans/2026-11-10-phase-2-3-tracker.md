@@ -796,6 +796,21 @@ From `rules.md` and the two messages:
           7320, the same 3; `today.weekday()` (a `datetime` method) was
           ambiguous over the 3 property rows and is now unresolved. Dead
           code 123 -> 123. Python scores 90% -> 91% and 94% -> 100%.
+    - [x] JS/TS class accessors: `get x()` / `set x()` in a class body
+          are one `field` `x`, as in C#, Kotlin and Python, with the
+          first accessor as signature, spanning both and owning their
+          calls (before: two `method` rows). A typed getter or setter
+          parameter types the field, so `this.total.compareTo()` reaches
+          `Money.compareTo`. An object literal's accessor stays a
+          `function`. Test: `tests/class_accessors.rs`; `tests/corpus.rs`
+          pinned "getters are methods" and now checks a field. Corpus: 15
+          getters become fields, relations unchanged. Repository snapshot
+          (JS/TS, with `init --force`): 24397 relations either side; 14
+          getters become fields; `order.ts:184 compareTo` ambiguous ->
+          resolved; 3 `current()` calls in the minified `review.js` were
+          ambiguous over the `PickSession.current` getter and are now
+          unresolved. Dead code 123 -> 123. JS/TS scores 88% -> 89% and
+          88% -> 94%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
