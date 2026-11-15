@@ -27,7 +27,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Kotlin | 26 | 7 | 12 | 0 | 7 |
 | C# | 25 | 10 | 10 | 0 | 7 |
 | C++ | 22 | 8 | 8 | 0 | 14 |
-| Go | 14 | 3 | 12 | 0 | 23 |
+| Go | 15 | 3 | 11 | 0 | 23 |
 | PHP | 30 | 3 | 7 | 0 | 12 |
 | Lua | 14 | 5 | 5 | 0 | 28 |
 | Bash | 12 | 2 | 3 | 0 | 35 |
@@ -574,7 +574,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Go (`go`)
 
-Done 14 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 23
+Done 15 · Partial 3 · Not done 11 · Not verified 0 · Not applicable 23
 
 **Functions and methods**
 
@@ -613,7 +613,7 @@ Done 14 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 23
 **Code quality**
 
 - [~] QU01 Dead code: unused struct and function reported; composite-only case not exercised
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [x] ST01 Import graph: edge only, no external (2026-11 check)
