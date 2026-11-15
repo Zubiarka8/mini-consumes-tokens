@@ -250,6 +250,10 @@ struct Walker<'a> {
     /// This file's repository-relative path, the base of relative sources.
     path: &'a str,
     next_id: SymbolId,
+    /// Each `[T]` type literal of one plain name, but `[T]::new()`'s: its
+    /// owner, `T` and where. `finish` keeps those naming one class or enum
+    /// of this file.
+    type_uses: Vec<(SymbolId, String, Location)>,
 }
 
 impl<'a> Walker<'a> {
@@ -418,6 +422,19 @@ impl<'a> Walker<'a> {
                 // are still picked up.
                 self.visit_children(node, owner, scope_name, module_id, depth + 1);
             }
+            "type_literal" => {
+                let constructs = node
+                    .parent()
+                    .and_then(|p| static_new_class(p, self.source))
+                    .is_some();
+                if let (false, Some(name)) = (constructs, plain_type_name(node, self.source)) {
+                    self.type_uses.push((
+                        owner,
+                        text(name, self.source).to_string(),
+                        location(name),
+                    ));
+                }
+            }
             "invokation_expression" => {
                 if let Some(class) = static_new_class(node, self.source) {
                     self.push_construction(owner, class);
@@ -493,6 +510,12 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::method_detail(member, id, self.source));
+                // The return and parameter types are the method's too.
+                mct_tree_sitter::for_each_child(member, |part| {
+                    if part.kind() != "script_block" {
+                        self.visit(part, id, &name, module_id, depth + 1);
+                    }
+                });
                 if let Some(block) = find_child(member, "script_block") {
                     self.visit_children(block, id, &name, module_id, depth + 1);
                 }
@@ -563,7 +586,31 @@ impl<'a> Walker<'a> {
         });
     }
 
-    fn finish(self) -> ParsedFile {
+    fn finish(mut self) -> ParsedFile {
+        // A script class is visible in another file only through `using
+        // module`, so a `[T]` reaches a class or enum of this file or none.
+        // PowerShell type names ignore case.
+        // The target is that type, never a method or field named like it.
+        let types: Vec<(String, SymbolKind)> = self
+            .symbols
+            .iter()
+            .filter(|s| matches!(s.kind, SymbolKind::Class | SymbolKind::Enum))
+            .map(|s| (s.name.clone(), s.kind))
+            .collect();
+        for (owner, name, loc) in std::mem::take(&mut self.type_uses) {
+            let mut declared = types.iter().filter(|(t, _)| t.eq_ignore_ascii_case(&name));
+            let (Some((declared, kind)), None) = (declared.next(), declared.next()) else {
+                continue;
+            };
+            let relation = self.relations.len();
+            self.push_relation(owner, RelationKind::References, declared.clone(), loc);
+            self.relation_targets.push(RelationTarget {
+                relation,
+                path: Some(self.path.to_string()),
+                kind: Some(*kind),
+                ..Default::default()
+            });
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
@@ -618,6 +665,13 @@ fn static_new_class<'a>(node: Node<'a>, source: &str) -> Option<Node<'a>> {
     if !text(member, source).eq_ignore_ascii_case("new") {
         return None;
     }
+    plain_type_name(literal, source)
+}
+
+/// The `type_identifier` of a type literal of one plain identifier
+/// (`[Spot]`), as a script class or enum is named; a dotted or generic type
+/// is .NET's.
+fn plain_type_name<'a>(literal: Node<'a>, source: &str) -> Option<Node<'a>> {
     let type_name = find_child(find_child(literal, "type_spec")?, "type_name")?;
     if type_name.named_child_count() != 1 {
         return None;
