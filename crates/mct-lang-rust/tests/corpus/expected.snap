@@ -97,31 +97,31 @@ S 260-260 variable with_retry::v
 S 261-261 variable with_retry::e
 S 265-265 variable with_retry::e
 S 274-397 module tests
-S 278-291 function codes_are_stable
-S 294-302 function retry_gives_up_on_non_retryable
+S 278-291 function tests::codes_are_stable
+S 294-302 function tests::retry_gives_up_on_non_retryable
 S 295-295 variable retry_gives_up_on_non_retryable::calls
 S 296-296 variable retry_gives_up_on_non_retryable::result
-S 305-317 function retry_succeeds_after_conflict
+S 305-317 function tests::retry_succeeds_after_conflict
 S 306-306 variable retry_succeeds_after_conflict::result
 S 306-306 variable retry_succeeds_after_conflict::attempt
-S 320-324 function bounded_helpers_reject_out_of_range
-S 327-335 function audit_log_respects_threshold
+S 320-324 function tests::bounded_helpers_reject_out_of_range
+S 327-335 function tests::audit_log_respects_threshold
 S 328-328 variable audit_log_respects_threshold::log
 S 332-332 variable audit_log_respects_threshold::entries
-S 338-347 function display_mentions_numbers
+S 338-347 function tests::display_mentions_numbers
 S 339-339 variable display_mentions_numbers::e
 S 344-344 variable display_mentions_numbers::text
-S 350-355 function io_errors_become_storage_errors
+S 350-355 function tests::io_errors_become_storage_errors
 S 351-351 variable io_errors_become_storage_errors::io
 S 352-352 variable io_errors_become_storage_errors::e
-S 358-361 function parse_errors_become_validation_errors
+S 358-361 function tests::parse_errors_become_validation_errors
 S 359-359 variable parse_errors_become_validation_errors::e
-S 364-368 function error_count_increases_on_report
+S 364-368 function tests::error_count_increases_on_report
 S 365-365 variable error_count_increases_on_report::before
-S 371-382 function severity_tags
+S 371-382 function tests::severity_tags
 S 372-372 variable severity_tags::tags
 S 379-379 variable severity_tags::s
-S 385-396 function filtered_keeps_order
+S 385-396 function tests::filtered_keeps_order
 S 386-386 variable filtered_keeps_order::log
 S 390-390 variable filtered_keeps_order::kept
 S 393-393 variable filtered_keeps_order::e
@@ -287,107 +287,107 @@ R 269:10 calls with_retry -> unwrap_or_else
 R 269:44 calls with_retry -> storage
 R 269:28 references with_retry -> InventoryError
 R 277:5 references tests -> codes_are_stable
-R 280:29 references codes_are_stable -> Validation
-R 280:44 references codes_are_stable -> into
-R 280:52 references codes_are_stable -> code
-R 288:14 references codes_are_stable -> code
+R 280:29 references tests::codes_are_stable -> Validation
+R 280:44 references tests::codes_are_stable -> into
+R 280:52 references tests::codes_are_stable -> code
+R 288:14 references tests::codes_are_stable -> code
 R 293:5 references tests -> retry_gives_up_on_non_retryable
-R 296:21 references retry_gives_up_on_non_retryable -> Result
-R 296:34 calls retry_gives_up_on_non_retryable -> with_retry
-R 298:13 calls retry_gives_up_on_non_retryable -> Err
-R 298:33 calls retry_gives_up_on_non_retryable -> Validation
-R 298:17 references retry_gives_up_on_non_retryable -> InventoryError
-R 298:51 calls retry_gives_up_on_non_retryable -> into
-R 300:24 references retry_gives_up_on_non_retryable -> is_err
+R 296:21 references tests::retry_gives_up_on_non_retryable -> Result
+R 296:34 calls tests::retry_gives_up_on_non_retryable -> with_retry
+R 298:13 calls tests::retry_gives_up_on_non_retryable -> Err
+R 298:33 calls tests::retry_gives_up_on_non_retryable -> Validation
+R 298:17 references tests::retry_gives_up_on_non_retryable -> InventoryError
+R 298:51 calls tests::retry_gives_up_on_non_retryable -> into
+R 300:24 references tests::retry_gives_up_on_non_retryable -> is_err
 R 304:5 references tests -> retry_succeeds_after_conflict
-R 306:22 calls retry_succeeds_after_conflict -> with_retry
-R 308:17 calls retry_succeeds_after_conflict -> Err
-R 308:37 references retry_succeeds_after_conflict -> Conflict
-R 308:21 references retry_succeeds_after_conflict -> InventoryError
-R 313:17 calls retry_succeeds_after_conflict -> Ok
+R 306:22 calls tests::retry_succeeds_after_conflict -> with_retry
+R 308:17 calls tests::retry_succeeds_after_conflict -> Err
+R 308:37 references tests::retry_succeeds_after_conflict -> Conflict
+R 308:21 references tests::retry_succeeds_after_conflict -> InventoryError
+R 313:17 calls tests::retry_succeeds_after_conflict -> Ok
 R 319:5 references tests -> bounded_helpers_reject_out_of_range
-R 321:35 references bounded_helpers_reject_out_of_range -> is_err
-R 322:35 references bounded_helpers_reject_out_of_range -> is_ok
-R 323:37 references bounded_helpers_reject_out_of_range -> is_err
+R 321:35 references tests::bounded_helpers_reject_out_of_range -> is_err
+R 322:35 references tests::bounded_helpers_reject_out_of_range -> is_ok
+R 323:37 references tests::bounded_helpers_reject_out_of_range -> is_err
 R 326:5 references tests -> audit_log_respects_threshold
-R 328:29 calls audit_log_respects_threshold -> with_threshold
-R 328:19 references audit_log_respects_threshold -> AuditLog
-R 328:54 references audit_log_respects_threshold -> Warning
-R 328:44 references audit_log_respects_threshold -> Severity
-R 329:13 calls audit_log_respects_threshold -> push
-R 329:28 references audit_log_respects_threshold -> Info
-R 329:18 references audit_log_respects_threshold -> Severity
-R 330:13 calls audit_log_respects_threshold -> push
-R 330:28 references audit_log_respects_threshold -> Error
-R 330:18 references audit_log_respects_threshold -> Severity
-R 331:24 references audit_log_respects_threshold -> len
-R 332:27 calls audit_log_respects_threshold -> drain
-R 333:20 references audit_log_respects_threshold -> format_entry
-R 334:21 references audit_log_respects_threshold -> is_empty
+R 328:29 calls tests::audit_log_respects_threshold -> with_threshold
+R 328:19 references tests::audit_log_respects_threshold -> AuditLog
+R 328:54 references tests::audit_log_respects_threshold -> Warning
+R 328:44 references tests::audit_log_respects_threshold -> Severity
+R 329:13 calls tests::audit_log_respects_threshold -> push
+R 329:28 references tests::audit_log_respects_threshold -> Info
+R 329:18 references tests::audit_log_respects_threshold -> Severity
+R 330:13 calls tests::audit_log_respects_threshold -> push
+R 330:28 references tests::audit_log_respects_threshold -> Error
+R 330:18 references tests::audit_log_respects_threshold -> Severity
+R 331:24 references tests::audit_log_respects_threshold -> len
+R 332:27 calls tests::audit_log_respects_threshold -> drain
+R 333:20 references tests::audit_log_respects_threshold -> format_entry
+R 334:21 references tests::audit_log_respects_threshold -> is_empty
 R 337:5 references tests -> display_mentions_numbers
-R 339:33 references display_mentions_numbers -> InsufficientStock
-R 339:17 references display_mentions_numbers -> InventoryError
-R 340:22 calls display_mentions_numbers -> ProductId (name-matched: model.rs)
-R 344:22 calls display_mentions_numbers -> to_string
-R 345:22 references display_mentions_numbers -> contains
-R 346:22 references display_mentions_numbers -> contains
+R 339:33 references tests::display_mentions_numbers -> InsufficientStock
+R 339:17 references tests::display_mentions_numbers -> InventoryError
+R 340:22 calls tests::display_mentions_numbers -> ProductId (name-matched: model.rs)
+R 344:22 calls tests::display_mentions_numbers -> to_string
+R 345:22 references tests::display_mentions_numbers -> contains
+R 346:22 references tests::display_mentions_numbers -> contains
 R 349:5 references tests -> io_errors_become_storage_errors
-R 351:34 calls io_errors_become_storage_errors -> new
-R 351:27 references io_errors_become_storage_errors -> Error
-R 351:58 references io_errors_become_storage_errors -> Other
-R 351:47 references io_errors_become_storage_errors -> ErrorKind
-R 352:16 references io_errors_become_storage_errors -> InventoryError
-R 352:36 calls io_errors_become_storage_errors -> into
-R 353:19 references io_errors_become_storage_errors -> is_retryable
-R 354:22 references io_errors_become_storage_errors -> code
+R 351:34 calls tests::io_errors_become_storage_errors -> new
+R 351:27 references tests::io_errors_become_storage_errors -> Error
+R 351:58 references tests::io_errors_become_storage_errors -> Other
+R 351:47 references tests::io_errors_become_storage_errors -> ErrorKind
+R 352:16 references tests::io_errors_become_storage_errors -> InventoryError
+R 352:36 calls tests::io_errors_become_storage_errors -> into
+R 353:19 references tests::io_errors_become_storage_errors -> is_retryable
+R 354:22 references tests::io_errors_become_storage_errors -> code
 R 357:5 references tests -> parse_errors_become_validation_errors
-R 359:16 references parse_errors_become_validation_errors -> InventoryError
-R 359:65 calls parse_errors_become_validation_errors -> into
-R 359:52 calls parse_errors_become_validation_errors -> unwrap_err
-R 359:37 calls parse_errors_become_validation_errors -> parse
-R 360:22 references parse_errors_become_validation_errors -> code
+R 359:16 references tests::parse_errors_become_validation_errors -> InventoryError
+R 359:65 calls tests::parse_errors_become_validation_errors -> into
+R 359:52 calls tests::parse_errors_become_validation_errors -> unwrap_err
+R 359:37 calls tests::parse_errors_become_validation_errors -> parse
+R 360:22 references tests::parse_errors_become_validation_errors -> code
 R 363:5 references tests -> error_count_increases_on_report
-R 365:22 calls error_count_increases_on_report -> error_count
-R 366:62 calls error_count_increases_on_report -> report
-R 366:33 calls error_count_increases_on_report -> UnknownProduct
-R 366:17 references error_count_increases_on_report -> InventoryError
-R 366:48 calls error_count_increases_on_report -> ProductId (name-matched: model.rs)
-R 367:17 references error_count_increases_on_report -> error_count
+R 365:22 calls tests::error_count_increases_on_report -> error_count
+R 366:62 calls tests::error_count_increases_on_report -> report
+R 366:33 calls tests::error_count_increases_on_report -> UnknownProduct
+R 366:17 references tests::error_count_increases_on_report -> InventoryError
+R 366:48 calls tests::error_count_increases_on_report -> ProductId (name-matched: model.rs)
+R 367:17 references tests::error_count_increases_on_report -> error_count
 R 370:5 references tests -> severity_tags
-R 372:19 references severity_tags -> Vec
-R 372:23 references severity_tags -> _
-R 380:10 calls severity_tags -> collect
-R 379:10 calls severity_tags -> map (name-matched: model.rs)
-R 378:10 calls severity_tags -> iter (name-matched: main.rs)
-R 373:23 references severity_tags -> Debug
-R 373:13 references severity_tags -> Severity
-R 374:23 references severity_tags -> Info
-R 374:13 references severity_tags -> Severity
-R 375:23 references severity_tags -> Warning
-R 375:13 references severity_tags -> Severity
-R 376:23 references severity_tags -> Error
-R 376:13 references severity_tags -> Severity
-R 379:20 calls severity_tags -> tag
+R 372:19 references tests::severity_tags -> Vec
+R 372:23 references tests::severity_tags -> _
+R 380:10 calls tests::severity_tags -> collect
+R 379:10 calls tests::severity_tags -> map (name-matched: model.rs)
+R 378:10 calls tests::severity_tags -> iter (name-matched: main.rs)
+R 373:23 references tests::severity_tags -> Debug
+R 373:13 references tests::severity_tags -> Severity
+R 374:23 references tests::severity_tags -> Info
+R 374:13 references tests::severity_tags -> Severity
+R 375:23 references tests::severity_tags -> Warning
+R 375:13 references tests::severity_tags -> Severity
+R 376:23 references tests::severity_tags -> Error
+R 376:13 references tests::severity_tags -> Severity
+R 379:20 calls tests::severity_tags -> tag
 R 384:5 references tests -> filtered_keeps_order
-R 386:29 calls filtered_keeps_order -> new
-R 386:19 references filtered_keeps_order -> AuditLog
-R 387:13 calls filtered_keeps_order -> push
-R 387:28 references filtered_keeps_order -> Error
-R 387:18 references filtered_keeps_order -> Severity
-R 388:13 calls filtered_keeps_order -> push
-R 388:28 references filtered_keeps_order -> Debug
-R 388:18 references filtered_keeps_order -> Severity
-R 389:13 calls filtered_keeps_order -> push
-R 389:28 references filtered_keeps_order -> Warning
-R 389:18 references filtered_keeps_order -> Severity
-R 390:19 references filtered_keeps_order -> Vec
-R 390:23 references filtered_keeps_order -> _
-R 394:14 calls filtered_keeps_order -> collect
-R 393:14 calls filtered_keeps_order -> map (name-matched: model.rs)
-R 392:14 calls filtered_keeps_order -> into_iter
-R 391:14 calls filtered_keeps_order -> filtered
-R 391:33 references filtered_keeps_order -> Warning
-R 391:23 references filtered_keeps_order -> Severity
+R 386:29 calls tests::filtered_keeps_order -> new
+R 386:19 references tests::filtered_keeps_order -> AuditLog
+R 387:13 calls tests::filtered_keeps_order -> push
+R 387:28 references tests::filtered_keeps_order -> Error
+R 387:18 references tests::filtered_keeps_order -> Severity
+R 388:13 calls tests::filtered_keeps_order -> push
+R 388:28 references tests::filtered_keeps_order -> Debug
+R 388:18 references tests::filtered_keeps_order -> Severity
+R 389:13 calls tests::filtered_keeps_order -> push
+R 389:28 references tests::filtered_keeps_order -> Warning
+R 389:18 references tests::filtered_keeps_order -> Severity
+R 390:19 references tests::filtered_keeps_order -> Vec
+R 390:23 references tests::filtered_keeps_order -> _
+R 394:14 calls tests::filtered_keeps_order -> collect
+R 393:14 calls tests::filtered_keeps_order -> map (name-matched: model.rs)
+R 392:14 calls tests::filtered_keeps_order -> into_iter
+R 391:14 calls tests::filtered_keeps_order -> filtered
+R 391:33 references tests::filtered_keeps_order -> Warning
+R 391:23 references tests::filtered_keeps_order -> Severity
 
 == main.rs (310 lines)
 S 1-310 module main
@@ -484,17 +484,17 @@ S 251-251 variable main::args
 S 253-253 variable main::text
 S 257-257 variable main::err
 S 269-310 module tests
-S 272-274 function args
+S 272-274 function tests::args
 S 272-272 variable args::list
 S 273-273 variable args::s
-S 277-287 function parses_add_with_box_unit
+S 277-287 function tests::parses_add_with_box_unit
 S 278-278 variable parses_add_with_box_unit::cmd
-S 290-292 function empty_command_line_is_help
-S 295-297 function unknown_flag_is_rejected
-S 300-304 function snapshot_flag_takes_a_value
+S 290-292 function tests::empty_command_line_is_help
+S 295-297 function tests::unknown_flag_is_rejected
+S 300-304 function tests::snapshot_flag_takes_a_value
 S 301-301 variable snapshot_flag_takes_a_value::opts
 S 301-301 variable snapshot_flag_takes_a_value::rest
-S 307-309 function category_tree_has_unicode_leaf
+S 307-309 function tests::category_tree_has_unicode_leaf
 R 11:1 imports main -> errors
 R 12:1 imports main -> model
 R 13:1 imports main -> report
@@ -745,33 +745,33 @@ R 260:16 calls main -> error_count (name-matched: errors.rs)
 R 261:51 calls main -> error_count (name-matched: errors.rs)
 R 263:23 calls main -> from
 R 263:13 references main -> ExitCode
-R 272:31 references args -> Vec
-R 272:35 references args -> String
-R 273:44 calls args -> collect
-R 273:21 calls args -> map (name-matched: model.rs)
-R 273:14 calls args -> iter
-R 273:31 calls args -> to_string
+R 272:31 references tests::args -> Vec
+R 272:35 references tests::args -> String
+R 273:44 calls tests::args -> collect
+R 273:21 calls tests::args -> map (name-matched: model.rs)
+R 273:14 calls tests::args -> iter
+R 273:31 calls tests::args -> to_string
 R 276:5 references tests -> parses_add_with_box_unit
-R 278:73 calls parses_add_with_box_unit -> unwrap
-R 278:19 calls parses_add_with_box_unit -> parse_command
-R 278:34 calls parses_add_with_box_unit -> args
-R 283:31 references parses_add_with_box_unit -> into
-R 284:29 references parses_add_with_box_unit -> Box (name-matched: model.rs)
+R 278:73 calls tests::parses_add_with_box_unit -> unwrap
+R 278:19 calls tests::parses_add_with_box_unit -> parse_command
+R 278:34 calls tests::parses_add_with_box_unit -> args
+R 283:31 references tests::parses_add_with_box_unit -> into
+R 284:29 references tests::parses_add_with_box_unit -> Box (name-matched: model.rs)
 R 289:5 references tests -> empty_command_line_is_help
-R 291:20 references empty_command_line_is_help -> parse_command
-R 291:39 references empty_command_line_is_help -> unwrap
+R 291:20 references tests::empty_command_line_is_help -> parse_command
+R 291:39 references tests::empty_command_line_is_help -> unwrap
 R 294:5 references tests -> unknown_flag_is_rejected
-R 296:17 references unknown_flag_is_rejected -> split_options
-R 296:31 references unknown_flag_is_rejected -> args
-R 296:50 references unknown_flag_is_rejected -> is_err
+R 296:17 references tests::unknown_flag_is_rejected -> split_options
+R 296:31 references tests::unknown_flag_is_rejected -> args
+R 296:50 references tests::unknown_flag_is_rejected -> is_err
 R 299:5 references tests -> snapshot_flag_takes_a_value
-R 301:84 calls snapshot_flag_takes_a_value -> unwrap
-R 301:28 calls snapshot_flag_takes_a_value -> split_options
-R 301:42 calls snapshot_flag_takes_a_value -> args
+R 301:84 calls tests::snapshot_flag_takes_a_value -> unwrap
+R 301:28 calls tests::snapshot_flag_takes_a_value -> split_options
+R 301:42 calls tests::snapshot_flag_takes_a_value -> args
 R 306:5 references tests -> category_tree_has_unicode_leaf
-R 308:17 references category_tree_has_unicode_leaf -> default_categories
-R 308:38 references category_tree_has_unicode_leaf -> find (name-matched: model.rs)
-R 308:52 references category_tree_has_unicode_leaf -> is_some
+R 308:17 references tests::category_tree_has_unicode_leaf -> default_categories
+R 308:38 references tests::category_tree_has_unicode_leaf -> find (name-matched: model.rs)
+R 308:52 references tests::category_tree_has_unicode_leaf -> is_some
 
 == model.rs (407 lines)
 S 1-407 module model
@@ -912,7 +912,7 @@ S 343-343 variable map::f
 S 352-352 type_alias StockRecord
 S 355-355 type_alias Catalog
 S 358-391 module dimensions
-S 361-365 struct Size
+S 361-365 struct dimensions::Size
 S 362-362 field Size::width
 S 363-363 field Size::height
 S 364-364 field Size::depth
@@ -924,12 +924,12 @@ S 379-379 variable fits_in::mine
 S 380-380 variable fits_in::theirs
 S 383-383 variable fits_in::a
 S 383-383 variable fits_in::b
-S 388-390 function stacked_volume
+S 388-390 function dimensions::stacked_volume
 S 388-388 variable stacked_volume::size
 S 388-388 variable stacked_volume::n
 S 394-407 module tests
-S 398-400 function sku_is_zero_padded
-S 403-406 function unicode_names_are_accepted
+S 398-400 function tests::sku_is_zero_padded
+S 403-406 function tests::unicode_names_are_accepted
 S 404-404 variable unicode_names_are_accepted::p
 R 4:23 imports model -> BTreeMap
 R 5:22 imports model -> Display
@@ -1159,11 +1159,11 @@ R 352:34 references StockRecord -> StockLevel
 R 355:20 references Catalog -> BTreeMap
 R 355:29 references Catalog -> ProductId
 R 355:40 references Catalog -> Product
-R 360:14 references Size -> Debug (name-matched: errors.rs)
-R 360:21 references Size -> Clone
-R 360:28 references Size -> Copy
-R 360:34 references Size -> PartialEq
-R 360:45 references Size -> Eq
+R 360:14 references dimensions::Size -> Debug (name-matched: errors.rs)
+R 360:21 references dimensions::Size -> Clone
+R 360:28 references dimensions::Size -> Copy
+R 360:34 references dimensions::Size -> PartialEq
+R 360:45 references dimensions::Size -> Eq
 R 368:25 references Size::ZERO -> Size
 R 368:32 references Size::ZERO -> Size
 R 375:18 calls Size::volume -> from
@@ -1176,18 +1176,18 @@ R 383:44 calls Size::fits_in -> all (name-matched: storage.rs)
 R 383:25 calls Size::fits_in -> zip
 R 383:18 calls Size::fits_in -> iter (name-matched: main.rs)
 R 383:36 calls Size::fits_in -> iter (name-matched: main.rs)
-R 388:34 references stacked_volume -> Size
-R 389:14 calls stacked_volume -> volume
-R 389:30 calls stacked_volume -> from
+R 388:34 references dimensions::stacked_volume -> Size
+R 389:14 calls dimensions::stacked_volume -> volume
+R 389:30 calls dimensions::stacked_volume -> from
 R 397:5 references tests -> sku_is_zero_padded
-R 399:20 references sku_is_zero_padded -> make_sku
+R 399:20 references tests::sku_is_zero_padded -> make_sku
 R 402:5 references tests -> unicode_names_are_accepted
-R 404:26 calls unicode_names_are_accepted -> new
-R 404:17 references unicode_names_are_accepted -> Product
-R 404:30 calls unicode_names_are_accepted -> ProductId
-R 404:75 references unicode_names_are_accepted -> Kilogram
-R 404:69 references unicode_names_are_accepted -> Unit
-R 405:19 references unicode_names_are_accepted -> is_ok
+R 404:26 calls tests::unicode_names_are_accepted -> new
+R 404:17 references tests::unicode_names_are_accepted -> Product
+R 404:30 calls tests::unicode_names_are_accepted -> ProductId
+R 404:75 references tests::unicode_names_are_accepted -> Kilogram
+R 404:69 references tests::unicode_names_are_accepted -> Unit
+R 405:19 references tests::unicode_names_are_accepted -> is_ok
 
 == report.rs (341 lines)
 S 1-341 module report
@@ -1319,8 +1319,8 @@ S 314-314 variable shelf_usage::capacity
 S 315-315 variable shelf_usage::percent
 S 316-316 variable shelf_usage::bar_len
 S 327-341 module tests
-S 331-334 function pads_by_characters
-S 337-340 function truncates_with_ellipsis
+S 331-334 function tests::pads_by_characters
+S 337-340 function tests::truncates_with_ellipsis
 R 4:18 imports report -> Cow
 R 5:23 imports report -> BTreeMap
 R 6:24 imports report -> _
@@ -1640,11 +1640,11 @@ R 319:13 references shelf_usage -> repeat
 R 320:13 references shelf_usage -> repeat
 R 322:14 references shelf_usage -> fits_in (name-matched: model.rs)
 R 330:5 references tests -> pads_by_characters
-R 332:20 references pads_by_characters -> pad
-R 333:20 references pads_by_characters -> pad
+R 332:20 references tests::pads_by_characters -> pad
+R 333:20 references tests::pads_by_characters -> pad
 R 336:5 references tests -> truncates_with_ellipsis
-R 338:20 references truncates_with_ellipsis -> truncate
-R 339:20 references truncates_with_ellipsis -> truncate
+R 338:20 references tests::truncates_with_ellipsis -> truncate
+R 339:20 references tests::truncates_with_ellipsis -> truncate
 
 == service.rs (362 lines)
 S 1-362 module service
@@ -2163,18 +2163,18 @@ S 301-301 variable unescape::chars
 S 302-302 variable unescape::c
 S 310-310 variable unescape::other
 S 318-362 module tests
-S 321-323 function product
+S 321-323 function tests::product
 S 321-321 variable product::id
-S 326-333 function memory_repository_round_trip
+S 326-333 function tests::memory_repository_round_trip
 S 327-327 variable memory_repository_round_trip::repo
-S 336-348 function stale_version_is_a_conflict
+S 336-348 function tests::stale_version_is_a_conflict
 S 337-337 variable stale_version_is_a_conflict::table
 S 338-338 variable stale_version_is_a_conflict::v
 S 339-339 variable stale_version_is_a_conflict::l
 S 344-344 variable stale_version_is_a_conflict::err
-S 351-354 function escape_round_trips
+S 351-354 function tests::escape_round_trips
 S 352-352 variable escape_round_trips::raw
-S 357-361 function units_round_trip
+S 357-361 function tests::units_round_trip
 S 358-358 variable units_round_trip::unit
 R 4:23 imports storage -> HashMap
 R 5:14 imports storage -> File
@@ -2446,56 +2446,56 @@ R 308:30 calls unescape -> push (name-matched: errors.rs)
 R 309:30 calls unescape -> push (name-matched: errors.rs)
 R 310:32 calls unescape -> push (name-matched: errors.rs)
 R 311:25 calls unescape -> push (name-matched: errors.rs)
-R 321:28 references product -> Product (name-matched: model.rs)
-R 322:73 calls product -> unwrap
-R 322:18 calls product -> new
-R 322:9 references product -> Product (name-matched: model.rs)
-R 322:22 calls product -> ProductId (name-matched: model.rs)
-R 322:66 references product -> Piece (name-matched: model.rs)
-R 322:60 references product -> Unit (name-matched: model.rs)
+R 321:28 references tests::product -> Product (name-matched: model.rs)
+R 322:73 calls tests::product -> unwrap
+R 322:18 calls tests::product -> new
+R 322:9 references tests::product -> Product (name-matched: model.rs)
+R 322:22 calls tests::product -> ProductId (name-matched: model.rs)
+R 322:66 references tests::product -> Piece (name-matched: model.rs)
+R 322:60 references tests::product -> Unit (name-matched: model.rs)
 R 325:5 references tests -> memory_repository_round_trip
-R 327:42 calls memory_repository_round_trip -> new
-R 327:24 references memory_repository_round_trip -> MemoryRepository
-R 328:47 calls memory_repository_round_trip -> unwrap
-R 328:14 calls memory_repository_round_trip -> extend
-R 328:22 calls memory_repository_round_trip -> product
-R 328:34 calls memory_repository_round_trip -> product
-R 329:25 references memory_repository_round_trip -> count
-R 329:33 references memory_repository_round_trip -> unwrap
-R 330:22 references memory_repository_round_trip -> require
-R 330:30 calls memory_repository_round_trip -> ProductId (name-matched: model.rs)
-R 330:44 references memory_repository_round_trip -> is_ok
-R 331:22 references memory_repository_round_trip -> require
-R 331:30 calls memory_repository_round_trip -> ProductId (name-matched: model.rs)
-R 331:44 references memory_repository_round_trip -> is_err
-R 332:25 references memory_repository_round_trip -> writes
+R 327:42 calls tests::memory_repository_round_trip -> new
+R 327:24 references tests::memory_repository_round_trip -> MemoryRepository
+R 328:47 calls tests::memory_repository_round_trip -> unwrap
+R 328:14 calls tests::memory_repository_round_trip -> extend
+R 328:22 calls tests::memory_repository_round_trip -> product
+R 328:34 calls tests::memory_repository_round_trip -> product
+R 329:25 references tests::memory_repository_round_trip -> count
+R 329:33 references tests::memory_repository_round_trip -> unwrap
+R 330:22 references tests::memory_repository_round_trip -> require
+R 330:30 calls tests::memory_repository_round_trip -> ProductId (name-matched: model.rs)
+R 330:44 references tests::memory_repository_round_trip -> is_ok
+R 331:22 references tests::memory_repository_round_trip -> require
+R 331:30 calls tests::memory_repository_round_trip -> ProductId (name-matched: model.rs)
+R 331:44 references tests::memory_repository_round_trip -> is_err
+R 332:25 references tests::memory_repository_round_trip -> writes
 R 335:5 references tests -> stale_version_is_a_conflict
-R 337:33 calls stale_version_is_a_conflict -> new
-R 337:21 references stale_version_is_a_conflict -> StockTable
-R 343:14 calls stale_version_is_a_conflict -> unwrap
-R 339:14 calls stale_version_is_a_conflict -> modify
-R 339:21 calls stale_version_is_a_conflict -> ProductId (name-matched: model.rs)
-R 339:35 calls stale_version_is_a_conflict -> LocationId (name-matched: model.rs)
-R 341:17 calls stale_version_is_a_conflict -> Ok
-R 346:14 calls stale_version_is_a_conflict -> unwrap_err
-R 345:14 calls stale_version_is_a_conflict -> modify
-R 345:21 calls stale_version_is_a_conflict -> ProductId (name-matched: model.rs)
-R 345:35 calls stale_version_is_a_conflict -> LocationId (name-matched: model.rs)
-R 345:50 calls stale_version_is_a_conflict -> Some
-R 345:67 calls stale_version_is_a_conflict -> Ok
-R 347:24 references stale_version_is_a_conflict -> code (name-matched: errors.rs)
+R 337:33 calls tests::stale_version_is_a_conflict -> new
+R 337:21 references tests::stale_version_is_a_conflict -> StockTable
+R 343:14 calls tests::stale_version_is_a_conflict -> unwrap
+R 339:14 calls tests::stale_version_is_a_conflict -> modify
+R 339:21 calls tests::stale_version_is_a_conflict -> ProductId (name-matched: model.rs)
+R 339:35 calls tests::stale_version_is_a_conflict -> LocationId (name-matched: model.rs)
+R 341:17 calls tests::stale_version_is_a_conflict -> Ok
+R 346:14 calls tests::stale_version_is_a_conflict -> unwrap_err
+R 345:14 calls tests::stale_version_is_a_conflict -> modify
+R 345:21 calls tests::stale_version_is_a_conflict -> ProductId (name-matched: model.rs)
+R 345:35 calls tests::stale_version_is_a_conflict -> LocationId (name-matched: model.rs)
+R 345:50 calls tests::stale_version_is_a_conflict -> Some
+R 345:67 calls tests::stale_version_is_a_conflict -> Ok
+R 347:24 references tests::stale_version_is_a_conflict -> code (name-matched: errors.rs)
 R 350:5 references tests -> escape_round_trips
-R 353:20 references escape_round_trips -> unescape
-R 353:30 references escape_round_trips -> escape
+R 353:20 references tests::escape_round_trips -> unescape
+R 353:30 references tests::escape_round_trips -> escape
 R 356:5 references tests -> units_round_trip
-R 358:28 references units_round_trip -> Piece (name-matched: model.rs)
-R 358:22 references units_round_trip -> Unit (name-matched: model.rs)
-R 358:41 references units_round_trip -> Kilogram (name-matched: model.rs)
-R 358:35 references units_round_trip -> Unit (name-matched: model.rs)
-R 358:57 references units_round_trip -> Litre (name-matched: model.rs)
-R 358:51 references units_round_trip -> Unit (name-matched: model.rs)
-R 358:70 calls units_round_trip -> Box (name-matched: model.rs)
-R 358:64 references units_round_trip -> Unit (name-matched: model.rs)
-R 359:24 references units_round_trip -> decode_unit
-R 359:37 references units_round_trip -> encode_unit
-R 359:56 references units_round_trip -> unwrap
+R 358:28 references tests::units_round_trip -> Piece (name-matched: model.rs)
+R 358:22 references tests::units_round_trip -> Unit (name-matched: model.rs)
+R 358:41 references tests::units_round_trip -> Kilogram (name-matched: model.rs)
+R 358:35 references tests::units_round_trip -> Unit (name-matched: model.rs)
+R 358:57 references tests::units_round_trip -> Litre (name-matched: model.rs)
+R 358:51 references tests::units_round_trip -> Unit (name-matched: model.rs)
+R 358:70 calls tests::units_round_trip -> Box (name-matched: model.rs)
+R 358:64 references tests::units_round_trip -> Unit (name-matched: model.rs)
+R 359:24 references tests::units_round_trip -> decode_unit
+R 359:37 references tests::units_round_trip -> encode_unit
+R 359:56 references tests::units_round_trip -> unwrap
