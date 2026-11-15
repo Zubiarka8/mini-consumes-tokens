@@ -674,12 +674,13 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         )),
-        // A call qualified by a type also reaches a method its direct
-        // supertype declares (issue #479): the supertype is the target of an
+        // A call qualified by a type also reaches a method an ancestor
+        // declares (issue #479): each supertype is the target of an
         // `extends`/`implements` relation stored for a type of that name and
-        // language, and the type declares no member of that name itself (an
-        // override shadows what it inherits). One hop: a grandparent's method
-        // stays unresolved. Stored rows are unchanged, so nothing is reparsed.
+        // language, walked up to 8 levels, and the nearest level that
+        // declares a member of that name wins (an override shadows what it
+        // inherits; the type's own members are level 0). Stored rows are
+        // unchanged, so nothing is reparsed.
         M::up(concat!(
             r#"
             DROP VIEW relation_candidates;
@@ -707,18 +708,36 @@ pub fn migrations() -> Migrations<'static> {
                   AND (r.qualifier IS NULL
                        OR s.parent = r.qualifier
                        OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<'
-                       OR (EXISTS (SELECT 1 FROM relations ir
-                                   JOIN symbols t ON t.id = ir.from_symbol_id
-                                   JOIN files tf ON tf.id = t.file_id
-                                   WHERE ir.kind IN ('extends', 'implements')
-                                     AND ir.to_name = s.parent
-                                     AND t.name = r.qualifier
-                                     AND tf.language = sf.language)
+                       OR (r.qualifier IS NOT NULL
+                           AND EXISTS (SELECT 1 FROM relations sr
+                                       WHERE sr.to_name = s.parent
+                                         AND sr.kind IN ('extends', 'implements'))
                            AND NOT EXISTS (SELECT 1 FROM symbols own
                                            JOIN files ownf ON ownf.id = own.file_id
                                            WHERE own.name = r.to_name
                                              AND own.parent = r.qualifier
-                                             AND ownf.language = sf.language)))
+                                             AND ownf.language = sf.language)
+                           AND s.parent IN (
+                           WITH RECURSIVE ancestors(name, depth) AS (
+                               SELECT r.qualifier, 0
+                               UNION
+                               SELECT ir.to_name, a.depth + 1
+                               FROM ancestors a
+                               JOIN symbols t ON t.name = a.name
+                               JOIN files tf ON tf.id = t.file_id
+                                            AND tf.language = sf.language
+                               JOIN relations ir ON ir.from_symbol_id = t.id
+                                                AND ir.kind IN ('extends', 'implements')
+                               WHERE a.depth < 8
+                           )
+                           SELECT a.name FROM ancestors a
+                           WHERE a.depth > 0
+                             AND NOT EXISTS (SELECT 1 FROM ancestors b
+                                             JOIN symbols own ON own.parent = b.name
+                                                             AND own.name = r.to_name
+                                             JOIN files ownf ON ownf.id = own.file_id
+                                                            AND ownf.language = sf.language
+                                             WHERE b.depth < a.depth))))
                   AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
                   AND (r.module IS NULL
                        OR s.parent = r.module
@@ -995,11 +1014,11 @@ mod tests {
     }
 
     /// Migration 18 (ADR-037): a type-qualified relation also reaches a
-    /// method of a direct supertype the index records for that type, unless
-    /// the type declares a member of that name itself. Applied to an index
+    /// method of an ancestor the index records for that type, unless the
+    /// type or a nearer ancestor declares a member of that name. Applied to an index
     /// that already holds the data, with no reparse.
     #[test]
-    fn inherited_member_migration_reaches_only_a_recorded_direct_supertype(
+    fn inherited_member_migration_reaches_only_a_recorded_ancestor(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut conn = Connection::open_in_memory()?;
         crate::search::register_functions(&conn)?;
@@ -1043,7 +1062,10 @@ mod tests {
             [5],
             "Child's own Find shadows Base's"
         );
-        assert!(candidates(&conn, 5)?.is_empty(), "no recorded supertype");
+        assert!(
+            candidates(&conn, 5)?.is_empty(),
+            "Grand is no recorded ancestor"
+        );
         assert!(
             candidates(&conn, 6)?.is_empty(),
             "a Java type's supertype is no C# method's"

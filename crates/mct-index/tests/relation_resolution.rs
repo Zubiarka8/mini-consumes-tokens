@@ -556,26 +556,58 @@ fn a_method_the_type_declares_shadows_its_supertype_s() {
 }
 
 #[test]
+fn an_ancestor_s_method_is_reached_unless_a_nearer_type_declares_it() {
+    let (_dir, index) = index_of(&[(
+        "a.a",
+        "def Grand\n\
+         def old in Grand\n\
+         def shared in Grand\n\
+         def Middle extends Grand\n\
+         def shared in Middle\n\
+         def Child extends Middle\n\
+         def far calls old q=Child\n\
+         def near calls shared q=Child\n",
+    )]);
+    assert_eq!(
+        resolved_call(&index, "far"),
+        (Resolution::Resolved, Some((2, Some("Grand".to_string()))))
+    );
+    assert_eq!(
+        resolved_call(&index, "near"),
+        (Resolution::Resolved, Some((5, Some("Middle".to_string()))))
+    );
+}
+
+#[test]
+fn an_inheritance_cycle_ends_the_walk() {
+    let (_dir, index) = index_of(&[(
+        "a.a",
+        "def A extends B\n\
+         def B extends A\n\
+         def main calls missing q=A\n",
+    )]);
+    assert_eq!(
+        resolved_call(&index, "main"),
+        (Resolution::Unresolved, None)
+    );
+}
+
+#[test]
 fn a_supertype_is_only_one_the_index_records_for_that_type() {
-    // No inheritance relation; a grandparent (one hop further); and a
-    // same-named type of another language that extends `Base`.
+    // No inheritance relation; and a same-named type of another language
+    // that extends `Base`.
     let (_dir, index) = index_of(&[
         (
             "a.a",
             "def Base\n\
              def find in Base\n\
-             def Grand\n\
-             def old in Grand\n\
-             def Middle extends Grand\n\
-             def Child extends Middle\n\
              def Loner\n\
              def alone calls find q=Loner\n\
-             def far calls old q=Child\n\
              def foreign calls find q=Other\n",
         ),
         ("b.b", "def Other extends Base\n"),
     ]);
-    for from in ["alone", "far", "foreign"] {
+    for from in ["alone", "foreign"] {
         assert_eq!(
             resolved_call(&index, from),
             (Resolution::Unresolved, None),
