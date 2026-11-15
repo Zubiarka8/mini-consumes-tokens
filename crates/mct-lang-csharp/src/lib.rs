@@ -528,6 +528,17 @@ impl<'a> Walker<'a> {
                 _ => RelationKind::Implements,
             };
             first = false;
+            // An `Extends` entry is a base class; every other entry is an
+            // interface. Neither is a constructor spelled like it.
+            let target_kind = match relation_kind {
+                RelationKind::Extends if kind != SymbolKind::Interface => SymbolKind::Class,
+                _ => SymbolKind::Interface,
+            };
+            self.relation_targets.push(RelationTarget {
+                relation: self.relations.len(),
+                kind: Some(target_kind),
+                ..Default::default()
+            });
             self.push_relation(id, relation_kind, base, location(type_node));
         }
     }
