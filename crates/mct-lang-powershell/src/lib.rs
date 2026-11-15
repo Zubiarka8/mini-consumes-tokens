@@ -35,7 +35,9 @@
 //!   body runs. A command invocation names a function, cmdlet or executable,
 //!   never a method, so its target must be a `Function`. `[T]::new(…)` and
 //!   `New-Object T` construct a class: `calls T`, whose target must be a
-//!   `Class` (a dotted or generic `T` is a .NET type, and gives none).
+//!   `Class` (a dotted or generic `T` is a .NET type, and gives none). A
+//!   class's first base is `Extends` unless it is named like an interface
+//!   (`IFoo`), as in C#; the rest are `Implements`.
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
@@ -164,6 +166,15 @@ fn normalize_identifier_comma_arguments(
         changed |= normalize_identifier_comma_arguments(child, source, normalized, depth + 1);
     }
     changed
+}
+
+/// `IFoo`: an `I`, an upper-case letter, then a lower-case one — the .NET
+/// naming convention for interfaces (`IO` or `ID` alone don't match).
+fn looks_like_interface(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next() == Some('I')
+        && chars.next().is_some_and(char::is_uppercase)
+        && chars.next().is_some_and(char::is_lowercase)
 }
 
 fn simple_identifier(value: &str) -> bool {
@@ -449,6 +460,7 @@ impl<'a> Walker<'a> {
         );
         self.details
             .push(details::header_detail(node, class_id, self.source));
+        self.push_bases(node, name_node, class_id);
         mct_tree_sitter::for_each_child(node, |member| match member.kind() {
             "class_property_definition" => {
                 let Some(variable) = find_child(member, "variable") else {
@@ -487,6 +499,36 @@ impl<'a> Walker<'a> {
             }
             _ => {}
         });
+    }
+
+    /// The base list after the class's name: the base class first, then
+    /// interfaces. As in C#, a first base named like an interface (`IFoo`)
+    /// is one. A script declares no interface, so an `extends` target must
+    /// be a `Class` and an `implements` one an `Interface`.
+    fn push_bases(&mut self, node: Node, name_node: Node, class_id: SymbolId) {
+        let mut cursor = node.walk();
+        let bases: Vec<Node> = node
+            .named_children(&mut cursor)
+            .filter(|c| c.kind() == "simple_name" && c.id() != name_node.id())
+            .collect();
+        for (i, base) in bases.into_iter().enumerate() {
+            let name = text(base, self.source).trim().to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let (kind, target) = if i == 0 && !looks_like_interface(&name) {
+                (RelationKind::Extends, SymbolKind::Class)
+            } else {
+                (RelationKind::Implements, SymbolKind::Interface)
+            };
+            let relation = self.relations.len();
+            self.push_relation(class_id, kind, name, location(base));
+            self.relation_targets.push(RelationTarget {
+                relation,
+                kind: Some(target),
+                ..Default::default()
+            });
+        }
     }
 
     /// `enum Name { A; B = 2 }`: each `enum_member` is a field of the enum.
