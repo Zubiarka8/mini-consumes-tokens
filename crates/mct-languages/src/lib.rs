@@ -44,6 +44,7 @@ pub fn build_token_sources() -> TokenSourceRegistry {
     registry.register(Arc::new(mct_lang_cpp::CppTokenSource));
     registry.register(Arc::new(mct_lang_php::PhpTokenSource));
     registry.register(Arc::new(mct_lang_bash::BashTokenSource));
+    registry.register(Arc::new(mct_lang_powershell::PowerShellTokenSource));
     registry
 }
 
@@ -133,6 +134,7 @@ mod tests {
                 "kotlin",
                 "lua",
                 "php",
+                "powershell",
                 "python",
                 "rust"
             ]
