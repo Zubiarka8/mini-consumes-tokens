@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 80% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
-| C# | 79% | 34 | 55% | 10 | 0 |
+| C# | 79% | 34 | 65% | 10 | 0 |
 | C++ | 86% | 28 | 50% | 10 | 0 |
 | Go | 75% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 81% | 70% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
-| C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
+| C# | 83% | 92% | 30% | 88% | 60% | 25% | 100% |
 | C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
@@ -707,7 +707,7 @@ languages:
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
 | String literals for `hybrid_search` `"quoted"` queries | Rust, Markdown | Only `mct-lang-rust` and `mct-lang-md` fill `ParsedFile::literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
-| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
+| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go, C# | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
 Dead code (`find_dead_code`, `mct-cli dead-code`) uses the same rules for
 every language (`crates/mct-index/src/dead_code.rs`). The rules decide most
@@ -1155,7 +1155,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Import graph: `get_dependency_graph`
 - [x] File outline: `get_file_skeleton`
-- [ ] Declared dependencies in `get_indexing_status`
+- [x] Declared dependencies in `get_indexing_status`: `.csproj` `PackageReference` (attribute or `<Version>` element); `Directory.Packages.props` and `packages.config` are not read
 
 ### C++ checklist (`cpp`)
 
