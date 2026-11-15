@@ -645,7 +645,20 @@ From `rules.md` and the two messages:
           relations 890 → 891, `Repository.java:224 Jdbc` ambiguous →
           resolved to the class, dead code unchanged at 122. Python, Go,
           Java and Rust cells re-probed; the others are still to do.
-- [ ] Inherited methods, using supertype data.
+- [~] Inherited methods, using supertype data (#479, ADR-037).
+  - [x] A type-qualified relation also has as candidate a method of a
+        direct supertype the index records for that type (an `extends` or
+        `implements` relation, same language), unless the type declares a
+        member of that name itself. Migration 18, no reparse. On this
+        repository: 34 relations unresolved → resolved (C# 16, PHP 15,
+        Java 2, TS 1), each to the supertype's method, nothing else changes
+        state, dead code unchanged. Tests: `schema.rs`
+        (`inherited_member_migration_…`), `tests/relation_resolution.rs`.
+  - [ ] A grandparent's method (more than one hop): needs the nearest
+        declaring ancestor to win.
+  - [ ] PHP trait methods called through `$this` (`log`, `audit` in the
+        corpus): the relation's `target_module` is the caller's namespace,
+        which the trait's file does not declare.
 - [~] Members of an anonymous class or an enum constant's body are recorded
       under the enclosing type (Java, Kotlin), which leaves their overrides
       ambiguous (see D8).
