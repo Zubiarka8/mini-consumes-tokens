@@ -187,7 +187,7 @@ round to the nearest whole percent, with halves rounded up.
 | PHP | 88% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
-| PowerShell | 78% | 16 | 50% | 10 | 0 |
+| PowerShell | 79% | 17 | 50% | 10 | 0 |
 
 ## Language by language
 
@@ -283,7 +283,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
-| PowerShell | 90% | 100% | 50% | 67% | 60% | 50% | 33% |
+| PowerShell | 90% | 100% | 50% | 75% | 60% | 50% | 33% |
 
 ### Rust
 
@@ -672,13 +672,14 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `enum Color { Red; Green = 2 }` | `enum_statement`, `enum_member` | `enum`, parent the file; each member a `field` of it |
 | `. .\lib.ps1`, `Import-Module X` | `command` | `imports` (path and stem) |
 | any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls`; only a `function` can be its target, never a method of the same name |
+| `[Location]::new(…)`, `New-Object Location` | `invokation_expression`, `type_literal`; `command` | `calls Location`, whose target must be a `class`; none for a dotted or generic type, another static member or `New-Object -ComObject` |
 | simple bare identifier comma lists (`Write-Output alpha,beta`) | `command_elements`, `generic_token` | accepted through [targeted recovery](../../../crates/mct-lang-powershell/src/lib.rs#L117); extraction retains original text and locations |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Class bases, `[Type]` uses | Not implemented | a class's `: Base, IFoo` names and a type literal (`[Location]::new()`, `[StorageZone]::Frozen`) are no relations |
+| Class bases, `[Type]` uses | Not implemented | a class's `: Base, IFoo` names and a type literal other than `[T]::new(…)` (`[StorageZone]::Frozen`, `[Location] $x`) are no relations |
 | `: base(…)` constructors, `??`, ternary | Grammar | tree-sitter-powershell 0.26.4 rejects these forms; simple bare identifier comma lists are recovered, not an unconditional gap (`errors/REGISTRY.md` ERR-002) |
 | Variables inside functions, computed import paths | By design | explicit static/scope limits in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L16) |
 
@@ -1451,13 +1452,14 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls: every literal command or cmdlet
 - [x] Imports: dot-sourcing and `Import-Module`
+- [x] Constructor call (`new X()` / `X()`): `[X]::new(…)` and `New-Object X` give `calls X`, restricted to a class
 - [ ] Class extends class: a class's bases (`: Base, IFoo`) give no relation
 
 **Features: Search and lookup**
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a class or enum named only in a type literal (`[Location]::new()`) gets no reference
+- [~] Every use: `find_references`: a class or enum named only in a type literal other than `[X]::new(…)` (`[StorageZone]::Frozen`, `[Location] $x`) gets no reference
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gap as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
