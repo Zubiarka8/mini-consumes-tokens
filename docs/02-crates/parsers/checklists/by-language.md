@@ -22,16 +22,16 @@ Every feature the language does not have is named under *Not applicable*, with t
 |---|--:|--:|--:|--:|--:|
 | Rust | 36 | 0 | 0 | 0 | 17 |
 | Python | 25 | 5 | 8 | 0 | 14 |
-| JS/TS | 26 | 5 | 12 | 0 | 9 |
-| Java | 22 | 6 | 9 | 0 | 15 |
-| Kotlin | 26 | 7 | 12 | 0 | 7 |
-| C# | 25 | 10 | 10 | 0 | 7 |
-| C++ | 22 | 8 | 8 | 0 | 14 |
-| Go | 14 | 3 | 12 | 0 | 23 |
-| PHP | 30 | 3 | 7 | 0 | 12 |
+| JS/TS | 27 | 5 | 11 | 0 | 9 |
+| Java | 23 | 6 | 8 | 0 | 15 |
+| Kotlin | 27 | 7 | 11 | 0 | 7 |
+| C# | 26 | 10 | 9 | 0 | 7 |
+| C++ | 23 | 8 | 7 | 0 | 14 |
+| Go | 15 | 3 | 11 | 0 | 23 |
+| PHP | 31 | 3 | 6 | 0 | 12 |
 | Lua | 14 | 5 | 5 | 0 | 28 |
-| Bash | 12 | 2 | 3 | 0 | 35 |
-| PowerShell | 10 | 4 | 13 | 0 | 25 |
+| Bash | 13 | 2 | 2 | 0 | 35 |
+| PowerShell | 11 | 4 | 12 | 0 | 25 |
 | HTML | 3 | 1 | 3 | 0 | 0 |
 | CSS | 3 | 1 | 3 | 0 | 0 |
 | XML | 2 | 0 | 5 | 0 | 0 |
@@ -194,7 +194,7 @@ Markup features (MK) do not apply to code languages.
 
 ## JS/TS (`javascript_typescript`)
 
-Done 26 · Partial 5 · Not done 12 · Not verified 0 · Not applicable 9
+Done 27 · Partial 5 · Not done 11 · Not verified 0 · Not applicable 9
 
 **Functions and methods**
 
@@ -247,7 +247,7 @@ Done 26 · Partial 5 · Not done 12 · Not verified 0 · Not applicable 9
 **Code quality**
 
 - [x] QU01 Dead code: unused function and class reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [x] ST01 Import graph: edge `main.js → lib.js`, no external
@@ -270,7 +270,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Java (`java`)
 
-Done 22 · Partial 6 · Not done 9 · Not verified 0 · Not applicable 15
+Done 23 · Partial 6 · Not done 8 · Not verified 0 · Not applicable 15
 
 **Functions and methods**
 
@@ -317,7 +317,7 @@ Done 22 · Partial 6 · Not done 9 · Not verified 0 · Not applicable 15
 **Code quality**
 
 - [~] QU01 Dead code: only types: `P_UnusedK` reported, `p_unused` method skipped
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: local imports resolve, but each import duplicates resolved/ambiguous rows; JDK import duplicates external/unresolved rows
@@ -346,7 +346,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Kotlin (`kotlin`)
 
-Done 26 · Partial 7 · Not done 12 · Not verified 0 · Not applicable 7
+Done 27 · Partial 7 · Not done 11 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -401,7 +401,7 @@ Done 26 · Partial 7 · Not done 12 · Not verified 0 · Not applicable 7
 **Code quality**
 
 - [x] QU01 Dead code: top-level function and class reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: alias import adds a false external entry
@@ -422,7 +422,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C# (`csharp`)
 
-Done 25 · Partial 10 · Not done 10 · Not verified 0 · Not applicable 7
+Done 26 · Partial 10 · Not done 9 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -463,7 +463,7 @@ Done 25 · Partial 10 · Not done 10 · Not verified 0 · Not applicable 7
 - [~] RE02 Constructor call: `new Outer()` is indexed but resolves ambiguously to the class and constructor
 - [ ] RE03 Super / base constructor call: `: base()` gives no call
 - [x] RE04 Imports: `using System;` parsed as an import relation (MCT probe)
-- [~] RE05 Class extends class: heuristic; ambiguous when a constructor shares the class name
+- [x] RE05 Class extends class: `class Sq : Base` resolves to the class, never its constructor (the first entry is the base class unless named like an interface)
 - [~] RE06 Implements interface / trait: heuristic: `IP_Iface` → `implements`
 - [x] RE07 Interface extends interface / supertrait: `IP_Iface2 : IP_Ext2` → `extends`
 - [ ] RE08 Decorator / annotation / attribute: `[Obsolete]` produces no reference (MCT probe)
@@ -477,7 +477,7 @@ Done 25 · Partial 10 · Not done 10 · Not verified 0 · Not applicable 7
 **Code quality**
 
 - [~] QU01 Dead code: methods skipped; unused class reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: `using Audit` is recorded as an ambiguous import to two file modules
@@ -498,7 +498,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C++ (`cpp`)
 
-Done 22 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 14
+Done 23 · Partial 8 · Not done 7 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -546,7 +546,7 @@ Done 22 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 14
 **Code quality**
 
 - [~] QU01 Dead code: unused function and class reported; declaration-only case not exercised
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: `#include "lib.h"` also listed as external
@@ -574,7 +574,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Go (`go`)
 
-Done 14 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 23
+Done 15 · Partial 3 · Not done 11 · Not verified 0 · Not applicable 23
 
 **Functions and methods**
 
@@ -613,7 +613,7 @@ Done 14 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 23
 **Code quality**
 
 - [~] QU01 Dead code: unused struct and function reported; composite-only case not exercised
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [x] ST01 Import graph: edge only, no external (2026-11 check)
@@ -650,7 +650,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PHP (`php`)
 
-Done 30 · Partial 3 · Not done 7 · Not verified 0 · Not applicable 12
+Done 31 · Partial 3 · Not done 6 · Not verified 0 · Not applicable 12
 
 **Functions and methods**
 
@@ -701,7 +701,7 @@ Done 30 · Partial 3 · Not done 7 · Not verified 0 · Not applicable 12
 **Code quality**
 
 - [x] QU01 Dead code: function and class reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: resolved `require_once` path also listed as external
@@ -802,7 +802,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Bash (`bash`)
 
-Done 12 · Partial 2 · Not done 3 · Not verified 0 · Not applicable 35
+Done 13 · Partial 2 · Not done 2 · Not verified 0 · Not applicable 35
 
 **Functions and methods**
 
@@ -830,7 +830,7 @@ Done 12 · Partial 2 · Not done 3 · Not verified 0 · Not applicable 35
 **Code quality**
 
 - [x] QU01 Dead code: unused function reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `cart_total` and `order_total` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: resolved `source` path also listed as external
@@ -878,7 +878,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PowerShell (`powershell`)
 
-Done 10 · Partial 4 · Not done 13 · Not verified 0 · Not applicable 25
+Done 11 · Partial 4 · Not done 12 · Not verified 0 · Not applicable 25
 
 **Functions and methods**
 
@@ -915,7 +915,7 @@ Done 10 · Partial 4 · Not done 13 · Not verified 0 · Not applicable 25
 **Code quality**
 
 - [x] QU01 Dead code: unused function reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `Get-CartTotal` and `Get-OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: dot-sourced path also listed as external
