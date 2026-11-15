@@ -5,7 +5,7 @@ use mct_core::{
     SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{location, Supertype};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tree_sitter::Node;
 
 mod details;
@@ -59,6 +59,9 @@ pub(super) struct Walker<'a> {
     /// The class each enclosing class body `extends`, innermost last: what
     /// an `override` method there overrides (D8). Empty without `extends`.
     supertypes: Vec<Vec<Supertype>>,
+    /// The field each class accessor declared so far stands for, by class
+    /// and name: `set x()` after `get x()` adds to the same field.
+    accessors: HashMap<(String, String), SymbolId>,
 }
 
 impl<'a> Walker<'a> {
@@ -80,6 +83,7 @@ impl<'a> Walker<'a> {
             this_class: None,
             details: Vec::new(),
             supertypes: Vec::new(),
+            accessors: HashMap::new(),
         }
     }
 
@@ -125,8 +129,10 @@ impl<'a> Walker<'a> {
     /// declared type, or a member call when the receiver is a local or an
     /// expression of unproven type. `this.m()` is qualified by the enclosing
     /// class only when its body declares `m`, as a method or a field
-    /// (otherwise `m` may be inherited), and a name that is no local is left
-    /// as it was.
+    /// (otherwise `m` may be inherited). A name that is no local (a
+    /// top-level object, an undeclared global) has no proven type, so a
+    /// same-named field elsewhere is only a name coincidence: the call rules
+    /// out a field, as Python's does (ADR-036).
     fn push_receiver(&mut self, object: Node, method: &str) {
         let this_class = self.this_class.and_then(|i| self.classes.get(i));
         let (qualifier, member) = match object.kind() {
@@ -136,7 +142,19 @@ impl<'a> Walker<'a> {
                 {
                     (Some(class.name.clone()), false)
                 }
-                _ => return,
+                // Outside a class (an object-literal method, a plugin hook)
+                // `this` is whatever the caller binds, so a `this.f()` call
+                // proves no field of a type; the name still decides.
+                None => {
+                    self.relation_targets.push(RelationTarget {
+                        relation: self.relations.len(),
+                        not_field: true,
+                        ..Default::default()
+                    });
+                    return;
+                }
+                // A member the class inherits: the call keeps its name.
+                Some(_) => return,
             },
             "super" => return,
             "identifier" => {
@@ -145,7 +163,14 @@ impl<'a> Walker<'a> {
                     Some(Some(ty)) => (Some(ty.clone()), false),
                     Some(None) => (None, true),
                     None if self.bound.contains(name) => (None, true),
-                    None => return,
+                    None => {
+                        self.relation_targets.push(RelationTarget {
+                            relation: self.relations.len(),
+                            not_field: true,
+                            ..Default::default()
+                        });
+                        return;
+                    }
                 }
             }
             "member_expression" => {
@@ -192,6 +217,63 @@ impl<'a> Walker<'a> {
             location,
             parent,
         )
+    }
+
+    /// The name of `owner` when it is a function or method: the parent of a
+    /// function declared in its body, as a Rust nested fn is owned by the
+    /// enclosing fn. A module or class owner gives none.
+    fn enclosing_function(&self, owner: SymbolId) -> Option<String> {
+        self.symbols
+            .iter()
+            .rev()
+            .find(|s| s.id == owner)
+            .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+            .map(|s| s.name.clone())
+    }
+
+    /// `get x()` / `set x()` of a class: one `field` `x`, as a TS property
+    /// is, declared by the first accessor and owning every accessor's body.
+    /// A later accessor of the same name only extends the field's span.
+    fn visit_accessor(&mut self, node: Node, class: &str, depth: u32) {
+        let Some(name_node) = node.child_by_field_name("name") else {
+            return;
+        };
+        let name = text(name_node, self.source).to_string();
+        let key = (class.to_string(), name.clone());
+        let id = match self.accessors.get(&key) {
+            Some(&id) => {
+                let end = location(node).end_line;
+                if let Some(field) = self.symbols.iter_mut().find(|s| s.id == id) {
+                    field.location.end_line = field.location.end_line.max(end);
+                }
+                id
+            }
+            None => {
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(node),
+                    Some(class.to_string()),
+                );
+                self.details
+                    .push(details::function_detail(node, node, id, self.source));
+                self.accessors.insert(key, id);
+                if is_override_in_class(node) {
+                    let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                    mct_tree_sitter::push_property_overrides(
+                        &mut self.relations,
+                        &mut self.relation_targets,
+                        id,
+                        text(name_node, self.source),
+                        location(name_node),
+                        &supertypes,
+                    );
+                }
+                id
+            }
+        };
+        self.push_decorators(node, id, depth);
+        self.visit_function_like_body(node, id, depth);
     }
 
     /// A constructor's parameter properties
@@ -390,6 +472,73 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// `interface I { f: T; m(): U }`: a method signature is a `method` of
+    /// `I` and a property signature a `field`, each declared once (the first
+    /// overload). Only direct members count: a member of a nested object type
+    /// (`opts: { x: number }`) is not one of `I`'s. Their types are walked as
+    /// before, from `owner`.
+    fn visit_interface_member(&mut self, node: Node, owner: SymbolId, interface: &str, depth: u32) {
+        let kind = match node.kind() {
+            "method_signature" => SymbolKind::Method,
+            _ => SymbolKind::Field,
+        };
+        let name = node
+            .child_by_field_name("name")
+            .and_then(|n| member_name(n, self.source));
+        if let Some(name) = name {
+            let declared = self.symbols.iter().any(|s| {
+                s.name == name && s.kind == kind && s.parent.as_deref() == Some(interface)
+            });
+            if !declared {
+                let id = self.push_symbol(
+                    name.to_string(),
+                    kind,
+                    location(node),
+                    Some(interface.to_string()),
+                );
+                let detail = match kind {
+                    SymbolKind::Method => details::function_detail(node, node, id, self.source),
+                    _ => details::field_detail(node, id, self.source),
+                };
+                self.details.push(detail);
+            }
+        }
+        self.visit_children(node, owner, Some(interface), depth + 1);
+    }
+
+    /// `enum E { A, B = f() }`: each member is a `field` of `E`, the property
+    /// `E.A` the enum object has at run time (as a Java, Kotlin or PHP enum
+    /// constant is a field), and a member's initializer is visited with the
+    /// enum as its owner. A quoted name (`'dark-blue' = 1`) is the
+    /// member's name without quotes; a computed or numeric one declares
+    /// nothing.
+    fn visit_enum_body(&mut self, body: Node, enum_id: SymbolId, enum_name: &str, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        let mut cursor = body.walk();
+        for member in body.named_children(&mut cursor) {
+            let (name_node, value) = match member.kind() {
+                "enum_assignment" => (
+                    member.child_by_field_name("name"),
+                    member.child_by_field_name("value"),
+                ),
+                _ => (Some(member), None),
+            };
+            if let Some(name) = name_node.and_then(|n| member_name(n, self.source)) {
+                self.push_symbol(
+                    name.to_string(),
+                    SymbolKind::Field,
+                    location(member),
+                    Some(enum_name.to_string()),
+                );
+            }
+            if let Some(value) = value {
+                self.visit(value, enum_id, None, depth + 1);
+            }
+        }
+    }
+
     fn visit_node(&mut self, node: Node, owner: SymbolId, type_name: Option<&str>, depth: u32) {
         match node.kind() {
             "function_declaration" | "generator_function_declaration" => {
@@ -397,7 +546,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
+                let parent = self.enclosing_function(owner);
+                let id = self.push_symbol(name, SymbolKind::Function, location(node), parent);
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
                 self.visit_function_like_body(node, id, depth);
@@ -448,6 +598,13 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
+            }
+            "method_signature" | "property_signature"
+                if node.parent().is_some_and(|p| p.kind() == "interface_body") =>
+            {
+                if let Some(interface) = type_name {
+                    self.visit_interface_member(node, owner, interface, depth);
+                }
             }
             "interface_declaration" => {
                 let name = node
@@ -503,13 +660,16 @@ impl<'a> Walker<'a> {
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
                 let id = self.push_symbol(
-                    name,
+                    name.clone(),
                     SymbolKind::Enum,
                     location(node),
                     type_name.map(str::to_string),
                 );
                 self.details
                     .push(details::type_detail(node, id, self.source));
+                if let Some(body) = node.child_by_field_name("body") {
+                    self.visit_enum_body(body, id, &name, depth + 1);
+                }
             }
             // `namespace Legacy { … }`: a symbol of its own, but its members
             // stay top-level (owner and parent unchanged).
@@ -520,6 +680,9 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 self.push_symbol(name, SymbolKind::Module, location(node), None);
                 self.visit_children(node, owner, type_name, depth + 1);
+            }
+            "method_definition" if type_name.is_some() && is_class_accessor(node) => {
+                self.visit_accessor(node, type_name.unwrap_or_default(), depth);
             }
             "method_definition" => {
                 let name = node
@@ -646,11 +809,14 @@ impl<'a> Walker<'a> {
                     matches!(value.kind(), "arrow_function" | "function_expression"),
                     name_node,
                 ) {
+                    let parent = type_name
+                        .map(str::to_string)
+                        .or_else(|| self.enclosing_function(owner));
                     let id = self.push_symbol(
                         text(name_node, self.source).to_string(),
                         SymbolKind::Function,
                         location(node),
-                        type_name.map(str::to_string),
+                        parent,
                     );
                     self.details
                         .push(details::function_detail(node, value, id, self.source));
@@ -811,16 +977,26 @@ impl<'a> Walker<'a> {
             "jsx_closing_element" => {}
             // A TS type named in an annotation, generic argument, alias or
             // `as` cast (`props: ReviewPanelProps`, `useState<Problem>`) is a
-            // use of that type. Declared names are read by their own arms.
+            // use of that type, never of a field or an enum member (those are
+            // named as `T["f"]` / `E.M`). Declared names are read by their
+            // own arms.
             "type_identifier" => {
                 let name = text(node, self.source);
                 if !self.generics.contains(name) {
+                    let relation = self.relations.len();
                     self.push_relation(
                         owner,
                         RelationKind::References,
                         name.to_string(),
                         location(node),
                     );
+                    if self.relations.len() > relation {
+                        self.relation_targets.push(RelationTarget {
+                            relation,
+                            not_field: true,
+                            ..Default::default()
+                        });
+                    }
                 }
             }
             // A class's, field's or method's decorators are calls from that
@@ -862,6 +1038,8 @@ impl<'a> Walker<'a> {
     }
 
     /// `calls f` for a callee written as a bare name, `f`.
+    /// A bare name is never a property (JavaScript has no implicit `this`),
+    /// so a field is never its target.
     fn push_identifier_call(&mut self, function: Node, owner: SymbolId) {
         let evidence = self.relation_targets.len();
         self.mark_global(function, false);
@@ -873,8 +1051,19 @@ impl<'a> Walker<'a> {
             name.to_string(),
             location(function),
         );
-        if self.relation_targets.len() == evidence && self.relations.len() > index {
-            self.bare_calls.push((index, self.bound.contains(name)));
+        if self.relations.len() == index {
+            return;
+        }
+        match self.relation_targets.get_mut(evidence) {
+            Some(target) => target.not_field = true,
+            None => {
+                self.bare_calls.push((index, self.bound.contains(name)));
+                self.relation_targets.push(RelationTarget {
+                    relation: index,
+                    not_field: true,
+                    ..Default::default()
+                });
+            }
         }
     }
 
@@ -1041,11 +1230,36 @@ impl<'a> Walker<'a> {
             .filter(|s| s.kind == SymbolKind::Function)
             .map(|s| s.name.clone())
             .collect();
+        // A function's own nested functions are outside any type too: their
+        // parent is a function or method, never a class or interface.
+        let callables: HashSet<&str> = self
+            .symbols
+            .iter()
+            .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+            .map(|s| s.name.as_str())
+            .collect();
+        let types: HashSet<&str> = self
+            .symbols
+            .iter()
+            .filter(|s| {
+                matches!(
+                    s.kind,
+                    SymbolKind::Class
+                        | SymbolKind::Interface
+                        | SymbolKind::Enum
+                        | SymbolKind::TypeAlias
+                )
+            })
+            .map(|s| s.name.as_str())
+            .collect();
+        let outside_types = |parent: Option<&str>| {
+            parent.is_none_or(|p| callables.contains(p) && !types.contains(p))
+        };
         let file_level: HashSet<String> = self
             .symbols
             .iter()
             .filter(|s| {
-                s.parent.is_none()
+                outside_types(s.parent.as_deref())
                     && matches!(
                         s.kind,
                         SymbolKind::Function
@@ -1056,14 +1270,13 @@ impl<'a> Walker<'a> {
             })
             .map(|s| s.name.clone())
             .collect();
-        let mut same_file: Vec<usize> = std::mem::take(&mut self.bare_calls)
+        let mut same_file: Vec<(usize, bool)> = std::mem::take(&mut self.bare_calls)
             .into_iter()
             .filter(|&(i, local)| {
                 self.relations
                     .get(i)
                     .is_some_and(|r| file_level.contains(&r.to_name) != local)
             })
-            .map(|(i, _)| i)
             .collect();
         for (owner, name, loc) in std::mem::take(&mut self.value_uses) {
             let own_name = self
@@ -1071,16 +1284,35 @@ impl<'a> Walker<'a> {
                 .get(owner as usize)
                 .is_some_and(|s| s.name == name);
             if functions.contains(&name) && !own_name {
-                same_file.push(self.relations.len());
+                same_file.push((self.relations.len(), false));
                 self.push_relation(owner, RelationKind::References, name, loc);
             }
         }
-        for relation in same_file {
-            self.relation_targets.push(RelationTarget {
-                relation,
-                path: Some(self.path.to_string()),
-                ..Default::default()
-            });
+        // A bare call already carries its `not_field` target; a value use
+        // (a bare name too) gets one here. A call to a local holds a value,
+        // not a member: only a function of this file can be its target,
+        // never a method of a class or an interface
+        // (`function f({ onSaved }: Props) { onSaved(x) }`).
+        for (relation, local) in same_file {
+            let path = Some(self.path.to_string());
+            match self
+                .relation_targets
+                .iter_mut()
+                .find(|t| t.relation == relation)
+            {
+                Some(target) => {
+                    target.path = path;
+                    if local {
+                        target.kind = Some(SymbolKind::Function);
+                    }
+                }
+                None => self.relation_targets.push(RelationTarget {
+                    relation,
+                    path,
+                    not_field: true,
+                    ..Default::default()
+                }),
+            }
         }
         ParsedFile {
             symbols: self.symbols,
@@ -1160,11 +1392,35 @@ fn declares_function(name: Node) -> bool {
 /// type or value expression: `Foo` -> `Foo`, `ns.Foo` -> `Foo`,
 /// `Foo<T>` -> `Foo`, `Mixin(Base)` -> `Mixin`. Used for `extends`/
 /// `implements` targets and `export default <expr>`.
+/// A member's name as written: an identifier, or a string's text without
+/// its quotes (`'dark-blue'`). A computed or numeric name is none.
+fn member_name<'a>(node: Node, source: &'a str) -> Option<&'a str> {
+    match node.kind() {
+        "property_identifier" => Some(text(node, source)),
+        "string" => node
+            .named_child(0)
+            .filter(|f| f.kind() == "string_fragment")
+            .map(|f| text(f, source)),
+        _ => None,
+    }
+}
+
 /// Whether `method` carries `override` and belongs to a class declaration,
 /// whose `extends` the walker recorded; a class expression's methods are
 /// left out, since the enclosing declaration's supertype isn't theirs.
 /// Whether a method or field is declared `override` directly in the body of
 /// a class declaration.
+/// `get x()` / `set x()` in a class body: an accessor of the property `x`.
+/// An object literal's accessor stays a function, as its methods do.
+fn is_class_accessor(method: Node) -> bool {
+    let in_class = method.parent().is_some_and(|p| p.kind() == "class_body");
+    let mut cursor = method.walk();
+    let accessor = method
+        .children(&mut cursor)
+        .any(|c| matches!(c.kind(), "get" | "set"));
+    in_class && accessor
+}
+
 fn is_override_in_class(method: Node) -> bool {
     let in_declaration = method
         .parent()
