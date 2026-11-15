@@ -23,6 +23,10 @@ pub struct LiteralGrammar<'a> {
     pub concatenations: &'a [&'a str],
     /// Statement kinds where a lone string is documentation.
     pub statements: &'a [&'a str],
+    /// A `$` fragment directly followed by a fragment starting with a name
+    /// is a `$name` template, a hole: kotlin-ng lexes `"a $x b"` as the
+    /// fragments `a `, `$`, `x b` instead of an interpolation node.
+    pub dollar_names: bool,
 }
 
 /// How the text of one string reads.
@@ -81,13 +85,30 @@ fn push_fragments(
 ) {
     let mut text = String::new();
     let mut line = None;
+    let mut dollar = false;
     let mut cursor = string.walk();
     for child in string.children(&mut cursor) {
         let kind = child.kind();
-        let raw_text = child.utf8_text(source.as_bytes()).unwrap_or_default();
-        if grammar.holes.contains(&kind) {
+        let mut raw_text = child.utf8_text(source.as_bytes()).unwrap_or_default();
+        let is_fragment = grammar.fragments.contains(&kind);
+        if std::mem::take(&mut dollar) {
+            let name_len = if is_fragment {
+                name_prefix_len(raw_text)
+            } else {
+                0
+            };
+            if name_len > 0 {
+                flush(&mut text, &mut line, literals);
+                raw_text = raw_text.get(name_len..).unwrap_or_default();
+            } else {
+                text.push('$');
+            }
+        }
+        if grammar.dollar_names && is_fragment && raw_text == "$" {
+            dollar = true;
+        } else if grammar.holes.contains(&kind) {
             flush(&mut text, &mut line, literals);
-        } else if grammar.fragments.contains(&kind) || grammar.escapes.contains(&kind) {
+        } else if is_fragment || grammar.escapes.contains(&kind) {
             if line.is_none() {
                 let visible = raw_text.trim_start();
                 if !visible.is_empty() {
@@ -101,7 +122,23 @@ fn push_fragments(
             text.push_str(&unescape(raw_text, style));
         }
     }
+    if dollar {
+        text.push('$');
+    }
     flush(&mut text, &mut line, literals);
+}
+
+/// Length in bytes of the name `text` starts with (a letter or `_`, then
+/// letters, digits or `_`), or 0.
+fn name_prefix_len(text: &str) -> usize {
+    let mut chars = text.char_indices();
+    match chars.next() {
+        Some((_, c)) if c.is_alphabetic() || c == '_' => {}
+        _ => return 0,
+    }
+    chars
+        .find(|&(_, c)| !(c.is_alphanumeric() || c == '_'))
+        .map_or(text.len(), |(i, _)| i)
 }
 
 fn flush(text: &mut String, line: &mut Option<u32>, literals: &mut LiteralCollector) {

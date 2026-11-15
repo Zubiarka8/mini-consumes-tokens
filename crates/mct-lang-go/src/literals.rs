@@ -17,6 +17,7 @@ const GRAMMAR: LiteralGrammar = LiteralGrammar {
     holes: &[],
     concatenations: &[],
     statements: &[],
+    dollar_names: false,
 };
 
 /// Every literal of the file under `root`, in source order.
