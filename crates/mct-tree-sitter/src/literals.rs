@@ -138,6 +138,12 @@ fn push_fragments(
                     line = Some(row + before.matches('\n').count() as u32);
                 }
             }
+            // An escape node is always an escape; `raw` keeps a fragment's
+            // backslashes as written.
+            let style = StringStyle {
+                raw: style.raw && is_fragment,
+                ..style
+            };
             text.push_str(&unescape(raw_text, style));
         }
     }

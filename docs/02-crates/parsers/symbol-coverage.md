@@ -184,7 +184,7 @@ round to the nearest whole percent, with halves rounded up.
 | C# | 87% | 34 | 70% | 10 | 0 |
 | C++ | 89% | 28 | 60% | 10 | 0 |
 | Go | 78% | 18 | 80% | 10 | 0 |
-| PHP | 88% | 30 | 65% | 10 | 0 |
+| PHP | 88% | 30 | 75% | 10 | 0 |
 | Lua | 89% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
 | PowerShell | 81% | 18 | 50% | 10 | 0 |
@@ -280,7 +280,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | C# | 94% | 96% | 50% | 88% | 90% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 50% | 83% |
-| PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
+| PHP | 93% | 89% | 67% | 100% | 100% | 50% | 50% |
 | Lua | 90% | 100% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
 | PowerShell | 90% | 100% | 50% | 80% | 60% | 50% | 33% |
@@ -600,6 +600,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `$x = …` at file scope, first in the file | `assignment_expression` | `variable` (`x`, no parent) |
 | `extends`, `implements`, `use Trait;` | `base_clause`, `class_interface_clause`, `use_declaration` | `extends`, `implements` |
 | `use A\B;` | `namespace_use_declaration` | one `imports` per clause, named after the imported class (an alias is not used), with its namespace as evidence |
+| single-quoted, double-quoted, heredoc and nowdoc strings | `string`, `encapsed_string`, `heredoc_body`, `nowdoc_body` (`string_content`, `nowdoc_string`, `escape_sequence`) | literals for exact-text search, one per run of fixed text between `$x`, `$a->b`, `$a[i]` and `{…}` interpolations; escape nodes resolved, other backslashes kept |
 | `require`/`include` with a literal path | `binary_expression`, function call | `imports` (path and stem) |
 | `f()`, `$o->m()`, `A::m()`, `new X()` | `function_call_expression`, `member_call_expression`, `scoped_call_expression`, `object_creation_expression` | `calls` (static calls qualified by their class and namespace) |
 | a call to a listed global core function: `\strlen()`, or a bare `strlen()` in a file with no namespace and no `use function` of it | `function_call_expression` | `calls`, external, assuming core functions are enabled. The list (`src/builtins.rs`) excludes optional extensions, including Filter and, on PHP 7, Hash and JSON. PHP 8's `disable_functions` can remove a core function and allow its redefinition; runtime configuration is not known to the parser. A bare call inside a namespace or a name declared in the same file is not marked external. |
@@ -720,7 +721,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-csharp`, `mct-lang-cpp`, `mct-lang-go` and `mct-lang-md` fill `ParsedFile::literals`; Python, JS/TS, Java, Kotlin, C#, C++ and Go share `mct_tree_sitter::collect_literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-csharp`, `mct-lang-cpp`, `mct-lang-go`, `mct-lang-php` and `mct-lang-md` fill `ParsedFile::literals`; all but Rust and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -1334,7 +1335,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a single-quoted, double-quoted, heredoc or nowdoc string (between `$x` / `{$…}` interpolations) that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 

@@ -107,6 +107,7 @@ use names::{namespace_alias, ImportKind, ResolvedName, Scope};
 mod builtins;
 mod details;
 mod libraries;
+mod literals;
 mod names;
 
 pub struct PhpParser;
@@ -162,7 +163,9 @@ impl LanguageParser for PhpParser {
         walker.module_id = module_id;
         collect_function_names(root, &file.contents, &mut walker.declared_functions, 0);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
