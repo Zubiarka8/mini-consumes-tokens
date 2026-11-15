@@ -52,8 +52,8 @@ fn class_members_attach_to_their_class() {
     );
     assert_eq!(parent("money.ts", "#minor", Field), Some("Money"));
     assert_eq!(parent("order.ts", "#record", Method), Some("Order"));
-    // Getters are methods.
-    assert_eq!(parent("money.ts", "isZero", Method), Some("Money"));
+    // A getter is a field, as a TS property is.
+    assert_eq!(parent("money.ts", "isZero", Field), Some("Money"));
     // Async and async-generator methods.
     assert_eq!(
         parent("client.ts", "placeOrder", Method),

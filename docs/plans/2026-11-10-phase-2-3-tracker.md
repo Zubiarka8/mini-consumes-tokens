@@ -705,6 +705,404 @@ From `rules.md` and the two messages:
           snapshot: 515 -> 809 relations. Repository snapshot (C++, with
           `init --force`): 542 -> 838 relations, 118 resolved (all to a
           type of the same file), 178 external. Dead code 123 -> 123.
+    - [x] Go declaration types: the type of a `var`/`const`, a parameter,
+          a result and a struct field (`var c Cart`, `func f(c *Cart)
+          (Money, error)`), unwrapped through `*T`, `[]T`, `map[K]V`,
+          `chan T`, `func(T) U` and generic arguments, references that type
+          with the composite-literal evidence: a bare name is a declaration
+          of this package (`qualifier`), `pkg.T` is external through a
+          standard package and a declaration of `pkg` through an unaliased
+          repository import. Predeclared types (`int`, `error`), type
+          parameters (`T`) and aliased or unknown packages give nothing.
+          Test: `tests/declaration_types.rs`. Corpus snapshot: 917 -> 1298
+          relations; corpus index: 384 resolved (all struct, alias or
+          interface), 76 external, 0 ambiguous, 0 unresolved. Repository
+          snapshot (Go, with `init --force`): 946 -> 1328 relations, +311
+          resolved (all to a type), +71 external. Dead code 123 -> 123.
+    - [x] C++ named lambdas: `auto f = [](int x) { … };` is a `function`
+          of the namespace, or owned by the enclosing function in a body
+          (so `local()` resolves), with the binding up to the body as
+          signature and the lambda's parameters; the calls in its body are
+          its own. A data member holding a lambda stays a `field`; an
+          argument or immediately invoked lambda declares nothing. Test:
+          `tests/named_lambdas.rs`. Corpus: its only lambda is invoked at
+          once, no changes. Repository snapshot (C++, with `init --force`):
+          no changes. Dead code 123 -> 123. C++ scores 86% -> 89% and
+          88% -> 100%.
+    - [x] Kotlin named lambdas: `val f = { x: Int -> … }` and `val f =
+          fun(…) { … }` outside a class body are a `function`, top-level
+          or owned by the enclosing function (so `local()` resolves), with
+          the binding up to the body as signature and the lambda's
+          parameters (unknown for a bare `{ … }`, which may take `it`).
+          The lambda's calls are its own. A class property holding a
+          lambda, a delegated, extension or destructured property stays
+          as it was. Test: `tests/named_lambdas.rs`. Corpus: no named
+          lambdas, no changes. Repository snapshot (Kotlin, with `init
+          --force`): no changes. Dead code 123 -> 123. Kotlin scores
+          80% -> 83% and 72% -> 83%.
+    - [x] C# named lambdas: a local bound to a lambda or an anonymous
+          method (`Func<int, int> f = x => …;`, `Action f = delegate {
+          … };`) is a `function` with no parent, like a local function,
+          with the declaration up to the body as signature and the
+          lambda's parameters (an implicit `x` by name only). The lambda's
+          calls are its own, so `f(2)` resolves. A field holding a lambda
+          stays a `field`, a lambda passed as an argument declares
+          nothing, and another declarator of the same statement stays a
+          plain local. Test: `tests/named_lambdas.rs`. Corpus: no named
+          lambdas, no changes. Repository snapshot (C#, with `init
+          --force`): no changes. Dead code 123 -> 123. C# scores 84% ->
+          87% and 83% -> 94%.
+    - [x] C# `using` aliases: `using Alias = Target;` imports no symbol
+          called like the alias (the namespace import only; a tuple target
+          nothing), `new Alias()` constructs the target (external under
+          `System`/`Microsoft`) and `Alias.M()` is qualified by and
+          references the target. `new M.Alias()` and a `global using`
+          alias are left as before. The alias as a `type_alias` symbol
+          is a model limit: a prototype turned a resolved `new Money()`
+          in another file ambiguous, since a symbol cannot be kept out of
+          other files' name matching (#446). Test:
+          `tests/using_alias.rs`. Corpus 751 -> 749 relations (wrong
+          `imports Money`, `imports Table` gone; `new Table()` calls
+          `List`, external). Repository snapshot (C#, with `init
+          --force`): 767 -> 764, the same 3 edges plus the depgraph
+          fixture's `imports M`; no new resolution. Dead code 123 -> 123.
+    - [x] Go aliased imports: an aliased domain-rooted import (`db
+          "example.com/app/database"`) proves the package lives under the
+          path's last directory, whatever its `package` clause says. So
+          `db.F()` (when nothing local declares `db`), a declared type
+          `db.Conn`, an embedded `db.Conn` and a literal `db.Conn{}` pin
+          their target to `database/` (`RelationTarget::module`), never a
+          same-named declaration elsewhere. A blank or dot import binds no
+          name. Test: `tests/aliased_imports.rs` (resolution and dead
+          code); `call_evidence`, `composite_literals`,
+          `declaration_types` and `embedding` pinned "an aliased import
+          proves nothing" and now show the directory evidence. Corpus: no
+          changes (its one aliased package has no directory in the
+          corpus). Repository snapshot (Go, with `init --force`): no
+          changes. Dead code 123 -> 123. Go feature score 60% -> 70%;
+          areas Search 60% -> 70%, Quality 25% -> 50%.
+    - [x] Python properties: a `@property` (or `@cached_property`,
+          `@functools.cached_property`) getter is one `field` of its
+          class, as in C# and Kotlin, with the getter's `def` as
+          signature; `@x.setter` / `@x.deleter` / `@x.getter` of a
+          property the class declared earlier add to its range and calls
+          instead of a second row, and their decorator references nothing
+          (before: `references setter`). A setter of an inherited
+          property stays a `method`. Test: `tests/property_accessors.rs`;
+          `tests/corpus.rs` pinned "three methods of one name" and now
+          checks one field. Corpus 1507 -> 1504 relations (the 3
+          `setter`/`deleter` references), 9 properties become fields.
+          Repository snapshot (Python, with `init --force`): 7323 ->
+          7320, the same 3; `today.weekday()` (a `datetime` method) was
+          ambiguous over the 3 property rows and is now unresolved. Dead
+          code 123 -> 123. Python scores 90% -> 91% and 94% -> 100%.
+    - [x] JS/TS class accessors: `get x()` / `set x()` in a class body
+          are one `field` `x`, as in C#, Kotlin and Python, with the
+          first accessor as signature, spanning both and owning their
+          calls (before: two `method` rows). A typed getter or setter
+          parameter types the field, so `this.total.compareTo()` reaches
+          `Money.compareTo`. An object literal's accessor stays a
+          `function`. Test: `tests/class_accessors.rs`; `tests/corpus.rs`
+          pinned "getters are methods" and now checks a field. Corpus: 15
+          getters become fields, relations unchanged. Repository snapshot
+          (JS/TS, with `init --force`): 24397 relations either side; 14
+          getters become fields; `order.ts:184 compareTo` ambiguous ->
+          resolved; 3 `current()` calls in the minified `review.js` were
+          ambiguous over the `PickSession.current` getter and are now
+          unresolved. Dead code 123 -> 123. JS/TS scores 88% -> 89% and
+          88% -> 94%.
+    - [x] Lua nested `setmetatable` classes: `W.Dog = setmetatable({},
+          { __index = W.Animal })` at file level declares the class `Dog`
+          of `W` (before: nothing), as the plain-name form does, and
+          `extends Animal` is pinned to this file when it declares `Animal`
+          in `W` (before: ambiguous with any `Animal` elsewhere). The
+          cross-file `require` qualifier gap is relabelled a model limit:
+          which table another file returns is not visible to a one-file
+          parser. Test: `tests/nested_setmetatable.rs`. Corpus: no changes.
+          Repository snapshot (Lua, with `init --force`): no changes. Dead
+          code 123 -> 123. Lua scores 86% -> 89% and 75% -> 100%.
+    - [x] Lua instance fields: an instance built by `setmetatable({…},
+          T)` (or `{ __index = T }`), `T` a class of this file and
+          `setmetatable` the global or `local setmetatable = setmetatable`,
+          gives `T` a `field` for each named key and each `o.x = …` through
+          its local (`local self = setmetatable({}, T)`); `o:m()` is
+          qualified by `T`, and `o.f()` / `self.f()` when `T` declares `f`
+          in this file. Test: `tests/instance_fields.rs`;
+          `tests/self_fields.rs` pinned "`local self` gives no field" and
+          now expects `owner`. Corpus: 417 -> 433 symbols (22 fields, 6 of
+          them moved to the constructor line they are first written on),
+          relations unchanged. Repository snapshot (Lua, with `init
+          --force`): 35 -> 52 fields; `self.loader()` unresolved ->
+          resolved (`Cache.loader`), `self:record()` ambiguous -> resolved
+          (`Order.record`), and 2 `self.clock()` calls that resolved to
+          `fake_clock.clock` now resolve to the `Limiter.clock` field they
+          call. Dead code 123 -> 123.
+    - [x] C++ out-of-line base constructors (docs only): the gap row for
+          `B::B() : A(1)` in a `.cpp` whose class is in a header is
+          relabelled from "Not implemented" to "Model limit". The parser
+          sees one file, and no relation can say "a base if the class has
+          one" for the index to settle; Lua's cross-file `require`
+          qualifier row got the same label in #451.
+    - [x] Python string literals: each fixed fragment of a string (the
+          text between f-string holes) goes through the shared prose filter
+          into `ParsedFile::literals`, so a `hybrid_search` `"quoted"`
+          query finds Python messages, as it does Rust's. Escapes are
+          resolved unless the string is raw, and `{{` of an f-string reads
+          as `{`. A docstring, or any string standing alone as a statement,
+          is documentation and is skipped. Test: `tests/literals.rs`
+          (parser and `search_literals`). Corpus: no changes (the snapshot
+          does not render literals). Repository snapshot (with `init
+          --force`): 0 -> 1314 Python literals; relations unchanged (7320);
+          the database file is the same size (39,493,632 bytes). Dead code
+          123 -> 123. Python feature score 85% -> 95%; area Search 80% ->
+          100%.
+    - [x] JS/TS string literals: each run of fixed text of a string or
+          template literal (between `${…}` holes) goes through the shared
+          prose filter into `ParsedFile::literals`, escapes resolved. A
+          directive (`"use strict"`) or other string statement is skipped,
+          and so is a JSX `className` / `class` value (a CSS class list).
+          The walk is now `mct_tree_sitter::collect_literals`, shared with
+          Python, whose test is unchanged. Test: `tests/literals.rs`
+          (parser and `search_literals`). Corpus: no changes. Repository
+          snapshot (with `init --force`): 0 -> 2854 JS/TS literals, Python
+          still 1314; relations unchanged (24397); database file 39,493,632
+          bytes either side. Dead code 123 -> 123. JS/TS feature score 80%
+          -> 90%; area Search 80% -> 100%.
+    - [x] Go string literals: each interpreted or raw string goes through
+          the shared prose filter into `ParsedFile::literals`, through
+          `mct_tree_sitter::collect_literals`; escapes are resolved unless
+          the string is raw. A struct field tag (`json:"id"`) is metadata,
+          not a message, and is skipped. Test: `tests/literals.rs` (parser
+          and `search_literals`). Corpus: no changes. Repository snapshot
+          (with `init --force`): 0 -> 99 Go literals, other languages
+          unchanged; Go relations unchanged (1328, no resolution changes);
+          database file 39,493,632 bytes either side. Dead code 123 -> 123.
+          Go feature score 70% -> 80%; area Search 70% -> 90%.
+    - [x] Java string literals: each string literal or text block goes
+          through the shared prose filter into `ParsedFile::literals`, via
+          `mct_tree_sitter::collect_literals`, escapes resolved and split at
+          a string template's `\{…}` holes. Test: `tests/literals.rs`
+          (parser and `search_literals`). Corpus: no changes. Repository
+          snapshot (with `init --force`): 0 -> 40 Java literals, other
+          languages unchanged; Java relations unchanged (968, no resolution
+          changes); database file 39,493,632 bytes either side. Dead code
+          123 -> 123. Java feature score 65% -> 75%; area Search 80% ->
+          100%.
+    - [x] Kotlin string literals: each run of fixed text of a string or
+          raw string (between `$x` / `${…}` templates) goes through the
+          shared prose filter into `ParsedFile::literals`, escapes resolved
+          unless raw. kotlin-ng gives a plain string's `$name` no
+          interpolation node (a `$` fragment before the name), so the
+          shared walk gains `LiteralGrammar::dollar_names` to read it as a
+          template; a `$` before no name (`$ 5`) stays text. Test:
+          `tests/literals.rs` (parser and `search_literals`); the other
+          languages' literal tests are unchanged. Corpus: no changes.
+          Repository snapshot (with `init --force`): 0 -> 48 Kotlin
+          literals, none holding a `$name`; other languages' literal rows
+          identical; Kotlin relations unchanged (806, no resolution
+          changes); database file 39,493,632 bytes either side. Dead code
+          123 -> 123. Kotlin feature score 65% -> 75%; area Search 80% ->
+          100%.
+    - [x] C# string literals: each run of fixed text of a plain,
+          verbatim (`@"…"`), raw (`"""…"""`) or interpolated (`$"…"`,
+          `$@"…"`, `$"""…"""`) string, between `{…}` holes, goes through
+          the shared prose filter into `ParsedFile::literals`. A verbatim
+          string has no fragment children, so the shared walk gains
+          `LiteralGrammar::opaque` (its text between the quotes is one
+          fragment) and `StringStyle::doubled_quotes` (`""` is one quote).
+          Test: `tests/literals.rs` (parser and `search_literals`); the
+          other languages' literal tests are unchanged. Corpus: no changes.
+          Repository snapshot (with `init --force`): 0 -> 44 C# literals;
+          other languages' literal rows identical; C# relations unchanged
+          (764, no resolution changes); database file 39,493,632 bytes
+          either side. Dead code 123 -> 123. C# feature score 60% -> 70%;
+          area Search 70% -> 90%.
+    - [x] C++ string literals: each string or raw (`R"(…)"`) string goes
+          through the shared prose filter into `ParsedFile::literals`,
+          escapes resolved unless raw; each piece of a concatenation is its
+          own literal. Test: `tests/literals.rs` (parser and
+          `search_literals`). Corpus: no changes. Repository snapshot (with
+          `init --force`): 0 -> 48 C++ literals; other languages' literal
+          rows identical; C++ relations unchanged (838, no resolution
+          changes); database file 39,493,632 bytes either side. Dead code
+          123 -> 123. C++ feature score 50% -> 60%; area Search 60% -> 80%.
+    - [x] PHP string literals: each run of fixed text of a single-quoted,
+          double-quoted, heredoc or nowdoc string, between `$x` / `{$…}`
+          interpolations, goes through the shared prose filter into
+          `ParsedFile::literals`; a heredoc's or nowdoc's body node is read
+          as the string. The shared walk now resolves an escape node even
+          in a raw-styled string (`raw` keeps only a fragment's
+          backslashes), so a single-quoted `\'` reads `'` and `C:\data`
+          stays. Test: `tests/literals.rs` (parser and `search_literals`);
+          the other languages' literal tests are unchanged. Corpus: no
+          changes. Repository snapshot (with `init --force`): 0 -> 68 PHP
+          literals; other languages' literal rows identical; PHP relations
+          unchanged (1184, no resolution changes); database file 39,493,632
+          bytes either side. Dead code 123 -> 123. PHP feature score 65% ->
+          75%; area Search 80% -> 100%.
+    - [x] Lua string literals: each quoted or long (`[[…]]`) string goes
+          through the shared prose filter into `ParsedFile::literals`;
+          escapes (inside `string_content`) are resolved in a quoted string,
+          a long string keeps its backslashes. Test: `tests/literals.rs`
+          (parser and `search_literals`). Corpus: no changes. Repository
+          snapshot (with `init --force`): 0 -> 54 Lua literals; other
+          languages' literal rows identical; Lua relations unchanged (410,
+          no resolution changes); database file 39,493,632 bytes either
+          side. Dead code 123 -> 123. Lua feature score 60% -> 70%; area
+          Search 60% -> 80%.
+    - [x] Bash string literals: each run of fixed text of a `"…"` string,
+          between `$x` / `${…}` / `$(…)` / `$((…))` expansions, and each
+          `'…'` or `$'…'` string go through the shared prose filter into
+          `ParsedFile::literals`. The shared walk's `opaque` kinds now take
+          their closing quote as the delimiter (`'` as well as `"`), and
+          `StringStyle::shell_escapes` keeps a backslash that is no shell
+          escape (`"C:\data"`). Heredoc bodies are not read (grammar: their
+          text before the first expansion is in no node; documented as a
+          gap). Test: `tests/literals.rs` (parser and `search_literals`);
+          the other languages' literal tests are unchanged. Corpus: no
+          changes. Repository snapshot (with `init --force`): 0 -> 530 Bash
+          literals; other languages' literal rows identical; Bash relations
+          unchanged (1852, no resolution changes); database file 39,493,632
+          bytes either side. Dead code 123 -> 123. Bash feature score 60% ->
+          70%; area Search 80% -> 100%.
+    - [x] PowerShell string literals: each run of fixed text of an
+          expandable string or here-string (between `$x` / `$(…)` / `${…}`
+          interpolations) and each verbatim string or here-string go
+          through the prose filter into `ParsedFile::literals`. The grammar
+          gives an expandable string no fragment nodes, so the crate reads
+          the text between the interpolation children with its own walk
+          (`src/literals.rs`) instead of the shared one; backtick escapes
+          are resolved, a doubled quote is one quote, a backslash is text.
+          Test: `tests/literals.rs` (parser and `search_literals`).
+          Repository snapshot (with `init --force`): 0 -> 285 PowerShell
+          literals; other languages' literal rows identical; PowerShell
+          relations unchanged (830, no resolution changes); database file
+          39,493,632 bytes either side. Dead code 123 -> 123. PowerShell
+          feature score 50% -> 60%; area Search 60% -> 80%.
+    - [x] JS/TS repeated code: `JsTsTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.js`/`.jsx`/`.mjs`/`.cjs`/
+          `.ts`/`.mts`/`.cts`/`.tsx` files, with the grammar the parser picks
+          (`grammar_for`), and is registered in `build_token_sources`. Each
+          function or method the parser indexes has a callable span that
+          matches its symbol exactly: declarations, class and object
+          methods, bodyless TS method signatures, `const f = () => …`,
+          arrow-valued class fields, CommonJS member exports and export
+          object pairs. A TypeScript `...rest` parameter keeps no parameter
+          role (its wrapper's parent also holds the default value). Tests:
+          `tests/duplicates.rs` (through the real index) and
+          `tests/tokens.rs`. Repository snapshot, defaults (6 lines, 40
+          tokens): candidates 7,464 -> 10,483, JS/TS now in
+          `supported_languages`, 0 skipped (status complete), groups 147 ->
+          147 (no JS/TS clone that large); at 2 lines / 12 tokens, 2 JS/TS
+          groups. JS/TS feature score 90% -> 100%; area Quality 50% -> 100%.
+    - [x] Go repeated code: `GoTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.go` files and is registered
+          in `build_token_sources`. Functions, methods and interface methods
+          have callable spans matching their symbols; `var f = func…`, whose
+          symbol spans the name only, gets a name-only span, so it is
+          analyzed (one token, never grouped) instead of skipped. No body
+          shape is reported: a Go `block` holds one `statement_list`, which
+          the shared reader would count as one statement. Test:
+          `tests/duplicates.rs` (through the real index; the func-value
+          case fails without its span). Repository snapshot, defaults:
+          candidates 10,483 -> 10,720, 0 skipped, groups 147 -> 148 (one Go
+          group in the corpus `ledger/account.go`, SUSPICIOUS). Go feature
+          score 80% -> 90%; area Quality 50% -> 100%.
+    - [x] Java repeated code: `JavaTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.java` files and is registered
+          in `build_token_sources`. Methods and constructors (annotations
+          included, as in the symbol) have callable spans matching their
+          symbols; a record component, whose accessor the parser indexes
+          over the component, gets the component's span, so it is analyzed
+          (one line, never grouped) instead of skipped. Test:
+          `tests/duplicates.rs` (through the real index; the record case
+          fails without its span). Repository snapshot, defaults: candidates
+          10,720 -> 11,019, 0 skipped, groups 148 -> 148 (no Java clone that
+          large); at 2 lines / 12 tokens, 12 Java groups. Java feature score
+          75% -> 85%; area Quality 25% -> 75%.
+    - [x] Kotlin repeated code: `KotlinTokenSource` (`src/tokens.rs`)
+          gives `mct-cli duplicates` the tokens of `.kt` files and is
+          registered in `build_token_sources`. Every `fun` (member,
+          top-level, local, extension, interface; annotations included, as
+          in the symbol) has a callable span matching its symbol;
+          `val f = { … }` / `val f = fun(…) …` outside a class body, whose
+          `Function` symbol spans the whole `val`, gets that span (shared
+          `named_lambda` check). The grammar parses `true`/`false`/`null` as
+          identifiers, so they stay identifier tokens; no body shape is
+          reported (a `function_body` holds one `block`). Test:
+          `tests/duplicates.rs` (through the real index; the named-lambda
+          cases fail without its span). Repository snapshot, defaults:
+          candidates 11,019 -> 11,230, 0 skipped, groups 148 -> 148; at 2
+          lines / 12 tokens, 4 groups with Kotlin members. Kotlin feature
+          score 75% -> 85%; area Quality 50% -> 100%.
+    - [x] C# repeated code: `CSharpTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.cs` files and is registered
+          in `build_token_sources`. Methods, constructors and local
+          functions (attributes included, as in the symbol) have callable
+          spans matching their symbols; a destructor (`~Cart`), an operator
+          (`operator +`) and a conversion operator (`operator int`) get the
+          name the parser gives them, and a local bound to a lambda gets
+          its declarator's span, so none is skipped. Test:
+          `tests/duplicates.rs` (through the real index; the operator,
+          destructor and bound-lambda case fails without those spans).
+          Repository snapshot, defaults: candidates 11,230 -> 11,440, 0
+          skipped, groups 148 -> 148; at 2 lines / 12 tokens, 2 groups with
+          C# members. C# feature score 70% -> 80%; area Quality 25% -> 75%.
+    - [x] C++ repeated code: `CppTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of C++ files and is registered in
+          `build_token_sources`. Definitions (named by the last segment of
+          `Cart::total`, or `operator==`, `~Cart`), prototypes outside a
+          function body, a lambda bound to a name (its `init_declarator`)
+          and a function-like macro have callable spans matching their
+          symbols, so none is skipped. A macro now ends on its own last
+          line (`directive_location`); its node runs through the line
+          break, so a one-line `#define SQ(x) …` used to end a line late.
+          Tests: `tests/duplicates.rs` (through the real index; two of the
+          three fail without the spans) and `tests/macros.rs`
+          (`a_macro_ends_on_its_last_line`). Repository snapshot
+          (`init --force`), defaults: candidates 11,440 -> 11,677, 0
+          skipped, groups 148 -> 149; at 2 lines / 12 tokens, 2 groups
+          with C++ members. C++ feature score 60% -> 70%; area Quality
+          25% -> 75%.
+    - [x] PHP repeated code: `PhpTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.php` files and is registered
+          in `build_token_sources`. Functions and methods (attributes
+          included, abstract and interface ones too) have callable spans
+          matching their symbols, and a closure or arrow function assigned
+          to a variable (`$cb = function () { … };`) gets the span of the
+          closure under the variable's name, so none is skipped. The
+          `<?php` tag and inline HTML are trivia. Test:
+          `tests/duplicates.rs` (through the real index; the bound-closure
+          case fails without that span). Repository snapshot, defaults:
+          candidates 11,677 -> 11,946, 0 skipped, groups 149 -> 149; at 2
+          lines / 12 tokens, 12 groups with PHP members (getters in the PHP
+          corpus). PHP feature score 75% -> 85%; area Quality 50% -> 100%.
+    - [x] Bash repeated code: `BashTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of shell files and is registered
+          in `build_token_sources`. Every function, in both forms
+          (`function f` and `f()`), nested, redirected or with a subshell
+          body, has a callable span matching its symbol, so none is
+          skipped. A command's words are identifiers, as a call's callee
+          is in other languages: the broad normalization compares the
+          shape of commands and the consistent one tells commands apart.
+          Test: `tests/duplicates.rs` (through the real index). Repository
+          snapshot, defaults: candidates 11,946 -> 12,106, 0 skipped,
+          groups 149 -> 149; at 2 lines / 12 tokens, no group with Bash
+          members. Bash feature score 70% -> 80%; area Quality 50% -> 100%.
+    - [x] PowerShell repeated code: `PowerShellTokenSource`
+          (`src/tokens.rs`) gives `mct-cli duplicates` the tokens of
+          PowerShell files and is registered in `build_token_sources`, so
+          no code language is left in `unsupported_languages`. Functions,
+          filters, nested functions, class methods and constructors have
+          callable spans matching their symbols; none of these nodes has a
+          `name` field, so every span comes from the callback. A command's
+          name is an identifier, as in Bash. Tests: `tests/duplicates.rs`
+          (through the real index, and the spans compared with the
+          parser's symbols, which fails without the callback). Repository
+          snapshot, defaults: candidates 12,106 -> 12,208, 0 skipped,
+          groups 149 -> 149; at 2 lines / 12 tokens, 2 groups with
+          PowerShell members (`Die` / `Stop-Usage` in `scripts/windows/`).
+          PowerShell feature score 60% -> 70%; area Quality 50% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
@@ -971,6 +1369,10 @@ From `rules.md` and the two messages:
       pinned, `std::` is external, built-ins and template parameters give
       none). Stacked on #441. Corpus: 809 -> 823 relations, all `std::`
       or same-file types.
+- [x] Go, assertions and type switches: the type in `o.(Marker)` and in a
+      `case Row, *Cfg:` is a `references` relation with the evidence a
+      declared type gets; `nil` and predeclared types give none. Stacked on
+       #442. Corpus: 1298 -> 1305 relations.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
