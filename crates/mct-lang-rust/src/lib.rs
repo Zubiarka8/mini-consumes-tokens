@@ -988,6 +988,9 @@ impl<'a> Walker<'a> {
         let (path, module) = match segments.last().map(String::as_str) {
             Some("self") => (Some(self.path.to_string()), None),
             Some("crate" | "super") | None => (None, None),
+            Some(_) if self.through_inline_modules(&segments, at) => {
+                (Some(self.path.to_string()), segments.pop())
+            }
             Some(_) => (None, segments.pop()),
         };
         RelationTarget {
@@ -1068,6 +1071,30 @@ impl<'a> Walker<'a> {
                 .opaque_globs
                 .iter()
                 .any(|scope| scope.contains(&at))
+    }
+
+    /// Whether a module path (`inner`, `self::inner::deeper`) only goes
+    /// through inline modules of this file: its first module is declared in
+    /// a block reaching `at` (`at`, a byte offset) and no `use` there brings
+    /// in another item of that name, and every later one is declared inline
+    /// here too. Its items are then in this file.
+    fn through_inline_modules(&self, segments: &[String], at: usize) -> bool {
+        let modules = match segments.first().map(String::as_str) {
+            Some("self") => &segments[1..],
+            _ => segments,
+        };
+        let Some((first, rest)) = modules.split_first() else {
+            return false;
+        };
+        let reaches = |name: &str, map: &HashMap<String, Vec<std::ops::Range<usize>>>| {
+            map.get(name)
+                .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+        };
+        reaches(first, &self.scope.inline_modules)
+            && !reaches(first, &self.scope.other_imports)
+            && rest
+                .iter()
+                .all(|name| self.scope.inline_modules.contains_key(name))
     }
 
     /// Whether `path` is one primitive type name (`u64`, `str`) that no
@@ -1562,6 +1589,9 @@ struct FileScope {
     declared: HashSet<String>,
     /// Item and standard import scopes that can shadow a primitive type.
     primitive_shadows: HashMap<String, Vec<std::ops::Range<usize>>>,
+    /// Each inline `mod name { … }` of this file, with the byte range of the
+    /// block, module or file it is declared in: where a path can name it.
+    inline_modules: HashMap<String, Vec<std::ops::Range<usize>>>,
     /// Names a `use` of a `std`/`core`/`alloc` path brings in.
     std_imports: HashSet<String>,
     /// Names any other `use` brings in, each with the byte ranges of the
@@ -1704,10 +1734,17 @@ fn collect_scope_at(
                 .is_some_and(|owner| matches!(owner.kind(), "impl_item" | "trait_item"));
             if let Some(name) = node.child_by_field_name("name").filter(|_| !associated) {
                 let name = text(name, source).to_string();
+                let reach = node.parent().map_or(0..source.len(), |parent| {
+                    parent.start_byte()..parent.end_byte()
+                });
+                if node.kind() == "mod_item" && node.child_by_field_name("body").is_some() {
+                    scope
+                        .inline_modules
+                        .entry(name.clone())
+                        .or_default()
+                        .push(reach.clone());
+                }
                 if node.kind() != "enum_variant" && PRIMITIVES.contains(&name.as_str()) {
-                    let reach = node.parent().map_or(0..source.len(), |parent| {
-                        parent.start_byte()..parent.end_byte()
-                    });
                     scope
                         .primitive_shadows
                         .entry(name.clone())
