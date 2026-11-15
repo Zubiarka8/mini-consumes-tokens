@@ -743,6 +743,31 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
+        expression, not part of the arm's pattern, so its names are uses.
+        Before, `is_final` was taken for a local of the whole function and
+        its value use was dropped. This repository's snapshot: dead code
+        123 → 122 (`mct-lang-python`'s `is_final`). Test:
+        `a_match_guard_uses_a_function_its_pattern_does_not_bind` in
+        `mct-lang-rust/tests/parse.rs`.
+  - [x] Next.js App Router: the exports it loads by file name (`page` and
+        `layout` default exports, `route` handlers, `generateStaticParams`,
+        `generateMetadata`) stay candidates and carry a possible-entry-point
+        note when `<root>/package.json` declares `next` 13 or later
+        (ADR-027). This repository's snapshot: 10 of the 12 `website/`
+        candidates get the note; the count is unchanged by design. Tests:
+        `mct-lang-js-ts/tests/nextjs.rs`, `dead_code.rs`.
+  - [ ] Object-literal methods called by a library (`tokenizer(src) {…}` in
+        `web-ui/src/notes/obsidian.ts`, a `MarkedExtension`) are parentless
+        functions with no in-repo caller: 5 candidates, plus the same shape
+        in the bundles. Telling them apart needs a stored fact about the
+        declaration (schema or symbol details), so an issue first.
+  - [ ] A renamed default import (`import SearchDialog from
+        '@/components/search'`) does not reach the default-exported
+        `DefaultSearchDialog`: needs default-export resolution across files.
+  - [ ] The committed Vite bundles (`crates/mct-cli/src/web/*-dist/`) give
+        23 candidates. `.mctignore` is git-ignored here, so excluding them
+        is the user's local choice, not a repository change.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
