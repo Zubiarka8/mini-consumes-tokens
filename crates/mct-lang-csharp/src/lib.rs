@@ -251,6 +251,13 @@ impl<'a> Walker<'a> {
             // A local function (in a method body or among top-level
             // statements) is a plain function with no owning type; its
             // calls attach to it, not to the enclosing method.
+            // A local bound to a lambda or anonymous method (`Func<int>
+            // f = () => …;`) is a function, like a local function: it owns
+            // the calls in its body, so a call through the local reaches
+            // it. Any other declarator is walked as before, under `owner`.
+            "local_declaration_statement" if has_named_lambda(node) => {
+                self.visit_local_declaration(node, owner, type_name, depth);
+            }
             "local_function_statement" => {
                 let name = self.field_text(node, "name");
                 let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
@@ -581,6 +588,37 @@ impl<'a> Walker<'a> {
     ///
     /// Its locals' declared types are known while its body is walked; a
     /// local function also sees the enclosing member's.
+    fn visit_local_declaration(
+        &mut self,
+        node: Node,
+        owner: SymbolId,
+        type_name: Option<&str>,
+        depth: u32,
+    ) {
+        let Some(variables) = find_child(node, "variable_declaration") else {
+            return;
+        };
+        let mut cursor = variables.walk();
+        for part in variables.named_children(&mut cursor) {
+            let lambda = (part.kind() == "variable_declarator")
+                .then(|| bound_lambda(part))
+                .flatten();
+            let (Some(lambda), Some(name)) = (lambda, part.child_by_field_name("name")) else {
+                self.visit(part, owner, type_name, depth + 1);
+                continue;
+            };
+            let id = self.push_symbol(
+                text(name, self.source).to_string(),
+                SymbolKind::Function,
+                location(part),
+                None,
+            );
+            self.details
+                .push(details::lambda_detail(part, lambda, id, self.source));
+            self.visit_callable(lambda, id, type_name, depth + 1);
+        }
+    }
+
     fn visit_callable(&mut self, node: Node, id: SymbolId, type_name: Option<&str>, depth: u32) {
         let mut locals = self.locals.clone();
         let mut cursor = node.walk();
@@ -609,7 +647,12 @@ impl<'a> Walker<'a> {
             self.push_initializer_call(node, init, id, type_name);
             self.visit_children(init, id, type_name, depth + 1);
         }
-        if let Some(body) = node.child_by_field_name("body") {
+        let body = node.child_by_field_name("body").or_else(|| {
+            (node.kind() == "anonymous_method_expression")
+                .then(|| find_child(node, "block"))
+                .flatten()
+        });
+        if let Some(body) = body {
             self.visit_children(body, id, type_name, depth + 1);
         }
     }
@@ -951,4 +994,27 @@ fn last_identifier(node: Node) -> Option<Node> {
         "qualified_name" => node.child_by_field_name("name").and_then(last_identifier),
         _ => None,
     }
+}
+
+/// The lambda or anonymous method a local declarator is bound to
+/// (`twice = x => …`), not one nested deeper in its initializer.
+fn bound_lambda(declarator: Node) -> Option<Node> {
+    let mut cursor = declarator.walk();
+    let found = declarator.named_children(&mut cursor).find(|c| {
+        matches!(
+            c.kind(),
+            "lambda_expression" | "anonymous_method_expression"
+        )
+    });
+    found
+}
+
+fn has_named_lambda(declaration: Node) -> bool {
+    find_child(declaration, "variable_declaration").is_some_and(|variables| {
+        let mut cursor = variables.walk();
+        let found = variables
+            .named_children(&mut cursor)
+            .any(|d| d.kind() == "variable_declarator" && bound_lambda(d).is_some());
+        found
+    })
 }

@@ -122,7 +122,7 @@ table emits none yet:
 | Python | `def` (functions and methods), `class` (an `enum` when it subclasses a standard `enum` base), PEP 695 `type`, module-level and class-body assignments, a lambda bound to one name | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas not bound to one name. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
 | Java | methods, constructors, classes, records, interfaces, annotation types, enums, each declarator of a field declaration | `public`/`protected`/`private`; none → package, but public in an interface or annotation type (the language default) | `abstract`, `static`, `final`, `sealed`, `@Override` → override | record accessors (synthesized, not written), enum constants, `throws` (kept in the signature only). The explicit `Type this` parameter is the receiver; `T...` is variadic |
 | Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes (`enum`), member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
-| C# | methods, constructors, destructors, operators, conversion operators, local functions, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration, a record's positional parameters (type and name: `int X`, public) | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
+| C# | methods, constructors, destructors, operators, conversion operators, local functions, lambdas and anonymous methods bound to a local, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration, a record's positional parameters (type and name: `int X`, public) | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
 | PHP | functions, methods (Laravel's anonymous migration `up`/`down` included), classes, interfaces, traits, enums, each element of a property declaration, promoted constructor parameters | `public`/`protected`/`private` (`private(set)` reads as its first word); none → public for a method or property (the language default); functions and types have none | `abstract`, `final`, `static`, `readonly` | closures assigned to a variable, enum cases, class constants, `@template` generics. A type the syntax leaves out comes from the PHPDoc block right above (`@param T $name`, `@return T`) as `doc`; a written type always wins. `...$x` is variadic; `&$x` stays in the signature only |
 | C++ | function and method definitions and prototypes (out-of-line `Class::method` included), classes, structs, unions, enums, `using` aliases, `typedef`s, each declarator of a variable or field declaration; a templated one keeps its `template <…>` | the access label in force in the class body; none → private in a `class`, public in a `struct`/`union` (the language defaults); none recorded outside a class (C++ has linkage there) or for an out-of-line definition (its access is the declaration's) | `virtual`, `static`, `extern`, `inline`, `constexpr` → const, `override`, `final`, `= 0` → abstract | enumerators, unnamed lambdas (one bound to a name has the binding up to its body and its parameters), `auto` deduction (an `auto` return without `-> T` stays `auto`). A type is everything the declaration writes but the name (`const char*`, `int&`); C `...` is a variadic parameter with no name or type |
 | Lua | `function` declarations (`local`, dotted, `T:m`), functions assigned to a name or field, functions in a module table's fields | none: Lua has no visibility syntax (`local` is scope, not access) | — (Lua has none) | classes, fields and variables (no declaration header), `@generic`, `@class`/`@field`. Lua writes no types: every type comes from the LuaLS `---` lines right above (`@param name type`, `@return type`, several `@return`s joined as one multiple return) as `doc`. `function T:m()` has the implicit `self` receiver; `...` is variadic |
@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 88% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 83% | 35 | 65% | 10 | 0 |
-| C# | 84% | 34 | 60% | 10 | 0 |
+| C# | 87% | 34 | 60% | 10 | 0 |
 | C++ | 89% | 28 | 50% | 10 | 0 |
 | Go | 78% | 18 | 60% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 88% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
-| C# | 83% | 96% | 50% | 88% | 70% | 25% | 67% |
+| C# | 94% | 96% | 50% | 88% | 70% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
@@ -495,6 +495,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | fields, events | `field_declaration`, `event_field_declaration` | `field` |
 | properties, indexers, event properties | `property_declaration`, `indexer_declaration`, `event_declaration` | `field` |
 | local functions | `local_function_statement` | `function`, no parent |
+| `Func<int, int> f = x => …;`, `Action f = delegate { … };` in a body | `local_declaration_statement` declarator with a `lambda_expression` / `anonymous_method_expression` value | `function`, no parent, like a local function; it owns the lambda's calls, so `f(2)` reaches it. A field holding a lambda stays a `field`; a lambda passed as an argument declares nothing |
 | `delegate` | `delegate_declaration` | `type_alias` |
 | `: Base, IFoo` | base list | `extends` / `implements` by the `IFoo` heuristic |
 | `using N;`, `using static` | `using_directive` | `imports` |
@@ -508,7 +509,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | Base list split by naming | By design | C# syntax does not separate base class from interfaces; the [documented heuristic](../../../crates/mct-lang-csharp/src/lib.rs#L420) uses the `IFoo` convention |
 | A struct used as a qualifier (`Sku.Parse()`) gets an unresolved reference | Model limit | a target has one kind, and a capitalized qualifier is far more often a static class; a method named like the type (its constructor) must never be the target |
-| Lambdas, locals | Not implemented | no arm for `lambda_expression` or `local_declaration_statement` |
+| Unnamed lambdas, plain locals | Not implemented | a lambda passed as an argument and a local with any other value declare no symbol; their calls belong to the enclosing member |
 | `using Alias = Type` symbol | Not implemented | alias directives emit imports only |
 | `.csproj`/NuGet dependencies | By design | explicitly excluded in [Dependency detection](../../../internal/checklist.md#dependency-manifest-detection) |
 
@@ -1101,7 +1102,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [~] Nested function (named, inside a function): local function as `function` with no parent
-- [ ] Lambda / closure assigned to a name: no symbol
+- [x] Lambda / closure assigned to a name: `Func<int, int> f = x => …;` and `Action f = delegate { … };` in a body are a `function`, no parent like a local function, with the declaration up to the body as signature; a field holding a lambda stays a `field`
 - [x] Method: `method`
 - [x] Constructor: `method` named after the class, static constructor too
 - [x] Destructor / finalizer: `~Name` as `method`
