@@ -761,7 +761,7 @@ From `rules.md` and the two messages:
         `web-ui/src/notes/obsidian.ts`, a `MarkedExtension`) are parentless
         functions with no in-repo caller: 5 candidates, plus the same shape
         in the bundles. Telling them apart needs a stored fact about the
-        declaration (schema or symbol details), so an issue first.
+        declaration (schema or symbol details): issue #475.
   - [ ] A renamed default import (`import SearchDialog from
         '@/components/search'`) does not reach the default-exported
         `DefaultSearchDialog`: needs default-export resolution across files.
