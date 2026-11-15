@@ -766,6 +766,10 @@ From `rules.md` and the two messages:
         `describe(e)` call gets today. Probe on a tiny tree: dead code
         listed `parse` and `twice` before. Test:
         `mct-lang-kotlin/tests/callable_references.rs`.
+- [x] Kotlin, class literal: `Box::class` is a `references` relation to
+      `Box` (an uppercase simple name; `value::class` records nothing).
+      Probe: a class used only as `Used::class` is no longer dead code, an
+      unused one still is. Stacked on #504.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
