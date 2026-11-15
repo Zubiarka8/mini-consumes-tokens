@@ -83,7 +83,8 @@ impl LanguageParser for PowerShellParser {
                 0,
             );
             let params = terminate_param_blocks(tree.root_node(), &mut normalized, 0);
-            if commas || params {
+            let lists = join_spaced_comma_lists(tree.root_node(), &mut normalized, 0);
+            if commas || params || lists {
                 if let Some(reparsed) = parser.parse(&normalized, None) {
                     if !reparsed.root_node().has_error() {
                         tree = reparsed;
@@ -186,6 +187,48 @@ fn terminate_param_blocks(node: Node, normalized: &mut [u8], depth: u32) -> bool
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         changed |= terminate_param_blocks(child, normalized, depth + 1);
+    }
+    changed
+}
+
+/// Repair only the pinned grammar's rejection of a bare-word argument list
+/// with a blank after the comma (`Remove-Item a, b -Force`), which PowerShell
+/// accepts as one array argument. On every line an `ERROR` node starts on, each
+/// `word, word` comma and blank become `_`, so the list reads as one word,
+/// and two one-byte substitutions keep every location. The arguments are not
+/// extracted, and symbols read the original text. A full reparse must accept
+/// the entire file.
+fn join_spaced_comma_lists(node: Node, normalized: &mut [u8], depth: u32) -> bool {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return false;
+    }
+    let mut changed = false;
+    if node.kind() == "ERROR" {
+        let start = node.start_byte().min(normalized.len());
+        let line_start = normalized[..start]
+            .iter()
+            .rposition(|&b| b == b'\n')
+            .map_or(0, |n| n + 1);
+        let line_end = normalized[start..]
+            .iter()
+            .position(|&b| b == b'\n')
+            .map_or(normalized.len(), |n| start + n);
+        for at in line_start..line_end.saturating_sub(2) {
+            let word = |b: u8| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':' | b'-' | b'.');
+            if normalized[at + 1] == b','
+                && normalized[at + 2] == b' '
+                && word(normalized[at])
+                && normalized.get(at + 3).is_some_and(|&b| word(b))
+            {
+                normalized[at + 1] = b'_';
+                normalized[at + 2] = b'_';
+                changed = true;
+            }
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        changed |= join_spaced_comma_lists(child, normalized, depth + 1);
     }
     changed
 }

@@ -399,6 +399,15 @@ From `rules.md` and the two messages:
           PowerShell files fail before and after (`review-check.ps1:29`,
           ERR-002, a different construct). Recorded in
           `errors/HISTORY.md`; the checklist's FN01 cell is `[x]`.
+    - [x] PowerShell comma lists: `Remove-Item a, b -Force` and
+          `Remove-Item Env:A, Env:B` (a bare-word list with a blank after the
+          comma) were a syntax error that dropped the file (ERR-002). On the
+          lines where the grammar reports its error, such a `word, word`
+          becomes one word in a same-offset reparse, kept only when clean.
+          Test: `tests/comma_lists.rs` (real syntax errors still rejected).
+          This repository: PowerShell files that fail 2 of 35 -> 1 of 35
+          (the malformed fixture, ERR-003); `review-check.ps1` gives 23
+          symbols and 14 relations. ERR-002 is `RESOLVED`.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
           `\define`) with a literal name, single-quoted or double-quoted
           without interpolation, declares a `constant` with no parent,
