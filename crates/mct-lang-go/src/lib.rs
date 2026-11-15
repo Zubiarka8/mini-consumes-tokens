@@ -10,7 +10,7 @@
 //! structs satisfy it. Revisit alongside the general LSP/type-resolution
 //! decision (see `checklist.md`).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
@@ -21,9 +21,13 @@ use tree_sitter::{Node, Parser};
 use values::{declared_functions, is_shadowed, unwrap_element};
 
 mod details;
+mod literals;
 mod receivers;
 mod stdlib;
 mod values;
+mod tokens;
+
+pub use tokens::GoTokenSource;
 
 pub struct GoParser;
 
@@ -82,13 +86,16 @@ impl LanguageParser for GoParser {
         walker.std_imports = stdlib::StdImports::of(root, &file.contents);
         walker.packages = repo_packages(root, &file.contents);
         walker.functions = declared_functions(root, &file.contents);
+        walker.aliased_packages = receivers::aliased_repo_packages(root, &file.contents);
         let file_loc = file_location(root);
         let file_module_id = walker.push_symbol(module_name, SymbolKind::Module, file_loc, None);
         if let Some(ref pkg) = package_name {
             walker.push_symbol(pkg.clone(), SymbolKind::Module, file_loc, None);
         }
         walker.visit_children(root, file_module_id, package_name.as_deref(), 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -139,6 +146,13 @@ struct Walker<'a> {
     packages: HashSet<String>,
     /// The names of the functions this file declares at package level.
     functions: HashSet<String>,
+    /// The names this file's aliased repository imports bind, each to the
+    /// directory its import path ends in: `database` for `db
+    /// "example.com/app/database"` (see `receivers::aliased_repo_packages`).
+    aliased_packages: HashMap<String, String>,
+    /// The type parameters in scope (`T` of `func F[T any]` or `type
+    /// Box[T any]`), which name no declared type.
+    type_params: Vec<String>,
 }
 
 impl<'a> Walker<'a> {
@@ -245,7 +259,9 @@ impl<'a> Walker<'a> {
                     package_name.map(str::to_string),
                 );
                 self.details.push(detail);
+                let scope = self.open_type_params(node);
                 self.visit_function(node, id, package_name, depth);
+                self.type_params.truncate(scope);
             }
             "method_declaration" => {
                 let name = node
@@ -257,7 +273,9 @@ impl<'a> Walker<'a> {
                 let detail = details::function_detail(node, &name, self.next_id, self.source);
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
                 self.details.push(detail);
+                let scope = self.open_type_params(node);
                 self.visit_function(node, id, package_name, depth);
+                self.type_params.truncate(scope);
             }
             "type_spec" => {
                 let name = node
@@ -266,71 +284,9 @@ impl<'a> Walker<'a> {
                     .unwrap_or_default();
                 let detail = details::type_detail(node, &name, self.next_id, self.source);
                 self.details.push(detail);
-                match node.child_by_field_name("type") {
-                    Some(type_node) if type_node.kind() == "struct_type" => {
-                        let id = self.push_symbol(
-                            name.clone(),
-                            SymbolKind::Struct,
-                            location(node),
-                            package_name.map(str::to_string),
-                        );
-                        self.push_fields(type_node, &name, id, package_name);
-                    }
-                    Some(type_node) if type_node.kind() == "interface_type" => {
-                        let id = self.push_symbol(
-                            name.clone(),
-                            SymbolKind::Interface,
-                            location(node),
-                            package_name.map(str::to_string),
-                        );
-                        // The interface's own declared method set — NOT a
-                        // resolution of which types implement it (see the
-                        // module doc's "deferred by design" note above).
-                        let mut cursor = type_node.walk();
-                        for member in type_node.children(&mut cursor) {
-                            if member.kind() == "type_elem" && member.named_child_count() == 1 {
-                                if let Some(embedded) = member.named_child(0) {
-                                    self.push_embedding(
-                                        id,
-                                        embedded,
-                                        Some(SymbolKind::Interface),
-                                        package_name,
-                                    );
-                                }
-                            }
-                            if member.kind() == "method_elem" {
-                                let method_name = member
-                                    .child_by_field_name("name")
-                                    .map(|n| text(n, self.source).to_string())
-                                    .unwrap_or_default();
-                                let detail = details::function_detail(
-                                    member,
-                                    &method_name,
-                                    self.next_id,
-                                    self.source,
-                                );
-                                self.details.push(detail);
-                                self.push_symbol(
-                                    method_name,
-                                    SymbolKind::Method,
-                                    location(member),
-                                    Some(name.clone()),
-                                );
-                            }
-                        }
-                    }
-                    _ => {
-                        // `type UserID int` and similar — recorded for
-                        // completeness, out of the spec's required set but
-                        // free given the trait already models `TypeAlias`.
-                        self.push_symbol(
-                            name,
-                            SymbolKind::TypeAlias,
-                            location(node),
-                            package_name.map(str::to_string),
-                        );
-                    }
-                }
+                let scope = self.open_type_params(node);
+                self.visit_type_spec(node, name, package_name);
+                self.type_params.truncate(scope);
             }
             "type_alias" => {
                 // `type Amount = Money`
@@ -350,8 +306,18 @@ impl<'a> Walker<'a> {
             "const_declaration" | "var_declaration"
                 if node.parent().is_some_and(|p| p.kind() == "source_file") =>
             {
-                self.push_package_values(node, package_name);
-                self.visit_children(node, owner, package_name, depth + 1);
+                for (spec, function) in self.push_package_values(node, package_name) {
+                    if let Some(ty) = spec.child_by_field_name("type") {
+                        self.push_declared_type(owner, ty, package_name, 0);
+                    }
+                    match function {
+                        // The literal's body is the function's own.
+                        Some((literal, id)) => {
+                            self.visit_function(literal, id, package_name, depth + 1)
+                        }
+                        None => self.visit_children(spec, owner, package_name, depth + 1),
+                    }
+                }
             }
             "import_declaration" => {
                 let mut specs = Vec::new();
@@ -401,6 +367,12 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, package_name, depth + 1);
                 }
             }
+            "var_spec" | "const_spec" => {
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.push_declared_type(owner, ty, package_name, 0);
+                }
+                self.visit_children(node, owner, package_name, depth + 1);
+            }
             "composite_literal" => {
                 if let Some(ty) = node.child_by_field_name("type") {
                     self.push_type_use(owner, RelationKind::References, ty, None, package_name);
@@ -431,7 +403,86 @@ impl<'a> Walker<'a> {
                     self.visit(operand, owner, package_name, depth + 1);
                 }
             }
+            // `o.(Marker)` and `case Row, *Cfg:` of a type switch name the
+            // type they test for.
+            "type_assertion_expression" | "type_case" => {
+                let mut cursor = node.walk();
+                let types: Vec<Node> = node.children_by_field_name("type", &mut cursor).collect();
+                for ty in types.into_iter().filter(|t| text(*t, self.source) != "nil") {
+                    self.push_declared_type(owner, ty, package_name, depth + 1);
+                }
+                self.visit_children(node, owner, package_name, depth + 1);
+            }
             _ => self.visit_children(node, owner, package_name, depth + 1),
+        }
+    }
+
+    /// The struct, interface or named type `type_spec` declares.
+    fn visit_type_spec(&mut self, node: Node, name: String, package_name: Option<&str>) {
+        match node.child_by_field_name("type") {
+            Some(type_node) if type_node.kind() == "struct_type" => {
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Struct,
+                    location(node),
+                    package_name.map(str::to_string),
+                );
+                self.push_fields(type_node, &name, id, package_name);
+            }
+            Some(type_node) if type_node.kind() == "interface_type" => {
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Interface,
+                    location(node),
+                    package_name.map(str::to_string),
+                );
+                // The interface's own declared method set — NOT a
+                // resolution of which types implement it (see the
+                // module doc's "deferred by design" note above).
+                let mut cursor = type_node.walk();
+                for member in type_node.children(&mut cursor) {
+                    if member.kind() == "type_elem" && member.named_child_count() == 1 {
+                        if let Some(embedded) = member.named_child(0) {
+                            self.push_embedding(
+                                id,
+                                embedded,
+                                Some(SymbolKind::Interface),
+                                package_name,
+                            );
+                        }
+                    }
+                    if member.kind() == "method_elem" {
+                        let method_name = member
+                            .child_by_field_name("name")
+                            .map(|n| text(n, self.source).to_string())
+                            .unwrap_or_default();
+                        let detail = details::function_detail(
+                            member,
+                            &method_name,
+                            self.next_id,
+                            self.source,
+                        );
+                        self.details.push(detail);
+                        self.push_symbol(
+                            method_name,
+                            SymbolKind::Method,
+                            location(member),
+                            Some(name.clone()),
+                        );
+                    }
+                }
+            }
+            _ => {
+                // `type UserID int` and similar — recorded for
+                // completeness, out of the spec's required set but
+                // free given the trait already models `TypeAlias`.
+                self.push_symbol(
+                    name,
+                    SymbolKind::TypeAlias,
+                    location(node),
+                    package_name.map(str::to_string),
+                );
+            }
         }
     }
 
@@ -459,6 +510,9 @@ impl<'a> Walker<'a> {
             }
             if field.child_by_field_name("name").is_some() {
                 self.push_names(field, "", SymbolKind::Field, Some(parent));
+                if let Some(ty) = field.child_by_field_name("type") {
+                    self.push_declared_type(id, ty, package_name, 0);
+                }
             } else if let Some(embedded) = field.child_by_field_name("type") {
                 self.push_embedding(id, embedded, None, package_name);
             }
@@ -483,6 +537,99 @@ impl<'a> Walker<'a> {
     /// package, a declaration of `pkg` through an unaliased repository
     /// import, and unproven otherwise. Any other type (a union, `~T`, a
     /// slice or map type) names none.
+    /// Opens the type parameters `node` declares (`[T any, U comparable]`
+    /// of a function or type, or `Box[T]` of a method's receiver), and
+    /// returns the scope to truncate back to.
+    fn open_type_params(&mut self, node: Node) -> usize {
+        let scope = self.type_params.len();
+        if let Some(list) = node.child_by_field_name("type_parameters") {
+            for param in list.named_children(&mut list.walk()) {
+                let mut cursor = param.walk();
+                for name in param.children_by_field_name("name", &mut cursor) {
+                    self.type_params.push(text(name, self.source).to_string());
+                }
+            }
+        }
+        if let Some(receiver) = node.child_by_field_name("receiver") {
+            let mut names = Vec::new();
+            receivers::collect_receiver_type_params(receiver, self.source, &mut names, 0);
+            self.type_params.extend(names);
+        }
+        scope
+    }
+
+    /// The named types a declared type `ty` is built from (`Cart` in
+    /// `*Cart`, `[]Cart`, `map[string]Cart`, `chan Cart`, `Box[Cart]`, a
+    /// `func(Cart) Price`), each a `References` from `from` when the
+    /// source proves where it is declared. A predeclared type (`int`,
+    /// `error`) and a type parameter name none.
+    fn push_declared_type(
+        &mut self,
+        from: SymbolId,
+        ty: Node,
+        package_name: Option<&str>,
+        depth: u32,
+    ) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        match ty.kind() {
+            "type_identifier" => {
+                let name = text(ty, self.source);
+                if receivers::PREDECLARED_TYPES.contains(&name)
+                    || self.type_params.iter().any(|p| p == name)
+                    || package_name.is_none()
+                {
+                    return;
+                }
+                self.push_type_use(from, RelationKind::References, ty, None, package_name);
+            }
+            "qualified_type" => {
+                let proven = ty.child_by_field_name("package").is_some_and(|p| {
+                    let package = text(p, self.source);
+                    self.std_imports.is_std(package) || self.package_target(package, None).is_some()
+                });
+                if proven {
+                    self.push_type_use(from, RelationKind::References, ty, None, package_name);
+                }
+            }
+            "generic_type" => {
+                if let Some(base) = ty.child_by_field_name("type") {
+                    self.push_declared_type(from, base, package_name, depth + 1);
+                }
+                if let Some(arguments) = ty.child_by_field_name("type_arguments") {
+                    self.push_declared_children(from, arguments, package_name, depth);
+                }
+            }
+            "pointer_type" | "slice_type" | "array_type" | "map_type" | "channel_type"
+            | "parenthesized_type" | "type_elem" => {
+                self.push_declared_children(from, ty, package_name, depth);
+            }
+            "function_type" | "parameter_list" => {
+                self.push_declared_children(from, ty, package_name, depth);
+            }
+            "parameter_declaration" | "variadic_parameter_declaration" => {
+                if let Some(inner) = ty.child_by_field_name("type") {
+                    self.push_declared_type(from, inner, package_name, depth + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn push_declared_children(
+        &mut self,
+        from: SymbolId,
+        node: Node,
+        package_name: Option<&str>,
+        depth: u32,
+    ) {
+        let children: Vec<Node> = node.named_children(&mut node.walk()).collect();
+        for child in children {
+            self.push_declared_type(from, child, package_name, depth + 1);
+        }
+    }
+
     fn push_type_use(
         &mut self,
         from: SymbolId,
@@ -521,14 +668,8 @@ impl<'a> Walker<'a> {
                         external: true,
                         ..Default::default()
                     })
-                } else if self.packages.contains(package) {
-                    Some(RelationTarget {
-                        qualifier: Some(package.to_string()),
-                        kind,
-                        ..Default::default()
-                    })
                 } else {
-                    None
+                    self.package_target(package, kind)
                 };
                 (name, target)
             }
@@ -543,8 +684,14 @@ impl<'a> Walker<'a> {
 
     /// Each name of a package-level `const` / `var` declaration, grouped
     /// (`const ( … )`, `var ( … )`) or not, is a `Constant` / `Variable` of
-    /// the package.
-    fn push_package_values(&mut self, declaration: Node, package_name: Option<&str>) {
+    /// the package; `var f = func(…) {…}` (one name, no type) is a
+    /// `Function`, as a JS arrow bound to a name is. Returns each spec, with
+    /// the function literal and symbol of such a binding.
+    fn push_package_values<'t>(
+        &mut self,
+        declaration: Node<'t>,
+        package_name: Option<&str>,
+    ) -> Vec<(Node<'t>, Option<(Node<'t>, SymbolId)>)> {
         let (keyword, kind) = if declaration.kind() == "const_declaration" {
             ("const", SymbolKind::Constant)
         } else {
@@ -562,9 +709,42 @@ impl<'a> Walker<'a> {
                 _ => {}
             }
         }
+        let mut out = Vec::new();
         for spec in specs {
-            self.push_names(spec, keyword, kind, package_name);
+            let function = match func_value(spec) {
+                Some(literal) if kind == SymbolKind::Variable => self
+                    .push_func_value(spec, literal, package_name)
+                    .map(|id| (literal, id)),
+                _ => None,
+            };
+            if function.is_none() {
+                self.push_names(spec, keyword, kind, package_name);
+            }
+            out.push((spec, function));
         }
+        out
+    }
+
+    /// The `Function` `var f = func(…) {…}` declares, unless its name is `_`.
+    fn push_func_value(
+        &mut self,
+        spec: Node,
+        literal: Node,
+        parent: Option<&str>,
+    ) -> Option<SymbolId> {
+        let name_node = spec.child_by_field_name("name")?;
+        let name = text(name_node, self.source);
+        if name == "_" {
+            return None;
+        }
+        let detail = details::func_value_detail(spec, literal, name, self.next_id, self.source);
+        self.details.push(detail);
+        Some(self.push_symbol(
+            name.to_string(),
+            SymbolKind::Function,
+            location(name_node),
+            parent.map(str::to_string),
+        ))
     }
 
     /// One `kind` symbol per declared name of `spec`, skipping `_`.
@@ -592,6 +772,11 @@ impl<'a> Walker<'a> {
         let mut locals = receivers::Types::new();
         receivers::locals(node, self.source, &mut locals, depth + 1);
         let outer_locals = std::mem::replace(&mut self.locals, locals);
+        for field in ["parameters", "result"] {
+            if let Some(ty) = node.child_by_field_name(field) {
+                self.push_declared_type(id, ty, package_name, 0);
+            }
+        }
         if let Some(params) = node.child_by_field_name("parameters") {
             self.visit_children(params, id, package_name, depth + 1);
         }
@@ -709,16 +894,36 @@ impl<'a> Walker<'a> {
                     kind: Some(SymbolKind::Method),
                     ..Default::default()
                 }
-            } else if self.packages.contains(name) {
-                RelationTarget {
-                    qualifier: Some(name.to_string()),
-                    ..Default::default()
-                }
+            } else if let Some(target) = self.package_target(name, None) {
+                target
             } else {
                 return;
             }
         };
         self.push_target(target);
+    }
+
+    /// Where a name declared in the repository package `package` lives: a
+    /// declaration of `package` through an unaliased import (its name is
+    /// the package's), or one under the import path's last directory
+    /// through an aliased import (`db "…/database"`: under `database/`,
+    /// whatever its `package` clause says). `None` when no repository
+    /// import binds `package`.
+    fn package_target(&self, package: &str, kind: Option<SymbolKind>) -> Option<RelationTarget> {
+        if self.packages.contains(package) {
+            return Some(RelationTarget {
+                qualifier: Some(package.to_string()),
+                kind,
+                ..Default::default()
+            });
+        }
+        self.aliased_packages
+            .get(package)
+            .map(|directory| RelationTarget {
+                module: Some(directory.clone()),
+                kind,
+                ..Default::default()
+            })
     }
 
     /// `target` for the relation about to be pushed.
@@ -882,4 +1087,23 @@ fn callee_identifier(function: Node) -> Option<Node> {
         "type_identifier" => Some(function),
         _ => None,
     }
+}
+
+/// The function literal of a `var_spec` that binds one name, with no type,
+/// to one `func(…) {…}`.
+pub(crate) fn func_value(spec: Node) -> Option<Node> {
+    if spec.kind() != "var_spec"
+        || spec.child_by_field_name("type").is_some()
+        || spec
+            .children_by_field_name("name", &mut spec.walk())
+            .count()
+            != 1
+    {
+        return None;
+    }
+    let values = spec.child_by_field_name("value")?;
+    if values.named_child_count() != 1 {
+        return None;
+    }
+    values.named_child(0).filter(|v| v.kind() == "func_literal")
 }
