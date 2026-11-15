@@ -185,11 +185,14 @@ fn use_and_require_are_imports() {
 }
 
 #[test]
-fn define_call_is_an_ordinary_call_not_a_constant_symbol() {
+fn define_call_is_a_call_and_declares_a_constant() {
     let parsed = parse("<?php\ndefine('LEGACY_FLAG', true);\n");
     assert!(
-        parsed.symbols.iter().all(|s| s.name != "LEGACY_FLAG"),
-        "define() arguments must not synthesize a symbol"
+        parsed
+            .symbols
+            .iter()
+            .any(|s| s.name == "LEGACY_FLAG" && s.kind == SymbolKind::Constant),
+        "define() with a literal name declares a constant (tests/define_constants.rs)"
     );
     let calls: Vec<_> = parsed
         .relations

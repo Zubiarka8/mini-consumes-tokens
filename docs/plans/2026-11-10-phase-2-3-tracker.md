@@ -389,6 +389,17 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] PHP `define('NAME', …)`: a call to the global `define` (also
+          `\define`) with a literal name, single-quoted or double-quoted
+          without interpolation, declares a `constant` with no parent,
+          wherever the call sits, and stays a `calls define` relation. A
+          computed or interpolated name, a method or static call named
+          `define` give nothing. Test: `tests/define_constants.rs`;
+          `parse.rs` no longer pins "define() makes no symbol" (the old
+          behavior, replaced by design). Corpus: symbols 418 -> 419
+          (`SHELF_STARTED_AT`, used at `console.php:353`), relations
+          unchanged. Open PHP gaps: global `$var`, anonymous classes,
+          `namespace`.
     - [x] Go fields, constants and variables: each named struct field is a
           `field` of the struct (an embedded one is none), each package-level
           `const` / `var` name, grouped or not, a `constant` / `variable` of
