@@ -125,7 +125,7 @@ struct Walker<'a> {
     /// declared directly in one has that module as its parent, as a C++
     /// namespace member does, so a path through it (`name::item`) matches
     /// the item with the module evidence the path carries.
-    inline_modules: HashSet<SymbolId>,
+    inline_module_ids: HashSet<SymbolId>,
     /// Type parameters declared by the items enclosing the current node: a
     /// type named like one of them is that parameter, not a type to record.
     generics: HashSet<String>,
@@ -156,7 +156,7 @@ impl<'a> Walker<'a> {
             scope: FileScope::default(),
             bound: HashSet::new(),
             local_fns: HashSet::new(),
-            inline_modules: HashSet::new(),
+            inline_module_ids: HashSet::new(),
             generics: HashSet::new(),
             relation_targets: Vec::new(),
             self_type: None,
@@ -762,7 +762,7 @@ impl<'a> Walker<'a> {
                 let parent = self.module_owner(owner);
                 let id = self.push_symbol(name.clone(), SymbolKind::Module, location(node), parent);
                 if let Some(body) = node.child_by_field_name("body") {
-                    self.inline_modules.insert(id);
+                    self.inline_module_ids.insert(id);
                     self.visit_children(body, id, None, depth + 1);
                 } else if !name.is_empty() {
                     // `mod name;` pulls in the file `name.rs`: a dependency
@@ -1285,9 +1285,9 @@ impl<'a> Walker<'a> {
     }
 
     /// The inline module `owner` is, when it is one (see
-    /// [`Walker::inline_modules`]).
+    /// [`Walker::inline_module_ids`]).
     fn module_owner(&self, owner: SymbolId) -> Option<String> {
-        if !self.inline_modules.contains(&owner) {
+        if !self.inline_module_ids.contains(&owner) {
             return None;
         }
         self.symbols.get(owner as usize).map(|s| s.name.clone())
