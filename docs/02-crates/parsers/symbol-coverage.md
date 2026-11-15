@@ -572,7 +572,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Implicit interface satisfaction | By design | explicitly deferred pending type resolution in [Go crate docs](../../../crates/mct-lang-go/src/lib.rs#L3) and [open decision 3](../../../internal/checklist.md#open-decisions) |
-| Conversions and declared types as uses | Not implemented | a conversion `T(x)` appears as a call; a type named only in a declaration (`var w T`, a parameter or field type) gives no relation |
+| Conversions and types of aliased imports as uses | Not implemented | a conversion `T(x)` appears as a call; a declared type of an aliased or unknown package (`var c db.Conn` with `db "…/database"`) gives no relation, since nothing proves which package `db` is |
 | Closures inside a function, locals | Not implemented | only a package-level `var f = func…` is a symbol; no arm for short variable declarations |
 
 ### PHP
@@ -1259,13 +1259,13 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a composite literal (`util.Widget{}`) references its type; a type named only in a declaration (`var w Widget`) gets no reference
+- [~] Every use: `find_references`: a composite literal (`util.Widget{}`) and a declared type (`var w Widget`, a parameter, result or field type, through `*T`, `[]T`, `map[K]V`, `chan T` and generic arguments) reference their type; a type of an aliased import (`db.Conn`) gets no reference
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
 
 **Features: Code quality**
 
-- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only as a declared type is reported
+- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only as a declared type through an aliased import (`var c db.Conn`) is reported
 - [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
 
 **Features: Structure**
@@ -1511,11 +1511,12 @@ the other documents.
    these calls. The imported helper is **not** reported as dead code, because
    the import counts as a use. A qualified `util::helper_fn()` inside a macro,
    with only `mod util;` and no helper import, **is** a false positive.
-7. **C++ and Go:** using a type only to declare a variable (`Widget w;`,
-   `var w Widget`) gives no relation when the type is declared in another
-   file. The type is reported as dead code even though it is used (#440).
-   A C++ declaration in the type's own file references it, and a Go
-   composite literal (`util.Widget{}`) references its type.
+7. **C++ and Go:** a C++ type used only to declare a variable (`Widget w;`)
+   in another file than its declaration gives no relation, so the type is
+   reported as dead code even though it is used (#440); a declaration in the
+   type's own file references it. A Go declared type (`var w Widget`) and
+   composite literal (`util.Widget{}`) reference their type, except through
+   an aliased import (`db.Conn`).
 8. **C#:** a struct used only as a qualifier (`Sku.Parse()`) gets an
    unresolved reference. The struct is reported as dead code. A static
    class used that way (`Helpers.HelperFn()`) is referenced.
