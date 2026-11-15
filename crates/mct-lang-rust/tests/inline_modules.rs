@@ -47,8 +47,8 @@ fn an_inline_module_item_has_the_module_as_its_parent() {
         parents,
         [
             "Thing:inner",
-            "deeper:inner",
             "_t:entry",
+            "deeper:inner",
             "entry:-",
             "helper:inner",
             "inner:-",
