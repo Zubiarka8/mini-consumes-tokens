@@ -179,7 +179,7 @@ round to the nearest whole percent, with halves rounded up.
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 91% | 29 | 95% | 10 | 0 |
 | JS/TS | 89% | 33 | 90% | 10 | 1 |
-| Java | 83% | 27 | 65% | 10 | 0 |
+| Java | 83% | 27 | 75% | 10 | 0 |
 | Kotlin | 83% | 35 | 65% | 10 | 0 |
 | C# | 87% | 34 | 60% | 10 | 0 |
 | C++ | 89% | 28 | 50% | 10 | 0 |
@@ -275,7 +275,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 100% | 100% | 50% | 100% | 100% | 100% | 83% |
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 50% | 100% |
-| Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
+| Java | 80% | 90% | 38% | 100% | 100% | 25% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 94% | 96% | 50% | 88% | 70% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
@@ -431,6 +431,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | fields | `field_declaration` | `field` |
 | `extends`, `implements` | superclass / interfaces of `class_declaration`, `extends_interfaces` of `interface_declaration` | `extends`, `implements`; the target is a `class` for a class's `extends` and an `interface` otherwise, so a same-named constructor or method is never a candidate |
 | `@Audited`, `@a.b.Audited(…)` on a type, method, constructor or field | `marker_annotation`, `annotation` in `modifiers` | `references Audited` from the annotated symbol, to an `interface` only (annotation types are indexed as interfaces). `@Override` stays unresolved: nothing in the repository declares it |
+| string literals and text blocks (`"""…"""`) | `string_literal` (`string_fragment`, `multiline_string_fragment`, `escape_sequence`) | literals for exact-text search, escapes resolved, split at a string template's `\{…}` holes |
 | `import a.b.C`, `import static`, `.*` | `import_declaration`, `scoped_identifier`, `asterisk` | `imports` (each emitted twice) |
 | `m()`, `obj.m()`, `new X()` | `method_invocation`, `object_creation_expression` | `calls` |
 | the target of `m()`, `obj.m()` | `method_invocation` | only a `method` can be its target: Java cannot invoke a field, so a same-named field is never a candidate |
@@ -716,7 +717,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Go, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-go` and `mct-lang-md` fill `ParsedFile::literals`; Python, JS/TS and Go share `mct_tree_sitter::collect_literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Go, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-go` and `mct-lang-md` fill `ParsedFile::literals`; Python, JS/TS, Java and Go share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -1020,7 +1021,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each string literal or text block that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
