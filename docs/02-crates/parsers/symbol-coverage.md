@@ -128,7 +128,7 @@ table emits none yet:
 | Lua | `function` declarations (`local`, dotted, `T:m`), functions assigned to a name or field, functions in a module table's fields | none: Lua has no visibility syntax (`local` is scope, not access) | — (Lua has none) | classes, fields and variables (no declaration header), `@generic`, `@class`/`@field`. Lua writes no types: every type comes from the LuaLS `---` lines right above (`@param name type`, `@return type`, several `@return`s joined as one multiple return) as `doc`. `function T:m()` has the implicit `self` receiver; `...` is variadic |
 | Bash | functions (`function f()` and `f()`), file-level variables (bare or under `readonly`/`export`/`declare`/`typeset`/`local`) | none: Bash has no access control (`export` passes a variable to child processes) | `readonly`, or a `-r` flag of `declare`/`typeset`, → readonly | parameters (a shell function declares none: it reads `$1`, `$@`, so they are recorded as unknown), types (Bash has none), a variable's value |
 | PowerShell | functions and filters (header up to the body, inline parameter list included), file-level variables (the assignment target as written: `$Global:Limit`, `[int]$Max`) | none: PowerShell functions have no access modifiers (`Export-ModuleMember` is a runtime call) | — | parameters come from the inline list or the body's `param()` block; a `[type]` literal is the type, other attributes (`[Parameter(Mandatory)]`, validators) are not. A function with neither form has unknown parameters (it can read `$args`). Return types (`[OutputType()]` is advisory), classes and enums (not indexed) |
-| Go | `func`, methods, interface methods, `type` (struct, interface, defined type, alias), struct fields, package-level `const`/`var` | an upper-case first letter → public, otherwise package (the exported-name rule) | — (Go has none) | function literals. A result list is one return type as written: `(n int, err error)` |
+| Go | `func`, methods, interface methods, `type` (struct, interface, defined type, alias), struct fields, package-level `const`/`var` (a `function` for `var f = func…`) | an upper-case first letter → public, otherwise package (the exported-name rule) | — (Go has none) | function literals. A result list is one return type as written: `(n int, err error)` |
 
 A Rust receiver is stored with the type it stands for: `&mut self` is `&mut Self`; a Go receiver keeps its declared type (`*Stack[T]`). `a, b int` is two `int` parameters.
 A destructuring or `_` parameter keeps its type but has no name.
@@ -183,7 +183,7 @@ round to the nearest whole percent, with halves rounded up.
 | Kotlin | 80% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
 | C++ | 86% | 28 | 50% | 10 | 0 |
-| Go | 75% | 18 | 60% | 10 | 0 |
+| Go | 78% | 18 | 60% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
@@ -279,7 +279,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Kotlin | 72% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
-| Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
+| Go | 83% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
@@ -573,7 +573,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | Implicit interface satisfaction | By design | explicitly deferred pending type resolution in [Go crate docs](../../../crates/mct-lang-go/src/lib.rs#L3) and [open decision 3](../../../internal/checklist.md#open-decisions) |
 | Conversions and declared types as uses | Not implemented | a conversion `T(x)` appears as a call; a type named only in a declaration (`var w T`, a parameter or field type) gives no relation |
-| Closures, locals | Not implemented | no arm for `func_literal` or short variable declarations |
+| Closures inside a function, locals | Not implemented | only a package-level `var f = func…` is a symbol; no arm for short variable declarations |
 
 ### PHP
 
@@ -1222,7 +1222,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, parent is the package
-- [ ] Lambda / closure assigned to a name: `f := func() {}` has no symbol
+- [~] Lambda / closure assigned to a name: a package-level `var f = func(…) {…}` is a `function`; `f := func() {}` inside a function has no symbol
 - [x] Method: receiver methods, pointer and value receivers share the parent
 
 **Types and object-oriented programming**
