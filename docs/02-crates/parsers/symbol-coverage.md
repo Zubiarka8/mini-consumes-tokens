@@ -177,7 +177,7 @@ round to the nearest whole percent, with halves rounded up.
 | Language | Constructs | Checks | Features | Checks | Unverified |
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
-| Python | 88% | 29 | 85% | 10 | 0 |
+| Python | 90% | 29 | 85% | 10 | 0 |
 | JS/TS | 86% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 80% | 35 | 65% | 10 | 0 |
@@ -273,7 +273,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Language | Functions | Types / OOP | Data | Relations | Search | Quality | Structure |
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
-| Python | 89% | 100% | 50% | 100% | 80% | 100% | 83% |
+| Python | 94% | 100% | 50% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 92% | 58% | 88% | 80% | 50% | 50% |
@@ -342,7 +342,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `def` / `async def` at top level | `function_definition` | `function` |
 | `def` in a class | `function_definition` | `method`, parent the class |
-| `def` inside a function | `function_definition` | `function`, no parent |
+| `def` inside a function or method | `function_definition` | `function`, parent the enclosing function or method |
 | `class C(A, B)` | `class_definition` | `class`; `extends` per base |
 | decorated `def`/`class` | `decorated_definition` | the symbol, plus `references` to each decorator |
 | `type X = …` (PEP 695) | `type_alias_statement` | `type_alias` |
@@ -368,7 +368,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | A name used in a file with `from m import *` gets no evidence | By design | the star import could bind any name, so the call is left to name resolution (`library/cli.py` `int(…)` still matches a fixture variable named `int`) |
 | A lambda that is not bound to one name (an argument, one of several targets, a local) | By design | it has no name a caller could use; `f = lambda …` at module level or in a class body is a `function` or `method` |
 | A subclass of a project enum (`class Color(BaseEnum)`) stays a `class` | By design | only a base the file proves to be the standard `enum` module's counts; the parser does not follow a base class into another definition |
-| Nested functions have no parent | Not implemented | the parent is set only for class members |
 | Getter and setter as two rows | Not implemented | both are emitted as methods; the shared `field` kind could model a combined property, as in C# |
 | Exact-text search in strings | Not implemented | the parser does not fill `literals` |
 | A builtin is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
@@ -843,7 +842,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, `async def` too
-- [~] Nested function (named, inside a function): `function` with no parent
+- [x] Nested function (named, inside a function): `function` owned by the enclosing function or method
 - [x] Lambda / closure assigned to a name: `f = lambda …` is a `function`, or a `method` in a class body, with the binding up to the body as signature
 - [x] Method: `method`, parent is the class
 - [x] Constructor: `__init__` as `method`
