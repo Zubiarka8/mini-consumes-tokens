@@ -589,6 +589,13 @@ From `rules.md` and the two messages:
           Corpus: 261 -> 266 relations, the 5 constructions of `Location`
           and `CycleCount`. Repository snapshot (PowerShell, 817
           relations): no changes. Dead code 123 -> 123.
+    - [x] PowerShell class bases: as in C#, a class's first base is
+          `extends` (its target must be a `class`) unless it is named like
+          `IFoo`, and the rest are `implements` (an `interface` target; a
+          script declares none, so they stay unresolved). Test:
+          `tests/class_bases.rs`. Corpus: no bases, no changes. Repository
+          snapshot (PowerShell, 817 relations): no changes. Dead code
+          123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its
