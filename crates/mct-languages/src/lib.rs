@@ -41,6 +41,7 @@ pub fn build_token_sources() -> TokenSourceRegistry {
     registry.register(Arc::new(mct_lang_java::JavaTokenSource));
     registry.register(Arc::new(mct_lang_kotlin::KotlinTokenSource));
     registry.register(Arc::new(mct_lang_csharp::CSharpTokenSource));
+    registry.register(Arc::new(mct_lang_cpp::CppTokenSource));
     registry
 }
 
@@ -121,6 +122,7 @@ mod tests {
         assert_eq!(
             sources.language_ids(),
             [
+                "cpp",
                 "csharp",
                 "go",
                 "java",
