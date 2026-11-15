@@ -180,7 +180,7 @@ round to the nearest whole percent, with halves rounded up.
 | Python | 90% | 29 | 85% | 10 | 0 |
 | JS/TS | 88% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
-| Kotlin | 80% | 35 | 65% | 10 | 0 |
+| Kotlin | 83% | 35 | 65% | 10 | 0 |
 | C# | 84% | 34 | 60% | 10 | 0 |
 | C++ | 89% | 28 | 50% | 10 | 0 |
 | Go | 78% | 18 | 60% | 10 | 0 |
@@ -276,7 +276,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Python | 94% | 100% | 50% | 100% | 80% | 100% | 83% |
 | JS/TS | 88% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
-| Kotlin | 72% | 92% | 58% | 88% | 80% | 50% | 50% |
+| Kotlin | 83% | 92% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 96% | 50% | 88% | 70% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 60% | 25% | 83% |
@@ -455,6 +455,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `class`, `interface`, `object` | `class_declaration`, `object_declaration` | `class` / `interface`; `object` as `class` |
 | `val`/`var` property in a class | `property_declaration` | `field` |
 | top-level `const val`, `val`/`var`, `val (a, b) = …`, `val T.p` | `property_declaration` | `constant` for `const`, else `variable` (each destructured name too), with no parent; an extension property is a `field` with parent `T`, as an extension `fun` is a method of `T` |
+| `val f = { x: Int -> … }`, `val f = fun(…) { … }` outside a class body | `property_declaration` with a `lambda_literal` / `anonymous_function` value | `function`, top-level or owned by the enclosing function; it owns the lambda's calls |
 | `typealias Ids = List<Long>` | `type_alias` | `type_alias` |
 | `class C(val x: Int)` | `class_parameter` | `field` |
 | `enum class` entries | `enum_entry` | `field` |
@@ -1033,7 +1034,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Top-level function: `function`
 - [~] Nested function (named, inside a function): `function` with no parent
-- [ ] Lambda / closure assigned to a name: no symbol
+- [x] Lambda / closure assigned to a name: `val f = { x: Int -> … }` and `val f = fun(…) { … }` are a `function`, top-level or owned by the enclosing function in a body, with the binding up to the body as signature; a class property holding a lambda stays a `field`
 - [x] Method: `method`; extension functions are also `method` with receiver type as parent
 - [ ] Constructor: primary and secondary constructors have no symbol
 - [x] Property accessors (get/set): one `field`, custom `get()`/`set()` included in its range
