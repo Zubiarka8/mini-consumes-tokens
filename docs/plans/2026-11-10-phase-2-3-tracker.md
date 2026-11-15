@@ -1089,6 +1089,20 @@ From `rules.md` and the two messages:
           snapshot, defaults: candidates 11,946 -> 12,106, 0 skipped,
           groups 149 -> 149; at 2 lines / 12 tokens, no group with Bash
           members. Bash feature score 70% -> 80%; area Quality 50% -> 100%.
+    - [x] PowerShell repeated code: `PowerShellTokenSource`
+          (`src/tokens.rs`) gives `mct-cli duplicates` the tokens of
+          PowerShell files and is registered in `build_token_sources`, so
+          no code language is left in `unsupported_languages`. Functions,
+          filters, nested functions, class methods and constructors have
+          callable spans matching their symbols; none of these nodes has a
+          `name` field, so every span comes from the callback. A command's
+          name is an identifier, as in Bash. Tests: `tests/duplicates.rs`
+          (through the real index, and the spans compared with the
+          parser's symbols, which fails without the callback). Repository
+          snapshot, defaults: candidates 12,106 -> 12,208, 0 skipped,
+          groups 149 -> 149; at 2 lines / 12 tokens, 2 groups with
+          PowerShell members (`Die` / `Stop-Usage` in `scripts/windows/`).
+          PowerShell feature score 60% -> 70%; area Quality 50% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
