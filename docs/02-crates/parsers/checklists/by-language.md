@@ -813,7 +813,7 @@ Done 12 · Partial 2 · Not done 3 · Not verified 0 · Not applicable 35
 - [x] TY16 Module / namespace / package: file `module`
 **Fields, constants and variables**
 
-- [~] DA03 Constant (module or global): `readonly X=…` → `variable`
+- [x] DA03 Constant (module or global): `readonly X=…` and `declare -r X=…` → `constant`
 - [x] DA04 Global / module-level variable: `P_GLOBAL` → `variable`
 - [ ] DA05 Local variable: `local` is not indexed (by design)
 **Relations**

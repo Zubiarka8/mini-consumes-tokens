@@ -186,7 +186,7 @@ round to the nearest whole percent, with halves rounded up.
 | Go | 75% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
 | Lua | 86% | 14 | 60% | 10 | 0 |
-| Bash | 81% | 8 | 60% | 10 | 0 |
+| Bash | 88% | 8 | 60% | 10 | 0 |
 | PowerShell | 38% | 17 | 60% | 10 | 0 |
 
 ## Language by language
@@ -282,7 +282,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
 | Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
-| Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
+| Bash | 100% | 100% | 67% | 100% | 80% | 50% | 33% |
 | PowerShell | 42% | 25% | 25% | 67% | 80% | 50% | 33% |
 
 ### Rust
@@ -1392,7 +1392,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Fields, constants and variables**
 
-- [~] Constant (module or global): `readonly X=…` → `variable`
+- [x] Constant (module or global): `readonly X=…` and `declare -r X=…` → `constant`
 - [x] Global / module-level variable: `variable`, `export`/`readonly`/`declare` too
 - [ ] Local variable: `local x` is deliberately not indexed
 
