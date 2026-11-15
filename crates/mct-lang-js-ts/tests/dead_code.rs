@@ -82,3 +82,54 @@ fn methods_reached_only_by_an_ambiguous_member_call_are_not_dead() {
     assert!(!dead.iter().any(|d| d.ends_with(":run")), "{dead:?}");
     std::fs::remove_dir_all(root).unwrap();
 }
+
+/// `(file:name, framework)` of each candidate's possible entry points.
+fn entry_notes(index: &Index) -> Vec<(String, String)> {
+    let scan = mct_index::scan_dead_code(index, None, None).unwrap();
+    let mut out: Vec<(String, String)> = scan
+        .candidates
+        .iter()
+        .flat_map(|&id| {
+            let s = &scan.symbols[id];
+            scan.possible_entry_points(id).iter().map(move |note| {
+                (
+                    format!("{}:{}", s.relative_path, s.name),
+                    note.framework.clone(),
+                )
+            })
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn a_next_js_page_stays_a_candidate_with_a_possible_entry_point_note() {
+    let page = "export default function HomePage() { return null; }\n";
+    let (index, root) = indexed(&[
+        (
+            "web/package.json",
+            r#"{"dependencies": {"next": "16.3.8"}}"#,
+        ),
+        ("web/app/page.tsx", page),
+        (
+            "plain/package.json",
+            r#"{"dependencies": {"react": "19.0.0"}}"#,
+        ),
+        ("plain/app/page.tsx", page),
+    ]);
+    let dead = dead(&index);
+    // A possibility never hides the candidate.
+    for file in ["web/app/page.tsx:HomePage", "plain/app/page.tsx:HomePage"] {
+        assert!(dead.contains(&file.to_string()), "{dead:?}");
+    }
+    // Only the application whose manifest declares `next` gets the note.
+    assert_eq!(
+        entry_notes(&index),
+        vec![(
+            "web/app/page.tsx:HomePage".to_string(),
+            "next.js".to_string()
+        )]
+    );
+    let _ = std::fs::remove_dir_all(root);
+}

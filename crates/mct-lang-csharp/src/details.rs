@@ -70,6 +70,28 @@ pub(crate) fn member_detail(node: Node, symbol: SymbolId, source: &str) -> Symbo
     }
 }
 
+/// A record's positional parameter, a generated public property: its type
+/// and name (`int Y`), without attributes or default.
+pub(crate) fn positional_property_detail(
+    param: Node,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let name = param.child_by_field_name("name").map(|n| slice(n, source));
+    let ty = param.child_by_field_name("type").map(|t| slice(t, source));
+    let signature = match (ty, name) {
+        (Some(ty), Some(name)) => Some(format!("{ty} {name}")),
+        (None, Some(name)) => Some(name.to_string()),
+        _ => None,
+    };
+    SymbolDetail {
+        symbol,
+        signature,
+        visibility: Some(Visibility::Public),
+        ..Default::default()
+    }
+}
+
 /// One declarator of a field or event field declaration (`int a, b;`):
 /// the shared header up to the type, then the declarator's name.
 pub(crate) fn field_detail(
@@ -91,6 +113,66 @@ pub(crate) fn field_detail(
         signature: head.map(|head| format!("{head} {name}")),
         visibility: visibility(declaration, source),
         modifiers: modifiers(declaration, source),
+        ..Default::default()
+    }
+}
+
+/// A lambda or anonymous method bound to a local (`Func<int, int> twice = x
+/// =>`): the shared declaration type, the local's name and the lambda's
+/// head up to its body. Its parameters are recorded, an implicitly typed
+/// one (`x`) with its name only.
+pub(crate) fn lambda_detail(
+    declarator: Node,
+    lambda: Node,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let name = declarator
+        .child_by_field_name("name")
+        .map(|n| slice(n, source))
+        .unwrap_or_default();
+    let ty = declarator
+        .parent()
+        .and_then(|variables| variables.child_by_field_name("type"))
+        .map(|ty| slice(ty, source));
+    let body_start = lambda
+        .child_by_field_name("body")
+        .or_else(|| children(lambda).into_iter().find(|c| c.kind() == "block"))
+        .map_or(lambda.end_byte(), |b| b.start_byte());
+    let head = source
+        .get(lambda.start_byte()..body_start.max(lambda.start_byte()))
+        .unwrap_or_default()
+        .trim();
+    let parameters = lambda.child_by_field_name("parameters");
+    let signature = match ty {
+        Some(ty) => format!("{ty} {name} = {head}"),
+        None => format!("{name} = {head}"),
+    };
+    SymbolDetail {
+        symbol,
+        signature: Some(signature),
+        parameters_known: parameters.is_some(),
+        parameters: parameters.map_or_else(Vec::new, |p| {
+            if p.kind() == "parameter_list" {
+                parameter_list(p, source)
+            } else {
+                vec![Parameter {
+                    name: Some(slice(p, source).to_string()),
+                    type_text: None,
+                    default: None,
+                    kind: ParameterKind::Positional,
+                }]
+            }
+        }),
+        modifiers: children(lambda)
+            .into_iter()
+            .filter(|c| c.kind() == "modifier")
+            .filter_map(|c| match slice(c, source) {
+                "async" => Some(Modifier::Async),
+                "static" => Some(Modifier::Static),
+                _ => None,
+            })
+            .collect(),
         ..Default::default()
     }
 }
