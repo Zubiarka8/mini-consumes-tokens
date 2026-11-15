@@ -183,7 +183,7 @@ round to the nearest whole percent, with halves rounded up.
 | Kotlin | 83% | 35 | 75% | 10 | 0 |
 | C# | 87% | 34 | 70% | 10 | 0 |
 | C++ | 89% | 28 | 60% | 10 | 0 |
-| Go | 78% | 18 | 80% | 10 | 0 |
+| Go | 78% | 18 | 90% | 10 | 0 |
 | PHP | 88% | 30 | 75% | 10 | 0 |
 | Lua | 89% | 14 | 70% | 10 | 0 |
 | Bash | 81% | 8 | 70% | 10 | 0 |
@@ -279,7 +279,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Kotlin | 83% | 92% | 58% | 88% | 100% | 50% | 50% |
 | C# | 94% | 96% | 50% | 88% | 90% | 25% | 67% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 25% | 50% |
-| Go | 83% | 90% | 60% | 80% | 90% | 50% | 83% |
+| Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 50% | 50% |
 | Lua | 90% | 100% | 75% | 100% | 80% | 75% | 50% |
 | Bash | 100% | 100% | 50% | 100% | 100% | 50% | 33% |
@@ -723,7 +723,7 @@ languages:
 
 | Feature | Languages | Where it is decided |
 |---|---|---|
-| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
+| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
 | String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
@@ -1280,7 +1280,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Features: Code quality**
 
 - [x] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only as a declared type through an aliased import (`var c db.Conn`) is referenced, so not reported
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: Go token source, listed under `supported_languages`; functions, methods and interface methods have callable spans matching their symbols (`crates/mct-lang-go/tests/duplicates.rs`). A `var f = func…` function is indexed with its name only, so it is a one-token candidate that never groups
 
 **Features: Structure**
 

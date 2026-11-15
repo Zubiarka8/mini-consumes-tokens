@@ -995,6 +995,19 @@ From `rules.md` and the two messages:
           `supported_languages`, 0 skipped (status complete), groups 147 ->
           147 (no JS/TS clone that large); at 2 lines / 12 tokens, 2 JS/TS
           groups. JS/TS feature score 90% -> 100%; area Quality 50% -> 100%.
+    - [x] Go repeated code: `GoTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.go` files and is registered
+          in `build_token_sources`. Functions, methods and interface methods
+          have callable spans matching their symbols; `var f = func…`, whose
+          symbol spans the name only, gets a name-only span, so it is
+          analyzed (one token, never grouped) instead of skipped. No body
+          shape is reported: a Go `block` holds one `statement_list`, which
+          the shared reader would count as one statement. Test:
+          `tests/duplicates.rs` (through the real index; the func-value
+          case fails without its span). Repository snapshot, defaults:
+          candidates 10,483 -> 10,720, 0 skipped, groups 147 -> 148 (one Go
+          group in the corpus `ledger/account.go`, SUSPICIOUS). Go feature
+          score 80% -> 90%; area Quality 50% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
