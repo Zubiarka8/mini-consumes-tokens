@@ -834,6 +834,26 @@ impl<'a> Walker<'a> {
                 }
             }
             "export_statement" => self.visit_export_statement(node, owner, type_name, depth),
+            // `x instanceof Marker` uses the class on its right.
+            "binary_expression" => {
+                if node
+                    .child_by_field_name("operator")
+                    .is_some_and(|op| text(op, self.source) == "instanceof")
+                {
+                    if let Some(class) = node.child_by_field_name("right") {
+                        let name = rightmost_name(class).map(|n| text(n, self.source));
+                        if let Some(name) = name.filter(|n| !self.bound.contains(*n)) {
+                            self.push_relation(
+                                owner,
+                                RelationKind::References,
+                                name.to_string(),
+                                location(class),
+                            );
+                        }
+                    }
+                }
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             "assignment_expression" => {
                 self.visit_assignment_expression(node, owner, type_name, depth)
             }

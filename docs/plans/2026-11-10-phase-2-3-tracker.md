@@ -754,6 +754,11 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] JS/TS, `instanceof`: the class on the right of `x instanceof Marker`
+      (also `ns.Marker`, by its last name) is a `references` relation. A
+      parameter shadowing the name records nothing. Probe: a class tested
+      only by `instanceof` was dead code, now it is not; the corpus gains 4
+      relations (`ApiError`).
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:

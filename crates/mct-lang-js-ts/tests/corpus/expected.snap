@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=307 relations=1005 name_matched_across_files=203
+# language=javascript_typescript files=7 symbols=307 relations=1009 name_matched_across_files=206
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -229,6 +229,7 @@ R 179:29 references WarehouseClient::placeOrder -> PlaceOrderRequest
 R 179:49 references WarehouseClient::placeOrder -> Promise
 R 179:57 references WarehouseClient::placeOrder -> PlaceOrderResponse
 R 181:37 references WarehouseClient::placeOrder -> OrderJson (name-matched: src/order.ts)
+R 184:24 references WarehouseClient::placeOrder -> ApiError
 R 191:32 references WarehouseClient::order -> Promise
 R 191:40 references WarehouseClient::order -> Order (name-matched: src/order.ts)
 R 192:18 calls WarehouseClient::order -> fromJSON (name-matched: src/money.ts)
@@ -456,6 +457,7 @@ R 207:22 calls postCounts -> post (name-matched: src/api/client.ts)
 R 207:37 calls postCounts -> encodeURIComponent
 R 208:21 calls postCounts -> formatLocation
 R 213:15 calls postCounts -> invalidate
+R 216:28 references postCounts -> ApiError (name-matched: src/api/client.ts)
 R 217:15 calls postCounts -> sleep (name-matched: src/api/client.ts)
 R 230:12 references inventory -> OrderId (name-matched: src/order.ts)
 R 232:13 references inventory -> Location
@@ -1049,6 +1051,7 @@ R 105:40 calls useOrders -> orders (name-matched: src/api/client.ts)
 R 106:16 calls useOrders -> push
 R 108:7 calls useOrders -> dispatch
 R 110:7 calls useOrders -> dispatch
+R 110:54 references useOrders -> ApiError (name-matched: src/api/client.ts)
 R 110:77 calls useOrders -> String
 R 114:3 calls useOrders -> useEffect
 R 115:10 calls useOrders -> reload
@@ -1247,6 +1250,7 @@ R 116:21 calls PickSession::close -> clear
 R 121:40 extends ScanErrorBoundary -> Component
 R 129:16 calls ScanErrorBoundary::componentDidCatch -> onError
 R 133:10 calls ScanErrorBoundary::retry -> setState
+R 138:51 references ScanErrorBoundary::render -> ApiError (name-matched: src/api/client.ts)
 R 156:22 calls onKeyDown -> now (name-matched: src/api/client.ts)
 R 163:9 calls onKeyDown -> onScan
 R 175:14 calls start -> addEventListener
