@@ -162,6 +162,10 @@ const BUILTINS: &[&str] = &[
 /// The modules that export the PEP 698 `override` decorator.
 pub(crate) const TYPING_MODULES: &[&str] = &["typing", "typing_extensions"];
 
+/// The base classes of the standard `enum` module whose subclasses are
+/// enumerations.
+pub(crate) const ENUM_BASES: &[&str] = &["Enum", "Flag", "IntEnum", "IntFlag", "StrEnum"];
+
 /// Calls that can bind a module name at run time (`globals()["f"] = …`,
 /// `exec("f = …")`, `vars()[…]`).
 const DYNAMIC_BINDERS: &[&str] = &["globals", "exec", "vars"];
@@ -191,6 +195,11 @@ pub(crate) struct ModuleScope {
     typing_override: HashSet<String>,
     /// Names some other import binds.
     other_imports: HashSet<String>,
+    /// Names an import binds to an [`ENUM_BASES`] class of the standard
+    /// `enum` module (`from enum import Enum [as E]`).
+    enum_bases: HashSet<String>,
+    /// Names some import binds to anything else.
+    non_enum_imports: HashSet<String>,
     /// How many statements bind each name outside an import or `def`.
     bindings: HashMap<String, u32>,
     /// Names a module-level `X = <builtin literal>` binds.
@@ -269,6 +278,16 @@ impl ModuleScope {
             && !self.rebound.contains(name)
     }
 
+    /// Whether a bare `name` can only be one of the standard `enum` module's
+    /// [`ENUM_BASES`]: every binding of it is such an import.
+    pub(crate) fn is_enum_base(&self, name: &str) -> bool {
+        !self.opaque
+            && self.enum_bases.contains(name)
+            && !self.non_enum_imports.contains(name)
+            && !self.functions.contains(name)
+            && !self.rebound.contains(name)
+    }
+
     /// Whether a bare `name` can only be a `def`/`class` of this file.
     pub(crate) fn is_local_function(&self, name: &str) -> bool {
         !self.opaque && self.functions.contains(name) && !self.other.contains(name)
@@ -336,6 +355,14 @@ impl ModuleScope {
             self.typing_override.insert(name.to_string());
         } else {
             self.other_imports.insert(name.to_string());
+        }
+    }
+
+    fn mark_enum_base(&mut self, name: &str, enum_base: bool) {
+        if enum_base {
+            self.enum_bases.insert(name.to_string());
+        } else {
+            self.non_enum_imports.insert(name.to_string());
         }
     }
 
@@ -515,6 +542,8 @@ impl ModuleScope {
         let from_module = module_node.and_then(|m| last_module_segment(m, source));
         let from_typing =
             from && module_node.is_some_and(|m| TYPING_MODULES.contains(&text(m, source)));
+        // Only the absolute `enum`: `from .enum import Enum` is the repo's.
+        let from_enum = from && module_node.is_some_and(|m| text(m, source) == "enum");
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
             if Some(child.id()) == module {
@@ -535,6 +564,10 @@ impl ModuleScope {
                         self.mark_override(
                             text(alias, source),
                             from_typing && original == Some("override"),
+                        );
+                        self.mark_enum_base(
+                            text(alias, source),
+                            from_enum && original.is_some_and(|o| ENUM_BASES.contains(&o)),
                         );
                         self.bind_import(text(alias, source), import);
                     }
@@ -559,6 +592,12 @@ impl ModuleScope {
                         self.mark_override(
                             name,
                             from_typing && child.named_child_count() == 1 && name == "override",
+                        );
+                        self.mark_enum_base(
+                            name,
+                            from_enum
+                                && child.named_child_count() == 1
+                                && ENUM_BASES.contains(&name),
                         );
                         self.bind_import(name, import);
                     }

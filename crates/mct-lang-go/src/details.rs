@@ -39,6 +39,25 @@ pub(crate) fn function_detail(
     }
 }
 
+/// `var f = func(…) …` bound to `name`: the function literal's parameters
+/// and result, with the binding up to the body as signature
+/// (`var f = func(a int) error`).
+pub(crate) fn func_value_detail(
+    spec: Node,
+    literal: Node,
+    name: &str,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let end = literal
+        .child_by_field_name("body")
+        .map_or(literal.end_byte(), |body| body.start_byte());
+    SymbolDetail {
+        signature: header(source, spec.start_byte(), end, "var "),
+        ..function_detail(literal, name, symbol, source)
+    }
+}
+
 /// A `type_spec` or `type_alias`: `type Stack[T any] struct`, without the
 /// struct's fields or the interface's methods.
 pub(crate) fn type_detail(node: Node, name: &str, symbol: SymbolId, source: &str) -> SymbolDetail {
