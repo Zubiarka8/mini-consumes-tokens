@@ -1,4 +1,4 @@
-# language=php files=6 symbols=418 relations=1042 name_matched_across_files=488
+# language=php files=6 symbols=419 relations=1042 name_matched_across_files=488
 
 == library/Domain.php (492 lines)
 S 1-492 module Domain
@@ -1198,6 +1198,7 @@ R 463:20 calls days_between -> diff
 
 == library/console.php (362 lines)
 S 1-362 module console
+S 36-36 constant SHELF_STARTED_AT
 S 42-52 class AsCommand
 S 46-51 method AsCommand::__construct
 S 47-47 field AsCommand::name
