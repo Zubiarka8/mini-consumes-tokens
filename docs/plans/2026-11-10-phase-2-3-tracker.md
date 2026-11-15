@@ -1264,7 +1264,20 @@ From `rules.md` and the two messages:
           relations 890 → 891, `Repository.java:224 Jdbc` ambiguous →
           resolved to the class, dead code unchanged at 122. Python, Go,
           Java and Rust cells re-probed; the others are still to do.
-- [ ] Inherited methods, using supertype data.
+- [x] Inherited methods, using supertype data (#479, ADR-037).
+      A type-qualified relation also has as candidate a method of an
+      ancestor the index records for that type (`extends`/`implements`
+      relations, same language, up to 8 levels); the nearest level that
+      declares a member of that name wins, the type's own members first. A
+      `target_module` then pins the qualifier type, not the ancestor (PHP
+      `$this->log()` reaches a trait of another namespace). Migration 18, no
+      reparse. On this repository: 48 relations unresolved → resolved (C# 20,
+      PHP 22, Java 4, TS 1), each to the declaring ancestor's method (6 of
+      them two or three levels up), and 1 unresolved → ambiguous (a PHP
+      trait conflict settled by `insteadof`, which is not modelled); nothing
+      else changes state, dead code unchanged. Tests: `schema.rs`
+      (`inherited_member_migration_…`), `mct-index/tests/relation_resolution.rs`,
+      `mct-lang-php/tests/inherited_members.rs`.
 - [~] Members of an anonymous class or an enum constant's body are recorded
       under the enclosing type (Java, Kotlin), which leaves their overrides
       ambiguous (see D8).
