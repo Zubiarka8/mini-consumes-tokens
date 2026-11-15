@@ -811,6 +811,16 @@ From `rules.md` and the two messages:
           ambiguous over the `PickSession.current` getter and are now
           unresolved. Dead code 123 -> 123. JS/TS scores 88% -> 89% and
           88% -> 94%.
+    - [x] Lua nested `setmetatable` classes: `W.Dog = setmetatable({},
+          { __index = W.Animal })` at file level declares the class `Dog`
+          of `W` (before: nothing), as the plain-name form does, and
+          `extends Animal` is pinned to this file when it declares `Animal`
+          in `W` (before: ambiguous with any `Animal` elsewhere). The
+          cross-file `require` qualifier gap is relabelled a model limit:
+          which table another file returns is not visible to a one-file
+          parser. Test: `tests/nested_setmetatable.rs`. Corpus: no changes.
+          Repository snapshot (Lua, with `init --force`): no changes. Dead
+          code 123 -> 123. Lua scores 86% -> 89% and 75% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
