@@ -3,7 +3,7 @@
 //! Nothing here is known to `mct-core`, `mct-index`, or `mct-mcp-server` —
 //! this crate is the entire integration surface for Python support.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
@@ -124,6 +124,18 @@ struct Walker<'a> {
     /// The enclosing functions' names, innermost last; `None` for a class
     /// body, whose `def`s are methods of the class.
     functions: Vec<Option<String>>,
+    /// The next `def` is a `@property` getter: a `field`, not a method.
+    property_getter: bool,
+    /// The properties each class of this file declares, `(class, name)`
+    /// to its `field`: what `@name.setter` adds an accessor to.
+    properties: HashMap<(String, String), SymbolId>,
+}
+
+/// What a decorated `def` is to a property (see `Walker::property_role`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PropertyRole {
+    Getter,
+    Accessor(SymbolId),
 }
 
 /// The methods `object` defines, the only ones a class with no base can
@@ -214,9 +226,30 @@ impl<'a> Walker<'a> {
         match node.kind() {
             "decorated_definition" => {
                 let definition = node.child_by_field_name("definition");
-                let target_id = definition.and_then(|definition| {
-                    self.visit_definition(definition, owner, class_name, depth + 1)
-                });
+                let role = match (definition, class_name) {
+                    (Some(definition), Some(class)) => self.property_role(node, definition, class),
+                    _ => None,
+                };
+                let target_id = match (role, definition) {
+                    // `@x.setter def x(…)`: one more accessor of the
+                    // property `x`, whose body the property owns.
+                    (Some(PropertyRole::Accessor(id)), Some(definition)) => {
+                        let end = location(definition).end_line;
+                        if let Some(property) = self.symbols.iter_mut().find(|s| s.id == id) {
+                            property.location.end_line = property.location.end_line.max(end);
+                        }
+                        self.visit_function_scope(definition, id, class_name, depth + 1);
+                        Some(id)
+                    }
+                    _ => {
+                        self.property_getter = role == Some(PropertyRole::Getter);
+                        let id = definition.and_then(|definition| {
+                            self.visit_definition(definition, owner, class_name, depth + 1)
+                        });
+                        self.property_getter = false;
+                        id
+                    }
+                };
                 if let (Some(id), Some(definition), Some(_)) = (target_id, definition, class_name) {
                     if definition.kind() == "function_definition" && self.has_override(node) {
                         self.push_overrides(id, definition);
@@ -224,7 +257,9 @@ impl<'a> Walker<'a> {
                 }
                 let mut cursor = node.walk();
                 for decorator in node.children(&mut cursor) {
-                    if decorator.kind() == "decorator" {
+                    if decorator.kind() == "decorator"
+                        && !self.is_accessor_decorator(decorator, role)
+                    {
                         if let Some(expr) = decorator.named_child(0) {
                             if let Some(name) = expr_name(expr, self.source) {
                                 // `@cache_page(60)` names `cache_page`.
@@ -480,6 +515,98 @@ impl<'a> Walker<'a> {
     /// relation to the decorated symbol itself rather than its enclosing
     /// owner. Any other node kind is dispatched to `visit` and yields `None`
     /// (a decorator on something else has no symbol to attach to).
+    /// A `def`'s parameters and body, owned by `id`, in its own frame.
+    fn visit_function_scope(
+        &mut self,
+        node: Node,
+        id: SymbolId,
+        class_name: Option<&str>,
+        depth: u32,
+    ) {
+        let name = node
+            .child_by_field_name("name")
+            .map(|n| text(n, self.source).to_string())
+            .unwrap_or_default();
+        let class = class_name.and_then(|_| self.class_scopes.last());
+        let frame = receivers::Frame::of(node, self.source, class, &self.scope, &self.classes);
+        self.frames.push(frame);
+        self.functions.push(Some(name));
+        if let Some(params) = node.child_by_field_name("parameters") {
+            self.visit_children(params, id, None, depth + 1);
+        }
+        if let Some(body) = node.child_by_field_name("body") {
+            self.visit_children(body, id, None, depth + 1);
+        }
+        self.functions.pop();
+        self.frames.pop();
+    }
+
+    /// What a decorated `def` in `class`'s body is to a property: a getter
+    /// (`@property`, `@cached_property`, `@functools.cached_property`), or
+    /// an accessor (`@x.setter`, `@x.deleter`, `@x.getter`) of a property
+    /// `x` the class declared earlier, with the same name.
+    fn property_role(
+        &self,
+        decorated: Node,
+        definition: Node,
+        class: &str,
+    ) -> Option<PropertyRole> {
+        if definition.kind() != "function_definition" {
+            return None;
+        }
+        let name = definition
+            .child_by_field_name("name")
+            .map(|n| text(n, self.source))?;
+        let mut cursor = decorated.walk();
+        let decorators: Vec<Node> = decorated
+            .children(&mut cursor)
+            .filter(|c| c.kind() == "decorator")
+            .filter_map(|d| d.named_child(0))
+            .collect();
+        for expr in decorators {
+            match expr.kind() {
+                "identifier"
+                    if matches!(text(expr, self.source), "property" | "cached_property") =>
+                {
+                    return Some(PropertyRole::Getter);
+                }
+                "attribute" => {
+                    let (Some(object), Some(attr)) = (
+                        expr.child_by_field_name("object"),
+                        expr.child_by_field_name("attribute"),
+                    ) else {
+                        continue;
+                    };
+                    let (object, attr) = (text(object, self.source), text(attr, self.source));
+                    if object == "functools" && attr == "cached_property" {
+                        return Some(PropertyRole::Getter);
+                    }
+                    if object == name && matches!(attr, "setter" | "deleter" | "getter") {
+                        if let Some(id) =
+                            self.properties.get(&(class.to_string(), name.to_string()))
+                        {
+                            return Some(PropertyRole::Accessor(*id));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// `@x.setter` of an accessor: it names the property's own attribute,
+    /// no symbol of its own.
+    fn is_accessor_decorator(&self, decorator: Node, role: Option<PropertyRole>) -> bool {
+        role.is_some_and(|r| matches!(r, PropertyRole::Accessor(_)))
+            && decorator.named_child(0).is_some_and(|expr| {
+                expr.kind() == "attribute"
+                    && expr.child_by_field_name("attribute").is_some_and(|a| {
+                        matches!(text(a, self.source), "setter" | "deleter" | "getter")
+                    })
+            })
+    }
+
     fn visit_definition(
         &mut self,
         node: Node,
@@ -493,10 +620,11 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let kind = if class_name.is_some() {
-                    SymbolKind::Method
-                } else {
-                    SymbolKind::Function
+                let getter = std::mem::take(&mut self.property_getter);
+                let kind = match class_name {
+                    Some(_) if getter => SymbolKind::Field,
+                    Some(_) => SymbolKind::Method,
+                    None => SymbolKind::Function,
                 };
                 // A `def` in a class body belongs to the class; one in a
                 // function body to that function, as a Rust nested fn does.
@@ -511,19 +639,10 @@ impl<'a> Walker<'a> {
                     id,
                     self.source,
                 ));
-                let class = class_name.and_then(|_| self.class_scopes.last());
-                let frame =
-                    receivers::Frame::of(node, self.source, class, &self.scope, &self.classes);
-                self.frames.push(frame);
-                self.functions.push(Some(name));
-                if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, None, depth + 1);
+                if let (true, Some(class)) = (getter, class_name) {
+                    self.properties.insert((class.to_string(), name), id);
                 }
-                if let Some(body) = node.child_by_field_name("body") {
-                    self.visit_children(body, id, None, depth + 1);
-                }
-                self.functions.pop();
-                self.frames.pop();
+                self.visit_function_scope(node, id, class_name, depth);
                 Some(id)
             }
             "class_definition" => {
