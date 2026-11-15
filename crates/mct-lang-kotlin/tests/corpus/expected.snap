@@ -77,7 +77,7 @@ S 197-197 method Router::get
 S 199-199 method Router::post
 S 201-203 method Router::add
 S 205-212 method Router::handle
-S 216-225 class Scope
+S 216-225 enum Scope
 S 216-216 field Scope::claim
 S 217-217 field Scope::ORDERS_READ
 S 218-218 field Scope::ORDERS_WRITE
@@ -132,16 +132,16 @@ R 23:1 imports WarehouseApp -> LocalDate
 R 24:1 imports WarehouseApp -> AtomicLong
 R 24:1 imports WarehouseApp -> AtomicLong
 R 25:1 imports WarehouseApp -> renderSlip
-R 33:61 references WarehouseApp -> Currency (name-matched: money/Money.kt)
-R 33:87 references WarehouseApp -> Map
-R 35:9 calls WarehouseApp -> require
-R 35:28 calls WarehouseApp -> isNotEmpty
+R 33:61 references PlaceOrder -> Currency (name-matched: money/Money.kt)
+R 33:87 references PlaceOrder -> Map
+R 35:9 calls PlaceOrder -> require
+R 35:28 calls PlaceOrder -> isNotEmpty
 R 41:82 implements Outcome::Accepted -> Outcome
-R 41:33 references WarehouseApp -> OrderId (name-matched: order/Order.kt)
-R 41:73 references WarehouseApp -> Money (name-matched: money/Money.kt)
+R 41:33 references Outcome::Accepted -> OrderId (name-matched: order/Order.kt)
+R 41:73 references Outcome::Accepted -> Money (name-matched: money/Money.kt)
 R 42:89 implements Outcome::PendingApproval -> Outcome
-R 42:40 references WarehouseApp -> OrderId (name-matched: order/Order.kt)
-R 42:80 references WarehouseApp -> Money (name-matched: money/Money.kt)
+R 42:40 references Outcome::PendingApproval -> OrderId (name-matched: order/Order.kt)
+R 42:80 references Outcome::PendingApproval -> Money (name-matched: money/Money.kt)
 R 43:47 implements Outcome::Rejected -> Outcome
 R 48:21 references OrderRepository::save -> Order (name-matched: order/Order.kt)
 R 49:28 references OrderRepository::find -> Order (name-matched: order/Order.kt)
@@ -150,9 +150,9 @@ R 50:39 references OrderRepository::findByNumber -> Order (name-matched: order/O
 R 51:16 references OrderRepository::all -> Collection
 R 51:27 references OrderRepository::all -> Order (name-matched: order/Order.kt)
 R 54:24 implements InMemoryOrders -> OrderRepository
-R 55:24 calls WarehouseApp -> linkedMapOf
-R 55:36 references WarehouseApp -> OrderId (name-matched: order/Order.kt)
-R 55:45 references WarehouseApp -> Order (name-matched: order/Order.kt)
+R 55:24 calls InMemoryOrders -> linkedMapOf
+R 55:36 references InMemoryOrders -> OrderId (name-matched: order/Order.kt)
+R 55:45 references InMemoryOrders -> Order (name-matched: order/Order.kt)
 R 57:18 overrides InMemoryOrders::save -> save
 R 57:30 references InMemoryOrders::save -> Order (name-matched: order/Order.kt)
 R 61:18 overrides InMemoryOrders::find -> find
@@ -164,7 +164,7 @@ R 63:69 calls InMemoryOrders::findByNumber -> firstOrNull
 R 65:18 overrides InMemoryOrders::all -> all
 R 65:25 references InMemoryOrders::all -> Collection
 R 65:36 references InMemoryOrders::all -> Order (name-matched: order/Order.kt)
-R 70:28 calls WarehouseApp -> AtomicLong
+R 70:28 calls OrderNumbers -> AtomicLong
 R 72:21 references OrderNumbers::next -> Clock
 R 72:52 calls OrderNumbers::next -> format (name-matched: money/Money.kt)
 R 72:69 calls OrderNumbers::next -> now
@@ -172,9 +172,9 @@ R 72:95 calls OrderNumbers::next -> incrementAndGet
 R 74:28 calls OrderNumbers::reset -> set (name-matched: money/Money.kt)
 R 78:16 implements Outbox -> EventSink (name-matched: order/Order.kt)
 R 78:27 implements Outbox -> InventoryListener (name-matched: inventory/Inventory.kt)
-R 79:18 calls WarehouseApp -> mutableListOf
-R 79:32 references WarehouseApp -> OrderEvent (name-matched: order/Order.kt)
-R 80:17 calls WarehouseApp -> mutableListOf
+R 79:18 calls Outbox -> mutableListOf
+R 79:32 references Outbox -> OrderEvent (name-matched: order/Order.kt)
+R 80:17 calls Outbox -> mutableListOf
 R 82:18 overrides Outbox::accept -> accept
 R 82:18 overrides Outbox::accept -> accept
 R 82:32 references Outbox::accept -> OrderEvent (name-matched: order/Order.kt)
@@ -186,16 +186,16 @@ R 90:18 overrides Outbox::stockReleased -> stockReleased
 R 90:45 references Outbox::stockReleased -> Reservation (name-matched: inventory/Inventory.kt)
 R 94:18 overrides Outbox::reorderPointReached -> reorderPointReached
 R 94:18 overrides Outbox::reorderPointReached -> reorderPointReached
-R 100:25 references WarehouseApp -> OrderRepository
-R 101:28 references WarehouseApp -> Inventory (name-matched: inventory/Inventory.kt)
-R 102:26 references WarehouseApp -> PricingEngine (name-matched: pricing/Pricing.kt)
-R 103:25 references WarehouseApp -> Map
-R 103:37 references WarehouseApp -> Money (name-matched: money/Money.kt)
-R 104:24 references WarehouseApp -> ExchangeRates (name-matched: money/Money.kt)
-R 105:25 references WarehouseApp -> Outbox
-R 106:24 references WarehouseApp -> Clock
-R 107:38 references WarehouseApp -> Money (name-matched: money/Money.kt)
-R 107:52 calls WarehouseApp -> eur (name-matched: money/Money.kt)
+R 100:25 references OrderService -> OrderRepository
+R 101:28 references OrderService -> Inventory (name-matched: inventory/Inventory.kt)
+R 102:26 references OrderService -> PricingEngine (name-matched: pricing/Pricing.kt)
+R 103:25 references OrderService -> Map
+R 103:37 references OrderService -> Money (name-matched: money/Money.kt)
+R 104:24 references OrderService -> ExchangeRates (name-matched: money/Money.kt)
+R 105:25 references OrderService -> Outbox
+R 106:24 references OrderService -> Clock
+R 107:38 references OrderService -> Money (name-matched: money/Money.kt)
+R 107:52 calls OrderService -> eur (name-matched: money/Money.kt)
 R 109:45 references OrderService::place -> Outcome
 R 109:32 references OrderService::place -> PlaceOrder
 R 110:21 calls OrderService::place -> priceLines
@@ -255,16 +255,16 @@ R 170:44 calls OrderService::dashboard -> countByState (name-matched: order/Orde
 R 170:38 calls OrderService::dashboard -> all
 R 172:77 calls OrderService::packingSlip -> let
 R 172:55 calls OrderService::packingSlip -> findByNumber
-R 180:68 references WarehouseApp -> Map
-R 180:90 calls WarehouseApp -> emptyMap
+R 180:68 references Request -> Map
+R 180:90 calls Request -> emptyMap
 R 184:32 calls Response::ok -> Response
 R 185:37 calls Response::created -> Response
 R 186:38 calls Response::notFound -> Response
 R 187:39 calls Response::badRequest -> Response
-R 195:26 calls WarehouseApp -> mutableListOf
-R 195:40 references WarehouseApp -> Triple
-R 195:55 references WarehouseApp -> List
-R 195:69 references WarehouseApp -> Handler
+R 195:26 calls Router -> mutableListOf
+R 195:40 references Router -> Triple
+R 195:55 references Router -> List
+R 195:69 references Router -> Handler
 R 197:36 references Router::get -> Handler
 R 197:47 calls Router::get -> add
 R 199:37 references Router::post -> Handler
@@ -491,7 +491,7 @@ R 15:1 imports Inventory -> UUID
 R 16:1 imports Inventory -> Delegates
 R 16:1 imports Inventory -> Delegates
 R 26:73 implements Location -> Comparable
-R 27:41 calls Inventory -> startsWith
+R 27:41 calls Location -> startsWith
 R 29:18 overrides Location::compareTo -> compareTo
 R 29:35 references Location::compareTo -> Location
 R 30:9 calls Location::compareTo -> compareValuesBy
@@ -505,28 +505,28 @@ R 37:17 calls Location::parse -> require
 R 39:20 calls Location::parse -> Location
 R 39:41 calls Location::parse -> toInt
 R 39:56 calls Location::parse -> toInt
-R 45:49 references Inventory -> Location
+R 45:49 references StockLevel -> Location
 R 60:42 calls StockLevel::release -> coerceAtLeast
 R 64:9 calls StockLevel::consume -> release
-R 76:18 references Inventory -> OrderId (name-matched: order/Order.kt)
-R 78:19 references Inventory -> Location
-R 80:20 references Inventory -> Instant
+R 76:18 references Reservation -> OrderId (name-matched: order/Order.kt)
+R 78:19 references Reservation -> Location
+R 80:20 references Reservation -> Instant
 R 82:24 references Reservation::isExpired -> Instant
 R 82:55 calls Reservation::isExpired -> isAfter
 R 87:5 extends OutOfStockException -> RuntimeException
 R 87:5 calls OutOfStockException -> RuntimeException
 R 93:36 references InventoryListener::stockReserved -> Reservation
 R 95:36 references InventoryListener::stockReleased -> Reservation
-R 100:19 references Inventory -> InventoryListener
+R 100:19 references InventoryListener -> InventoryListener
 R 101:26 overrides InventoryListener::stockReserved -> stockReserved
 R 101:53 references InventoryListener::stockReserved -> Reservation
 R 102:26 overrides InventoryListener::stockReleased -> stockReleased
 R 102:53 references InventoryListener::stockReleased -> Reservation
-R 108:54 references Inventory -> Location
-R 121:53 references Inventory -> Location
-R 121:71 references Inventory -> Location
-R 123:9 calls Inventory -> require
-R 124:9 calls Inventory -> require
+R 108:54 references CycleCount -> Location
+R 121:53 references StockTransfer -> Location
+R 121:71 references StockTransfer -> Location
+R 123:9 calls StockTransfer -> require
+R 124:9 calls StockTransfer -> require
 R 131:5 references List::pickingRoute -> List
 R 131:10 references List::pickingRoute -> Location
 R 131:36 references List::pickingRoute -> List
@@ -698,7 +698,7 @@ R 306:9 calls Inventory::recomputeReorderPoint -> setReorderPoint
 S 1-303 module Money
 S 1-303 module com.example.warehouse.money
 S 16-16 type_alias Rate
-S 19-36 class Currency
+S 19-36 enum Currency
 S 19-19 field Currency::scale
 S 19-19 field Currency::symbol
 S 20-20 field Currency::EUR
@@ -817,8 +817,8 @@ R 33:55 calls Currency::parse -> trim
 R 34:26 calls Currency::parse -> IllegalArgumentException
 R 40:5 extends CurrencyMismatchException -> IllegalArgumentException
 R 40:5 calls CurrencyMismatchException -> IllegalArgumentException
-R 39:47 references Money -> Currency
-R 39:69 references Money -> Currency
+R 39:47 references CurrencyMismatchException -> Currency
+R 39:69 references CurrencyMismatchException -> Currency
 R 44:5 extends MoneyFormatException -> IllegalArgumentException
 R 44:5 calls MoneyFormatException -> IllegalArgumentException
 R 49:79 implements Money -> Comparable
@@ -926,11 +926,11 @@ R 140:86 calls Money::parse -> of
 R 140:105 calls Money::parse -> parse
 R 141:25 references Money::parse -> NumberFormatException
 R 142:23 calls Money::parse -> MoneyFormatException
-R 149:32 references Money -> Money
-R 149:48 references Money -> Money
-R 151:9 calls Money -> require
+R 149:32 references MoneyRange -> Money
+R 149:48 references MoneyRange -> Money
+R 151:9 calls MoneyRange -> require
 R 154:34 references MoneyRange::contains -> Money
-R 156:16 references Money -> Money
+R 156:16 references MoneyRange -> Money
 R 165:60 references ExchangeRates::rate -> Rate
 R 165:20 references ExchangeRates::rate -> Currency
 R 165:34 references ExchangeRates::rate -> Currency
@@ -944,9 +944,9 @@ R 173:32 references ExchangeRates::perEuro -> Currency
 R 173:42 references ExchangeRates::perEuro -> Rate
 R 173:66 calls ExchangeRates::perEuro -> FixedRates
 R 178:70 implements FixedRates -> ExchangeRates
-R 178:47 references Money -> Map
-R 178:51 references Money -> Currency
-R 178:61 references Money -> Rate
+R 178:47 references FixedRates -> Map
+R 178:51 references FixedRates -> Currency
+R 178:61 references FixedRates -> Rate
 R 179:18 overrides FixedRates::rate -> rate
 R 179:69 references FixedRates::rate -> Rate
 R 179:29 references FixedRates::rate -> Currency
@@ -959,13 +959,13 @@ R 185:28 references FixedRates::missing -> Currency
 R 185:41 references FixedRates::missing -> Currency
 R 185:55 references FixedRates::missing -> LocalDate
 R 186:15 calls FixedRates::missing -> IllegalStateException
-R 190:40 references Money -> ExchangeRates
-R 191:25 calls Money -> mutableMapOf
-R 191:38 references Money -> Triple
-R 191:45 references Money -> Currency
-R 191:55 references Money -> Currency
-R 191:65 references Money -> LocalDate
-R 191:77 references Money -> Rate
+R 190:40 references CachingRates -> ExchangeRates
+R 191:25 calls CachingRates -> mutableMapOf
+R 191:38 references CachingRates -> Triple
+R 191:45 references CachingRates -> Currency
+R 191:55 references CachingRates -> Currency
+R 191:65 references CachingRates -> LocalDate
+R 191:77 references CachingRates -> Rate
 R 195:18 overrides CachingRates::rate -> rate
 R 195:69 references CachingRates::rate -> Rate
 R 195:29 references CachingRates::rate -> Currency
@@ -1019,11 +1019,11 @@ R 238:59 calls distributeDiscount -> toIntArray
 R 238:29 calls distributeDiscount -> map
 R 238:49 calls distributeDiscount -> toInt
 R 239:21 calls distributeDiscount -> allocate
-R 251:28 references Money -> Currency
-R 252:26 calls Money -> mutableMapOf
-R 252:47 references Money -> Money
-R 253:25 calls Money -> mutableMapOf
-R 253:46 references Money -> Money
+R 251:28 references Budget -> Currency
+R 252:26 calls Budget -> mutableMapOf
+R 252:47 references Budget -> Money
+R 253:25 calls Budget -> mutableMapOf
+R 253:46 references Budget -> Money
 R 255:39 references Budget::get -> Money
 R 255:71 calls Budget::get -> zero
 R 257:45 references Budget::set -> Money
@@ -1040,16 +1040,16 @@ R 274:57 calls Budget::overview -> map
 R 274:48 calls Budget::overview -> sorted
 R 275:21 calls Budget::overview -> spent
 R 275:58 calls Budget::overview -> remaining
-R 280:40 references Money -> Currency
-R 282:31 calls Money -> zero
-R 283:26 references Money -> Money
+R 280:40 references MoneyStats -> Currency
+R 282:31 calls MoneyStats -> zero
+R 283:26 references MoneyStats -> Money
 R 285:21 references MoneyStats::add -> Money
 R 288:28 calls MoneyStats::add -> let
-R 291:18 references Money -> Money
-R 292:39 calls Money -> zero
-R 292:65 calls Money -> of
-R 292:81 calls Money -> divide
-R 292:94 calls Money -> toBigDecimal
+R 291:18 references MoneyStats -> Money
+R 292:39 calls MoneyStats -> zero
+R 292:65 calls MoneyStats -> of
+R 292:81 calls MoneyStats -> divide
+R 292:94 calls MoneyStats -> toBigDecimal
 R 298:5 references Iterable::totalsByCurrency -> Iterable
 R 298:14 references Iterable::totalsByCurrency -> Money
 R 298:41 references Iterable::totalsByCurrency -> Map
@@ -1077,7 +1077,7 @@ S 27-27 field Line::quantity
 S 27-27 field Line::unitPrice
 S 32-32 field Line::subtotal
 S 34-34 method Line::withQuantity
-S 38-53 class State
+S 38-53 enum State
 S 39-39 field State::NEW
 S 39-39 field State::RESERVED
 S 39-39 field State::PAID
@@ -1193,16 +1193,16 @@ R 7:1 imports Order -> Instant
 R 8:1 imports Order -> UUID
 R 8:1 imports Order -> UUID
 R 16:2 references OrderId -> JvmInline
-R 17:32 references Order -> UUID
+R 17:32 references OrderId -> UUID
 R 18:18 overrides OrderId::toString -> toString
 R 18:45 calls OrderId::toString -> toString
 R 21:24 calls OrderId::random -> OrderId
 R 21:37 calls OrderId::random -> randomUUID
 R 22:35 calls OrderId::parse -> OrderId
 R 22:48 calls OrderId::parse -> fromString
-R 27:85 references Order -> Money (name-matched: money/Money.kt)
-R 29:9 calls Order -> require
-R 32:19 references Order -> Money (name-matched: money/Money.kt)
+R 27:85 references Line -> Money (name-matched: money/Money.kt)
+R 29:9 calls Line -> require
+R 32:19 references Line -> Money (name-matched: money/Money.kt)
 R 34:42 calls Line::withQuantity -> copy
 R 43:17 references State::next -> Set
 R 43:21 references State::next -> State
@@ -1214,58 +1214,58 @@ R 48:20 calls State::next -> setOf
 R 49:32 calls State::next -> emptySet
 R 52:27 references State::canMoveTo -> State
 R 52:55 calls State::canMoveTo -> next
-R 57:27 references Order -> OrderId
-R 58:22 references Order -> Instant
+R 57:27 references OrderEvent -> OrderId
+R 58:22 references OrderEvent -> Instant
 R 62:129 extends OrderEvent::Placed -> OrderEvent
 R 62:129 calls OrderEvent::Placed -> OrderEvent
 R 62:36 overrides Placed::orderId -> orderId
-R 62:45 references Order -> OrderId
+R 62:45 references OrderEvent::Placed -> OrderId
 R 62:67 overrides Placed::at -> at
-R 62:71 references Order -> Instant
-R 62:115 references Order -> List
-R 62:120 references Order -> Line
+R 62:71 references OrderEvent::Placed -> Instant
+R 62:115 references OrderEvent::Placed -> List
+R 62:120 references OrderEvent::Placed -> Line
 R 63:118 extends OrderEvent::Reserved -> OrderEvent
 R 63:118 calls OrderEvent::Reserved -> OrderEvent
 R 63:38 overrides Reserved::orderId -> orderId
-R 63:47 references Order -> OrderId
+R 63:47 references OrderEvent::Reserved -> OrderId
 R 63:69 overrides Reserved::at -> at
-R 63:73 references Order -> Instant
-R 63:102 references Order -> List
+R 63:73 references OrderEvent::Reserved -> Instant
+R 63:102 references OrderEvent::Reserved -> List
 R 64:122 extends OrderEvent::Paid -> OrderEvent
 R 64:122 calls OrderEvent::Paid -> OrderEvent
 R 64:34 overrides Paid::orderId -> orderId
-R 64:43 references Order -> OrderId
+R 64:43 references OrderEvent::Paid -> OrderId
 R 64:65 overrides Paid::at -> at
-R 64:69 references Order -> Instant
-R 64:113 references Order -> Money (name-matched: money/Money.kt)
+R 64:69 references OrderEvent::Paid -> Instant
+R 64:113 references OrderEvent::Paid -> Money (name-matched: money/Money.kt)
 R 65:102 extends OrderEvent::Picked -> OrderEvent
 R 65:102 calls OrderEvent::Picked -> OrderEvent
 R 65:36 overrides Picked::orderId -> orderId
-R 65:45 references Order -> OrderId
+R 65:45 references OrderEvent::Picked -> OrderId
 R 65:67 overrides Picked::at -> at
-R 65:71 references Order -> Instant
+R 65:71 references OrderEvent::Picked -> Instant
 R 66:132 extends OrderEvent::Shipped -> OrderEvent
 R 66:132 calls OrderEvent::Shipped -> OrderEvent
 R 66:37 overrides Shipped::orderId -> orderId
-R 66:46 references Order -> OrderId
+R 66:46 references OrderEvent::Shipped -> OrderId
 R 66:68 overrides Shipped::at -> at
-R 66:72 references Order -> Instant
+R 66:72 references OrderEvent::Shipped -> Instant
 R 67:111 extends OrderEvent::Invoiced -> OrderEvent
 R 67:111 calls OrderEvent::Invoiced -> OrderEvent
 R 67:38 overrides Invoiced::orderId -> orderId
-R 67:47 references Order -> OrderId
+R 67:47 references OrderEvent::Invoiced -> OrderId
 R 67:69 overrides Invoiced::at -> at
-R 67:73 references Order -> Instant
+R 67:73 references OrderEvent::Invoiced -> Instant
 R 68:105 extends OrderEvent::Cancelled -> OrderEvent
 R 68:105 calls OrderEvent::Cancelled -> OrderEvent
 R 68:39 overrides Cancelled::orderId -> orderId
-R 68:48 references Order -> OrderId
+R 68:48 references OrderEvent::Cancelled -> OrderId
 R 68:70 overrides Cancelled::at -> at
-R 68:74 references Order -> Instant
+R 68:74 references OrderEvent::Cancelled -> Instant
 R 73:5 extends IllegalTransitionException -> IllegalStateException
 R 73:5 calls IllegalTransitionException -> IllegalStateException
-R 72:44 references Order -> State
-R 72:59 references Order -> State
+R 72:44 references IllegalTransitionException -> State
+R 72:59 references IllegalTransitionException -> State
 R 77:23 references EventSink::accept -> OrderEvent
 R 81:13 references Order -> OrderId
 R 84:19 references Order -> Currency (name-matched: money/Money.kt)
@@ -1381,8 +1381,8 @@ R 208:71 calls isStale -> toMinutes
 R 208:41 calls isStale -> between
 R 208:49 calls isStale -> placedAt
 R 211:12 calls Collection::stalePayments -> filter
-R 225:33 references Order -> Set
-R 225:47 calls Order -> emptySet
+R 225:33 references OrderValidator -> Set
+R 225:47 calls OrderValidator -> emptySet
 R 227:58 references OrderValidator::validate -> List
 R 227:63 references OrderValidator::validate -> Violation
 R 227:45 references OrderValidator::validate -> List
@@ -1426,9 +1426,9 @@ R 252:24 calls OrderValidator::requireValid -> isNotEmpty
 R 253:19 calls OrderValidator::requireValid -> IllegalArgumentException
 R 253:55 calls OrderValidator::requireValid -> joinToString
 R 263:52 implements OrderHistory -> EventSink
-R 263:41 references Order -> OrderId
-R 264:27 calls Order -> mutableListOf
-R 264:41 references Order -> OrderEvent
+R 263:41 references OrderHistory -> OrderId
+R 264:27 calls OrderHistory -> mutableListOf
+R 264:41 references OrderHistory -> OrderEvent
 R 266:18 overrides OrderHistory::accept -> accept
 R 266:32 references OrderHistory::accept -> OrderEvent
 R 267:9 calls OrderHistory::accept -> require
@@ -1488,7 +1488,7 @@ S 40-40 field PricingContext::date
 S 43-50 interface DiscountRule
 S 44-44 method DiscountRule::discount
 S 46-49 method DiscountRule::then
-S 53-62 class VatCategory
+S 53-62 enum VatCategory
 S 53-53 field VatCategory::percent
 S 54-54 field VatCategory::GENERAL
 S 55-55 field VatCategory::FOOD
@@ -1579,26 +1579,26 @@ R 11:1 imports Pricing -> BigDecimal
 R 11:1 imports Pricing -> BigDecimal
 R 12:1 imports Pricing -> LocalDate
 R 12:1 imports Pricing -> LocalDate
-R 28:16 references Pricing -> List
-R 28:21 references Pricing -> QuotedLine
-R 29:19 references Pricing -> Currency (name-matched: money/Money.kt)
-R 31:14 references Pricing -> Money (name-matched: money/Money.kt)
-R 31:49 calls Pricing -> sum (name-matched: money/Money.kt)
-R 31:34 calls Pricing -> map
-R 32:14 references Pricing -> Money (name-matched: money/Money.kt)
-R 32:49 calls Pricing -> sum (name-matched: money/Money.kt)
-R 32:34 calls Pricing -> map
-R 33:16 references Pricing -> Money (name-matched: money/Money.kt)
-R 34:19 references Pricing -> Money (name-matched: money/Money.kt)
-R 34:59 calls Pricing -> sum (name-matched: money/Money.kt)
-R 34:39 calls Pricing -> map
-R 37:33 references Pricing -> Line (name-matched: order/Order.kt)
-R 37:48 references Pricing -> Money (name-matched: money/Money.kt)
-R 37:69 references Pricing -> Money (name-matched: money/Money.kt)
-R 37:85 references Pricing -> Money (name-matched: money/Money.kt)
-R 40:38 references Pricing -> List
-R 40:43 references Pricing -> Line (name-matched: order/Order.kt)
-R 40:87 references Pricing -> LocalDate
+R 28:16 references Quote -> List
+R 28:21 references Quote -> QuotedLine
+R 29:19 references Quote -> Currency (name-matched: money/Money.kt)
+R 31:14 references Quote -> Money (name-matched: money/Money.kt)
+R 31:49 calls Quote -> sum (name-matched: money/Money.kt)
+R 31:34 calls Quote -> map
+R 32:14 references Quote -> Money (name-matched: money/Money.kt)
+R 32:49 calls Quote -> sum (name-matched: money/Money.kt)
+R 32:34 calls Quote -> map
+R 33:16 references Quote -> Money (name-matched: money/Money.kt)
+R 34:19 references Quote -> Money (name-matched: money/Money.kt)
+R 34:59 calls Quote -> sum (name-matched: money/Money.kt)
+R 34:39 calls Quote -> map
+R 37:33 references QuotedLine -> Line (name-matched: order/Order.kt)
+R 37:48 references QuotedLine -> Money (name-matched: money/Money.kt)
+R 37:69 references QuotedLine -> Money (name-matched: money/Money.kt)
+R 37:85 references QuotedLine -> Money (name-matched: money/Money.kt)
+R 40:38 references PricingContext -> List
+R 40:43 references PricingContext -> Line (name-matched: order/Order.kt)
+R 40:87 references PricingContext -> LocalDate
 R 44:61 references DiscountRule::discount -> Money (name-matched: money/Money.kt)
 R 44:27 references DiscountRule::discount -> PricingContext
 R 44:53 references DiscountRule::discount -> Money (name-matched: money/Money.kt)
@@ -1611,7 +1611,7 @@ R 60:69 references VatCategory::forSku -> VatCategory
 R 60:42 references VatCategory::forSku -> Map
 R 60:54 references VatCategory::forSku -> VatCategory
 R 69:63 implements VolumeDiscount -> DiscountRule
-R 69:46 references Pricing -> Map
+R 69:46 references VolumeDiscount -> Map
 R 70:18 overrides VolumeDiscount::discount -> discount
 R 70:70 references VolumeDiscount::discount -> Money (name-matched: money/Money.kt)
 R 70:36 references VolumeDiscount::discount -> PricingContext
@@ -1621,15 +1621,15 @@ R 72:68 calls VolumeDiscount::discount -> maxOrNull (name-matched: money/Money.k
 R 72:34 calls VolumeDiscount::discount -> filterKeys
 R 72:96 calls VolumeDiscount::discount -> zero (name-matched: money/Money.kt)
 R 78:62 implements LoyaltyDiscount -> DiscountRule
-R 78:42 references Pricing -> Map
+R 78:42 references LoyaltyDiscount -> Map
 R 79:18 overrides LoyaltyDiscount::discount -> discount
 R 79:70 references LoyaltyDiscount::discount -> Money (name-matched: money/Money.kt)
 R 79:36 references LoyaltyDiscount::discount -> PricingContext
 R 79:62 references LoyaltyDiscount::discount -> Money (name-matched: money/Money.kt)
 R 80:45 calls LoyaltyDiscount::discount -> let
 R 86:102 implements CouponDiscount -> DiscountRule
-R 86:65 references Pricing -> Money (name-matched: money/Money.kt)
-R 86:93 references Pricing -> Money (name-matched: money/Money.kt)
+R 86:65 references CouponDiscount -> Money (name-matched: money/Money.kt)
+R 86:93 references CouponDiscount -> Money (name-matched: money/Money.kt)
 R 87:18 overrides CouponDiscount::discount -> discount
 R 87:70 references CouponDiscount::discount -> Money (name-matched: money/Money.kt)
 R 87:36 references CouponDiscount::discount -> PricingContext
@@ -1645,11 +1645,11 @@ R 95:13 references Money::min -> Money (name-matched: money/Money.kt)
 R 95:38 references Money::min -> Money (name-matched: money/Money.kt)
 R 95:30 references Money::min -> Money (name-matched: money/Money.kt)
 R 104:2 references PricingBuilder -> PricingDsl
-R 106:25 calls Pricing -> mutableListOf
-R 106:39 references Pricing -> DiscountRule
-R 107:21 references Pricing -> Map
-R 107:33 references Pricing -> VatCategory
-R 107:48 calls Pricing -> emptyMap
+R 106:25 calls PricingBuilder -> mutableListOf
+R 106:39 references PricingBuilder -> DiscountRule
+R 107:21 references PricingBuilder -> Map
+R 107:33 references PricingBuilder -> VatCategory
+R 107:48 calls PricingBuilder -> emptyMap
 R 109:23 references PricingBuilder::volume -> VolumeBuilder
 R 110:18 calls PricingBuilder::volume -> VolumeDiscount
 R 110:49 calls PricingBuilder::volume -> apply
@@ -1668,7 +1668,7 @@ R 127:22 references PricingBuilder::build -> ExchangeRates (name-matched: money/
 R 128:9 calls PricingBuilder::build -> PricingEngine
 R 128:29 calls PricingBuilder::build -> reduceOrNull
 R 131:2 references VolumeBuilder -> PricingDsl
-R 133:31 calls Pricing -> mutableMapOf
+R 133:31 calls VolumeBuilder -> mutableMapOf
 R 140:19 calls Pricing -> DiscountRule
 R 140:55 calls Pricing -> zero (name-matched: money/Money.kt)
 R 142:97 references pricing -> PricingEngine
@@ -1678,10 +1678,10 @@ R 142:69 references pricing -> PricingBuilder
 R 143:35 calls pricing -> build
 R 143:22 calls pricing -> apply
 R 143:5 calls pricing -> PricingBuilder
-R 150:23 references Pricing -> DiscountRule
-R 151:29 references Pricing -> Map
-R 151:41 references Pricing -> VatCategory
-R 152:24 references Pricing -> ExchangeRates (name-matched: money/Money.kt)
+R 150:23 references PricingEngine -> DiscountRule
+R 151:29 references PricingEngine -> Map
+R 151:41 references PricingEngine -> VatCategory
+R 152:24 references PricingEngine -> ExchangeRates (name-matched: money/Money.kt)
 R 155:120 references PricingEngine::quote -> Quote
 R 155:22 references PricingEngine::quote -> List
 R 155:27 references PricingEngine::quote -> Line (name-matched: order/Order.kt)
@@ -1732,10 +1732,10 @@ R 197:93 calls BuyXGetY::toRule -> zero (name-matched: money/Money.kt)
 R 203:27 extends Promotion::FreeShipping -> Promotion
 R 203:27 calls Promotion::FreeShipping -> Promotion
 R 204:22 overrides FreeShipping::toRule -> toRule
-R 210:27 calls Pricing -> mutableListOf
-R 210:41 references Pricing -> Pair
-R 210:46 references Pricing -> LocalDate
-R 210:57 references Pricing -> Money (name-matched: money/Money.kt)
+R 210:27 calls PriceHistory -> mutableListOf
+R 210:41 references PriceHistory -> Pair
+R 210:46 references PriceHistory -> LocalDate
+R 210:57 references PriceHistory -> Money (name-matched: money/Money.kt)
 R 212:22 references PriceHistory::record -> LocalDate
 R 212:40 references PriceHistory::record -> Money (name-matched: money/Money.kt)
 R 213:9 calls PriceHistory::record -> require
