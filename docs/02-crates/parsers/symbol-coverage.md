@@ -186,7 +186,7 @@ round to the nearest whole percent, with halves rounded up.
 | Go | 78% | 18 | 90% | 10 | 0 |
 | PHP | 88% | 30 | 85% | 10 | 0 |
 | Lua | 89% | 14 | 70% | 10 | 0 |
-| Bash | 81% | 8 | 70% | 10 | 0 |
+| Bash | 81% | 8 | 80% | 10 | 0 |
 | PowerShell | 81% | 18 | 60% | 10 | 0 |
 
 ## Language by language
@@ -282,7 +282,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 100% | 50% |
 | Lua | 90% | 100% | 75% | 100% | 80% | 75% | 50% |
-| Bash | 100% | 100% | 50% | 100% | 100% | 50% | 33% |
+| Bash | 100% | 100% | 50% | 100% | 100% | 100% | 33% |
 | PowerShell | 90% | 100% | 50% | 80% | 80% | 50% | 33% |
 
 ### Rust
@@ -723,7 +723,7 @@ languages:
 
 | Feature | Languages | Where it is decided |
 |---|---|---|
-| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
+| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
 | String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
@@ -1431,7 +1431,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Features: Code quality**
 
 - [x] Dead code: `find_dead_code`, `mct-cli dead-code`: functions
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: Bash token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-bash/tests/duplicates.rs`)
 
 **Features: Structure**
 

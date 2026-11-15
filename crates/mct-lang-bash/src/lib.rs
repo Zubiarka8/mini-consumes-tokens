@@ -34,6 +34,9 @@ use tree_sitter::{Node, Parser};
 
 mod details;
 mod literals;
+mod tokens;
+
+pub use tokens::BashTokenSource;
 
 pub struct BashParser;
 
