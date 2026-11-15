@@ -389,6 +389,15 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] C# supertypes: an `extends`/`implements` entry names a type, so
+          the first entry of a class (its base class, unless named like an
+          interface) targets a `class` and every other entry an
+          `interface`. Before, `class Sq : Base` was ambiguous between the
+          class and its constructor `Base(int x)`. Test:
+          `tests/supertype_kinds.rs`. Corpus snapshot unchanged. Measured on
+          the 17 C# files of this repository (40 supertype relations): 18
+          ambiguous -> resolved, each to the class; none newly unresolved,
+          dead code 0 -> 0. The checklist's RE05 cell is `[x]`.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
           `\define`) with a literal name, single-quoted or double-quoted
           without interpolation, declares a `constant` with no parent,
