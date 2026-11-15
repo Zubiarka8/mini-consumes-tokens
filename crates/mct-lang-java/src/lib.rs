@@ -63,6 +63,18 @@ impl LanguageParser for JavaParser {
         walker.jdk = jdk::JdkImports::of(root, &file.contents);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
+        // `package a.b;` — one Module symbol per file spanning it, not
+        // deduplicated across files, as Kotlin's package header does.
+        if let Some(package) =
+            find_child(root, "package_declaration").and_then(|p| p.named_child(0))
+        {
+            walker.push_symbol(
+                text(package, &file.contents).to_string(),
+                SymbolKind::Module,
+                module_location(root),
+                None,
+            );
+        }
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }

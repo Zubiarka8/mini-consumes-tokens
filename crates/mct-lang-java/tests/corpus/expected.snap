@@ -1,7 +1,8 @@
-# language=java files=6 symbols=432 relations=1055 name_matched_across_files=149
+# language=java files=6 symbols=438 relations=1055 name_matched_across_files=149
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
+S 1-303 module com.example.warehouse.app
 S 38-303 class OrderService
 S 40-40 field OrderService::LOG
 S 43-50 class OrderService::PlaceOrder
@@ -294,6 +295,7 @@ R 300:21 calls OrderService::main -> expiryJob
 
 == com/example/warehouse/inventory/Inventory.java (359 lines)
 S 1-359 module Inventory
+S 1-359 module com.example.warehouse.inventory
 S 28-359 class Inventory
 S 31-56 class Inventory::Location
 S 31-31 method Location::zone
@@ -576,6 +578,7 @@ R 356:18 calls Inventory::withLock -> unlock
 
 == com/example/warehouse/money/ExchangeRates.java (315 lines)
 S 1-315 module ExchangeRates
+S 1-315 module com.example.warehouse.money
 S 30-315 interface ExchangeRates
 S 34-34 method ExchangeRates::rate
 S 36-42 method ExchangeRates::convert
@@ -796,6 +799,7 @@ R 307:85 calls ExchangeRates::get -> ofHours
 
 == com/example/warehouse/money/Money.java (373 lines)
 S 1-373 module Money
+S 1-373 module com.example.warehouse.money
 S 25-373 class Money
 S 28-58 enum Money::Currency
 S 29-29 field Currency::EUR
@@ -1022,6 +1026,7 @@ R 370:13 calls MoneyFormatException::MoneyFormatException -> IllegalArgumentExce
 
 == com/example/warehouse/order/Order.java (336 lines)
 S 1-336 module Order
+S 1-336 module com.example.warehouse.order
 S 22-336 class Order
 S 25-37 class Order::Id
 S 25-25 method Id::value
@@ -1268,6 +1273,7 @@ R 334:58 calls Order::toString -> total
 
 == com/example/warehouse/persistence/Repository.java (303 lines)
 S 1-303 module Repository
+S 1-303 module com.example.warehouse.persistence
 S 34-303 interface Repository
 S 36-36 method Repository::findById
 S 38-38 method Repository::findAll

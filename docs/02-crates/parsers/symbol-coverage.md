@@ -179,7 +179,7 @@ round to the nearest whole percent, with halves rounded up.
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 81% | 29 | 85% | 10 | 0 |
 | JS/TS | 80% | 33 | 80% | 10 | 1 |
-| Java | 83% | 27 | 65% | 10 | 0 |
+| Java | 85% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
 | C++ | 86% | 28 | 50% | 10 | 0 |
@@ -275,7 +275,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 88% | 50% | 100% | 80% | 100% | 83% |
 | JS/TS | 81% | 70% | 67% | 100% | 80% | 50% | 100% |
-| Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
+| Java | 80% | 95% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
@@ -983,7 +983,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Record / data class: `record` is a `class`; each component is its implicit accessor `method`
 - [x] Nested / inner class: static and inner
 - [~] Anonymous class: in a method or a field initializer, its methods attach to the enclosing class
-- [~] Module / namespace / package: file `module`; `package` has no symbol
+- [x] Module / namespace / package: file `module` plus a `module` named by the `package` clause, spanning the file
 
 **Fields, constants and variables**
 
