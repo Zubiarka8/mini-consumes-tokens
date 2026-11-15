@@ -1243,7 +1243,7 @@ Marks:
 - [x] Kotlin: references to `p_helper`
 - [~] C#: static class used only as a qualifier gets no reference
 - [~] C++: `P_St s;` gives no reference
-- [x] Go: a struct used only in a composite literal is referenced
+- [~] Go: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
 - [x] PHP: references to `p_helper`
 - [ ] Lua: reference to table-based `Child` is not indexed (MCT probe)
 - [x] Bash: references to `p_helper`
@@ -1326,7 +1326,7 @@ Marks:
 - [x] Kotlin: top-level function and class reported
 - [~] C#: methods skipped; unused class reported
 - [~] C++: unused function and class reported; declaration-only case not exercised
-- [x] Go: unused struct and function reported; a composite-only use keeps the struct alive
+- [~] Go: unused struct and function reported; a struct used only as a declared type is reported
 - [x] PHP: function and class reported
 - [~] Lua: free functions are candidates; table methods not exercised
 - [x] Bash: unused function reported

@@ -607,12 +607,12 @@ Done 14 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 23
 
 - [x] SE01 Find a definition: `list_symbols`
 - [x] SE02 Callers and callees: `main.go` calls `P_Helper`
-- [x] SE03 Every use: a struct used only in a composite literal is referenced
+- [~] SE03 Every use: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
 - [x] SE04 Blast radius and context: `build_context_pack(P_Helper)` returned the cross-file caller
 - [ ] SE05 Exact text in strings: literal not collected
 **Code quality**
 
-- [x] QU01 Dead code: unused struct and function reported; a composite-only use keeps the struct alive
+- [~] QU01 Dead code: unused struct and function reported; a struct used only as a declared type is reported
 - [ ] QU02 Repeated code: listed under `unsupported_languages`
 **Structure**
 

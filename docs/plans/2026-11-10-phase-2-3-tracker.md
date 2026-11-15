@@ -410,9 +410,10 @@ From `rules.md` and the two messages:
           `symbol-coverage.md` already had them as done; the older
           `checklists/*.md` views are brought in line: DA01 (struct fields),
           DA03, DA04, RE02 (`T{}` gives `references T`), RE07 and RE09
-          (embedding gives `extends`), SE03 and QU01 (a composite-only use
-          keeps the struct alive: `P_Struct` is referenced and not reported
-          as dead). Still open in the probe: FN03 (`f := func()` in a
+          (embedding gives `extends`). SE03 and QU01 stay `[~]`, as in the
+          scored list: a composite literal references its type, but a type
+          named only in a declaration (`var w Widget`) gets none and is
+          reported as dead code. Still open in the probe: FN03 (`f := func()` in a
           function has no symbol) and `var i P_Iface = s` gives no reference
           to `P_Iface` (#442); RE06 (structural implements) is by design.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
