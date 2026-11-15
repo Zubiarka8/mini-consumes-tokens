@@ -754,6 +754,22 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Go: a function of this file used by name as a call argument
+        (`http.HandleFunc("/", handler)`, `apply(helper)`) or as an element
+        of a composite literal (`map[string]func(int) int{"h": helper}`) is a
+        `references` relation, so the callback is not dead code. A parameter
+        or a local (`:=`, `var`, `range`) of an enclosing function with the
+        same name shadows it; a variable and an unknown name record nothing.
+        Only functions of the same file count: a function declared in
+        another file of the package is not referenced from here. Corpus: no
+        change. Probe on a tiny tree: dead code listed `handler` and
+        `helper` before. `go` is not installed here, so the Go semantics
+        are not run. Test: `mct-lang-go/tests/function_arguments.rs`.
+  - [x] Probed and already fine: Java (`this::inst`, `A::parse`, `A::new`),
+        C# (`d.Changed += OnChanged`, `Func<int,int> f = Twice`,
+        `new Func<int,int>(Twice)`) and Rust (`.map(parse)`,
+        `.map(Self::helper)`, `let f: fn(i32) -> i32 = double`): none is
+        listed as dead code.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:

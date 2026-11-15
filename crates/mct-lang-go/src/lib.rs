@@ -18,10 +18,12 @@ use mct_core::{
 };
 use mct_tree_sitter::{find_child, first_error, location};
 use tree_sitter::{Node, Parser};
+use values::{declared_functions, is_shadowed, unwrap_element};
 
 mod details;
 mod receivers;
 mod stdlib;
+mod values;
 
 pub struct GoParser;
 
@@ -79,6 +81,7 @@ impl LanguageParser for GoParser {
         walker.structs = receivers::structs(root, &file.contents);
         walker.std_imports = stdlib::StdImports::of(root, &file.contents);
         walker.packages = repo_packages(root, &file.contents);
+        walker.functions = declared_functions(root, &file.contents);
         let file_loc = file_location(root);
         let file_module_id = walker.push_symbol(module_name, SymbolKind::Module, file_loc, None);
         if let Some(ref pkg) = package_name {
@@ -134,6 +137,8 @@ struct Walker<'a> {
     /// The names this file's unaliased repository imports bind (see
     /// `repo_packages`).
     packages: HashSet<String>,
+    /// The names of the functions this file declares at package level.
+    functions: HashSet<String>,
 }
 
 impl<'a> Walker<'a> {
@@ -141,6 +146,41 @@ impl<'a> Walker<'a> {
         Self {
             source,
             ..Self::default()
+        }
+    }
+
+    /// `value` is a bare name of a function this file declares, passed or
+    /// stored as a value: a `References` relation from `owner`. A parameter
+    /// or local of an enclosing function with that name shadows it.
+    fn reference_function_value(&mut self, value: Node, owner: SymbolId) {
+        if value.kind() != "identifier" {
+            return;
+        }
+        let name = text(value, self.source);
+        if self.functions.contains(name) && !is_shadowed(value, name, self.source) {
+            self.push_relation(
+                owner,
+                RelationKind::References,
+                name.to_string(),
+                location(value),
+            );
+        }
+    }
+
+    /// The function names among the elements of a composite literal's body,
+    /// keyed (`{"h": helper}`) or not (`{helper, later}`).
+    fn reference_literal_values(&mut self, body: Node, owner: SymbolId) {
+        let mut cursor = body.walk();
+        let elements: Vec<Node> = body.named_children(&mut cursor).collect();
+        for element in elements {
+            let value = match element.kind() {
+                "keyed_element" => element.named_child(1).and_then(unwrap_element),
+                "literal_element" => unwrap_element(element),
+                _ => None,
+            };
+            if let Some(value) = value {
+                self.reference_function_value(value, owner);
+            }
         }
     }
 
@@ -353,6 +393,11 @@ impl<'a> Walker<'a> {
                     self.visit(function, owner, package_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
+                    let mut cursor = arguments.walk();
+                    let values: Vec<Node> = arguments.named_children(&mut cursor).collect();
+                    for value in values {
+                        self.reference_function_value(value, owner);
+                    }
                     self.visit_children(arguments, owner, package_name, depth + 1);
                 }
             }
@@ -361,6 +406,7 @@ impl<'a> Walker<'a> {
                     self.push_type_use(owner, RelationKind::References, ty, None, package_name);
                 }
                 if let Some(body) = node.child_by_field_name("body") {
+                    self.reference_literal_values(body, owner);
                     self.visit_children(body, owner, package_name, depth + 1);
                 }
             }
