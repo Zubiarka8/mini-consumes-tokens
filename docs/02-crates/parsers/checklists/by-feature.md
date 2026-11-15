@@ -707,7 +707,7 @@ Done 2 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 13
 - [~] Java: `static final` is a `field`
 - [ ] Kotlin: top-level `const val` has no symbol
 - [~] C#: `const` is a `field`
-- [~] C++: `const int P_CONST` → `variable`
+- [x] C++: `const int P_CONST` → `constant`
 - [ ] Go: `const` has no symbol
 - [x] PHP: `const` top-level and in classes
 - — Lua: no `const` keyword
@@ -803,7 +803,7 @@ Done 1 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 6
 - — Java: Java has no macro / preprocessor define
 - — Kotlin: Kotlin has no macro / preprocessor define
 - — C#: C# has no macro / preprocessor define
-- [ ] C++: `#define P_MACRO` has no symbol
+- [x] C++: `#define P_MACRO` → `constant`, `#define P_FN(x)` → `function`
 - — Go: Go has no macro / preprocessor define
 - — PHP: `define()` stays a call by decision
 - — Lua: Lua has no macro / preprocessor define
@@ -879,7 +879,7 @@ Done 5 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 9
 - [ ] Java: `super()` and `this()` give no relation
 - [ ] Kotlin: secondary `this()` delegation emits no call relation
 - [ ] C#: `: base()` gives no call
-- [ ] C++: `P_Sub() : P_Base()` gives no relation
+- [x] C++: `P_Sub() : P_Base()` gives `calls P_Base` from the constructor
 - — Go: Go has no super / base constructor call
 - [x] PHP: `parent::__construct()` → `calls __construct`
 - — Lua: Lua has no super / base constructor call
