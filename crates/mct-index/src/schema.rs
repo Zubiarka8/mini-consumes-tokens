@@ -674,6 +674,81 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         )),
+        // A call qualified by a type also reaches a method its direct
+        // supertype declares (issue #479): the supertype is the target of an
+        // `extends`/`implements` relation stored for a type of that name and
+        // language, and the type declares no member of that name itself (an
+        // override shadows what it inherits). One hop: a grandparent's method
+        // stays unresolved. Stored rows are unchanged, so nothing is reparsed.
+        M::up(concat!(
+            r#"
+            DROP VIEW relation_candidates;
+            "#,
+            r#"CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                    UNION ALL
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                )
+                CROSS JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<'
+                       OR (EXISTS (SELECT 1 FROM relations ir
+                                   JOIN symbols t ON t.id = ir.from_symbol_id
+                                   JOIN files tf ON tf.id = t.file_id
+                                   WHERE ir.kind IN ('extends', 'implements')
+                                     AND ir.to_name = s.parent
+                                     AND t.name = r.qualifier
+                                     AND tf.language = sf.language)
+                           AND NOT EXISTS (SELECT 1 FROM symbols own
+                                           JOIN files ownf ON ownf.id = own.file_id
+                                           WHERE own.name = r.to_name
+                                             AND own.parent = r.qualifier
+                                             AND ownf.language = sf.language)))
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.not_field = 0 OR s.kind <> 'field')
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module')
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'variable'
+                       OR s.parent IS NULL
+                       OR NOT EXISTS (SELECT 1 FROM symbols p
+                                      WHERE p.file_id = s.file_id AND p.name = s.parent
+                                        AND p.kind IN ('function', 'method'))
+                       OR EXISTS (SELECT 1 FROM symbols p
+                                  WHERE p.file_id = s.file_id AND p.name = s.parent
+                                    AND p.kind NOT IN ('function', 'method', 'variable',
+                                                       'constant', 'field')))
+                  "#,
+            shadowed_module_predicate!(),
+            ";",
+        )),
     ])
 }
 
@@ -917,5 +992,67 @@ mod tests {
                  VALUES (1, 'references', 'B', 1, 1, 1, 1);",
             1,
         )
+    }
+
+    /// Migration 18 (ADR-037): a type-qualified relation also reaches a
+    /// method of a direct supertype the index records for that type, unless
+    /// the type declares a member of that name itself. Applied to an index
+    /// that already holds the data, with no reparse.
+    #[test]
+    fn inherited_member_migration_reaches_only_a_recorded_direct_supertype(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, 17)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at) VALUES
+                 (1, 'Repo.cs', 'csharp', 'h1', 0),
+                 (2, 'Repo.java', 'java', 'h2', 0);
+             INSERT INTO symbols (id, file_id, name, kind, parent, line, column, byte_len) VALUES
+                 (1, 1, 'Base', 'class', NULL, 1, 1, 1),
+                 (2, 1, 'Save', 'method', 'Base', 2, 1, 1),
+                 (3, 1, 'Find', 'method', 'Base', 3, 1, 1),
+                 (4, 1, 'Child', 'class', NULL, 4, 1, 1),
+                 (5, 1, 'Find', 'method', 'Child', 5, 1, 1),
+                 (6, 1, 'Old', 'method', 'Grand', 6, 1, 1),
+                 (7, 2, 'Other', 'class', NULL, 1, 1, 1);
+             INSERT INTO relations (id, from_symbol_id, kind, to_name, line, column, byte_len,
+                                    targets_parsed, qualifier) VALUES
+                 (1, 4, 'extends', 'Base', 4, 1, 1, 1, NULL),
+                 (2, 7, 'extends', 'Base', 1, 1, 1, 1, NULL),
+                 (3, 5, 'calls', 'Save', 5, 1, 1, 1, 'Child'),
+                 (4, 5, 'calls', 'Find', 5, 1, 1, 1, 'Child'),
+                 (5, 5, 'calls', 'Old', 5, 1, 1, 1, 'Child'),
+                 (6, 7, 'calls', 'Save', 1, 1, 1, 1, 'Other');",
+        )?;
+        let candidates = |conn: &Connection, relation: i64| -> rusqlite::Result<Vec<i64>> {
+            let mut stmt = conn.prepare(
+                "SELECT symbol_id FROM relation_candidates WHERE relation_id = ?1
+                 ORDER BY symbol_id",
+            )?;
+            let ids = stmt
+                .query_map([relation], |r| r.get(0))?
+                .collect::<rusqlite::Result<Vec<i64>>>();
+            ids
+        };
+        assert!(candidates(&conn, 3)?.is_empty(), "before: no candidate");
+        migrations().to_version(&mut conn, 18)?;
+        assert_eq!(candidates(&conn, 3)?, [2], "Base's Save, inherited");
+        assert_eq!(
+            candidates(&conn, 4)?,
+            [5],
+            "Child's own Find shadows Base's"
+        );
+        assert!(candidates(&conn, 5)?.is_empty(), "no recorded supertype");
+        assert!(
+            candidates(&conn, 6)?.is_empty(),
+            "a Java type's supertype is no C# method's"
+        );
+        let hash: String =
+            conn.query_row("SELECT content_hash FROM files WHERE id = 1", [], |r| {
+                r.get(0)
+            })?;
+        assert_eq!(hash, "h1", "no reparse needed");
+        Ok(())
     }
 }
