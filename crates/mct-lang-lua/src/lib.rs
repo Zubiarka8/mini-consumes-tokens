@@ -14,6 +14,7 @@
 mod details;
 mod globals;
 mod libraries;
+mod literals;
 mod tokens;
 
 pub use tokens::LuaTokenSource;
@@ -72,7 +73,9 @@ impl LanguageParser for LuaParser {
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
