@@ -679,8 +679,10 @@ pub fn migrations() -> Migrations<'static> {
         // `extends`/`implements` relation stored for a type of that name and
         // language, walked up to 8 levels, and the nearest level that
         // declares a member of that name wins (an override shadows what it
-        // inherits; the type's own members are level 0). Stored rows are
-        // unchanged, so nothing is reparsed.
+        // inherits; the type's own members are level 0). A `target_module`
+        // then pins the qualifier type, not the ancestor (a PHP `$this->m()`
+        // reaches a trait of another namespace). Stored rows are unchanged,
+        // so nothing is reparsed.
         M::up(concat!(
             r#"
             DROP VIEW relation_candidates;
@@ -752,7 +754,17 @@ pub fn migrations() -> Migrations<'static> {
                                     AND (m.name = r.target_module
                                          OR EXISTS (SELECT 1 FROM symbol_aliases a
                                                     WHERE a.symbol_id = m.id
-                                                      AND a.alias = r.target_module))))
+                                                      AND a.alias = r.target_module)))
+                       OR (s.parent IS NOT r.qualifier
+                           AND EXISTS (SELECT 1 FROM symbols qt
+                                       JOIN symbols m ON m.file_id = qt.file_id
+                                                     AND m.kind = 'module'
+                                       WHERE qt.name = r.qualifier
+                                         AND qt.parent IS NULL
+                                         AND (m.name = r.target_module
+                                              OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                         WHERE a.symbol_id = m.id
+                                                           AND a.alias = r.target_module)))))
                   AND NOT (r.kind = 'calls' AND s.kind = 'module')
                   AND (sf.id = cf.id
                        OR s.kind <> 'variable'
