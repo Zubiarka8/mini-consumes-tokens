@@ -826,17 +826,34 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// A written type and, through a worklist, the types in its template
+    /// arguments (`Box<Tag>`, `std::vector<std::pair<Row, int>>`).
     fn push_written_type(&mut self, owner: SymbolId, written: Node<'a>) {
-        let Some(name_node) = constructed_type_name(written) else {
-            return;
-        };
-        let name = text(name_node, self.source);
-        if self.template_params.iter().flatten().any(|p| *p == name) {
-            return;
+        let mut pending = vec![written];
+        while let Some(written) = pending.pop() {
+            let tail = qualified_tail(written);
+            if tail.kind() == "template_type" {
+                if let Some(arguments) = tail.child_by_field_name("arguments") {
+                    let mut cursor = arguments.walk();
+                    pending.extend(
+                        arguments
+                            .named_children(&mut cursor)
+                            .filter(|a| a.kind() == "type_descriptor")
+                            .filter_map(|a| a.child_by_field_name("type")),
+                    );
+                }
+            }
+            let Some(name_node) = constructed_type_name(written) else {
+                continue;
+            };
+            let name = text(name_node, self.source);
+            if self.template_params.iter().flatten().any(|p| *p == name) {
+                continue;
+            }
+            let std = !self.opens_std && is_std_qualified(written, self.source);
+            self.type_uses
+                .push((owner, name.to_string(), std, location(name_node)));
         }
-        let std = !self.opens_std && is_std_qualified(written, self.source);
-        self.type_uses
-            .push((owner, name.to_string(), std, location(name_node)));
     }
 
     /// The types the parameters of function `owner` name. Only a real
