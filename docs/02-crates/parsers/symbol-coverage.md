@@ -20,8 +20,8 @@ language it covers and what is missing.
 Use this page:
 
 - before relying on a tool result for a language, to know what can be in it.
-  For example, `find_symbol` never returns a Python lambda, because
-  lambdas are not indexed;
+  For example, `find_symbol` returns a Python lambda only when it is bound
+  to one name (`f = lambda …`), because other lambdas are not indexed;
 - when adding a language. The [language crate template](../../06-templates/lang-crate-base.md)
   asks for inventory entries and a checklist here;
 - when changing a parser. Update the cells it changes in the same PR.
@@ -118,17 +118,17 @@ table emits none yet:
 | Language | Symbols with details | Visibility mapping | Modifiers | Not covered |
 |---|---|---|---|---|
 | Rust | `fn` (free, method, trait, `extern` block), `struct`, `union`, `enum`, `trait`, `type`, associated `type`, `const`, `static` | `pub` → public, `pub(crate)` → crate, `pub(super)`/`pub(in …)` → restricted, `pub(self)` or no keyword → private; none recorded in a trait or `impl Trait for T`, where the trait decides | `async`, `const`, `unsafe`, `extern` (functions); `unsafe` (traits) | closures bound by `let`, enum variants, fields, macro-generated items; parameter defaults (Rust has none) |
-| JS/TS | `function` (and generator), methods, functions or arrows assigned to `const`/`let`/`var` or to a class field, classes, interfaces, type aliases, enums, class fields | class members: `private`/`protected`/`public` keyword, `#name` → private, otherwise public (the language default); none outside a class | `async`, generator (`*`), `static`, `readonly`, `abstract`, `override`, `const` (enums) | CommonJS/`export default` function values, interface members, abstract method signatures, object-literal properties. Types come from TS annotations (`syntax`) or, without one, from a JSDoc `@param {T} name` / `@returns {T}` right above (`doc`); a destructured parameter has no name for JSDoc to match |
-| Python | `def` (functions and methods), `class`, PEP 695 `type`, module-level and class-body assignments | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
+| JS/TS | `function` (and generator), methods, functions or arrows assigned to `const`/`let`/`var` or to a class field, classes, interfaces, type aliases, enums, class fields | class members: `private`/`protected`/`public` keyword, `#name` → private, otherwise public (the language default); none outside a class | `async`, generator (`*`), `static`, `readonly`, `abstract`, `override`, `const` (enums) | CommonJS/`export default` function values, abstract method signatures, object-literal properties. Types come from TS annotations (`syntax`) or, without one, from a JSDoc `@param {T} name` / `@returns {T}` right above (`doc`); a destructured parameter has no name for JSDoc to match |
+| Python | `def` (functions and methods), `class` (an `enum` when it subclasses a standard `enum` base), PEP 695 `type`, module-level and class-body assignments, a lambda bound to one name | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas not bound to one name. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
 | Java | methods, constructors, classes, records, interfaces, annotation types, enums, each declarator of a field declaration | `public`/`protected`/`private`; none → package, but public in an interface or annotation type (the language default) | `abstract`, `static`, `final`, `sealed`, `@Override` → override | record accessors (synthesized, not written), enum constants, `throws` (kept in the signature only). The explicit `Type this` parameter is the receiver; `T...` is variadic |
-| Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes, member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
-| C# | methods, constructors, destructors, operators, conversion operators, local functions, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
+| Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes (`enum`), member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
+| C# | methods, constructors, destructors, operators, conversion operators, local functions, lambdas and anonymous methods bound to a local, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration, a record's positional parameters (type and name: `int X`, public) | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
 | PHP | functions, methods (Laravel's anonymous migration `up`/`down` included), classes, interfaces, traits, enums, each element of a property declaration, promoted constructor parameters | `public`/`protected`/`private` (`private(set)` reads as its first word); none → public for a method or property (the language default); functions and types have none | `abstract`, `final`, `static`, `readonly` | closures assigned to a variable, enum cases, class constants, `@template` generics. A type the syntax leaves out comes from the PHPDoc block right above (`@param T $name`, `@return T`) as `doc`; a written type always wins. `...$x` is variadic; `&$x` stays in the signature only |
-| C++ | function and method definitions and prototypes (out-of-line `Class::method` included), classes, structs, unions, enums, `using` aliases, `typedef`s, each declarator of a variable or field declaration; a templated one keeps its `template <…>` | the access label in force in the class body; none → private in a `class`, public in a `struct`/`union` (the language defaults); none recorded outside a class (C++ has linkage there) or for an out-of-line definition (its access is the declaration's) | `virtual`, `static`, `extern`, `inline`, `constexpr` → const, `override`, `final`, `= 0` → abstract | enumerators, lambdas, `auto` deduction (an `auto` return without `-> T` stays `auto`). A type is everything the declaration writes but the name (`const char*`, `int&`); C `...` is a variadic parameter with no name or type |
+| C++ | function and method definitions and prototypes (out-of-line `Class::method` included), classes, structs, unions, enums, `using` aliases, `typedef`s, each declarator of a variable or field declaration; a templated one keeps its `template <…>` | the access label in force in the class body; none → private in a `class`, public in a `struct`/`union` (the language defaults); none recorded outside a class (C++ has linkage there) or for an out-of-line definition (its access is the declaration's) | `virtual`, `static`, `extern`, `inline`, `constexpr` → const, `override`, `final`, `= 0` → abstract | enumerators, unnamed lambdas (one bound to a name has the binding up to its body and its parameters), `auto` deduction (an `auto` return without `-> T` stays `auto`). A type is everything the declaration writes but the name (`const char*`, `int&`); C `...` is a variadic parameter with no name or type |
 | Lua | `function` declarations (`local`, dotted, `T:m`), functions assigned to a name or field, functions in a module table's fields | none: Lua has no visibility syntax (`local` is scope, not access) | — (Lua has none) | classes, fields and variables (no declaration header), `@generic`, `@class`/`@field`. Lua writes no types: every type comes from the LuaLS `---` lines right above (`@param name type`, `@return type`, several `@return`s joined as one multiple return) as `doc`. `function T:m()` has the implicit `self` receiver; `...` is variadic |
 | Bash | functions (`function f()` and `f()`), file-level variables (bare or under `readonly`/`export`/`declare`/`typeset`/`local`) | none: Bash has no access control (`export` passes a variable to child processes) | `readonly`, or a `-r` flag of `declare`/`typeset`, → readonly | parameters (a shell function declares none: it reads `$1`, `$@`, so they are recorded as unknown), types (Bash has none), a variable's value |
-| PowerShell | functions and filters (header up to the body, inline parameter list included), file-level variables (the assignment target as written: `$Global:Limit`, `[int]$Max`) | none: PowerShell functions have no access modifiers (`Export-ModuleMember` is a runtime call) | — | parameters come from the inline list or the body's `param()` block; a `[type]` literal is the type, other attributes (`[Parameter(Mandatory)]`, validators) are not. A function with neither form has unknown parameters (it can read `$args`). Return types (`[OutputType()]` is advisory), classes and enums (not indexed) |
-| Go | `func`, methods, interface methods, `type` (struct, interface, defined type, alias), struct fields, package-level `const`/`var` | an upper-case first letter → public, otherwise package (the exported-name rule) | — (Go has none) | function literals. A result list is one return type as written: `(n int, err error)` |
+| PowerShell | functions and filters (header up to the body, inline parameter list included), file-level variables (the assignment target as written: `$Global:Limit`, `[int]$Max`), classes and enums (the header: `class Animal : Base`), class properties (without the value: `hidden static [int] $Count`), class methods and constructors (the header; a `[type]` before the name is the return type), enum members (`Green = 2`) | none: PowerShell functions have no access modifiers (`Export-ModuleMember` is a runtime call) | `static` on a class property or method | parameters come from the inline list or the body's `param()` block; a `[type]` literal is the type, other attributes (`[Parameter(Mandatory)]`, validators) are not. A function with neither form has unknown parameters (it can read `$args`). A function's return type (`[OutputType()]` is advisory); `hidden` on a class member |
+| Go | `func`, methods, interface methods, `type` (struct, interface, defined type, alias), struct fields, package-level `const`/`var` (a `function` for `var f = func…`) | an upper-case first letter → public, otherwise package (the exported-name rule) | — (Go has none) | function literals. A result list is one return type as written: `(n int, err error)` |
 
 A Rust receiver is stored with the type it stands for: `&mut self` is `&mut Self`; a Go receiver keeps its declared type (`*Stack[T]`). `a, b int` is two `int` parameters.
 A destructuring or `_` parameter keeps its type but has no name.
@@ -177,17 +177,17 @@ round to the nearest whole percent, with halves rounded up.
 | Language | Constructs | Checks | Features | Checks | Unverified |
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
-| Python | 81% | 29 | 85% | 10 | 0 |
-| JS/TS | 80% | 33 | 80% | 10 | 1 |
-| Java | 83% | 27 | 65% | 10 | 0 |
-| Kotlin | 79% | 35 | 65% | 10 | 0 |
-| C# | 79% | 34 | 55% | 10 | 0 |
-| C++ | 86% | 28 | 50% | 10 | 0 |
-| Go | 75% | 18 | 60% | 10 | 0 |
-| PHP | 85% | 30 | 75% | 10 | 0 |
-| Lua | 86% | 14 | 70% | 10 | 0 |
-| Bash | 81% | 8 | 60% | 10 | 0 |
-| PowerShell | 38% | 17 | 60% | 10 | 0 |
+| Python | 91% | 29 | 95% | 10 | 0 |
+| JS/TS | 89% | 33 | 100% | 10 | 1 |
+| Java | 83% | 27 | 85% | 10 | 0 |
+| Kotlin | 83% | 35 | 85% | 10 | 0 |
+| C# | 87% | 34 | 80% | 10 | 0 |
+| C++ | 89% | 28 | 70% | 10 | 0 |
+| Go | 78% | 18 | 90% | 10 | 0 |
+| PHP | 88% | 30 | 85% | 10 | 0 |
+| Lua | 89% | 14 | 70% | 10 | 0 |
+| Bash | 81% | 8 | 80% | 10 | 0 |
+| PowerShell | 81% | 18 | 70% | 10 | 0 |
 
 ## Language by language
 
@@ -273,17 +273,17 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Language | Functions | Types / OOP | Data | Relations | Search | Quality | Structure |
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
-| Python | 78% | 88% | 50% | 100% | 80% | 100% | 83% |
-| JS/TS | 81% | 70% | 67% | 100% | 80% | 50% | 100% |
-| Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
-| Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
-| C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
-| C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
-| Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
-| PHP | 93% | 89% | 50% | 100% | 80% | 50% | 83% |
-| Lua | 90% | 75% | 75% | 100% | 60% | 75% | 83% |
-| Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
-| PowerShell | 42% | 25% | 25% | 67% | 80% | 50% | 33% |
+| Python | 100% | 100% | 50% | 100% | 100% | 100% | 83% |
+| JS/TS | 94% | 90% | 67% | 100% | 100% | 100% | 100% |
+| Java | 80% | 90% | 38% | 100% | 100% | 75% | 67% |
+| Kotlin | 83% | 92% | 58% | 88% | 100% | 100% | 50% |
+| C# | 94% | 96% | 50% | 88% | 90% | 75% | 67% |
+| C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
+| Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
+| PHP | 93% | 89% | 67% | 100% | 100% | 100% | 50% |
+| Lua | 90% | 100% | 75% | 100% | 80% | 75% | 50% |
+| Bash | 100% | 100% | 50% | 100% | 100% | 100% | 33% |
+| PowerShell | 90% | 100% | 50% | 80% | 80% | 100% | 33% |
 
 ### Rust
 
@@ -304,7 +304,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `mod m { … }`, `mod m;` | `mod_item` | `module` |
 | `use a::{b, c as d}` | `use_declaration`, `use_list`, `scoped_use_list`, `use_as_clause` | `imports` per name |
 | `f()`, `a::f()`, `x.m()`, `f::<T>()` | `call_expression`, `scoped_identifier`, `field_expression`, `generic_function` | `calls` |
-| `impl Tr for T` | `impl_item` | `implements Tr`, owned by the file module; its associated types count as used |
+| `impl Tr for T` | `impl_item` | `implements Tr`, owned by `T` when the file declares one struct, union or enum `T`, else by the file module; its associated types count as used |
 | `trait B: A` | `trait_item` | `extends A` |
 | `#[derive(Clone)]`, other non-compiler attributes | `attribute_item` | `references` to the item or derive named; a bare built-in attribute of the Rust reference (`#[ignore]`, `#[should_panic]`, `#[track_caller]`, `#[non_exhaustive]`…) is none, since an imported macro can't share its name (E0659) |
 | a same-file free function used as a value, or inside a macro | `identifier`, `token_tree` | `references` |
@@ -317,7 +317,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | harness attributes such as `#[test]` / `#[tokio::test]` | `attribute_item` | a self-`references` relation to the following function |
 | a bare call to an imported function inside a macro's arguments (`println!("{}", helper(x))`) | `token_tree` | `calls` |
 | string literals | `string_literal`, `raw_string_literal` | literals for exact-text search |
-| a prelude name (`Ok`, `Some`, `String`, `Box`, `Debug`, `Default`…) or a name imported from `std`/`core`/`alloc` | any of the above | marked `external` only when the file declares no item of that name, no non-`std` `use` of it reaches the site, no lowercase local shadows it, and no glob that could bring it in reaches the site. An enum variant is not a bare name (`Level::Debug` doesn't shadow the `Debug` derive) unless a glob over its enum reaches the site. A glob over an enum declared in the file and a `use super::*` in a top-level inline `mod` are otherwise transparent |
+| a prelude name (`Ok`, `Some`, `String`, `Box`, `Debug`, `Default`…) or a name imported from `std`/`core`/`alloc` where that `use` reaches (its own block, module or file), including a bare call inside a macro's arguments | any of the above | marked `external` only when the file declares no item of that name, no non-`std` `use` of it reaches the site, no lowercase local shadows it, and no glob that could bring it in reaches the site. An enum variant is not a bare name (`Level::Debug` doesn't shadow the `Debug` derive) unless a glob over its enum reaches the site. A glob over an enum declared in the file and a `use super::*` in a top-level inline `mod` are otherwise transparent |
 | a bare name a `use` of another crate brings in (`use serde::Serialize` then `#[derive(Serialize)]`, `Serialize` in a type, `helper()`) | any of the above | the crate as module evidence (`serde`), so a same-named item of this repository outside `serde/` is never the target; a crate of this repository is found by its directory (`mct_core` in `crates/mct-core/`). Only an import whose block reaches the site counts, and all of them must name one crate. None for a `crate::`/`self::`/`super::` path, an alias, a name the file declares or binds, a path from a module of the file (`mod support; use support::X`), or any import in a test, example, bench, binary or build script (they may import their own package by a name no path spells) |
 | the trait of `impl Tr<..> for T` / `impl m::Tr for T` / a supertrait bound | `impl_item`, `trait_bounds` | `implements`/`extends` the trait's last segment without generic arguments (`From`, `Display`), with `kind = trait` unless external |
 
@@ -325,13 +325,13 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| `implements` owned by the file module | Bug | the type that implements the trait is not the owner |
+| `implements` of a type declared in another file is owned by the file module | Model limit | the parser sees one file, and a relation's owner must be a symbol of that file |
 | A call to a function of another file inside a macro that is not imported or is reached through a field or path (`x.f()`) | By design | the traversal comment limits macro identifiers to imported names and same-file free functions; other forms are `references`, to avoid mistaking fields and paths for calls |
 | Visibility, generics, signatures | Model limit | see [What the index can hold](#what-the-index-can-hold) |
 | A bare prelude name under a glob whose source is another file (`use super::*` in a file module, `use other::*`) is not marked `external`, and resolves to a same-named item elsewhere when there is only one | By design (parser) + model limit (index) | the parser can't see what the glob brings in, so it proves nothing; the index then reports a unique name match as `resolved`. On this repository: 14 `String` references in `mct-index/src/reviews/tests.rs` and `mct-cli/src/web/tests/group_invariants.rs` resolve to `LiteralCategory::String`. Fixing it needs "resolved by name" to be told apart from "resolved by evidence" in the index |
 | A name imported from a package whose directory has another name (`use grep_searcher::X` for `crates/searcher/`) is `unresolved` in a library file | Model limit | the index matches module evidence against path segments and doesn't map package names to directories ([#374](https://github.com/Zubiarka8/mini-consumes-tokens/issues/374)). A missed edge, never a wrong one. No package of this repository that is imported has a renamed directory |
 | `u64::from(x)` (also `try_from`, `into`, `try_into`) on an unshadowed primitive is ambiguous, even with one candidate | By design | core's blanket impls (`impl<T> From<T> for T`) always implement the conversion for the primitive too, so a repository `impl From<Id> for u64` is never the only target; the argument's type would decide, and the parser does not prove it |
-| `m::f()` where `m` is an inline `mod` of the same file is `unresolved` | Model limit | a function in an inline `mod` is indexed with no parent, so the `module = m` evidence finds no candidate (a missed edge, never a wrong one; `suite-resolution.json`, `rust: same name in different modules`) |
+| `m::Type::f()` where `m` is an inline `mod` of the same file is `unresolved` | Model limit | an item declared in an inline `mod` has the module as its parent (`m::f()`, `m::Type` and `m::n::f()` resolve through that `module = m` evidence), but a method's parent is its type, so a path through the module and then the type finds no candidate (a missed edge, never a wrong one) |
 | The prelude list is the 2021 edition's | By design | `TryFrom`, `TryInto` and `FromIterator` are not in the 2015/2018 prelude; a crate on those editions that defines one of them is still read correctly, because a declared or imported name is never external |
 
 ### Python
@@ -342,7 +342,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `def` / `async def` at top level | `function_definition` | `function` |
 | `def` in a class | `function_definition` | `method`, parent the class |
-| `def` inside a function | `function_definition` | `function`, no parent |
+| `@property` (or `@cached_property`) `def x`, then `@x.setter` / `@x.deleter` / `@x.getter` `def x` | `decorated_definition` | one `field` `x` of the class with the getter's `def` as signature, spanning every accessor and owning their calls; an accessor decorator references nothing. `@x.setter` of a property the class does not declare (an inherited one) stays a `method` |
+| `def` inside a function or method | `function_definition` | `function`, parent the enclosing function or method |
 | `class C(A, B)` | `class_definition` | `class`; `extends` per base |
 | decorated `def`/`class` | `decorated_definition` | the symbol, plus `references` to each decorator |
 | `type X = …` (PEP 695) | `type_alias_statement` | `type_alias` |
@@ -356,6 +357,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `MAX = 3`, `a, b = …`, `timeout: int = 30` at module level | `assignment` | `variable`; `constant` when annotated `Final`. The first binding of a name only; `_` and attribute or subscript targets are skipped. Signature is the name, or `name: annotation` |
 | `currency = "EUR"`, `sku: str` in a class body | `assignment` | `field`, parent the class |
 | `self.x = …`, `self.x: T = …` in a method | `assignment` + `attribute` on the method's receiver | `field` of the class at its first assignment, unless the class declares `x` (a class attribute or a method). Only the receiver counts (the first parameter, any name, not rebound, not in a `@staticmethod`) |
+| string literals (f-strings too), not a docstring or other string statement | `string`, `string_content` | literals for exact-text search, one per fixed fragment between f-string holes, escapes resolved unless raw |
 | `v.m()`, `@v.m` whose receiver class is not proven, `v` not the method's own `self` | `call`, `decorator` + `attribute` | rules out a `field` as the target ([ADR-036](../../01-architecture/adrs/036-not-field-relation-target.md)): `CONFIG.items()` never resolves to a `Page.items` field by name. `self.key(row)` may still reach a callable field `key` |
 | a call, decorator or base class naming something the file neither imports nor binds (`helper()`, `@cached`, `class C(Base)`) | `call`, `decorator`, `argument_list` | carries this file as evidence, so a same-file definition wins. A name the file binds at class level only hides an import inside that class body |
 | `from pkg.util import x` | `import_from_statement` | the `imports` row for `x` carries `util` as module evidence; `from . import x` carries none |
@@ -366,11 +368,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | A name used in a file with `from m import *` gets no evidence | By design | the star import could bind any name, so the call is left to name resolution (`library/cli.py` `int(…)` still matches a fixture variable named `int`) |
-| Lambdas | Not implemented | no arm for `lambda` |
-| Enum subclasses | Not implemented | ordinary class traversal emits `class` plus `extends Enum`; assigned enum values are `field`, as any class attribute |
-| Nested functions have no parent | Not implemented | the parent is set only for class members |
-| Getter and setter as two rows | Not implemented | both are emitted as methods; the shared `field` kind could model a combined property, as in C# |
-| Exact-text search in strings | Not implemented | the parser does not fill `literals` |
+| A lambda that is not bound to one name (an argument, one of several targets, a local) | By design | it has no name a caller could use; `f = lambda …` at module level or in a class body is a `function` or `method` |
+| A subclass of a project enum (`class Color(BaseEnum)`) stays a `class` | By design | only a base the file proves to be the standard `enum` module's counts; the parser does not follow a base class into another definition |
 | A builtin is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
 | Two nested `def`s of one name in the same file are `ambiguous` | Model limit | the call is kept to the file, but `RelationTarget` can't name the enclosing function (`suite-resolution.json`, `report.py` `fmt`) |
 
@@ -380,28 +379,30 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Source | Grammar node | Indexed as |
 |---|---|---|
-| `function f`, generators | `function_declaration`, `generator_function_declaration` | `function` |
-| `const f = () => …`, `= function …` | `variable_declarator` + `arrow_function`/`function_expression` | `function` |
+| `function f`, generators | `function_declaration`, `generator_function_declaration` | `function`; inside a function or method body, with that function or method as parent |
+| `const f = () => …`, `= function …` | `variable_declarator` + `arrow_function`/`function_expression` | `function`; inside a function or method body, with that function or method as parent |
 | `class` / `abstract class` | `class_declaration`, `abstract_class_declaration` | `class` |
-| class methods, `constructor`, `get`/`set` | `method_definition` | `method` |
+| class methods, `constructor` | `method_definition` | `method` |
+| class `get x()` / `set x()` | `method_definition` with a `get`/`set` keyword under `class_body` | one `field` `x` of the class with the first accessor as signature, spanning every accessor of that name and owning their calls; a typed getter (`get repo(): Repo`) or setter parameter types the field for `this.repo.m()`. An object literal's accessor stays a `function` |
 | class fields (`#private`, `static`) | `field_definition`, `public_field_definition` | `field`; an arrow-function value becomes `method` |
 | constructor parameter properties (`constructor(private readonly store: Store)`) | `required_parameter`, `optional_parameter` with an `accessibility_modifier` or `readonly` | `field` of the class at the parameter, with its visibility and `readonly`; a plain parameter declares nothing |
 | `interface` | `interface_declaration` | `interface` (members skipped) |
-| `enum` | `enum_declaration` | `enum` (members skipped) |
+| `enum` | `enum_declaration` | `enum`; each member (`A`, `B = 2`, `'c-d' = 3`) a `field` of the enum, and a call in a member's value is from the enum |
 | `type X = …` | `type_alias_declaration` | `type_alias` |
 | module-level `const X = 1`, `let x`, `var y` (exported or not) | `lexical_declaration`, `variable_declaration` under `program` | `const` is `constant`, `let`/`var` `variable`, with no parent and the declaration without its value as signature; a function value stays `function`; a destructuring pattern and a `require(…)` binding (an import, as an ES `import` is) declare nothing |
 | `namespace N {}` | `internal_module` | `module`; its functions keep no parent |
 | `extends`, `implements` | `extends_clause`, `implements_clause` | `extends`, `implements` |
 | ES `import`, CommonJS `require` | `import_statement`, `named_imports`, `namespace_import`, `call_expression` | `imports`; each bound name (default, `* as ns`, `{ x }`) names the module its specifier ends in (`pkg` for `@scope/pkg`, `core` for `../core/index.ts`), so a same-named definition in another module never matches it |
+| string and template literals, not a directive (`"use strict"`) or other string statement, nor a JSX `className` / `class` value | `string`, `template_string` (`string_fragment`, `escape_sequence`) | literals for exact-text search, one per run of fixed text between `${…}` holes, escapes resolved |
 | `export`, `module.exports.x = …` | `export_statement`, `assignment_expression` | `references`; a function value becomes `function` |
 | `f()`, `new X()` | `call_expression`, `new_expression`, `member_expression` | `calls` |
 | a bare call `f()` or a same-file function used as a value, with no import or global evidence | `call_expression` `identifier` | targets this file when nothing around it binds `f` and the file declares `f` outside any type (a function, class or module-level binding), or when an enclosing local binds `f` and the file declares no `f` of its own (the local has no symbol, so the call stays unresolved instead of matching another file's `f`). A local shadowing a file-level `f` gives no evidence |
 | `super(…)` in a class declaration | `call_expression` with a `super` function | `calls` the base the `extends` clause names (`Base`, `ns.Base`), with the same global and import evidence as `new Base()`; none for `extends mix(A)` or inside a class expression |
 | `@sealed`, `@ns.track`, `@Component({…})` on a class, field, method or parameter | `decorator` | `calls sealed` / `track` / `Component`, as the decorator function is called with what it decorates; from the decorated class, field or method, and from the method for a parameter's |
-| the receiver of `x.m()` | `call_expression` + `member_expression` `object` | qualified by `x`'s declared type: a TS annotation (`x: T`, `const x: T`), `= new T()`, `new T().m()`, a class field or parameter property (`this.f.m()`). `this.m()` is qualified by the enclosing class when its body declares `m` as a method, field or parameter property; otherwise it is left as before, since `m` may be inherited. A local without a proven type, a call result or any other expression is a member call: ambiguous even with one candidate, and only a `method` can be its target, so a function reached through a module object (`core.f()` on a loaded module) is unresolved. A name that is no local (a top-level object, an import) is left as before. Inherited and interface methods are not found through the qualifier (interface members are not indexed), so such a call is unresolved |
+| the receiver of `x.m()` | `call_expression` + `member_expression` `object` | qualified by `x`'s declared type: a TS annotation (`x: T`, `const x: T`), `= new T()`, `new T().m()`, a class field or parameter property (`this.f.m()`). `this.m()` is qualified by the enclosing class when its body declares `m` as a method, field or parameter property; otherwise it is left as before, since `m` may be inherited. A local without a proven type, a call result or any other expression is a member call: ambiguous even with one candidate, and only a `method` can be its target, so a function reached through a module object (`core.f()` on a loaded module) is unresolved. A name that is no local (a top-level object, an import) is left as before. A value typed by an interface (`cart: Cart`, `cart.total()`) reaches the interface's signature. A method of an ancestor the index records (up to 8 levels) is a candidate when neither the class nor a nearer ancestor declares that name ([ADR-037](../../01-architecture/adrs/037-inherited-member-candidates.md)). A bare call to a local (`onSaved()` on a destructured parameter) can only reach a function, and `this.m()` outside a class proves no field |
 | a same-file function used as a value (`onclick: toggle`, `.map(card)`, `return wrapped`, `{ toggle }`) | `identifier`, `shorthand_property_identifier` | `references`; a parameter, pattern or non-function `let`/`const` of the same name in an enclosing function hides it, and a function's use of its own name is skipped |
 | JSX `<Button />` | `jsx_opening_element`, `jsx_self_closing_element` | `references` (DOM tags excluded) |
-| a TS type in an annotation, return type, alias value, generic argument or cast (`props: Props`, `useState<Problem>()`) | `type_identifier` | `references`; the enclosing declarations' type parameters are skipped (their constraints are not walked) |
+| a TS type in an annotation, return type, alias value, generic argument or cast (`props: Props`, `useState<Problem>()`) | `type_identifier` | `references`, never to a field (a type annotation can't name a field or an enum member); the enclosing declarations' type parameters are skipped (their constraints are not walked) |
 | `export default f({ … })` | `export_statement` value | the call and its arguments are walked like any expression |
 | object literal methods | `method_definition` under `object` | `function` |
 | an ECMAScript global (`Math.max()`, `JSON.parse()`, `parseInt()`, `new Map()`) | `call_expression`, `new_expression` | marked `external` only when nothing in the file binds the name — no declaration, import, parameter, pattern or assignment of it — and the file has no direct `eval` or `with`. Host globals (`window`, `document`, `process`, `console`) are not on the list |
@@ -411,9 +412,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Interface members, enum members | Not implemented | `src/lib.rs:29` calls interface members a known limit, not a decision; `walker.rs` skips both bodies |
 | Overload signatures | Not implemented | only the implementation is a `method_definition` |
-| Repeated code, exact-text search | Not implemented | no token source and no literals for JS/TS |
 | A global is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
 | `console.log()`, `document.querySelector()` and other host calls are not `external` | By design | the language does not guarantee host globals, and a project may define them |
 
@@ -431,10 +430,11 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | fields | `field_declaration` | `field` |
 | `extends`, `implements` | superclass / interfaces of `class_declaration`, `extends_interfaces` of `interface_declaration` | `extends`, `implements`; the target is a `class` for a class's `extends` and an `interface` otherwise, so a same-named constructor or method is never a candidate |
 | `@Audited`, `@a.b.Audited(…)` on a type, method, constructor or field | `marker_annotation`, `annotation` in `modifiers` | `references Audited` from the annotated symbol, to an `interface` only (annotation types are indexed as interfaces). `@Override` stays unresolved: nothing in the repository declares it |
+| string literals and text blocks (`"""…"""`) | `string_literal` (`string_fragment`, `multiline_string_fragment`, `escape_sequence`) | literals for exact-text search, escapes resolved, split at a string template's `\{…}` holes |
 | `import a.b.C`, `import static`, `.*` | `import_declaration`, `scoped_identifier`, `asterisk` | `imports` (each emitted twice) |
 | `m()`, `obj.m()`, `new X()` | `method_invocation`, `object_creation_expression` | `calls` |
 | the target of `m()`, `obj.m()` | `method_invocation` | only a `method` can be its target: Java cannot invoke a field, so a same-named field is never a candidate |
-| the receiver of `x.m()`, `T.m()` | `method_invocation` `object` | qualified by `x`'s declared type (parameter, local, field, `for`, resource, `catch`, pattern; `this.f`), or by `T` for a capitalized name that is no variable in scope (`Outer.Inner` too). Any other receiver — a call result, `var`, an untyped lambda parameter, a type variable — is a member call: ambiguous even with one candidate. A method inherited from a supertype is not found through the qualifier, so such a call is unresolved |
+| the receiver of `x.m()`, `T.m()` | `method_invocation` `object` | qualified by `x`'s declared type (parameter, local, field, `for`, resource, `catch`, pattern; `this.f`), or by `T` for a capitalized name that is no variable in scope (`Outer.Inner` too). Any other receiver — a call result, `var`, an untyped lambda parameter, a type variable — is a member call: ambiguous even with one candidate. A method of an ancestor the index records (`extends`/`implements`, up to 8 levels) is a candidate when neither the type nor a nearer ancestor declares a member of that name ([ADR-037](../../01-architecture/adrs/037-inherited-member-candidates.md)). Otherwise such a call is unresolved |
 
 #### Why the gaps exist
 
@@ -457,24 +457,27 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `class`, `interface`, `object` | `class_declaration`, `object_declaration` | `class` / `interface`; `object` as `class` |
 | `val`/`var` property in a class | `property_declaration` | `field` |
 | top-level `const val`, `val`/`var`, `val (a, b) = …`, `val T.p` | `property_declaration` | `constant` for `const`, else `variable` (each destructured name too), with no parent; an extension property is a `field` with parent `T`, as an extension `fun` is a method of `T` |
+| `val f = { x: Int -> … }`, `val f = fun(…) { … }` outside a class body | `property_declaration` with a `lambda_literal` / `anonymous_function` value | `function`, top-level or owned by the enclosing function; it owns the lambda's calls |
 | `typealias Ids = List<Long>` | `type_alias` | `type_alias` |
 | `class C(val x: Int)` | `class_parameter` | `field` |
 | `enum class` entries | `enum_entry` | `field` |
 | `: Base()`, `: Iface`, `: p.Base<T>()` | `constructor_invocation`, `user_type` | `extends` to a `class` (with `()`); without `()`, `extends` to an `interface` from an interface, else `implements`. A qualified type names its last segment (`Base`, not `p`) |
 | `@Audited`, `@a.b.Audited`, `@field:Inject(…)` on a class, function or property | `annotation` in `modifiers` | `references Audited` from the annotated symbol, to a `class` only |
+| string and raw (`"""…"""`) literals | `string_literal`, `multiline_string_literal` (`string_content`, `escape_sequence`, `interpolation`) | literals for exact-text search, one per run of fixed text between templates, escapes resolved unless raw. A plain string's `$name` has no `interpolation` node (a `$` `string_content` before the name), and is read as one |
 | `import a.b.c`, `import … as x` | `import` | `imports` (alias when present) |
 | `f()`, `obj.m()` | `call_expression`, `navigation_expression` | `calls` |
 | `: Base(4)`, `constructor(x: Int) : super(x)` | `constructor_invocation`, `constructor_delegation_call` | `calls Base` from the class, to a `class` only; `super(…)` only when the header names one supertype without `()`, and to `Any`, external, when it names none |
-| the receiver of `x.m()` | `call_expression` + `navigation_expression` receiver | qualified by `x`'s declared type: a parameter or `val x: T` (`T?` and `List<T>` name `T` and `List`), `= T(…)` (a capitalized callee), `T(…).m()`, a class property or a `val`/`var` constructor property (`this.f.m()`). A capitalized name (`Money.of()`, an object or companion) is its own qualifier. `this.m()` is qualified by the enclosing class when its body declares `m`; otherwise it is left as before, since `m` may be inherited; inside a lambda `this` is not the class. A local without a proven type (`it`, a lambda or `for` variable, `val x = f()`), a call result, `this@Label` or any other expression is a member call: ambiguous even with one candidate. A lowercase name that is no local (a package, a top-level property) is left as before. Inherited and extension methods are not found through the qualifier, so such a call is unresolved |
+| parameter defaults, property initializers, `init { … }`, secondary constructor bodies | `primary_constructor`, `class_body` | their calls come from the class, as no constructor is a symbol; a member function owns its own body |
+| the receiver of `x.m()` | `call_expression` + `navigation_expression` receiver | qualified by `x`'s declared type: a parameter or `val x: T` (`T?` and `List<T>` name `T` and `List`), `= T(…)` (a capitalized callee), `T(…).m()`, a class property or a `val`/`var` constructor property (`this.f.m()`). A capitalized name (`Money.of()`, an object or companion) is its own qualifier. `this.m()` is qualified by the enclosing class when its body declares `m`; otherwise it is left as before, since `m` may be inherited; inside a lambda `this` is not the class. A local without a proven type (`it`, a lambda or `for` variable, `val x = f()`), a call result, `this@Label` or any other expression is a member call: ambiguous even with one candidate. A lowercase name that is no local (a package, a top-level property) is left as before. A method of an ancestor the index records (up to 8 levels) is a candidate when neither the class nor a nearer ancestor declares that name ([ADR-037](../../01-architecture/adrs/037-inherited-member-candidates.md)); extension methods are not found |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Primary and secondary constructors | Not implemented | no arm for `primary_constructor` or `secondary_constructor` |
+| Primary and secondary constructors | Model limit | a constructor `method` named after its class (as Java and C# record one) would be a second candidate for every bare `B(…)` call, which the parser can't tell from a function call: in the corpus, 53 resolved constructor calls would become ambiguous. Java (31) and C# (26) corpus calls already are. Telling a constructor from its class needs an index change first |
 | A `typealias` used only as a type | Not implemented | a type in a declaration is no reference, so dead code can list the alias, as it can a class used only as a type |
 | `object` as `class` | By design | explicit mapping in [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L8) |
-| `enum class` as `class`, `companion object` without a symbol | Not implemented | not documented as a decision; a companion's members get the outer class as parent |
+| `companion object` without a symbol | Not implemented | not documented as a decision; a companion's members get the outer class as parent |
 | Anonymous object in a function | Not implemented | no class symbol; its named functions become parentless `function` rows |
 | Infix and operator calls (`a + b`) | Not implemented | [crate docs](../../../crates/mct-lang-kotlin/src/lib.rs#L16) describe a known limit, not an explicit decision to omit them |
 | One-line member without separator (`class A { fun f() {} }`) | Worked around | tree-sitter-kotlin-ng reports a missing separator; the parser reparses with a `;` in the blank before each such `}` and keeps the result only when it is clean ([`reparse_with_terminated_lines`](../../../crates/mct-lang-kotlin/src/lib.rs)) |
@@ -489,16 +492,19 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `namespace N {}` / `namespace N;` | `namespace_declaration`, `file_scoped_namespace_declaration` | `module`; types get `N::` in their parent |
 | `class`, `record` | `class_declaration`, `record_declaration` | `class`; `record struct` is `struct` |
+| record positional parameters (`record P(int X)`) | `parameter` of a `record_declaration`'s `parameter_list` | `field` `X` (public, `int X` as signature), the generated property, unless the body declares a member `X`; a class or struct primary-constructor parameter is no member |
 | `struct`, `interface`, `enum` | `struct_declaration`, `interface_declaration`, `enum_declaration` | `struct`, `interface`, `enum`; members as `constant` |
 | methods, constructors, destructors, operators | `method_declaration`, `constructor_declaration`, `destructor_declaration`, `operator_declaration`, `conversion_operator_declaration` | `method` |
 | fields, events | `field_declaration`, `event_field_declaration` | `field` |
 | properties, indexers, event properties | `property_declaration`, `indexer_declaration`, `event_declaration` | `field` |
 | local functions | `local_function_statement` | `function`, no parent |
+| `Func<int, int> f = x => …;`, `Action f = delegate { … };` in a body | `local_declaration_statement` declarator with a `lambda_expression` / `anonymous_method_expression` value | `function`, no parent, like a local function; it owns the lambda's calls, so `f(2)` reaches it. A field holding a lambda stays a `field`; a lambda passed as an argument declares nothing |
 | `delegate` | `delegate_declaration` | `type_alias` |
 | `: Base, IFoo` | base list | `extends` / `implements` by the `IFoo` heuristic |
-| `using N;`, `using static` | `using_directive` | `imports` |
-| `f()`, `a?.F()`, `new T()` | `invocation_expression`, `conditional_access_expression`, `object_creation_expression` | `calls` |
-| the receiver of `x.M()`, `x?.M()` | `member_access_expression` `expression`, `conditional_access_expression` `condition` | qualified by `x`'s declared type: a parameter, a typed local (`T?` and `List<T>` name `T` and `List`), `var x = new T()`, a `foreach`, pattern (`is T x`), `out` or `catch` variable, `new T().M()`, a field, a property or a primary constructor parameter (`this.f.M()` too). A predefined type (`string`) is its own qualifier, so no repository method is its target. A capitalized name that is no local or field (`Money.Of()`, a static class) is its own qualifier. `this.M()` is qualified by the enclosing type when its body declares `M`; otherwise it is left as before, since `M` may be inherited. A lambda parameter, `var x = F()`, a call result or any other expression is a member call: ambiguous even with one candidate. `base.M()` and a lowercase name that is no local or field are left as before. Inherited methods and extension methods (their parent is the static class) are not found through the qualifier, so such a call is unresolved |
+| plain, verbatim (`@"…"`), raw (`"""…"""`) and interpolated (`$"…"`, `$@"…"`, `$"""…"""`) strings | `string_literal`, `verbatim_string_literal`, `raw_string_literal`, `interpolated_string_expression` | literals for exact-text search, one per run of fixed text between `{…}` holes; escapes resolved in a plain or interpolated string, `""` one quote in a verbatim one, `{{` one brace in a non-raw interpolated one |
+| `using N;`, `using static`, `using A = N.T;` | `using_directive` | `imports`; an alias imports its target path only, and a use of the alias in its file (`new A()`, `A.M()`) uses the target (external under `System`/`Microsoft`); a `global using` alias is not followed |
+| `f()`, `a?.F()`, `new T()` | `invocation_expression`, `conditional_access_expression`, `object_creation_expression` | `calls`; a field is never the target of `new T()` |
+| the receiver of `x.M()`, `x?.M()` | `member_access_expression` `expression`, `conditional_access_expression` `condition` | qualified by `x`'s declared type: a parameter, a typed local (`T?` and `List<T>` name `T` and `List`), `var x = new T()`, a `foreach`, pattern (`is T x`), `out` or `catch` variable, `new T().M()`, a field, a property or a primary constructor parameter (`this.f.M()` too). A predefined type (`string`) is its own qualifier, so no repository method is its target. A capitalized name that is no local or field (`Money.Of()`, a static class) is its own qualifier, and the call also `references` it with a `class` target (`static` is class-only), so a struct, delegate or BCL qualifier (`Sku.Parse()`, `Math.Max()`) stays unresolved. `this.M()` is qualified by the enclosing type when its body declares `M`; otherwise it is left as before, since `M` may be inherited. A lambda parameter, `var x = F()`, a call result or any other expression is a member call: ambiguous even with one candidate. `base.M()` and a lowercase name that is no local or field are left as before. A method of an ancestor the index records (up to 8 levels) is a candidate when neither the type nor a nearer ancestor declares that name ([ADR-037](../../01-architecture/adrs/037-inherited-member-candidates.md)); extension methods are not found |
 | `[Attribute]` | `attribute` | `references XAttribute` |
 
 #### Why the gaps exist
@@ -506,10 +512,9 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Base list split by naming | By design | C# syntax does not separate base class from interfaces; the [documented heuristic](../../../crates/mct-lang-csharp/src/lib.rs#L420) uses the `IFoo` convention |
-| Record positional parameters | Not implemented | no arm for the record's `parameter_list` |
-| Static class used as a qualifier (`Helpers.X()`) | Not implemented | the qualifier of a member call is not a reference |
-| Lambdas, locals | Not implemented | no arm for `lambda_expression` or `local_declaration_statement` |
-| `using Alias = Type` symbol | Not implemented | alias directives emit imports only |
+| A struct used as a qualifier (`Sku.Parse()`) gets an unresolved reference | Model limit | a target has one kind, and a capitalized qualifier is far more often a static class; a method named like the type (its constructor) must never be the target |
+| Unnamed lambdas, plain locals | Not implemented | a lambda passed as an argument and a local with any other value declare no symbol; their calls belong to the enclosing member |
+| `using Alias = Type` symbol | Model limit (#446) | an alias is visible only in its own file, and a symbol cannot be kept out of other files' name matching, so a `type_alias` would make same-named targets elsewhere ambiguous. The alias names its target instead: it imports no symbol called like the alias, `new Alias()` constructs the target and `Alias.M()` is qualified by it |
 | `.csproj`/NuGet dependencies | By design | explicitly excluded in [Dependency detection](../../../internal/checklist.md#dependency-manifest-detection) |
 
 ### C++
@@ -527,6 +532,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | global and namespace variables | `declaration` | `variable` |
 | `enum`, `enum class` and their values | `enum_specifier` | `enum`; values as `constant` |
 | `using X = …`, `typedef` | `alias_declaration`, `type_definition` | `type_alias` |
+| string and raw (`R"(…)"`) literals | `string_literal`, `raw_string_literal` (`string_content`, `raw_string_content`, `escape_sequence`) | literals for exact-text search, escapes resolved unless raw; each piece of a concatenation (`"a" "b"`) is its own literal |
 | `#include "x.h"`, `<vector>` | `preproc_include` | `imports` (path and stem) |
 | `#define MAX 4`, `#define SQ(x) …` | `preproc_def`, `preproc_function_def` | `constant` and `function` (as Rust's `macro_rules!`), with no parent: the preprocessor knows no namespace or class. An include guard (`#ifndef X` then `#define X` with no value) is no symbol |
 | base classes | `base_class_clause` | `extends` |
@@ -539,9 +545,9 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Lambdas, locals | Not implemented | no arm for `lambda_expression`; locals are skipped |
-| Base-constructor calls of an out-of-line constructor whose class is defined in another file | Not implemented | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition it can't tell a base from a member |
-| A type used only in a declaration (`Widget w;`) | Not implemented | a declaration's type is not a reference |
+| Unnamed lambdas, locals | Not implemented | only a lambda bound to a plain name declares a symbol; an argument lambda (`std::sort(…, [](…) { … })`) or an immediately invoked one declares none, and locals are skipped |
+| Base-constructor calls of an out-of-line constructor whose class is defined in another file | Model limit | the base initializer `: A(1)` is a `field_initializer` named like a member; the parser sees one file, so without the class definition (in a header) it can't tell a base from a member, and a relation can't carry "a base if the class has one" for the index to settle |
+| A type declared in another file and used only in a declaration (`Widget w;`) | Model limit | a by-name match can't be limited to types, so an unpinned reference could reach a method or constructor named like the type; only a type of the same file is pinned (#440) |
 | Header and source files are two rows | By design | [crate docs](../../../crates/mct-lang-cpp/src/lib.rs#L3) explicitly choose independent header/source rows and correlate matching names and parents |
 | Some valid C++ is rejected | Grammar | tree-sitter-cpp 0.23.4, issue #82 |
 
@@ -556,16 +562,17 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `func (r *T) M()` | `method_declaration` | `method`, parent `T` (pointer and generic receivers unwrapped) |
 | `type T struct` | `type_spec` | `struct` |
 | `ID string` in a struct, `x, Y int` | `field_declaration` | `field` per name, parent the struct; signature `ID string` (no tag). An embedded field (`*Base`) is none: the struct `extends` its type |
-| an embedded type: `Base`, `*Base`, `pkg.Base`, `List[T]` in a struct; `Reader`, `io.Writer` in an interface | `field_declaration` without a name, `type_elem` of one type | `extends` from the struct or interface; in an interface the target must be an `interface`. A bare name is qualified by the package, `pkg.T` through a standard package is external, through an unaliased repository import qualified by `pkg`. A union or `~T` element is a type set and gives none |
+| an embedded type: `Base`, `*Base`, `pkg.Base`, `List[T]` in a struct; `Reader`, `io.Writer` in an interface | `field_declaration` without a name, `type_elem` of one type | `extends` from the struct or interface; in an interface the target must be an `interface`. A bare name is qualified by the package, `pkg.T` through a standard package is external, through an unaliased repository import qualified by `pkg`, through an aliased one declared under the import path's last directory. A union or `~T` element is a type set and gives none |
 | `Cart{…}`, `&Cart{…}`, `store.Basket{…}`, `Box[int]{…}` | `composite_literal` | `references` the type, with an embedded type's evidence; a slice, map or elided-type literal references nothing |
 | package-level `const X = 1`, `const ( … )` | `const_declaration`, `const_spec` | `constant` per name, parent the package; signature `const X` or `const X T` |
 | package-level `var x T`, `var ( … )` | `var_declaration`, `var_spec`, `var_spec_list` | `variable` per name, parent the package; signature `var x T`. A call in the value belongs to the file module. `_` and a `const`/`var` inside a function are none |
 | `type I interface { M() }` | `type_spec` | `interface`; each method as `method` |
 | `type A = B`, `type A int` | `type_alias`, `type_spec` | `type_alias` |
+| interpreted and raw strings, not a struct field tag | `interpreted_string_literal`, `raw_string_literal` (`…_content`, `escape_sequence`) | literals for exact-text search, escapes resolved unless raw |
 | `import "x"`, grouped imports | `import_declaration`, `import_spec_list`, `import_spec` | `imports` (path and stem), each naming a `module` only, never a same-named field or variable |
 | `f()`, `pkg.F()`, `x.M()`, `F[T]()` | `call_expression`, `selector_expression`, `type_instantiation_expression` | `calls` |
 | a bare `f()` | `call_expression` `function` `identifier` | qualified by this file's package (Go has no implicit receiver), unless `f` is a local of the enclosing function |
-| `pkg.F()` | `selector_expression` `operand` `identifier` | qualified by `pkg` when an unaliased domain-rooted import's path ends in `pkg`, no alias binds `pkg` and nothing local declares it: code can name a package by its directory only if its `package` clause uses that name |
+| `pkg.F()` | `selector_expression` `operand` `identifier` | qualified by `pkg` when an unaliased domain-rooted import's path ends in `pkg`, no alias binds `pkg` and nothing local declares it: code can name a package by its directory only if its `package` clause uses that name. Through an aliased domain-rooted import (`db "…/database"`), and when nothing local declares `db`, `F` must be declared under the path's last directory (`database/`), whatever its `package` clause says; a blank or dot import binds no name |
 | the receiver of `x.M()` | `call_expression` + `selector_expression` `operand` | qualified by `x`'s declared named type: the method receiver, a parameter, `var x T`, `x := T{…}`, `x := &T{…}`, `x := new(T)`, a package-level `var` (`*T`, `Stack[T]` and `pkg.T` name `T`, `Stack` and `T`), `T{…}.M()`, `x.(T).M()`, or a field of a struct this file declares (`s.repo.M()`). A declared type without a name (`interface{ … }`, a slice, a variadic parameter) makes a member call: ambiguous even with one candidate. So does a struct this file declares with an embedded field and without a method `M` in this file, since `M` may be promoted. Where the syntax does not state the type of a value (`x := f()`, a `range` variable, a multi-value assignment, a call result, an index expression, a field of a struct declared in another file) the target must be a method, never a package-level name or a field; a name nothing declares (an imported package) is left to the `pkg.F()` row, else to name resolution, and a unique name is reported as `name` evidence. A promoted method on a struct declared in another file is not found through the qualifier, so such a call is unresolved |
 
 #### Why the gaps exist
@@ -573,8 +580,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Implicit interface satisfaction | By design | explicitly deferred pending type resolution in [Go crate docs](../../../crates/mct-lang-go/src/lib.rs#L3) and [open decision 3](../../../internal/checklist.md#open-decisions) |
-| Conversions and declared types as uses | Not implemented | a conversion `T(x)` appears as a call; a type named only in a declaration (`var w T`, a parameter or field type) gives no relation |
-| Closures, locals | Not implemented | no arm for `func_literal` or short variable declarations |
+| Conversions and types of unknown packages as uses | Not implemented | a conversion `T(x)` appears as a call; a declared type of a package no import binds (`var c x.Conn`) gives no relation. A type of an aliased import (`var c db.Conn` with `db "…/database"`) references a type under `database/` |
+| Closures inside a function, locals | Not implemented | only a package-level `var f = func…` is a symbol; no arm for short variable declarations |
 
 ### PHP
 
@@ -589,8 +596,10 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `const` top-level and in types | `const_declaration` | `constant` |
 | `case` in an enum | `enum_case` | `field` |
 | `$f = function () {}`, `fn() =>` | `assignment_expression` | `function` |
+| `$x = …` at file scope, first in the file | `assignment_expression` | `variable` (`x`, no parent) |
 | `extends`, `implements`, `use Trait;` | `base_clause`, `class_interface_clause`, `use_declaration` | `extends`, `implements` |
 | `use A\B;` | `namespace_use_declaration` | one `imports` per clause, named after the imported class (an alias is not used), with its namespace as evidence |
+| single-quoted, double-quoted, heredoc and nowdoc strings | `string`, `encapsed_string`, `heredoc_body`, `nowdoc_body` (`string_content`, `nowdoc_string`, `escape_sequence`) | literals for exact-text search, one per run of fixed text between `$x`, `$a->b`, `$a[i]` and `{…}` interpolations; escape nodes resolved, other backslashes kept |
 | `require`/`include` with a literal path | `binary_expression`, function call | `imports` (path and stem) |
 | `f()`, `$o->m()`, `A::m()`, `new X()` | `function_call_expression`, `member_call_expression`, `scoped_call_expression`, `object_creation_expression` | `calls` (static calls qualified by their class and namespace) |
 | a call to a listed global core function: `\strlen()`, or a bare `strlen()` in a file with no namespace and no `use function` of it | `function_call_expression` | `calls`, external, assuming core functions are enabled. The list (`src/builtins.rs`) excludes optional extensions, including Filter and, on PHP 7, Hash and JSON. PHP 8's `disable_functions` can remove a core function and allow its redefinition; runtime configuration is not known to the parser. A bare call inside a namespace or a name declared in the same file is not marked external. |
@@ -604,7 +613,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | `define()` constants | By design | `define()` stays a call by the explicit [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L68) |
-| Global `$variables` | Not implemented | a top-level `assignment_expression` gives a symbol only for a closure value |
 | Anonymous classes (`new class {}`) | Partly | `anonymous_class` gives only the `extends`/`implements` relations, no symbols; the one exception is an anonymous Laravel `Migration`, whose `up`/`down` methods are indexed under the migration file's module |
 | `namespace` as a symbol | By design | explicit file-module-only [PHP decision](../../../crates/mct-lang-php/src/lib.rs#L28) |
 | Trait as `trait`, `use Trait` as `implements` | By design | explicit [PHP mappings](../../../crates/mct-lang-php/src/lib.rs#L9), using the closest existing kinds |
@@ -622,11 +630,13 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `function M.f()`, `function M:f()` | `function_declaration` with `dot_index_expression`/`method_index_expression` | `method`, parent `M` |
 | `local f = function() end` | `assignment_statement` + `function_definition` | `function` |
 | `local M = {}` | `assignment_statement` + `table_constructor` | `module` |
-| `T.__index = T`, `local D = setmetatable({}, { __index = B })` at file level | `assignment_statement`, `function_call` | the table becomes `class`; `extends B` |
+| `T.__index = T`, `local D = setmetatable({}, { __index = B })`, `W.D = setmetatable({}, { __index = W.B })` at file level | `assignment_statement`, `function_call` | the table becomes `class` (`D` of `W` for a nested target); `extends B`, pinned to this file when `B` is a class this file declares in `W` |
 | `Vec.__add = function(a, b)` | `assignment_statement` + `function_definition` | `method`, parent `Vec` |
 | file-level `x = 1`, `local x = 1`, `local x <const> = 1`, `M.x = 1` | `assignment_statement` | `variable`, `constant`, `field` of `M` |
 | `self.x = …` in `function T:m()` (and closures inside it) | `assignment_statement` + `dot_index_expression` on `self` | `field` of `T` at its first assignment, unless `T` already declares `x`; an explicit `self` parameter or a plain function gives none, since `self`'s table is unknown there |
+| `setmetatable({ k = v }, T)`, `local o = setmetatable({}, T)` then `o.x = …` (`{ __index = T }` too) | `function_call` + `table_constructor`, `assignment_statement` | `field` `k` / `x` of `T` at its first declaration, when `T` is a class of this file and `setmetatable` the global (or `local setmetatable = setmetatable`); `o:m()` is qualified by `T`, and `o.f()` / `self.f()` too when `T` declares `f` here. A local rebound to anything else stops being an instance |
 | `local x` inside a function, loop variables | `variable_declaration`, `for_numeric_clause` | `variable`, parent the function |
+| quoted and long (`[[…]]`, `[==[…]==]`) strings | `string` (`string_content`, its `escape_sequence` inside) | literals for exact-text search, escapes resolved in a quoted string, a long string kept as written |
 | `require("x")` | `function_call` | `imports` |
 | `f()`, `M.f()`, `o:m()` | `function_call` | `calls` |
 | `self:m()` in `function T:x()`, `o:m()` | `function_call` + `method_index_expression` | `calls` qualified by `T`; any other receiver is a member call (type unknown) |
@@ -635,8 +645,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Nested table classes (`W.Widget.__index = W.Widget`) | Not implemented | only a file-level name is promoted to `class` |
-| Fields assigned through an explicit `self` or a local (`local self = setmetatable({}, T)`), parameters | Not implemented | only a colon method's implicit `self` has a known table; inside a function only `local` names otherwise become symbols |
+| A class used as a call's qualifier in a file that reaches it through `require` (`local A = require("animal"); A.new()`) gets no reference | Model limit | which table the required file returns is known only in that file, and the parser sees one file; the `require` already imports the module, and the call to `new` still resolves |
+| Fields assigned through an explicit `self` parameter or another parameter | Not implemented | a parameter's table is unknown; only a colon method's implicit `self` and a local built by `setmetatable({…}, T)` have one |
 | Dead code skips table/module methods | By design | methods are excluded by [the shared allowlist decision](../../../crates/mct-index/src/dead_code.rs#L7); free global/local functions remain candidates |
 
 ### Bash
@@ -647,6 +657,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `f() {}`, `function f {}` | `function_definition` | `function`, parent the file |
 | top-level `X=1`, `export`, `readonly`, `declare` | `variable_assignment`, `declaration_command` | `variable` |
+| `"…"`, `'…'`, `$'…'` strings | `string` (`string_content`), `raw_string`, `ansi_c_string` | literals for exact-text search, one per run of fixed text between `$x`, `${…}`, `$(…)` and `$((…))` expansions; in `"…"` only `\"`, `\\`, `` \` ``, `\$` and a backslash-newline are escapes, `'…'` has none, `$'…'` resolves C escapes |
 | `source x`, `. x` | `command` | `imports` (path and stem) |
 | any literal command | `command`, `command_name` | `calls` |
 
@@ -658,6 +669,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Commands through a variable (`$CMD arg`) | By design | explicit static-name decision in [crate docs](../../../crates/mct-lang-bash/src/lib.rs#L24) |
 | `coproc NAME { … }` | Grammar | truncates the enclosing function, issue #79 |
 | Some quoted `${a:+…}` semicolon forms | Grammar | `"${name:+before;after}"` still fails. The ERR-001 form `"${stale:+$stale; }"` is accepted by the parser's [targeted recovery](../../../crates/mct-lang-bash/src/lib.rs#L111), preserving original text and locations |
+| Heredoc text, exact-text search | Grammar | the grammar leaves a heredoc's text before its first expansion outside any node, and a quoted heredoc (`<<'EOT'`) has no children, so heredoc bodies give no literals |
 
 ### PowerShell
 
@@ -667,15 +679,22 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `function Verb-Noun {}` | `function_statement` | `function`, parent the file |
 | top-level `$x = …`, `$script:x = …` | `assignment_expression` | `variable` (scope prefix stripped); not inside a `class` body, and not for `$x.Name = …` or `$x[0] = …` |
+| `class Dog : Animal, IComparable { … }` | `class_statement` | `class`, parent the file; the first base `extends` (a `class` target) unless named like `IFoo`, the rest `implements` (an `interface` target) |
+| `[string] $Name` in a class | `class_property_definition` | `field` of the class; calls in its value belong to the class |
+| `[string] Speak() { … }`, `Animal() { … }` | `class_method_definition` | `method` of the class (a constructor is named after it); it owns its body's calls |
+| `enum Color { Red; Green = 2 }` | `enum_statement`, `enum_member` | `enum`, parent the file; each member a `field` of it |
+| `"…"`, `@"…"@`, `'…'`, `@'…'@` strings | `expandable_string_literal`, `expandable_here_string_literal`, `verbatim_string_characters`, `verbatim_here_string_characters` | literals for exact-text search, one per run of fixed text between interpolations (`$x`, `$(…)`, `${…}`); backtick escapes resolved, a doubled quote is one, a backslash is text. The grammar gives an expandable string no fragment nodes, so its text is read between the interpolation children |
 | `. .\lib.ps1`, `Import-Module X` | `command` | `imports` (path and stem) |
-| any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls` |
-| simple bare identifier comma lists (`Write-Output alpha,beta`) | `command_elements`, `generic_token` | accepted through [targeted recovery](../../../crates/mct-lang-powershell/src/lib.rs#L116); extraction retains original text and locations |
+| any literal command or cmdlet | `command`, `command_name`, `command_name_expr` | `calls`; only a `function` can be its target, never a method of the same name |
+| `[Location]::new(…)`, `New-Object Location` | `invokation_expression`, `type_literal`; `command` | `calls Location`, whose target must be a `class`; none for a dotted or generic type, another static member or `New-Object -ComObject` |
+| any other `[T]` (`[StorageZone]::Frozen`, `[Location] $x`, `[OutputType([CycleCount])]`) | `type_literal` | `references T` when this file declares one class or enum `T` (any case), pinned to this file and that kind; none otherwise |
+| simple bare identifier comma lists (`Write-Output alpha,beta`) | `command_elements`, `generic_token` | accepted through [targeted recovery](../../../crates/mct-lang-powershell/src/lib.rs#L117); extraction retains original text and locations |
 
 #### Why the gaps exist
 
 | Gap | Cause | Detail |
 |---|---|---|
-| Classes, methods, properties, `enum` | By design | explicit exclusion in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L30) |
+| `[T]` of a class from another file | Not implemented | a script class is visible elsewhere only through `using module`, which the parser does not read; `[string]` and other .NET types give no relation |
 | `: base(…)` constructors, `??`, ternary | Grammar | tree-sitter-powershell 0.26.4 rejects these forms; simple bare identifier comma lists are recovered, not an unconditional gap (`errors/REGISTRY.md` ERR-002) |
 | Variables inside functions, computed import paths | By design | explicit static/scope limits in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L16) |
 
@@ -704,8 +723,8 @@ languages:
 
 | Feature | Languages | Where it is decided |
 |---|---|---|
-| Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Markdown | Only `mct-lang-rust` and `mct-lang-md` fill `ParsedFile::literals` |
+| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash, PowerShell | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go, PHP, Lua | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -810,7 +829,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls
 - [x] Imports
-- [~] Implements interface / trait: `impl Trait for T` → `implements`, but owned by the file module, not by `T`
+- [~] Implements interface / trait: `impl Trait for T` → `implements` owned by `T` when the file declares it; an `impl` of a type from another file stays owned by the file module
 - [x] Interface extends interface / supertrait: `trait B: A` → `extends`
 - [x] Decorator / annotation / attribute: `#[derive(Clone)]` → `references` to `Clone`
 
@@ -838,12 +857,12 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, `async def` too
-- [~] Nested function (named, inside a function): `function` with no parent
-- [ ] Lambda / closure assigned to a name: `f = lambda …` has no symbol
+- [x] Nested function (named, inside a function): `function` owned by the enclosing function or method
+- [x] Lambda / closure assigned to a name: `f = lambda …` is a `function`, or a `method` in a class body, with the binding up to the body as signature
 - [x] Method: `method`, parent is the class
 - [x] Constructor: `__init__` as `method`
 - [x] Destructor / finalizer: `__del__` as `method`
-- [~] Property accessors (get/set): `@property` getter and `@x.setter` are two `method` rows with the same name
+- [x] Property accessors (get/set): one `field`, as in C# and Kotlin: the `@property` getter declares it, and `@x.setter` / `@x.deleter` add to its range and calls
 - [x] Operator overload: `__add__` as `method`
 - [x] Abstract / pure virtual method: `@abstractmethod` method
 
@@ -851,8 +870,8 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Class: `class`
 - [x] Abstract class: `class` (abstract flag not stored)
-- [~] Enum: an `Enum` subclass is a `class`, not an `enum`; assigned members are `field`
-- [~] Enum members: assignments in an `Enum` subclass are `field` rows of the class, not `constant`
+- [x] Enum: a subclass of a standard `enum` base (`Enum`, `IntEnum`, `StrEnum`, `Flag`, `IntFlag`, imported from `enum` or reached through `enum.`) is an `enum`; a base named `Enum` from anywhere else stays a `class`
+- [x] Enum members: each assignment in the enum's body is a `field` of it, as in TS, Java and Kotlin
 - [x] Record / data class: `@dataclass` is a `class`; its annotated fields are `field`
 - [x] Nested / inner class: parent is the outer class
 - [x] Type alias: PEP 695 `type X = …`
@@ -882,7 +901,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each fixed fragment of a string (between f-string holes) that the prose filter keeps, listed as `path:line`; a docstring or a string statement is skipped
 
 **Features: Code quality**
 
@@ -900,11 +919,11 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, also `module.exports.x = function`
-- [~] Nested function (named, inside a function): `function` with no parent
+- [x] Nested function (named, inside a function): `function` owned by the enclosing function or method
 - [x] Lambda / closure assigned to a name: arrow and function expressions become `function`; a class-field arrow becomes `method`
 - [x] Method: `method`
 - [x] Constructor: `constructor` as `method`
-- [~] Property accessors (get/set): `get x()` and `set x()` are two `method` rows with the same name
+- [x] Property accessors (get/set): one `field` of the class, as in C#, Kotlin and Python: the first accessor declares it, the other adds to its range and calls
 - [x] Abstract / pure virtual method: `abstract m(): T;` → `method` of the class, with its signature
 - [~] Overloads kept apart: only the implementation signature is a row; overload signatures are dropped
 
@@ -913,10 +932,10 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Class: `class`
 - [x] Abstract class: `class`
 - [x] Interface / protocol: `interface`
-- [ ] Interface members: neither method signatures nor properties inside an `interface` have a symbol
+- [x] Interface members: a method signature is a `method` and a property signature a `field` of the interface, with its signature; overloads give the first one only
 - [~] Trait / mixin: a mixin factory becomes `function`; the returned class's methods have no parent
 - [x] Enum: `enum`
-- [ ] Enum members: members have no symbol
+- [x] Enum members: `field` of the enum
 - [?] Nested / inner class: No nested-class form valid in JS/TS was independently verified
 - [~] Anonymous class: class expression: methods have no parent
 - [x] Type alias: `type_alias`
@@ -949,12 +968,12 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a string or template literal (between `${…}` holes) that the prose filter keeps, listed as `path:line`; a directive or other string statement and a JSX `className` / `class` list are skipped
 
 **Features: Code quality**
 
 - [x] Dead code: `find_dead_code`, `mct-cli dead-code`: functions and classes
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: JS/TS token source, listed under `supported_languages`; every function and method the parser indexes (declarations, class and object methods, `const f = () => …`, arrow-valued class fields, CommonJS exports, bodyless TS signatures) has a callable span matching its symbol (`crates/mct-lang-js-ts/tests/duplicates.rs`)
 
 **Features: Structure**
 
@@ -1009,12 +1028,12 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each string literal or text block that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
 - [~] Dead code: `find_dead_code`, `mct-cli dead-code`: only classes, interfaces and enums: every method is skipped; the class holding `main` is reported
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: Java token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-java/tests/duplicates.rs`). A record component is indexed as its accessor over the component, a one-line candidate that never groups
 
 **Features: Structure**
 
@@ -1028,7 +1047,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Top-level function: `function`
 - [~] Nested function (named, inside a function): `function` with no parent
-- [ ] Lambda / closure assigned to a name: no symbol
+- [x] Lambda / closure assigned to a name: `val f = { x: Int -> … }` and `val f = fun(…) { … }` are a `function`, top-level or owned by the enclosing function in a body, with the binding up to the body as signature; a class property holding a lambda stays a `field`
 - [x] Method: `method`; extension functions are also `method` with receiver type as parent
 - [ ] Constructor: primary and secondary constructors have no symbol
 - [x] Property accessors (get/set): one `field`, custom `get()`/`set()` included in its range
@@ -1042,7 +1061,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Abstract class: `class`
 - [x] Interface / protocol: `interface`
 - [x] Interface members: `method`, default bodies too
-- [~] Enum: `enum class` is indexed as `class`
+- [x] Enum: `enum class` is an `enum`, with or without a body
 - [x] Enum members: `field`
 - [x] Record / data class: `data class` is a `class`; `val`/`var` parameters are `field`
 - [~] Singleton / companion object: `object` is a `class`; `companion object` has no symbol and its members get the outer class as parent
@@ -1077,12 +1096,12 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a string or raw string (between `$x` / `${…}` templates) that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
 - [x] Dead code: `find_dead_code`, `mct-cli dead-code`: top-level functions and classes; methods skipped
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: Kotlin token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-kotlin/tests/duplicates.rs`). Secondary constructors are no symbol, so they are no candidate
 
 **Features: Structure**
 
@@ -1095,7 +1114,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [~] Nested function (named, inside a function): local function as `function` with no parent
-- [ ] Lambda / closure assigned to a name: no symbol
+- [x] Lambda / closure assigned to a name: `Func<int, int> f = x => …;` and `Action f = delegate { … };` in a body are a `function`, no parent like a local function, with the declaration up to the body as signature; a field holding a lambda stays a `field`
 - [x] Method: `method`
 - [x] Constructor: `method` named after the class, static constructor too
 - [x] Destructor / finalizer: `~Name` as `method`
@@ -1113,16 +1132,16 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Interface members: methods as `method`, properties as `field`
 - [x] Enum: `enum`
 - [x] Enum members: `constant`
-- [~] Record / data class: `record` is a `class`; positional parameters have no symbol, body properties do
+- [x] Record / data class: `record` is a `class`; positional parameters and body properties are `field`s
 - [x] Nested / inner class: parent is the outer class
 - [x] Partial class (several declarations): one `class` row per declaration, members keep the class as parent
-- [~] Type alias: `delegate` becomes `type_alias`; `using Alias = System.String` emits imports, not an alias symbol
+- [~] Type alias: `delegate` becomes `type_alias`; `using Alias = System.String` is no symbol (#446): it emits the namespace import only, and a use of the alias in its file (`new Alias()`, `Alias.M()`) is a use of the target
 - [x] Module / namespace / package: file `module` plus block and file-scoped `namespace`; types get `Ns::` in their parent
 
 **Fields, constants and variables**
 
 - [x] Field / instance attribute: fields, properties, events and indexers all become `field`
-- [ ] Constructor-promoted field: record positional parameters have no symbol
+- [x] Constructor-promoted field: a record's positional parameter is a `field`, unless the body redeclares it
 - [~] Constant (module or global): `const` is a `field`
 - [ ] Local variable
 - [ ] Parameter
@@ -1132,7 +1151,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Calls
 - [x] Constructor call (`new X()` / `X()`): `calls X`
 - [x] Super / base constructor call: `: this(…)` and `: base(…)` give `calls` restricted to a constructor declared in the enclosing type or in the base list's first entry; `: base()` with no base list (`object`) is external
-- [x] Imports: a plain `using System;` emits repeated target names; alias imports can emit distinct path and alias names
+- [x] Imports: a plain `using System;` emits repeated target names; an alias import emits its target path only, never the alias name, and a tuple target nothing
 - [~] Class extends class: heuristic: the first base is `extends` unless it is named like `IFoo`; the rest are `implements`
 - [~] Implements interface / trait: heuristic, as above
 - [x] Interface extends interface / supertrait: `extends`
@@ -1142,14 +1161,14 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a static class used only as a qualifier (`Helpers.HelperFn()`) gets no reference
+- [x] Every use: `find_references`: a static class used only as a qualifier (`Helpers.HelperFn()`) is referenced; a struct qualifier's reference stays unresolved
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a plain, verbatim, raw or interpolated string (between `{…}` holes) that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
 - [~] Dead code: `find_dead_code`, `mct-cli dead-code`: types and local `function` rows are candidates; methods are skipped. `Program` and a static class used only as `Helpers.X()` can be reported
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: C# token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-csharp/tests/duplicates.rs`)
 
 **Features: Structure**
 
@@ -1162,7 +1181,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, templates as plain functions
-- [ ] Lambda / closure assigned to a name: no symbol
+- [x] Lambda / closure assigned to a name: `auto f = [](int x) { … };` is a `function` of the namespace, or owned by the enclosing function in a body, with the binding up to the body as signature; a data member holding a lambda stays a `field`
 - [x] Method: `method`, out-of-line `A::m` gets parent `A`
 - [x] Constructor: `method` named after the class
 - [x] Destructor / finalizer: `~Name` as `method`, virtual and defaulted too
@@ -1203,14 +1222,14 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a class used only in a declaration (`Widget w;`) gets no reference
+- [~] Every use: `find_references`: a type named in a declaration (`Widget w;`, a field, a parameter, a return type) is referenced when the same file declares it, and an external reference when written through `std::`; a type declared only in another file (the header) gets no reference (#440)
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each string or raw string that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
-- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a class used only in a declaration (`Widget w;`) is reported
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a class declared in a header and used only in another file's declaration (`Widget w;`) is reported (#440)
+- [x] Repeated code: `mct-cli duplicates`: C++ token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-cpp/tests/duplicates.rs`)
 
 **Features: Structure**
 
@@ -1223,7 +1242,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, parent is the package
-- [ ] Lambda / closure assigned to a name: `f := func() {}` has no symbol
+- [~] Lambda / closure assigned to a name: a package-level `var f = func(…) {…}` is a `function`; `f := func() {}` inside a function has no symbol
 - [x] Method: receiver methods, pointer and value receivers share the parent
 
 **Types and object-oriented programming**
@@ -1254,14 +1273,14 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a composite literal (`util.Widget{}`) references its type; a type named only in a declaration (`var w Widget`) gets no reference
+- [x] Every use: `find_references`: a composite literal (`util.Widget{}`) and a declared type (`var w Widget`, a parameter, result or field type, through `*T`, `[]T`, `map[K]V`, `chan T` and generic arguments) reference their type, through an aliased import (`db.Conn`) one under the import path's last directory
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each interpreted or raw string that the prose filter keeps, listed as `path:line`; a struct field tag is skipped
 
 **Features: Code quality**
 
-- [~] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only as a declared type is reported
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Dead code: `find_dead_code`, `mct-cli dead-code`: a struct used only as a declared type through an aliased import (`var c db.Conn`) is referenced, so not reported
+- [x] Repeated code: `mct-cli duplicates`: Go token source, listed under `supported_languages`; functions, methods and interface methods have callable spans matching their symbols (`crates/mct-lang-go/tests/duplicates.rs`). A `var f = func…` function is indexed with its name only, so it is a one-token candidate that never groups
 
 **Features: Structure**
 
@@ -1298,7 +1317,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Field / instance attribute: `field`, `readonly` and trait properties too
 - [x] Constructor-promoted field: promoted parameter → `field`
 - [x] Constant (module or global): `const` top-level and in classes → `constant`; `define()` is only a `calls` relation
-- [ ] Global / module-level variable: `$x = …` has no symbol
+- [x] Global / module-level variable: the first `$x = …` at file scope (in a namespace or a top-level block too) is a `variable` named without `$`; a superglobal, `$$x`, a property, an element or a destructuring pattern declares none
 - [ ] Local variable
 - [ ] Parameter
 
@@ -1319,12 +1338,12 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a single-quoted, double-quoted, heredoc or nowdoc string (between `$x` / `{$…}` interpolations) that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
 - [x] Dead code: `find_dead_code`, `mct-cli dead-code`: functions and classes
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: PHP token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-php/tests/duplicates.rs`)
 
 **Features: Structure**
 
@@ -1344,12 +1363,12 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Types and object-oriented programming**
 
-- [~] Class: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it; a nested table (`W.Widget.__index = W.Widget`) stays `module`
+- [x] Class: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it, and a nested table once `W.Widget.__index = W.Widget` or `W.Dog = setmetatable({}, { __index = W.Animal })` does
 - [x] Module / namespace / package: file `module`; table literals too
 
 **Fields, constants and variables**
 
-- [x] Field / instance attribute: a file-level `M.x = …` and the first `self.x = …` in a colon method `T:m()` → `field` of `M` / `T`
+- [x] Field / instance attribute: a file-level `M.x = …`, the first `self.x = …` in a colon method `T:m()`, and the keys and assignments of an instance built by `setmetatable({…}, T)` → `field` of `M` / `T`
 - [x] Global / module-level variable: globals and top-level `local` → `variable`, `<const>` → `constant`
 - [x] Local variable: `local x` and loop variables → `variable` owned by the function
 - [ ] Parameter
@@ -1364,9 +1383,9 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [~] Every use: `find_references`: a nested table class (`W.Widget`) used only as a qualifier (`W.Widget.make()`) gets no reference; the call to `make` resolves
+- [~] Every use: `find_references`: a class used as a call's qualifier (`Animal.new()`, `W.Widget.make()`) is referenced when the same file declares it; in a file that reaches it through `require` it gets no reference, and only the call to `make` resolves
 - [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each quoted or long (`[[…]]`) string that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
@@ -1407,12 +1426,12 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a `"…"` string (between expansions) and each `'…'` or `$'…'` string that the prose filter keeps, listed as `path:line`; a heredoc body is not read
 
 **Features: Code quality**
 
 - [x] Dead code: `find_dead_code`, `mct-cli dead-code`: functions
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: Bash token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-bash/tests/duplicates.rs`)
 
 **Features: Structure**
 
@@ -1427,20 +1446,19 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Top-level function: `function`
 - [x] Nested function (named, inside a function): `function` with the outer function as parent
 - [~] Lambda / closure assigned to a name: a top-level `$f = { … }` is indexed as `variable`, not `function`
-- [ ] Method: classes are not supported
-- [ ] Constructor: classes are not supported
-- [ ] Property accessors (get/set): classes are not supported
+- [x] Method: `method`, parent is the class
+- [x] Constructor: `method` named after the class
 
 **Types and object-oriented programming**
 
-- [ ] Class: `class` has no symbol
-- [ ] Enum: `enum` has no symbol
-- [ ] Enum members: no symbol
+- [x] Class: `class`
+- [x] Enum: `enum`
+- [x] Enum members: `field` of the enum
 - [x] Module / namespace / package: file `module`
 
 **Fields, constants and variables**
 
-- [ ] Field / instance attribute: class properties have no symbol
+- [x] Field / instance attribute: a class property is a `field`, `static` too
 - [x] Global / module-level variable: `variable`; scope prefixes (`$script:`) stripped
 - [ ] Local variable
 - [ ] Parameter
@@ -1449,20 +1467,22 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Calls: every literal command or cmdlet
 - [x] Imports: dot-sourcing and `Import-Module`
-- [ ] Class extends class: classes are not supported
+- [x] Constructor call (`new X()` / `X()`): `[X]::new(…)` and `New-Object X` give `calls X`, restricted to a class
+- [~] Class extends class: heuristic, as in C#: the first base is `extends` unless it is named like `IFoo`
+- [~] Implements interface / trait: heuristic, as above; the rest of the bases are `implements`
 
 **Features: Search and lookup**
 
 - [x] Find a definition: `find_symbol`, `list_symbols`, `search_symbols`
 - [x] Who calls / what is called: `find_callers`, `find_calls`
-- [x] Every use: `find_references`
-- [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [~] Every use: `find_references`: a type literal (`[StorageZone]::Frozen`, `[Location] $x`) references a class or enum of its own file; one of another file (through `using module`) gets no reference
+- [~] Blast radius and context: `impact_analysis`, `build_context_pack`: same gap as references
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of an expandable string or here-string (between interpolations) and each verbatim string or here-string that the prose filter keeps, listed as `path:line`
 
 **Features: Code quality**
 
 - [x] Dead code: `find_dead_code`, `mct-cli dead-code`: functions
-- [ ] Repeated code: `mct-cli duplicates`: no token source: listed under `unsupported_languages`
+- [x] Repeated code: `mct-cli duplicates`: PowerShell token source, listed under `supported_languages`; every function and method the parser indexes has a callable span matching its symbol (`crates/mct-lang-powershell/tests/duplicates.rs`)
 
 **Features: Structure**
 
@@ -1505,12 +1525,15 @@ the other documents.
    these calls. The imported helper is **not** reported as dead code, because
    the import counts as a use. A qualified `util::helper_fn()` inside a macro,
    with only `mod util;` and no helper import, **is** a false positive.
-7. **C++ and Go:** using a type only to declare a variable (`Widget w;`,
-   `var w Widget`) gives no relation. The type is reported as dead code even
-   though it is used. A Go composite literal (`util.Widget{}`) references
-   its type.
-8. **C#:** a static class used only as a qualifier (`Helpers.HelperFn()`)
-   gives no relation to the class. The class is reported as dead code.
+7. **C++ and Go:** a C++ type used only to declare a variable (`Widget w;`)
+   in another file than its declaration gives no relation, so the type is
+   reported as dead code even though it is used (#440); a declaration in the
+   type's own file references it. A Go declared type (`var w Widget`) and
+   composite literal (`util.Widget{}`) reference their type, except through
+   an aliased import (`db.Conn`).
+8. **C#:** a struct used only as a qualifier (`Sku.Parse()`) gets an
+   unresolved reference. The struct is reported as dead code. A static
+   class used that way (`Helpers.HelperFn()`) is referenced.
 9. **Dead code in Java, C# and Lua:** methods are never candidates. Java has no free functions, so its candidates are types.
    C# also has local functions indexed as `function`, which are candidates.
    Lua table/module functions (`function M.f`) are methods and are skipped;
