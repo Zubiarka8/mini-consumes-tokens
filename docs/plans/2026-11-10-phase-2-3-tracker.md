@@ -1362,6 +1362,10 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] Go, assertions and type switches: the type in `o.(Marker)` and in a
+      `case Row, *Cfg:` is a `references` relation with the evidence a
+      declared type gets; `nil` and predeclared types give none. Stacked on
+      #442. Corpus: 1298 -> 1306 relations.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
