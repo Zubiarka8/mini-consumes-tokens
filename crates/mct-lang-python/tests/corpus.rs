@@ -86,8 +86,12 @@ fn methods_and_nested_classes_hang_off_their_class() {
     assert!(overloads
         .iter()
         .all(|(_, s)| s.kind == Method && s.parent.as_deref() == Some("LendingService")));
-    // Property getter, setter and deleter are three methods of one name.
-    assert_eq!(corpus().symbols_named("weekday").len(), 3);
+    // A property's getter, setter and deleter are one field of the class.
+    let weekday = corpus().symbols_named("weekday");
+    assert_eq!(weekday.len(), 1);
+    assert!(weekday.iter().all(
+        |(_, s)| s.kind == SymbolKind::Field && s.parent.as_deref() == Some("ScheduledReport")
+    ));
 }
 
 #[test]
