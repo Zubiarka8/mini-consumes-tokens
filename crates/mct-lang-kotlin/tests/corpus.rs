@@ -19,7 +19,7 @@ use mct_lang_kotlin::KotlinParser;
 mct_corpus::standard_tests!(KotlinParser);
 
 use RelationKind::{Calls, Extends, Implements, Imports};
-use SymbolKind::{Class, Field, Function, Interface, Method, Module};
+use SymbolKind::{Class, Enum, Field, Function, Interface, Method, Module};
 
 fn parent<'a>(path: &str, name: &str, kind: SymbolKind) -> Option<&'a str> {
     corpus().symbol(path, name, kind).parent.as_deref()
@@ -53,7 +53,7 @@ fn package_headers_are_modules() {
 fn classes_objects_and_interfaces_are_extracted() {
     assert_eq!(parent("Money.kt", "Money", Class), None);
     assert_eq!(parent("Money.kt", "MoneyRange", Class), None);
-    assert_eq!(parent("Money.kt", "Currency", Class), None);
+    assert_eq!(parent("Money.kt", "Currency", Enum), None);
     assert_eq!(parent("Money.kt", "ExchangeRates", Interface), None);
     assert_eq!(parent("Order.kt", "OrderId", Class), None);
     assert_eq!(parent("Order.kt", "Placed", Class), Some("OrderEvent"));
@@ -176,7 +176,7 @@ fn enum_class_bodies_are_visited() {
     assert_eq!(parent("Order.kt", "isTerminal", Field), Some("State"));
     assert!(c.has_relation("next", Calls, "setOf"));
     assert_eq!(parent("Money.kt", "scale", Field), Some("Currency"));
-    assert_eq!(parent("Pricing.kt", "VatCategory", Class), None);
+    assert_eq!(parent("Pricing.kt", "VatCategory", Enum), None);
 }
 
 #[test]
