@@ -37,7 +37,8 @@ fn classes_functions_and_modules_are_extracted_with_kinds() {
         ("errors.py", "LibraryError", SymbolKind::Class),
         ("errors.py", "RateLimiter", SymbolKind::Class),
         ("errors.py", "collect_group", SymbolKind::Function),
-        ("models.py", "Genre", SymbolKind::Class),
+        // `class Genre(enum.Enum)`: an enumeration.
+        ("models.py", "Genre", SymbolKind::Enum),
         ("models.py", "Page", SymbolKind::Class),
         ("models.py", "classify", SymbolKind::Function),
         ("models.py", "café_hours", SymbolKind::Function),
