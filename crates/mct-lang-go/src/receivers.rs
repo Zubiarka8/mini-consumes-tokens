@@ -350,3 +350,40 @@ pub(crate) fn collect_receiver_type_params(
         collect_receiver_type_params(child, source, out, depth + 1);
     }
 }
+
+/// The names a file's aliased repository imports bind, each to the last
+/// directory of its import path: `db` → `database` for `db
+/// "example.com/app/database"`. The path proves where the package lives;
+/// its `package` clause may differ, so only the directory is evidence. A
+/// blank (`_`) or dot (`.`) import binds no name, and a name an unaliased
+/// import also binds is left out.
+pub(crate) fn aliased_repo_packages(root: Node, source: &str) -> HashMap<String, String> {
+    let mut specs = Vec::new();
+    for declaration in root.named_children(&mut root.walk()) {
+        if declaration.kind() == "import_declaration" {
+            crate::collect_import_specs(declaration, &mut specs);
+        }
+    }
+    let mut aliased = HashMap::new();
+    let mut unaliased = HashSet::new();
+    for spec in specs {
+        let Some(path) = spec.child_by_field_name("path") else {
+            continue;
+        };
+        let path = text(path, source).trim_matches(|c| c == '"' || c == '`');
+        let Some(directory) = crate::Walker::package_dir_name(path) else {
+            continue;
+        };
+        match spec.child_by_field_name("name") {
+            Some(alias) if alias.kind() == "package_identifier" => {
+                aliased.insert(text(alias, source).to_string(), directory);
+            }
+            Some(_) => {}
+            None => {
+                unaliased.insert(directory);
+            }
+        }
+    }
+    aliased.retain(|name, _| !unaliased.contains(name));
+    aliased
+}
