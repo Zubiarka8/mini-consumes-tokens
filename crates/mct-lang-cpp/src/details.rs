@@ -114,6 +114,40 @@ pub(crate) fn variable_detail(
     }
 }
 
+/// A lambda bound to a name (`auto twice = [](int x) { … }`): the binding
+/// up to the lambda's body, and the lambda's parameters (none written is
+/// none taken).
+pub(crate) fn lambda_detail(
+    node: Node,
+    declarator: Node,
+    lambda: Node,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let first = node
+        .child_by_field_name("declarator")
+        .map_or(declarator.start_byte(), |d| d.start_byte());
+    let end = lambda
+        .child_by_field_name("body")
+        .map_or(lambda.end_byte(), |b| b.start_byte());
+    let binding = source
+        .get(declarator.start_byte()..end)
+        .unwrap_or_default()
+        .trim_end();
+    let parameters = lambda
+        .child_by_field_name("declarator")
+        .and_then(|d| d.child_by_field_name("parameters"));
+    SymbolDetail {
+        symbol,
+        signature: header(node, first, source).map(|head| format!("{head} {binding}")),
+        parameters_known: true,
+        parameters: parameters.map_or_else(Vec::new, |p| parameter_list(p, source)),
+        visibility: visibility(node, source),
+        modifiers: modifiers(node, source),
+        ..Default::default()
+    }
+}
+
 fn children(node: Node) -> Vec<Node> {
     let mut cursor = node.walk();
     node.children(&mut cursor).collect()
