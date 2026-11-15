@@ -122,7 +122,7 @@ table emits none yet:
 | Python | `def` (functions and methods), `class` (an `enum` when it subclasses a standard `enum` base), PEP 695 `type`, module-level and class-body assignments, a lambda bound to one name | none: Python has no visibility syntax (`_name` is a convention) | `async`; `@staticmethod` → static, `@abstractmethod` → abstract, `@override`, `@final` (last name of the decorator) | docstring types, lambdas not bound to one name. A method's first parameter is the receiver (`self`/`cls`, any name) unless `@staticmethod`; after `*` or `*args`, parameters are keyword-only |
 | Java | methods, constructors, classes, records, interfaces, annotation types, enums, each declarator of a field declaration | `public`/`protected`/`private`; none → package, but public in an interface or annotation type (the language default) | `abstract`, `static`, `final`, `sealed`, `@Override` → override | record accessors (synthesized, not written), enum constants, `throws` (kept in the signature only). The explicit `Type this` parameter is the receiver; `T...` is variadic |
 | Kotlin | `fun` (top-level, member, extension), classes, interfaces, objects, enum classes (`enum`), member properties, `val`/`var` constructor parameters | `public`/`protected`/`private`/`internal`; none → public at top level or in a class (the language default), none recorded for a local declaration | `abstract`, `open`, `final`, `sealed`, `override`, `const`, `inline`, `external` | enum entries, inferred return and property types (an expression body without a written type has none). An extension's receiver type is the `this` receiver; `vararg` is variadic |
-| C# | methods, constructors, destructors, operators, conversion operators, local functions, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
+| C# | methods, constructors, destructors, operators, conversion operators, local functions, delegates, classes, structs, interfaces, records, enums, properties, indexers, events, each declarator of a field declaration, a record's positional parameters (type and name: `int X`, public) | `public`/`private`/`protected`/`internal`, `file` → file_private, `protected internal`/`private protected` → restricted; none → public in an interface, private in a class/struct/record, internal in a namespace or at top level (the language defaults); none recorded for an explicit interface implementation, a destructor, a static constructor or a local function | `abstract`, `async`, `const`, `extern`, `sealed`, `static`, `override`, `virtual`, `readonly`, `unsafe` | enum members, accessor bodies, `var` types. An extension method's `this` parameter is the receiver; `params` is variadic; `ref`/`out`/`in` stay in the signature only |
 | PHP | functions, methods (Laravel's anonymous migration `up`/`down` included), classes, interfaces, traits, enums, each element of a property declaration, promoted constructor parameters | `public`/`protected`/`private` (`private(set)` reads as its first word); none → public for a method or property (the language default); functions and types have none | `abstract`, `final`, `static`, `readonly` | closures assigned to a variable, enum cases, class constants, `@template` generics. A type the syntax leaves out comes from the PHPDoc block right above (`@param T $name`, `@return T`) as `doc`; a written type always wins. `...$x` is variadic; `&$x` stays in the signature only |
 | C++ | function and method definitions and prototypes (out-of-line `Class::method` included), classes, structs, unions, enums, `using` aliases, `typedef`s, each declarator of a variable or field declaration; a templated one keeps its `template <…>` | the access label in force in the class body; none → private in a `class`, public in a `struct`/`union` (the language defaults); none recorded outside a class (C++ has linkage there) or for an out-of-line definition (its access is the declaration's) | `virtual`, `static`, `extern`, `inline`, `constexpr` → const, `override`, `final`, `= 0` → abstract | enumerators, lambdas, `auto` deduction (an `auto` return without `-> T` stays `auto`). A type is everything the declaration writes but the name (`const char*`, `int&`); C `...` is a variadic parameter with no name or type |
 | Lua | `function` declarations (`local`, dotted, `T:m`), functions assigned to a name or field, functions in a module table's fields | none: Lua has no visibility syntax (`local` is scope, not access) | — (Lua has none) | classes, fields and variables (no declaration header), `@generic`, `@class`/`@field`. Lua writes no types: every type comes from the LuaLS `---` lines right above (`@param name type`, `@return type`, several `@return`s joined as one multiple return) as `doc`. `function T:m()` has the implicit `self` receiver; `...` is variadic |
@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 86% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 80% | 35 | 65% | 10 | 0 |
-| C# | 79% | 34 | 55% | 10 | 0 |
+| C# | 84% | 34 | 55% | 10 | 0 |
 | C++ | 86% | 28 | 50% | 10 | 0 |
 | Go | 78% | 18 | 60% | 10 | 0 |
 | PHP | 88% | 30 | 65% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 81% | 90% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 92% | 58% | 88% | 80% | 50% | 50% |
-| C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
+| C# | 83% | 96% | 50% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 83% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 80% | 50% | 50% |
@@ -489,6 +489,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `namespace N {}` / `namespace N;` | `namespace_declaration`, `file_scoped_namespace_declaration` | `module`; types get `N::` in their parent |
 | `class`, `record` | `class_declaration`, `record_declaration` | `class`; `record struct` is `struct` |
+| record positional parameters (`record P(int X)`) | `parameter` of a `record_declaration`'s `parameter_list` | `field` `X` (public, `int X` as signature), the generated property, unless the body declares a member `X`; a class or struct primary-constructor parameter is no member |
 | `struct`, `interface`, `enum` | `struct_declaration`, `interface_declaration`, `enum_declaration` | `struct`, `interface`, `enum`; members as `constant` |
 | methods, constructors, destructors, operators | `method_declaration`, `constructor_declaration`, `destructor_declaration`, `operator_declaration`, `conversion_operator_declaration` | `method` |
 | fields, events | `field_declaration`, `event_field_declaration` | `field` |
@@ -497,7 +498,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `delegate` | `delegate_declaration` | `type_alias` |
 | `: Base, IFoo` | base list | `extends` / `implements` by the `IFoo` heuristic |
 | `using N;`, `using static` | `using_directive` | `imports` |
-| `f()`, `a?.F()`, `new T()` | `invocation_expression`, `conditional_access_expression`, `object_creation_expression` | `calls` |
+| `f()`, `a?.F()`, `new T()` | `invocation_expression`, `conditional_access_expression`, `object_creation_expression` | `calls`; a field is never the target of `new T()` |
 | the receiver of `x.M()`, `x?.M()` | `member_access_expression` `expression`, `conditional_access_expression` `condition` | qualified by `x`'s declared type: a parameter, a typed local (`T?` and `List<T>` name `T` and `List`), `var x = new T()`, a `foreach`, pattern (`is T x`), `out` or `catch` variable, `new T().M()`, a field, a property or a primary constructor parameter (`this.f.M()` too). A predefined type (`string`) is its own qualifier, so no repository method is its target. A capitalized name that is no local or field (`Money.Of()`, a static class) is its own qualifier. `this.M()` is qualified by the enclosing type when its body declares `M`; otherwise it is left as before, since `M` may be inherited. A lambda parameter, `var x = F()`, a call result or any other expression is a member call: ambiguous even with one candidate. `base.M()` and a lowercase name that is no local or field are left as before. Inherited methods and extension methods (their parent is the static class) are not found through the qualifier, so such a call is unresolved |
 | `[Attribute]` | `attribute` | `references XAttribute` |
 
@@ -506,7 +507,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Gap | Cause | Detail |
 |---|---|---|
 | Base list split by naming | By design | C# syntax does not separate base class from interfaces; the [documented heuristic](../../../crates/mct-lang-csharp/src/lib.rs#L420) uses the `IFoo` convention |
-| Record positional parameters | Not implemented | no arm for the record's `parameter_list` |
 | Static class used as a qualifier (`Helpers.X()`) | Not implemented | the qualifier of a member call is not a reference |
 | Lambdas, locals | Not implemented | no arm for `lambda_expression` or `local_declaration_statement` |
 | `using Alias = Type` symbol | Not implemented | alias directives emit imports only |
@@ -1118,7 +1118,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Interface members: methods as `method`, properties as `field`
 - [x] Enum: `enum`
 - [x] Enum members: `constant`
-- [~] Record / data class: `record` is a `class`; positional parameters have no symbol, body properties do
+- [x] Record / data class: `record` is a `class`; positional parameters and body properties are `field`s
 - [x] Nested / inner class: parent is the outer class
 - [x] Partial class (several declarations): one `class` row per declaration, members keep the class as parent
 - [~] Type alias: `delegate` becomes `type_alias`; `using Alias = System.String` emits imports, not an alias symbol
@@ -1127,7 +1127,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Fields, constants and variables**
 
 - [x] Field / instance attribute: fields, properties, events and indexers all become `field`
-- [ ] Constructor-promoted field: record positional parameters have no symbol
+- [x] Constructor-promoted field: a record's positional parameter is a `field`, unless the body redeclares it
 - [~] Constant (module or global): `const` is a `field`
 - [ ] Local variable
 - [ ] Parameter

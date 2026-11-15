@@ -610,6 +610,15 @@ From `rules.md` and the two messages:
           Java (31) and C# (26) corpus calls already have that ambiguity.
           A fix needs the index to tell a constructor from its class (a
           view change, which needs an issue first). Decision pending.
+    - [x] C# record positional parameters: each `parameter` of a
+          `record P(int X)` is a public `field` `X` of the record (the
+          generated property), with `int X` as signature, unless the body
+          declares a member `X`. A class or struct primary-constructor
+          parameter stays no member. A field is never the target of
+          `new T()`. Test: `tests/record_parameters.rs`. Corpus: 454 -> 476
+          symbols; 5 `new Price(…)` calls ambiguous -> resolved, 3 ambiguous
+          calls lose a field candidate. Repository snapshot (C#, 692
+          relations): no changes. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its
