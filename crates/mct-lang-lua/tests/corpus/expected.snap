@@ -1,4 +1,4 @@
-# language=lua files=5 symbols=417 relations=379 name_matched_across_files=58
+# language=lua files=5 symbols=417 relations=383 name_matched_across_files=58
 
 == gateway/ratelimit.lua (302 lines)
 S 1-302 module ratelimit
@@ -147,6 +147,8 @@ R 256:9 calls _M::access_all -> log (name-matched: gateway/router.lua)
 R 257:12 calls _M::access_all -> reject
 R 259:13 calls _M::access_all -> access
 R 288:17 calls _M::fake_clock -> setmetatable (name-matched: warehouse/money.lua)
+R 299:15 references ratelimit -> classify
+R 300:17 references ratelimit -> limits_for
 
 == gateway/router.lua (300 lines)
 S 1-300 module router
@@ -295,6 +297,7 @@ R 220:16 calls require_tenant -> get_method
 R 221:14 calls require_tenant -> problem
 R 223:12 calls require_tenant -> next_handler
 R 232:15 calls chain -> fns[i]
+R 237:11 references router -> chain
 R 246:15 calls build -> new
 R 247:5 calls build -> add
 R 248:5 calls build -> add
@@ -638,6 +641,7 @@ R 300:22 calls M::convert -> amount
 R 307:24 calls M::protect -> pcall
 R 311:8 calls M::protect -> type
 R 314:5 calls M::protect -> error
+R 319:14 references money -> is_money
 
 == warehouse/order.lua (300 lines)
 S 1-300 module order

@@ -765,6 +765,12 @@ From `rules.md` and the two messages:
         same false positives for Kotlin (`::parse`), PHP (`'shout'` string
         callable), C++ (`std::transform(…, dbl)`) and Bash (`trap cleanup
         EXIT`); Java method references and C# method groups were fine.
+- [x] Lua, function returned or assigned by name: `return handler`,
+      `alias = handler`, `local alias = handler` and `M.slot = handler` are
+      `references` relations, with the same scope rule as an argument (a
+      parameter that shadows the function records nothing). Probe: a
+      function returned from another function was dead code, now it is not.
+      Corpus: 4 new relations. Stacked on #502.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
