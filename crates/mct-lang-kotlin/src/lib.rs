@@ -586,6 +586,29 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// `user_type` names a type in a declaration or an expression: a
+    /// `references` relation from `owner` to its last segment
+    /// (`a.b.Money` → `Money`). A type parameter, a supertype and an
+    /// annotation add nothing here: those are relations of their own.
+    fn push_type_use(&mut self, user_type: Node, owner: SymbolId) {
+        if is_supertype_or_annotation(user_type) {
+            return;
+        }
+        let Some(name_node) = last_identifier_child(user_type) else {
+            return;
+        };
+        let name = text(name_node, self.source);
+        if CORE_TYPES.contains(&name) || is_type_parameter(user_type, name, self.source) {
+            return;
+        }
+        self.push_relation(
+            owner,
+            RelationKind::References,
+            name.to_string(),
+            location(name_node),
+        );
+    }
+
     /// `relation` to the type named by `type_id` (a supertype or an
     /// annotation class), restricted to symbols of `target_kind` when the
     /// syntax fixes it.
@@ -870,6 +893,20 @@ impl<'a> Walker<'a> {
                     receivers::locals(part, self.source, &mut locals, depth + 1);
                 }
                 let outer_locals = std::mem::replace(&mut self.locals, locals);
+                // The receiver and return types of the function name types.
+                let mut cursor = node.walk();
+                let signature: Vec<Node> = node
+                    .named_children(&mut cursor)
+                    .filter(|part| {
+                        matches!(
+                            part.kind(),
+                            "user_type" | "nullable_type" | "function_type" | "parenthesized_type"
+                        )
+                    })
+                    .collect();
+                for ty in signature {
+                    self.visit(ty, id, None, depth + 1);
+                }
                 // Inside the body no declaration is a member of the
                 // enclosing type: a local `val` is no field, a local `fun`
                 // no method.
@@ -880,6 +917,12 @@ impl<'a> Walker<'a> {
                     self.visit_children(body, id, None, depth + 1);
                 }
                 self.locals = outer_locals;
+            }
+            // A type named in a declaration or an expression: `val c:
+            // Config?`, `List<Row>`, `o is Marker`, `o as Flag`.
+            "user_type" => {
+                self.push_type_use(node, owner);
+                self.visit_children(node, owner, type_name, depth + 1);
             }
             "lambda_literal" | "anonymous_function" => {
                 let outer_this = self.this_class.take();
@@ -1112,4 +1155,49 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
+}
+
+/// The core types every file uses (`String`, `Int`…). A repository does not
+/// declare them, so a relation to one only adds rows: they are not recorded.
+const CORE_TYPES: [&str; 14] = [
+    "String", "Int", "Long", "Short", "Byte", "Char", "Boolean", "Double", "Float", "Unit", "Any",
+    "Nothing", "Number", "Array",
+];
+
+/// A `user_type` that is a supertype in a delegation specifier or the type
+/// of an annotation: each has its own relation.
+fn is_supertype_or_annotation(node: Node) -> bool {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        match ancestor.kind() {
+            "delegation_specifier" | "annotation" => return true,
+            "class_body" | "function_body" | "function_declaration" | "class_declaration" => {
+                return false
+            }
+            _ => current = ancestor.parent(),
+        }
+    }
+    false
+}
+
+/// Whether `name` is a type parameter (`<T>`) of a declaration enclosing
+/// `node`.
+fn is_type_parameter(node: Node, name: &str, source: &str) -> bool {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        if let Some(parameters) = find_child(ancestor, "type_parameters") {
+            let mut cursor = parameters.walk();
+            let declares = parameters.named_children(&mut cursor).any(|p| {
+                p.kind() == "type_parameter"
+                    && find_child(p, "identifier")
+                        .or_else(|| p.named_child(0))
+                        .is_some_and(|n| text(n, source) == name)
+            });
+            if declares {
+                return true;
+            }
+        }
+        current = ancestor.parent();
+    }
+    false
 }
