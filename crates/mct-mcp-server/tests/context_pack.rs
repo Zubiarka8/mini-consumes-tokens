@@ -489,7 +489,7 @@ async fn a_body_longer_than_the_source_lines_cap_names_the_lines_to_read() {
     assert!(!capped.contains("201|"), "{capped}");
     assert!(
         capped.contains(
-            "… 60 more line(s), L201-L260: `source_lines` shows at most 200, so read them from the file"
+            "… 60 more line(s), L201-L260: `source_lines` shows at most 200, pass `source_offset: 200` for the rest"
         ),
         "{capped}"
     );
@@ -502,4 +502,53 @@ async fn a_body_longer_than_the_source_lines_cap_names_the_lines_to_read() {
         ),
         "{short}"
     );
+}
+
+#[tokio::test]
+async fn source_offset_pages_past_the_source_lines_cap() {
+    // A 260-line body: the first page ends at L201, `source_offset` starts
+    // the next page there, and the last page has no footer.
+    let root = std::env::temp_dir().join(format!("mct-pack-offset-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let body: String = (0..258)
+        .map(|i| format!("    let _v{i} = {i};\n"))
+        .collect();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        format!("/// Doc line.\npub fn long_one() {{\n{body}}}\n"),
+    )
+    .unwrap();
+    let server = build_server(&root).await;
+    let first = pack(
+        &server,
+        json!({ "symbol": "long_one", "source_lines": 200 }),
+    )
+    .await;
+    let second = pack(
+        &server,
+        json!({ "symbol": "long_one", "source_lines": 200, "source_offset": 200 }),
+    )
+    .await;
+    let past_the_end = pack(
+        &server,
+        json!({ "symbol": "long_one", "source_lines": 200, "source_offset": 400 }),
+    )
+    .await;
+    std::fs::remove_dir_all(&root).unwrap();
+
+    // The first page names the offset of the next one.
+    assert!(
+        first.contains("pass `source_offset: 200` for the rest"),
+        "{first}"
+    );
+    // The second page starts at the offset line, with no doc comment, and
+    // reaches the end of the definition.
+    assert!(!second.contains("1| /// Doc line."), "{second}");
+    assert!(second.contains("202| "), "{second}");
+    assert!(!second.contains("201| "), "{second}");
+    assert!(second.contains("261| }"), "{second}");
+    assert!(!second.contains("more line(s)"), "{second}");
+    // An offset past the end shows no source and no footer.
+    assert!(!past_the_end.contains("| "), "{past_the_end}");
+    assert!(!past_the_end.contains("more line(s)"), "{past_the_end}");
 }
