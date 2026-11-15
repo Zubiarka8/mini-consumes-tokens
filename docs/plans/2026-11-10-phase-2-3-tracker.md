@@ -1048,6 +1048,22 @@ From `rules.md` and the two messages:
           Repository snapshot, defaults: candidates 11,230 -> 11,440, 0
           skipped, groups 148 -> 148; at 2 lines / 12 tokens, 2 groups with
           C# members. C# feature score 70% -> 80%; area Quality 25% -> 75%.
+    - [x] C++ repeated code: `CppTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of C++ files and is registered in
+          `build_token_sources`. Definitions (named by the last segment of
+          `Cart::total`, or `operator==`, `~Cart`), prototypes outside a
+          function body, a lambda bound to a name (its `init_declarator`)
+          and a function-like macro have callable spans matching their
+          symbols, so none is skipped. A macro now ends on its own last
+          line (`directive_location`); its node runs through the line
+          break, so a one-line `#define SQ(x) …` used to end a line late.
+          Tests: `tests/duplicates.rs` (through the real index; two of the
+          three fail without the spans) and `tests/macros.rs`
+          (`a_macro_ends_on_its_last_line`). Repository snapshot
+          (`init --force`), defaults: candidates 11,440 -> 11,677, 0
+          skipped, groups 148 -> 149; at 2 lines / 12 tokens, 2 groups
+          with C++ members. C++ feature score 60% -> 70%; area Quality
+          25% -> 75%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no

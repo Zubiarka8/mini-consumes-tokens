@@ -23,6 +23,9 @@ use tree_sitter::{Node, Parser};
 
 mod details;
 mod literals;
+mod tokens;
+
+pub use tokens::CppTokenSource;
 
 pub struct CppParser;
 
@@ -515,7 +518,7 @@ impl<'a> Walker<'a> {
                     self.push_symbol(
                         text(name, self.source).to_string(),
                         kind,
-                        location(node),
+                        directive_location(node),
                         None,
                     );
                 }
@@ -967,11 +970,23 @@ impl<'a> Walker<'a> {
     }
 }
 
+/// A preprocessor directive's span. Its node runs through the line break
+/// that ends it, so it ends at column 0 of the next line; the directive
+/// still ends on its own last line.
+fn directive_location(node: Node) -> Location {
+    let mut loc = location(node);
+    let end = node.end_position();
+    if end.column == 0 && end.row > node.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
+}
+
 /// Descends through declarator wrappers (`int* foo()` → `pointer_declarator`
 /// around the real `function_declarator`) to find the actual function
 /// signature node, or `None` if this declarator is a plain variable/field
 /// (no function signature to unwrap).
-fn find_function_declarator(node: Node) -> Option<Node> {
+pub(crate) fn find_function_declarator(node: Node) -> Option<Node> {
     match node.kind() {
         "function_declarator" => Some(node),
         "pointer_declarator"
@@ -989,7 +1004,7 @@ fn find_function_declarator(node: Node) -> Option<Node> {
 /// (field/variable) case — returns the identifier actually being declared.
 /// The name and lambda of `f = [](…) { … }` (or `f{[] { … }}`), when the
 /// declarator is a plain name initialized with exactly a lambda.
-fn named_lambda(declarator: Node) -> Option<(Node, Node)> {
+pub(crate) fn named_lambda(declarator: Node) -> Option<(Node, Node)> {
     if declarator.kind() != "init_declarator" {
         return None;
     }
@@ -1063,7 +1078,11 @@ fn type_declarator_identifier(node: Node) -> Option<Node> {
 /// segment, template arguments dropped, which is what the in-class
 /// declaration of the same member records as its parent. That is how the
 /// header and source halves of a split definition line up by name+parent.
-fn split_qualified(node: Node, source: &str, fallback: Option<String>) -> (String, Option<String>) {
+pub(crate) fn split_qualified(
+    node: Node,
+    source: &str,
+    fallback: Option<String>,
+) -> (String, Option<String>) {
     if node.kind() != "qualified_identifier" {
         return (last_segment_text(node, source).to_string(), fallback);
     }
