@@ -496,7 +496,20 @@ impl<'a> Walker<'a> {
                 if let Some(name) = node.child_by_field_name("name") {
                     self.macros.insert(text(name, self.source).to_string());
                 }
-                self.push_named(node, SymbolKind::Function, self.callable_owner(owner));
+                let id = self.push_named(node, SymbolKind::Function, self.callable_owner(owner));
+                // What a rule expands to (`helper($x) * 2`) is the macro's:
+                // its calls and function uses belong to it. The matcher
+                // (`left`) only binds metavariables.
+                let mut cursor = node.walk();
+                let rules: Vec<Node> = node
+                    .named_children(&mut cursor)
+                    .filter(|r| r.kind() == "macro_rule")
+                    .collect();
+                for rule in rules {
+                    if let Some(right) = rule.child_by_field_name("right") {
+                        self.visit(right, id, None, depth + 1);
+                    }
+                }
             }
             "parameter" => {
                 if let Some(pattern) = node.child_by_field_name("pattern") {

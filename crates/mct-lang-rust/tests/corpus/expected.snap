@@ -1,4 +1,4 @@
-# language=rust files=6 symbols=771 relations=1717 name_matched_across_files=551
+# language=rust files=6 symbols=771 relations=1718 name_matched_across_files=551
 
 == errors.rs (397 lines)
 S 1-397 module errors
@@ -269,6 +269,7 @@ R 222:11 calls audit -> push
 R 226:29 references format_entry -> AuditEntry
 R 226:44 references format_entry -> String
 R 227:43 references format_entry -> tag
+R 235:37 references bounded -> Validation
 R 248:1 calls errors -> bounded
 R 249:1 calls errors -> bounded
 R 253:54 references with_retry -> Result
