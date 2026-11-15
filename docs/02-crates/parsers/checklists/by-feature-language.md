@@ -1049,7 +1049,7 @@ Marks:
 - [x] JS/TS: `P_Sub` extends `P_Base`
 - [x] Java: `extends P_Base` (ambiguous: same-name file module)
 - [x] Kotlin: `P_Sub` extends `P_Base`
-- [~] C#: heuristic; ambiguous when a constructor shares the class name
+- [x] C#: `class Sq : Base` resolves to the class, never its constructor (the first entry is the base class unless named like an interface)
 - [~] C++: ambiguous when the constructor shares the class name
 - — Go: Go has no class extends class
 - [x] PHP: `P_Sub` extends `P_Base`
