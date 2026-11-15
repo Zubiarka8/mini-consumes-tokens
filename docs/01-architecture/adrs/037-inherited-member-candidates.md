@@ -12,8 +12,7 @@ Proposed (2026-11-15). Issue: [#479](https://github.com/Zubiarka8/mini-consumes-
 Migration 18 recreates `relation_candidates` with one more way to satisfy the qualifier. Every other predicate is unchanged.
 
 ```sql
-OR (r.qualifier IS NOT NULL
-    AND EXISTS (SELECT 1 FROM relations sr          -- s.parent is someone's supertype
+OR (EXISTS (SELECT 1 FROM relations sr            -- s.parent is someone's supertype
                 WHERE sr.to_name = s.parent AND sr.kind IN ('extends', 'implements'))
     AND NOT EXISTS (/* the qualifier type declares r.to_name itself */)
     AND s.parent IN (
