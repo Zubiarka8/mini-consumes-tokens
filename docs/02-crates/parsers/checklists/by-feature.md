@@ -879,7 +879,7 @@ Done 5 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 9
 - [ ] Java: `super()` and `this()` give no relation
 - [ ] Kotlin: secondary `this()` delegation emits no call relation
 - [ ] C#: `: base()` gives no call
-- [x] C++: `P_Sub() : P_Base()` gives `calls P_Base` from the constructor
+- [~] C++: `P_Sub() : P_Base()` gives `calls P_Base` when the class and its base are defined in the same file
 - — Go: Go has no super / base constructor call
 - [x] PHP: `parent::__construct()` → `calls __construct`
 - — Lua: Lua has no super / base constructor call

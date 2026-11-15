@@ -392,9 +392,12 @@ From `rules.md` and the two messages:
     - [x] C++ cells re-probed with a current `mct-cli` (`a.cpp` with a macro,
           a `const`, a union, an abstract base, a derived class with a
           mem-initializer, a lambda, `new T()` and `T t;`). Stale cells
-          corrected to `[x]`: DA03 (`const int` is a `constant`), DA07
-          (`#define` is a `constant` or `function`) and RE03
-          (`P_Sub() : P_Base()` gives `calls P_Base`). Still open, each
+          corrected: DA03 (`const int` is a `constant`) and DA07 (`#define`
+          is a `constant` or `function`) to `[x]`, and RE03
+          (`P_Sub() : P_Base()` gives `calls P_Base`) to `[~]`, as in the
+          scored list of `symbol-coverage.md` (a base defined in another file
+          gives none). The `checklists/*.md` views were older than that
+          list; the scored one already had these. Still open, each
           shown by the probe: FN03 (a lambda bound to a name has no symbol,
           #443), RE05 (`P_Sub : P_Base` is ambiguous between the class and
           its constructor, see the C++ supertype note below), SE03 (`P_St st;`

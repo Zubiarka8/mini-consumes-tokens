@@ -533,7 +533,7 @@ Done 22 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 14
 
 - [x] RE01 Calls: `p_use` → `p_helper`
 - [~] RE02 Constructor call: `new P_Sub()` gives no relation; `X()` form not exercised
-- [x] RE03 Super / base constructor call: `P_Sub() : P_Base()` gives `calls P_Base` from the constructor
+- [~] RE03 Super / base constructor call: `P_Sub() : P_Base()` gives `calls P_Base` when the class and its base are defined in the same file
 - [x] RE04 Imports: `#include` → `imports`
 - [~] RE05 Class extends class: ambiguous when the constructor shares the class name
 **Search and lookup**
