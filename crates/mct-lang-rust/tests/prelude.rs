@@ -31,6 +31,10 @@ pub trait Display {}
 pub fn pick() -> Strategy {
     Strategy::Default
 }
+
+pub struct Error;
+
+pub fn swap() {}
 ";
 
 const USES: &str = "\
@@ -179,6 +183,27 @@ impl From<u32> for Meters {
 }
 ";
 
+const SCOPED_STD: &str = "\
+use crate::kinds::*;
+
+pub fn make() -> Error {
+    Error
+}
+
+pub fn other() {
+    use std::io::Error;
+    let _e: Option<Error> = None;
+}
+";
+
+const MACRO_CALL: &str = "\
+use std::mem::swap;
+
+pub fn check(a: &mut u8, b: &mut u8) {
+    println!(\"{:?}\", swap(a, b));
+}
+";
+
 /// A fresh temporary copy of the project above, indexed in memory.
 fn indexed() -> (Index, PathBuf) {
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -201,6 +226,8 @@ fn indexed() -> (Index, PathBuf) {
         ("shadow.rs", SHADOW),
         ("std_import.rs", STD_IMPORT),
         ("convert.rs", CONVERT),
+        ("scoped_std.rs", SCOPED_STD),
+        ("macro_call.rs", MACRO_CALL),
     ] {
         std::fs::write(src.join(name), contents).unwrap();
     }
@@ -364,6 +391,35 @@ fn names_imported_from_std_are_external() {
     // `impl Debug` with `use std::fmt::Debug`.
     let debug = hit(&index, file, "implements", "Debug", 13);
     assert_eq!(debug.resolution, Resolution::External);
+    std::fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn a_std_import_in_a_function_is_external_only_there() {
+    let (index, root) = indexed();
+    let file = "src/scoped_std.rs";
+    // `use std::io::Error` is written in `other`; in `make`, `Error` can only
+    // come from the glob, so nothing proves it is the standard library's.
+    let outside = hit(&index, file, "references", "Error", 3);
+    assert_ne!(outside.resolution, Resolution::External);
+    // Where the import reaches, it wins over the glob.
+    let inside = hit(&index, file, "references", "Error", 9);
+    assert_eq!(inside.resolution, Resolution::External);
+    std::fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn a_std_function_called_in_a_macro_is_external() {
+    let (index, root) = indexed();
+    // `swap` comes from `use std::mem::swap`, so the call the grammar leaves
+    // unparsed in `println!` is not the `swap` declared in `kinds.rs`.
+    let hit = hit(&index, "src/macro_call.rs", "calls", "swap", 4);
+    assert_eq!(
+        hit.resolution,
+        Resolution::External,
+        "{:?}",
+        target_file(&index, &hit)
+    );
     std::fs::remove_dir_all(root).ok();
 }
 

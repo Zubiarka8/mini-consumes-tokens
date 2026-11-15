@@ -167,7 +167,7 @@ R 69:9 calls InventoryError::report -> audit
 R 69:25 references InventoryError::report -> Error
 R 69:15 references InventoryError::report -> Severity
 R 69:38 calls InventoryError::report -> to_string
-R 74:1 implements errors -> Display
+R 74:1 implements InventoryError -> Display
 R 75:32 references InventoryError::fmt -> Formatter
 R 75:55 references InventoryError::fmt -> Result
 R 77:29 references InventoryError::fmt -> Validation
@@ -183,13 +183,13 @@ R 89:13 references InventoryError::fmt -> InventoryError
 R 92:29 references InventoryError::fmt -> Conflict
 R 92:13 references InventoryError::fmt -> InventoryError
 R 75:8 overrides InventoryError::fmt -> fmt
-R 100:1 implements errors -> Error
-R 102:1 implements errors -> From
+R 100:1 implements InventoryError -> Error
+R 102:1 implements InventoryError -> From
 R 103:27 references InventoryError::from -> Error
 R 104:25 calls InventoryError::from -> storage
 R 104:9 references InventoryError::from -> InventoryError
 R 103:8 overrides InventoryError::from -> from
-R 108:1 implements errors -> From
+R 108:1 implements InventoryError -> From
 R 109:28 references InventoryError::from -> ParseIntError
 R 110:25 calls InventoryError::from -> Validation
 R 110:9 references InventoryError::from -> InventoryError
@@ -534,7 +534,7 @@ R 31:10 references Command -> Debug (name-matched: errors.rs)
 R 31:17 references Command -> PartialEq
 R 49:15 references Options::snapshot -> String
 R 47:10 references Options -> Debug (name-matched: errors.rs)
-R 54:1 implements main -> Default
+R 54:1 implements Options -> Default
 R 56:9 references Options::default -> Options
 R 57:40 calls Options::default -> to_string
 R 55:8 overrides Options::default -> default
@@ -983,7 +983,7 @@ R 55:19 references Unit::symbol -> Litre
 R 55:13 references Unit::symbol -> Unit
 R 56:19 references Unit::symbol -> Box
 R 56:13 references Unit::symbol -> Unit
-R 61:1 implements model -> Display
+R 61:1 implements Unit -> Display
 R 62:27 references Unit::fmt -> Formatter
 R 62:50 references Unit::fmt -> Result (name-matched: errors.rs)
 R 64:19 references Unit::fmt -> Box
@@ -1047,10 +1047,10 @@ R 138:54 calls Product::set_attribute -> to_owned
 R 142:26 calls Product::has_tag -> any
 R 142:19 calls Product::has_tag -> iter (name-matched: main.rs)
 R 142:36 calls Product::has_tag -> eq_ignore_ascii_case
-R 151:1 implements model -> PartialEq
+R 151:1 implements Product -> PartialEq
 R 152:8 overrides Product::eq -> eq
-R 157:1 implements model -> Eq
-R 159:1 implements model -> Hash
+R 157:1 implements Product -> Eq
+R 159:1 implements Product -> Hash
 R 161:17 calls Product::hash -> hash
 R 160:8 overrides Product::hash -> hash
 R 166:37 references validate_name -> Result (name-matched: errors.rs)
@@ -1134,14 +1134,14 @@ R 283:13 references Movement::describe -> Movement
 R 292:27 references Identified::id -> Id
 R 295:24 references Identified::label -> String
 R 299:30 references Identified::label -> id
-R 303:1 implements model -> Identified
+R 303:1 implements Product -> Identified
 R 304:10 references model -> Id
 R 304:15 references Product::Id -> ProductId
 R 306:21 references Product::id -> ProductId
 R 310:24 references Product::label -> String
 R 306:8 overrides Product::id -> id
 R 310:8 overrides Product::label -> label
-R 315:1 implements model -> Identified
+R 315:1 implements StockLevel -> Identified
 R 316:10 references model -> Id
 R 316:16 references StockLevel::Id -> ProductId
 R 316:27 references StockLevel::Id -> LocationId
@@ -1458,7 +1458,7 @@ R 148:36 calls Section::render -> display_width
 R 149:9 calls Section::render -> Ok
 R 149:53 references Section::render -> body
 R 155:24 references StockSection::warehouse -> Warehouse (name-matched: service.rs)
-R 159:1 implements report -> Section
+R 159:1 implements StockSection -> Section
 R 160:24 references StockSection<'_>::title -> Cow
 R 161:14 calls StockSection<'_>::title -> Borrowed
 R 161:9 references StockSection<'_>::title -> Cow
@@ -1545,7 +1545,7 @@ R 223:27 calls replay_levels -> try_from
 R 223:44 calls replay_levels -> max
 R 223:67 references replay_levels -> MAX
 R 231:22 references MovementSection::ledger -> Movement (name-matched: model.rs)
-R 234:1 implements report -> Section
+R 234:1 implements MovementSection -> Section
 R 235:24 references MovementSection<'_>::title -> Cow
 R 236:14 calls MovementSection<'_>::title -> Owned
 R 236:9 references MovementSection<'_>::title -> Cow
@@ -1577,7 +1577,7 @@ R 254:18 calls MovementSection<'_>::body -> render
 R 235:8 overrides MovementSection<'_>::title -> title
 R 239:8 overrides MovementSection<'_>::body -> body
 R 260:19 references CategorySection::root -> Category (name-matched: model.rs)
-R 263:1 implements report -> Section
+R 263:1 implements CategorySection -> Section
 R 264:24 references CategorySection<'_>::title -> Cow
 R 265:14 calls CategorySection<'_>::title -> Borrowed
 R 265:9 references CategorySection<'_>::title -> Cow
@@ -1594,7 +1594,7 @@ R 277:60 references CategorySection<'_>::body -> count
 R 278:9 calls CategorySection<'_>::body -> Ok
 R 264:8 overrides CategorySection<'_>::title -> title
 R 268:8 overrides CategorySection<'_>::body -> body
-R 285:1 implements report -> Section
+R 285:1 implements AuditSection -> Section
 R 286:24 references AuditSection::title -> Cow
 R 287:20 calls AuditSection::title -> into
 R 290:23 references AuditSection::body -> Result (name-matched: errors.rs)
@@ -1823,7 +1823,7 @@ R 39:17 references Warehouse::ledger -> Movement (name-matched: model.rs)
 R 40:16 references Warehouse::listeners -> Vec
 R 40:20 references Warehouse::listeners -> Arc
 R 40:28 references Warehouse::listeners -> MovementListener
-R 43:1 implements service -> Default
+R 43:1 implements Warehouse -> Default
 R 45:15 calls Warehouse::default -> new
 R 44:8 overrides Warehouse::default -> default
 R 51:9 references Warehouse::new -> Warehouse
@@ -2004,7 +2004,7 @@ R 265:14 calls MovementCounter::count -> lock
 R 266:47 calls MovementCounter::count -> unwrap_or
 R 266:38 calls MovementCounter::count -> copied
 R 266:24 calls MovementCounter::count -> get (name-matched: storage.rs)
-R 271:1 implements service -> MovementListener
+R 271:1 implements MovementCounter -> MovementListener
 R 272:38 references MovementCounter::on_movement -> Movement (name-matched: model.rs)
 R 273:45 calls MovementCounter::on_movement -> lock
 R 274:47 calls MovementCounter::on_movement -> or_insert
@@ -2224,7 +2224,7 @@ R 38:8 overrides u64::from -> from
 R 46:12 references MemoryRepository::items -> HashMap
 R 46:23 references MemoryRepository::items -> Id (name-matched: model.rs)
 R 44:10 references MemoryRepository -> Debug (name-matched: errors.rs)
-R 50:1 implements storage -> Default
+R 50:1 implements MemoryRepository -> Default
 R 52:9 references MemoryRepository<T>::default -> MemoryRepository
 R 53:29 calls MemoryRepository<T>::default -> new
 R 53:20 references MemoryRepository<T>::default -> HashMap
@@ -2233,7 +2233,7 @@ R 61:15 calls MemoryRepository<T>::new -> default
 R 69:47 references MemoryRepository<T>::extend -> Result (name-matched: errors.rs)
 R 75:18 calls MemoryRepository<T>::extend -> put
 R 78:9 calls MemoryRepository<T>::extend -> Ok
-R 82:1 implements storage -> Repository
+R 82:1 implements MemoryRepository -> Repository
 R 83:26 references MemoryRepository<T>::get -> Id (name-matched: model.rs)
 R 83:33 references MemoryRepository<T>::get -> Result (name-matched: errors.rs)
 R 83:40 references MemoryRepository<T>::get -> Option
