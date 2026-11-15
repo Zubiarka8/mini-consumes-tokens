@@ -427,8 +427,27 @@ impl<'a> Walker<'a> {
                 let declarators: Vec<Node<'a>> = node
                     .children_by_field_name("declarator", &mut cursor)
                     .collect();
+                let mut lambdas = Vec::new();
+                if node.kind() == "declaration" && !ctx.in_type() {
+                    for declarator in &declarators {
+                        if let Some((name_node, lambda)) = named_lambda(*declarator) {
+                            self.push_named_lambda(
+                                node,
+                                *declarator,
+                                name_node,
+                                lambda,
+                                ctx,
+                                depth,
+                            );
+                            lambdas.push(declarator.id());
+                        }
+                    }
+                }
                 if !ctx.local {
                     for declarator in &declarators {
+                        if lambdas.contains(&declarator.id()) {
+                            continue;
+                        }
                         if let Some(func_declarator) = find_function_declarator(*declarator) {
                             let (name, parent, kind) = self.function_identity(
                                 func_declarator.child_by_field_name("declarator"),
@@ -468,8 +487,16 @@ impl<'a> Walker<'a> {
                 }
                 // Initializers (`= make()`, `x(make())`, `{a, b}`), default
                 // member initializers and an inline type definition
-                // (`struct { ... } x;`) can all contain calls or symbols.
-                self.visit_children(node, ctx, depth + 1);
+                // (`struct { ... } x;`) can all contain calls or symbols. A
+                // named lambda's body was walked as its own.
+                let mut cursor = node.walk();
+                let rest: Vec<Node<'a>> = node
+                    .children(&mut cursor)
+                    .filter(|c| !lambdas.contains(&c.id()))
+                    .collect();
+                for child in rest {
+                    self.visit(child, ctx, depth + 1);
+                }
             }
             // A macro: object-like is a `constant`, function-like a
             // `function` (as Rust's `macro_rules!`). The preprocessor knows
@@ -778,6 +805,42 @@ impl<'a> Walker<'a> {
         (name, parent, kind)
     }
 
+    /// `auto f = [](int x) { … };`: the `Function` `f`, of the enclosing
+    /// namespace, or owned by the enclosing function in a body, whose body
+    /// holds the lambda's calls.
+    fn push_named_lambda(
+        &mut self,
+        declaration: Node<'a>,
+        declarator: Node<'a>,
+        name_node: Node<'a>,
+        lambda: Node<'a>,
+        ctx: Ctx<'a>,
+        depth: u32,
+    ) {
+        let parent = if ctx.local {
+            self.symbols
+                .iter()
+                .find(|s| s.id == ctx.owner)
+                .map(|s| s.name.clone())
+        } else {
+            ctx.parent()
+        };
+        let id = self.push_symbol(
+            text(name_node, self.source).to_string(),
+            SymbolKind::Function,
+            location(declarator),
+            parent,
+        );
+        self.details.push(details::lambda_detail(
+            declaration,
+            declarator,
+            lambda,
+            id,
+            self.source,
+        ));
+        self.visit_children(lambda, ctx.in_body_of(id), depth + 1);
+    }
+
     /// The class, struct, enum or alias a declaration's type names
     /// (`Widget` in `Widget w;`, `shop::Cart` in `shop::Cart* c`), as a
     /// `References` relation from `owner`. A built-in type (`int`), `auto`
@@ -921,6 +984,24 @@ fn find_function_declarator(node: Node) -> Option<Node> {
 
 /// Same unwrapping as `find_function_declarator`, but for the non-function
 /// (field/variable) case — returns the identifier actually being declared.
+/// The name and lambda of `f = [](…) { … }` (or `f{[] { … }}`), when the
+/// declarator is a plain name initialized with exactly a lambda.
+fn named_lambda(declarator: Node) -> Option<(Node, Node)> {
+    if declarator.kind() != "init_declarator" {
+        return None;
+    }
+    let name = declarator
+        .child_by_field_name("declarator")
+        .filter(|d| d.kind() == "identifier")?;
+    let value = declarator.child_by_field_name("value")?;
+    let lambda = if value.kind() == "initializer_list" && value.named_child_count() == 1 {
+        value.named_child(0)?
+    } else {
+        value
+    };
+    (lambda.kind() == "lambda_expression").then_some((name, lambda))
+}
+
 fn plain_declarator_identifier(node: Node) -> Option<Node> {
     match node.kind() {
         "identifier" | "field_identifier" => Some(node),
