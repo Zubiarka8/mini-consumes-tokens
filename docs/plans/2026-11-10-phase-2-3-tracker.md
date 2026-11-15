@@ -571,6 +571,16 @@ From `rules.md` and the two messages:
           owned by it; `f := func() {}` inside a function still has no
           symbol. Test: `tests/func_values.rs`. Repository snapshot (Go, 946
           relations): no symbol or relation changes. Dead code 123 -> 123.
+    - [x] PowerShell classes and enums: a `class` is a `class`, its
+          properties `field`s and its methods and constructors `method`s
+          (each owns its body's commands); an `enum` is an `enum` with its
+          members as `field`s. A command's target must be a `function`, so
+          a bare `Reset` never reaches a method `Reset`. This reverses the
+          old "By design" exclusion in the crate docs. Class bases and
+          `[Type]` literal uses are still no relations. Test:
+          `tests/classes.rs`. Corpus: 82 -> 103 symbols, 261 relations
+          unchanged. Repository snapshot (PowerShell, 817 relations): no
+          classes, no changes. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

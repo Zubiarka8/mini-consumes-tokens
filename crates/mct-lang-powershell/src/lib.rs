@@ -29,10 +29,11 @@
 //!   `$x[0] = ...` changes an existing value rather than declaring `x`.
 //!   A variable's scope prefix
 //!   (`$script:x`, `$global:x`, ...) is stripped from the recorded name.
-//! - PowerShell classes (`class Foo { ... }`), their methods and `enum`s are **not**
-//!   indexed — out of scope for what this plugin was asked to cover
-//!   (systems-scripting `.ps1`/`.psm1` files), and classes are rare in that
-//!   style of script. Only `function`-style definitions are.
+//! - A `class` is a `Class`, its properties `Field`s and its methods
+//!   (constructors included, named after the class) `Method`s; an `enum` is
+//!   an `Enum` whose members are `Field`s. A method owns the commands its
+//!   body runs. A command invocation names a function, cmdlet or executable,
+//!   never a method, so its target must be a `Function`.
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
@@ -236,11 +237,6 @@ struct Walker<'a> {
     /// This file's repository-relative path, the base of relative sources.
     path: &'a str,
     next_id: SymbolId,
-    /// How many `class` bodies enclose the node being visited. Classes have
-    /// no symbol, so their methods' statements keep the file as owner, but
-    /// an assignment there is a method local or a property, never a script
-    /// variable.
-    class_depth: u32,
 }
 
 impl<'a> Walker<'a> {
@@ -328,13 +324,12 @@ impl<'a> Walker<'a> {
                     self.visit_children(block, id, &name, module_id, depth + 1);
                 }
             }
-            "class_statement" => {
-                self.class_depth += 1;
-                self.visit_children(node, owner, scope_name, module_id, depth + 1);
-                self.class_depth -= 1;
-            }
+            "class_statement" => self.visit_class(node, scope_name, module_id, depth),
+            "enum_statement" => self.visit_enum(node, scope_name),
             "assignment_expression" => {
-                if owner == module_id && self.class_depth == 0 {
+                // Inside a class the owner is the class or a method, so an
+                // assignment there is a property value or a method local.
+                if owner == module_id {
                     if let Some((lhs, var_node)) = find_child(node, "left_assignment_expression")
                         .and_then(|lhs| Some((lhs, find_descendant(lhs, "variable")?)))
                         .filter(|(lhs, var_node)| !is_member_or_element_target(*lhs, *var_node))
@@ -385,12 +380,18 @@ impl<'a> Walker<'a> {
                                 );
                             }
                         } else {
+                            let relation = self.relations.len();
                             self.push_relation(
                                 owner,
                                 RelationKind::Calls,
                                 cmd_text,
                                 location(name_node),
                             );
+                            self.relation_targets.push(RelationTarget {
+                                relation,
+                                kind: Some(SymbolKind::Function),
+                                ..Default::default()
+                            });
                         }
                     }
                 }
@@ -401,6 +402,94 @@ impl<'a> Walker<'a> {
             }
             _ => self.visit_children(node, owner, scope_name, module_id, depth + 1),
         }
+    }
+
+    /// `class Name : Base, IFoo { … }`: the first `simple_name` is the
+    /// class's own name, the rest its bases. A property initializer runs as
+    /// the class; a method body as the method.
+    fn visit_class(&mut self, node: Node, scope_name: &str, module_id: SymbolId, depth: u32) {
+        let Some(name_node) = find_child(node, "simple_name") else {
+            return;
+        };
+        let class_name = text(name_node, self.source).to_string();
+        let class_id = self.push_symbol(
+            class_name.clone(),
+            SymbolKind::Class,
+            location(node),
+            Some(scope_name.to_string()),
+        );
+        self.details
+            .push(details::header_detail(node, class_id, self.source));
+        mct_tree_sitter::for_each_child(node, |member| match member.kind() {
+            "class_property_definition" => {
+                let Some(variable) = find_child(member, "variable") else {
+                    return;
+                };
+                let name = clean_variable_name(text(variable, self.source));
+                if name.is_empty() {
+                    return;
+                }
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(member),
+                    Some(class_name.clone()),
+                );
+                self.details
+                    .push(details::property_detail(member, variable, id, self.source));
+                self.visit_children(member, class_id, &class_name, module_id, depth + 1);
+            }
+            "class_method_definition" => {
+                let Some(method_name) = find_child(member, "simple_name") else {
+                    return;
+                };
+                let name = text(method_name, self.source).to_string();
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Method,
+                    location(member),
+                    Some(class_name.clone()),
+                );
+                self.details
+                    .push(details::method_detail(member, id, self.source));
+                if let Some(block) = find_child(member, "script_block") {
+                    self.visit_children(block, id, &name, module_id, depth + 1);
+                }
+            }
+            _ => {}
+        });
+    }
+
+    /// `enum Name { A; B = 2 }`: each `enum_member` is a field of the enum.
+    fn visit_enum(&mut self, node: Node, scope_name: &str) {
+        let Some(name_node) = find_child(node, "simple_name") else {
+            return;
+        };
+        let enum_name = text(name_node, self.source).to_string();
+        let enum_id = self.push_symbol(
+            enum_name.clone(),
+            SymbolKind::Enum,
+            location(node),
+            Some(scope_name.to_string()),
+        );
+        self.details
+            .push(details::header_detail(node, enum_id, self.source));
+        mct_tree_sitter::for_each_child(node, |member| {
+            if member.kind() != "enum_member" {
+                return;
+            }
+            let Some(member_name) = find_child(member, "simple_name") else {
+                return;
+            };
+            let id = self.push_symbol(
+                text(member_name, self.source).to_string(),
+                SymbolKind::Field,
+                location(member),
+                Some(enum_name.clone()),
+            );
+            self.details
+                .push(details::member_detail(member, id, self.source));
+        });
     }
 
     fn finish(self) -> ParsedFile {
