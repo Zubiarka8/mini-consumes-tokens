@@ -4,6 +4,10 @@
 > probe fixtures. `[?]` means the feature was not exercised in that check; it does not mean the feature is
 > missing. The earlier record is the 2026-10-19 probe at commit `71ec6d0`.
 
+> The marks and notes of the twelve source languages follow the scored lists in
+> [symbol-coverage.md](../symbol-coverage.md) (synced 2026-11-15); that page is the one kept up to date. Rows
+> of the markup languages are unchanged.
+
 Primary language view. Each feature lists all 17 languages in the same order: a checkbox, or a named
 not-applicable reason. Definitions are in [features.md](../features.md). Same data as
 [by-language.md](by-language.md). Library features are tracked separately in
@@ -22,7 +26,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 9 | 1 | 0 | 0 | 7 |
+| 10 | 0 | 0 | 0 | 7 |
 
 - [x] Rust: `function`
 - [x] Python: `async def` too
@@ -35,7 +39,7 @@ Marks:
 - [x] PHP: `function`
 - [x] Lua: `function`
 - [x] Bash: `f() {}`
-- [~] PowerShell: multi-line works; one-line `function f { param(...) … }` is a syntax error
+- [x] PowerShell: `function`
 - — HTML: HTML is markup; it has no top-level function
 - — CSS: CSS is markup; it has no top-level function
 - — XML: XML is markup; it has no top-level function
@@ -185,7 +189,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 1 | 0 | 0 | 11 |
+| 6 | 0 | 0 | 0 | 11 |
 
 - [x] Rust: `add` is a `method` owned by `Widget`
 - [x] Python: `__add__`
@@ -196,7 +200,7 @@ Marks:
 - [x] C++: `operator+`
 - — Go: Go has no operator overload
 - — PHP: PHP has no operator overload
-- [~] Lua: `__add` is indexed as a method; no operator relation is emitted
+- [x] Lua: `Vec.__add = function(a, b)` → `method` of `Vec`
 - — Bash: Bash has no operator overload
 - — PowerShell: PowerShell has no operator overload
 - — HTML: HTML is markup; it has no operator overload
@@ -212,11 +216,11 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 0 | 1 | 0 | 9 |
+| 8 | 0 | 0 | 0 | 9 |
 
 - [x] Rust: required trait method is indexed as `method` in `ChildTrait`
 - [x] Python: `@abstractmethod`
-- [ ] JS/TS: `abstract p_am(): void;` has no symbol
+- [x] JS/TS: `abstract m(): T;` → `method` of the class, with its signature
 - [x] Java: abstract `p_am`
 - [x] Kotlin: `abstract fun p_am`
 - [x] C#: `abstract P_Am`
@@ -297,7 +301,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 8 | 0 | 1 | 0 | 8 |
+| 7 | 1 | 1 | 0 | 8 |
 
 
 - — Rust: Rust has no class
@@ -309,7 +313,7 @@ Marks:
 - [x] C++: `class`
 - — Go: Go has no class
 - [x] PHP: `class`
-- [x] Lua: `local Widget = setmetatable({}, …)` → `class` (2026-11 record; the 2026-10 record said no symbol)
+- [~] Lua: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it; a nested table (`W.Widget.__index = W.Widget`) stays `module`
 - — Bash: Bash has no class
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no class
@@ -325,7 +329,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 1 | 0 | 0 | 10 |
+| 7 | 0 | 0 | 0 | 10 |
 
 
 - — Rust: Rust has no abstract class
@@ -334,7 +338,7 @@ Marks:
 - [x] Java: `abstract static class` → `class`
 - [x] Kotlin: `abstract class` → `class`
 - [x] C#: abstract class → `class`
-- [~] C++: pure-virtual `Base` is a `struct` symbol; abstractness is not represented
+- [x] C++: `class`
 - — Go: Go has no abstract class
 - [x] PHP: `abstract class` → `class`
 - — Lua: Lua has no abstract class
@@ -516,10 +520,10 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 0 | 3 | 0 | 8 |
+| 6 | 1 | 2 | 0 | 8 |
 
 - [x] Rust: variants `Red` and `Green` are `constant` symbols owned by `Color`
-- [ ] Python: `find_symbol("RED")` returns no symbol
+- [~] Python: assignments in an `Enum` subclass are `field` rows of the class, not `constant`
 - [ ] JS/TS: `find_symbol("Red")` returns no symbol
 - [x] Java: enum constants as `field`
 - [x] Kotlin: entries as `field`
@@ -543,13 +547,13 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 3 | 0 | 0 | 13 |
+| 3 | 1 | 0 | 0 | 13 |
 
 
 - — Rust: Rust has no record / data class
-- [~] Python: `Record` is a `class`; `field` has no symbol
+- [x] Python: `@dataclass` is a `class`; its annotated fields are `field`
 - — JS/TS: JS/TS has no record / data class
-- [~] Java: `record` is a `class`; `p_comp` has no symbol
+- [x] Java: `record` is a `class`; each component is its implicit accessor `method`
 - [x] Kotlin: `data class` → `class`; `val` parameter → `field`
 - [~] C#: `record` is a `class`; `P_Comp` has no symbol
 - — C++: C++ has no record / data class
@@ -599,18 +603,18 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 2 | 3 | 0 | 12 |
+| 0 | 4 | 1 | 0 | 12 |
 
 
 - — Rust: Rust has no anonymous class
 - — Python: Python has no anonymous class
-- [ ] JS/TS: anonymous class has no class symbol; `anonymousMethod` has no owner
+- [~] JS/TS: class expression: methods have no parent
 - [~] Java: method inside a method → enclosing class; field initializer → no symbol
 - [~] Kotlin: `object : P_Abs()` gives no class; its function has no parent
 - [ ] C#: anonymous type `new { X = 1 }` has no symbol
 - — C++: C++ has no anonymous class
 - — Go: Go has no anonymous class
-- [ ] PHP: `new class {}` gives no symbols
+- [~] PHP: `new class {}` gives no class or member symbols, except an anonymous Laravel `Migration` (`up`/`down` as methods of the file module)
 - — Lua: Lua has no anonymous class
 - — Bash: Bash has no anonymous class
 - — PowerShell: PowerShell has no anonymous class
@@ -683,13 +687,13 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 1 | 1 | 0 | 10 |
+| 6 | 1 | 0 | 0 | 10 |
 
 - [x] Rust: `type` alias
 - [x] Python: PEP 695 `type X = …`
 - [x] JS/TS: `type` alias
 - — Java: Java has no type alias
-- [ ] Kotlin: `typealias` has no symbol
+- [x] Kotlin: `typealias` is a `type_alias`
 - [~] C#: `delegate` → `type_alias`; `using` alias emits imports
 - [x] C++: `using` and `typedef`
 - [x] Go: both alias forms
@@ -739,10 +743,10 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 0 | 4 | 0 | 6 |
+| 9 | 1 | 1 | 0 | 6 |
 
 - [x] Rust: `Widget.inner` and `Widget.value` are `field` symbols; tuple fields are named `0`, `1`
-- [ ] Python: `self.value` is omitted from the field-symbol query
+- [~] Python: class-body assignments, annotations and `self.x = …` in a method are `field`; `__slots__` has no symbol
 - [x] JS/TS: `#p_priv` and `static` fields
 - [x] Java: `field`
 - [x] Kotlin: `var p_prop`
@@ -750,7 +754,7 @@ Marks:
 - [x] C++: `p_field` and union members
 - [x] Go: each named struct field is a `field` of the struct
 - [x] PHP: property `$prop`
-- [ ] Lua: `self.x` produces no field symbol (MCT probe)
+- [x] Lua: a file-level `M.x = …` and the first `self.x = …` in a colon method `T:m()` → `field` of `M` / `T`
 - — Bash: Bash has no field / instance attribute
 - [ ] PowerShell: class declarations and properties are not indexed (corpus test)
 - — HTML: HTML is markup; it has no field / instance attribute
@@ -766,12 +770,12 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 0 | 2 | 0 | 13 |
+| 3 | 0 | 1 | 0 | 13 |
 
 
 - — Rust: Rust has no constructor-promoted field
 - — Python: Python has no constructor-promoted field
-- [ ] JS/TS: `constructor(public p_promo)` has no symbol
+- [x] JS/TS: `constructor(private x)` / `readonly x` → `field`
 - — Java: Java has no constructor-promoted field
 - [x] Kotlin: `val p_promo` → `field`
 - [ ] C#: record positional parameter has no symbol
@@ -794,13 +798,13 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 4 | 4 | 0 | 7 |
+| 6 | 4 | 0 | 0 | 7 |
 
 - [x] Rust: `const` → `constant`
-- [ ] Python: `P_CONST` has no symbol
-- [ ] JS/TS: `const P_CONST` has no symbol
+- [x] Python: `X: Final = 1` is `constant`; an unannotated `UPPER = 1` is `variable`, since Python has no constant syntax
+- [x] JS/TS: module-level `const X = 1` → `constant`
 - [~] Java: `static final` is a `field`
-- [ ] Kotlin: top-level `const val` has no symbol
+- [~] Kotlin: top-level `const val` is a `constant`; inside a companion or object it is a `field`
 - [~] C#: `const` is a `field`
 - [x] C++: `const int P_CONST` → `constant`
 - [x] Go: package-level `const` → `constant`
@@ -821,18 +825,18 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 1 | 5 | 0 | 7 |
+| 9 | 0 | 1 | 0 | 7 |
 
 - [x] Rust: `static` and `static mut` are `variable`; `const` stays `constant`
-- [ ] Python: `P_MOD` has no symbol
-- [ ] JS/TS: `let p_var` has no symbol
+- [x] Python: module assignments are `variable`
+- [x] JS/TS: module-level `let`/`var` → `variable`
 - — Java: Java has no global / module-level variable
-- [ ] Kotlin: top-level `val` has no symbol
+- [x] Kotlin: top-level `val`/`var` is a `variable`, each name of `val (a, b) = …` too; an extension property `val T.p` is a `field` of `T`
 - — C#: C# has no global / module-level variable
 - [x] C++: `p_global` → `variable`
 - [x] Go: package-level `var` → `variable`
 - [ ] PHP: `$p_glob = …` has no symbol
-- [~] Lua: global `MSG = …` → `variable`; top-level `local` not exercised
+- [x] Lua: globals and top-level `local` → `variable`, `<const>` → `constant`
 - [x] Bash: `P_GLOBAL` → `variable`
 - [x] PowerShell: scope prefixes stripped
 - — HTML: HTML is markup; it has no global / module-level variable
@@ -902,7 +906,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 0 | 1 | 0 | 15 |
+| 2 | 0 | 0 | 0 | 15 |
 
 - [x] Rust: `macro_rules! audit_macro` is a `function`; there is no macro kind
 - — Python: Python has no macro / preprocessor define
@@ -958,7 +962,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 2 | 1 | 0 | 9 |
+| 6 | 2 | 0 | 0 | 9 |
 
 
 - — Rust: `Foo::new()` is a plain call (RE01)
@@ -986,15 +990,15 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 1 | 4 | 0 | 10 |
+| 5 | 2 | 0 | 0 | 10 |
 
 
 - — Rust: Rust has no super / base constructor call
 - [x] Python: `super().__init__()` → `calls super`, `calls __init__`
-- [~] JS/TS: `super.p_m()` is indexed; `super()` itself produces no call relation
-- [ ] Java: `super()` and `this()` give no relation
-- [ ] Kotlin: secondary `this()` delegation emits no call relation
-- [ ] C#: `: base()` gives no call
+- [x] JS/TS: `super(…)` gives `calls Base` for the base a class declaration names; none for a mixin call or inside a class expression
+- [x] Java: `this(…)` and `super(…)` give `calls` restricted to a constructor declared in the enclosing class or its superclass; `super()` without `extends` (`Object`) or on a JDK-imported superclass is external
+- [~] Kotlin: `: Base(4)` in a class or object header, and `constructor(…) : super(…)` when the header names one supertype without `()`, give `calls Base` from the class (a constructor is no symbol), restricted to a class; `super()` with no supertype is external (`Any`). None for `this(…)` (the class calling itself) or for `super(…)` with several supertypes
+- [x] C#: `: this(…)` and `: base(…)` give `calls` restricted to a constructor declared in the enclosing type or in the base list's first entry; `: base()` with no base list (`object`) is external
 - [~] C++: `P_Sub() : P_Base()` gives `calls P_Base` when the class and its base are defined in the same file
 - — Go: Go has no super / base constructor call
 - [x] PHP: `parent::__construct()` → `calls __construct`
@@ -1041,7 +1045,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 2 | 1 | 0 | 8 |
+| 7 | 1 | 1 | 0 | 8 |
 
 
 - — Rust: Rust has no class extends class
@@ -1050,7 +1054,7 @@ Marks:
 - [x] Java: `extends P_Base` (ambiguous: same-name file module)
 - [x] Kotlin: `P_Sub` extends `P_Base`
 - [~] C#: heuristic; ambiguous when a constructor shares the class name
-- [~] C++: ambiguous when the constructor shares the class name
+- [x] C++: every base, any access, as `extends`
 - — Go: Go has no class extends class
 - [x] PHP: `P_Sub` extends `P_Base`
 - [x] Lua: `Child` extends `Base` via `setmetatable` (MCT probe)
@@ -1069,9 +1073,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 1 | 1 | 0 | 10 |
+| 4 | 2 | 1 | 0 | 10 |
 
-- [x] Rust: `Widget` implements `ParentTrait` and `ChildTrait`
+- [~] Rust: `impl Trait for T` → `implements`, but owned by the file module, not by `T`
 - — Python: no `implements`; abstract bases use `extends`
 - [x] JS/TS: `P_Sub` implements `P_Iface`
 - [x] Java: `implements P_Iface` (ambiguous: same-name file module)
@@ -1096,13 +1100,13 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 1 | 2 | 0 | 10 |
+| 7 | 0 | 0 | 0 | 10 |
 
 - [x] Rust: `ChildTrait: ParentTrait` produces an `extends` relation
 - — Python: Python has no interface extends interface / supertrait
 - [x] JS/TS: `P_Iface` extends `P_Ext`
-- [ ] Java: `interface P_Iface extends P_Ext2` gives no relation
-- [~] Kotlin: `interface P_Iface : P_Ext` emits `implements`
+- [x] Java: `interface B extends A` → `extends`, to an `interface` only
+- [x] Kotlin: `interface B : A` → `extends`, to an `interface` only
 - [x] C#: `IP_Iface2 : IP_Ext2` → `extends`
 - — C++: C++ has no interface extends interface / supertrait
 - [x] Go: an embedded interface gives `extends`
@@ -1123,14 +1127,14 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 0 | 4 | 0 | 10 |
+| 7 | 0 | 0 | 0 | 10 |
 
 - [x] Rust: `#[derive(Clone)]` produces a `references` relation to `Clone`; compiler attributes such as `#[cfg]` are ignored
 - [x] Python: `@abc.abstractmethod` and `@login_required` → `references`
-- [ ] JS/TS: `@Component` gives no reference
-- [ ] Java: `@Override` gives no reference
-- [ ] Kotlin: `@Deprecated` gives no reference
-- [ ] C#: `[Obsolete]` produces no reference (MCT probe)
+- [x] JS/TS: `@f`, `@x.f` and `@f(…)` give `calls f` from the decorated class, field or method (a parameter's from its method)
+- [x] Java: `@Entity` → `references Entity`, to an annotation type only
+- [x] Kotlin: `@Marker` → `references Marker`, to a class only
+- [x] C#: `references XAttribute`
 - — C++: C++ has no decorator / annotation / attribute
 - — Go: Go has no decorator / annotation / attribute
 - [x] PHP: `#[Attr]` → `references`
@@ -1150,7 +1154,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 0 | 16 |
+| 1 | 0 | 0 | 0 | 16 |
 
 
 - — Rust: Rust has no struct / type embedding
@@ -1234,9 +1238,9 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 8 | 3 | 1 | 0 | 5 |
+| 7 | 5 | 0 | 0 | 5 |
 
-- [x] Rust: `find_references("Add")` returns its `use` import
+- [~] Rust: `find_references`: imported/qualified macro calls can have no use relation; same-file free functions get `references`
 - [x] Python: references to `abstractmethod`
 - [x] JS/TS: references through `import`
 - [x] Java: references to `p_helper`
@@ -1245,7 +1249,7 @@ Marks:
 - [~] C++: `P_St s;` gives no reference
 - [~] Go: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
 - [x] PHP: references to `p_helper`
-- [ ] Lua: reference to table-based `Child` is not indexed (MCT probe)
+- [~] Lua: `find_references`: a nested table class (`W.Widget`) used only as a qualifier (`W.Widget.make()`) gets no reference; the call to `make` resolves
 - [x] Bash: references to `p_helper`
 - [x] PowerShell: references to `p_helper`
 - — HTML: HTML is markup; it has no every use
@@ -1261,18 +1265,18 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 12 | 0 | 0 | 0 | 5 |
+| 7 | 5 | 0 | 0 | 5 |
 
-- [x] Rust: `impact_analysis` and `build_context_pack` return callers, references and a likely test
+- [~] Rust: `impact_analysis`, `build_context_pack`: same gap as callers (macros)
 - [x] Python: `build_context_pack` lists the base class
 - [x] JS/TS: `build_context_pack`
 - [x] Java: `build_context_pack`
 - [x] Kotlin: `build_context_pack(outer)` returns the nested callee
-- [x] C#: `build_context_pack`
-- [x] C++: `build_context_pack(helper)` returns its caller
-- [x] Go: `impact_analysis(P_Helper)` returns the cross-file caller and references
+- [~] C#: `impact_analysis`, `build_context_pack`: same gaps as references
+- [~] C++: `impact_analysis`, `build_context_pack`: same gaps as references
+- [~] Go: `impact_analysis`, `build_context_pack`: same gaps as references
 - [x] PHP: `build_context_pack`
-- [x] Lua: `build_context_pack(method)` returned its caller
+- [~] Lua: `impact_analysis`, `build_context_pack`: same gaps as references
 - [x] Bash: `build_context_pack(P_Helper)` returned its caller
 - [x] PowerShell: `build_context_pack(P_Helper)` returns its caller
 - — HTML: HTML is markup; it has no blast radius and context
@@ -1373,16 +1377,16 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 7 | 0 | 0 | 5 |
+| 6 | 6 | 0 | 0 | 5 |
 
 - [x] Rust: `src/lib.rs → src/dependency.rs`; external `Add` is listed separately
 - [x] Python: `src/audit.py → src/sibling.py`; standard and framework imports are listed as external
 - [x] JS/TS: local import edge verified in the earlier probe; framework files outside `.ts`/`.tsx` are not indexed
-- [~] Java: local import has resolved and ambiguous duplicate rows; JDK import has external and unresolved duplicate rows
+- [x] Java: `get_dependency_graph`
 - [~] Kotlin: alias import adds a false external entry
-- [~] C#: `using Audit` produces ambiguous imports to two file modules
+- [x] C#: `get_dependency_graph`
 - [~] C++: `#include "lib.h"` also listed as external
-- [x] Go: edge only, no external (2026-11 check)
+- [~] Go: `get_dependency_graph`: edges correct; the module import path is also listed as external
 - [~] PHP: resolved `require_once` path also listed as external
 - [x] Lua: edge `main → lib`, no external
 - [~] Bash: resolved `source` path also listed as external
@@ -1400,10 +1404,10 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 10 | 2 | 0 | 0 | 5 |
+| 8 | 4 | 0 | 0 | 5 |
 
 - [x] Rust: declarations shown with bodies collapsed; nested function retained
-- [x] Python: declarations shown with bodies collapsed; `nested` retained inside `top_fn`
+- [~] Python: `get_file_skeleton`: declaration-line fallback, as for Lua/Bash/PowerShell; a one-line body remains visible
 - [x] JS/TS: `get_file_skeleton(src/audit.tsx)` returned declarations with collapsed bodies
 - [x] Java: `get_file_skeleton` returned top-level interface/class declarations
 - [x] Kotlin: `get_file_skeleton` returned declarations and nested function
@@ -1412,7 +1416,7 @@ Marks:
 - [x] Go: braces collapsed
 - [x] PHP: `get_file_skeleton` returned class and function declarations
 - [~] Lua: declaration line and placeholder; one-line function shown whole
-- [x] Bash: `get_file_skeleton(src/audit.sh)` returned assignment and function outline
+- [~] Bash: `get_file_skeleton`: declaration line only; a one-line function is shown whole, then a placeholder
 - [~] PowerShell: declaration line and placeholder
 - — HTML: HTML is markup; it has no file outline
 - — CSS: CSS is markup; it has no file outline

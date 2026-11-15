@@ -4,6 +4,10 @@
 > probe fixtures. `[?]` means the feature was not exercised in that check; it does not mean the feature is
 > missing. The Rust section was re-probed on 2026-11-09 against the current parser. The earlier record is the 2026-10-19 probe at commit `71ec6d0`.
 
+> The marks and notes of the twelve source languages follow the scored lists in
+> [symbol-coverage.md](../symbol-coverage.md) (synced 2026-11-15); that page is the one kept up to date. Rows
+> of the markup languages are unchanged.
+
 Secondary view. One checklist per language, all 17 languages. Definitions are in [features.md](../features.md).
 Same data as [by-feature.md](by-feature.md).
 
@@ -20,18 +24,18 @@ Every feature the language does not have is named under *Not applicable*, with t
 
 | Language | Done | Partial | Not done | Not verified | Not applicable |
 |---|--:|--:|--:|--:|--:|
-| Rust | 36 | 0 | 0 | 0 | 17 |
-| Python | 25 | 5 | 8 | 0 | 14 |
-| JS/TS | 26 | 5 | 12 | 0 | 9 |
-| Java | 22 | 6 | 9 | 0 | 15 |
-| Kotlin | 26 | 7 | 12 | 0 | 7 |
-| C# | 25 | 10 | 10 | 0 | 7 |
-| C++ | 22 | 8 | 8 | 0 | 14 |
-| Go | 14 | 3 | 12 | 0 | 23 |
-| PHP | 30 | 3 | 7 | 0 | 12 |
-| Lua | 14 | 5 | 5 | 0 | 28 |
-| Bash | 12 | 2 | 3 | 0 | 35 |
-| PowerShell | 10 | 4 | 13 | 0 | 25 |
+| Rust | 33 | 3 | 0 | 0 | 16 |
+| Python | 27 | 7 | 4 | 0 | 14 |
+| JS/TS | 32 | 5 | 6 | 0 | 9 |
+| Java | 27 | 4 | 6 | 0 | 15 |
+| Kotlin | 30 | 8 | 7 | 0 | 7 |
+| C# | 27 | 10 | 8 | 0 | 7 |
+| C++ | 25 | 7 | 6 | 0 | 14 |
+| Go | 18 | 5 | 6 | 0 | 23 |
+| PHP | 30 | 4 | 6 | 0 | 12 |
+| Lua | 15 | 6 | 3 | 0 | 28 |
+| Bash | 11 | 3 | 3 | 0 | 35 |
+| PowerShell | 11 | 3 | 13 | 0 | 25 |
 | HTML | 3 | 1 | 3 | 0 | 0 |
 | CSS | 3 | 1 | 3 | 0 | 0 |
 | XML | 2 | 0 | 5 | 0 | 0 |
@@ -42,7 +46,7 @@ Markup languages use the MK features and their own constructs, at the end.
 
 ## Rust (`rust`)
 
-Done 36 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 17
+Done 33 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 16
 
 **Functions and methods**
 
@@ -75,15 +79,15 @@ Done 36 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 17
 
 - [x] RE01 Calls: `find_calls(top_level)` returns the call to `nested`
 - [x] RE04 Imports: `find_references("Add")` returns its `use` import
-- [x] RE06 Implements interface / trait: `Widget` implements `ParentTrait` and `ChildTrait`
+- [~] RE06 Implements interface / trait: `impl Trait for T` → `implements`, but owned by the file module, not by `T`
 - [x] RE07 Interface extends interface / supertrait: `ChildTrait: ParentTrait` produces an `extends` relation
 - [x] RE08 Decorator / annotation / attribute: `#[derive(Clone)]` produces a `references` relation to `Clone`; compiler attributes such as `#[cfg]` are ignored
 **Search and lookup**
 
 - [x] SE01 Find a definition: `find_symbol("top_level")` returns a `function`
 - [x] SE02 Callers and callees: `audit_macro!` and an imported function called inside a macro (`println!("{}", helper(x))`) are `calls`
-- [x] SE03 Every use: references through `use`
-- [x] SE04 Blast radius and context: `impact_analysis` and `build_context_pack` return callers, references and a likely test
+- [~] SE03 Every use: `find_references`: imported/qualified macro calls can have no use relation; same-file free functions get `references`
+- [~] SE04 Blast radius and context: `impact_analysis`, `build_context_pack`: same gap as callers (macros)
 - [x] SE05 Exact text in strings: exact phrase query finds the `SEARCH_TEXT` literal
 **Code quality**
 
@@ -118,7 +122,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Python (`python`)
 
-Done 25 · Partial 5 · Not done 8 · Not verified 0 · Not applicable 14
+Done 27 · Partial 7 · Not done 4 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -136,16 +140,16 @@ Done 25 · Partial 5 · Not done 8 · Not verified 0 · Not applicable 14
 - [x] TY01 Class: `class`
 - [x] TY02 Abstract class: abstract flag not stored
 - [~] TY08 Enum: `Enum` subclass is a `class`
-- [ ] TY09 Enum members: `find_symbol("RED")` returns no symbol
-- [~] TY10 Record / data class: `Record` is a `class`; `field` has no symbol
+- [~] TY09 Enum members: assignments in an `Enum` subclass are `field` rows of the class, not `constant`
+- [x] TY10 Record / data class: `@dataclass` is a `class`; its annotated fields are `field`
 - [x] TY11 Nested / inner class: parent is the outer class
 - [x] TY15 Type alias: PEP 695 `type X = …`
 - [x] TY16 Module / namespace / package: file `module`
 **Fields, constants and variables**
 
-- [ ] DA01 Field / instance attribute: `self.value` is omitted from the field-symbol query
-- [ ] DA03 Constant (module or global): `P_CONST` has no symbol
-- [ ] DA04 Global / module-level variable: `P_MOD` has no symbol
+- [~] DA01 Field / instance attribute: class-body assignments, annotations and `self.x = …` in a method are `field`; `__slots__` has no symbol
+- [x] DA03 Constant (module or global): `X: Final = 1` is `constant`; an unannotated `UPPER = 1` is `variable`, since Python has no constant syntax
+- [x] DA04 Global / module-level variable: module assignments are `variable`
 - [ ] DA05 Local variable: `find_symbol("local_value")` returns no symbol
 - [ ] DA06 Parameter: `find_symbol("argument")` returns no symbol
 **Relations**
@@ -170,7 +174,7 @@ Done 25 · Partial 5 · Not done 8 · Not verified 0 · Not applicable 14
 **Structure**
 
 - [x] ST01 Import graph: `src/audit.py → src/sibling.py`; standard and framework imports are listed as external
-- [x] ST02 File outline: `get_file_skeleton` shows declarations with bodies collapsed and retains `nested`
+- [~] ST02 File outline: `get_file_skeleton`: declaration-line fallback, as for Lua/Bash/PowerShell; a one-line body remains visible
 - [~] ST03 Declared dependencies: `requirements.txt` counted; `pyproject.toml` not
 
 **Not applicable:**
@@ -194,7 +198,7 @@ Markup features (MK) do not apply to code languages.
 
 ## JS/TS (`javascript_typescript`)
 
-Done 26 · Partial 5 · Not done 12 · Not verified 0 · Not applicable 9
+Done 32 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 9
 
 **Functions and methods**
 
@@ -203,7 +207,7 @@ Done 26 · Partial 5 · Not done 12 · Not verified 0 · Not applicable 9
 - [x] FN03 Lambda or closure assigned to a name: `const p_arrow = …` → `function`
 - [x] FN04 Method: `p_m` as `method`
 - [x] FN05 Constructor: `constructor` as `method`
-- [ ] FN08 Abstract / pure virtual method: `abstract p_am(): void;` has no symbol
+- [x] FN08 Abstract / pure virtual method: `abstract m(): T;` → `method` of the class, with its signature
 - [~] FN09 Property accessors (get/set): `get` and `set` are two rows
 - [~] FN10 Overloads kept apart: overload signatures dropped; implementation kept
 **Types and object-oriented programming**
@@ -216,27 +220,27 @@ Done 26 · Partial 5 · Not done 12 · Not verified 0 · Not applicable 9
 - [x] TY08 Enum: `enum`
 - [ ] TY09 Enum members: `find_symbol("Red")` returns no symbol
 - [x] TY11 Nested / inner class: `Inner` is indexed with `Outer` as parent
-- [ ] TY12 Anonymous class: anonymous class has no class symbol; `anonymousMethod` has no owner
+- [~] TY12 Anonymous class: class expression: methods have no parent
 - [x] TY15 Type alias: `type` alias
 - [x] TY16 Module / namespace / package: file module plus `namespace`
 **Fields, constants and variables**
 
 - [x] DA01 Field / instance attribute: `#p_priv` and `static` fields
-- [ ] DA02 Constructor-promoted field: `constructor(public p_promo)` has no symbol
-- [ ] DA03 Constant (module or global): `const P_CONST` has no symbol
-- [ ] DA04 Global / module-level variable: `let p_var` has no symbol
+- [x] DA02 Constructor-promoted field: `constructor(private x)` / `readonly x` → `field`
+- [x] DA03 Constant (module or global): module-level `const X = 1` → `constant`
+- [x] DA04 Global / module-level variable: module-level `let`/`var` → `variable`
 - [ ] DA05 Local variable: `find_symbol("local_value")` returns no symbol
 - [ ] DA06 Parameter: `find_symbol("inner")` returns no symbol
 **Relations**
 
 - [x] RE01 Calls: `p_m2` → `p_m`
 - [x] RE02 Constructor call: `new P_Base(1)` → `calls P_Base`
-- [~] RE03 Super / base constructor call: `super.p_m()` is indexed; `super()` itself produces no call relation
+- [x] RE03 Super / base constructor call: `super(…)` gives `calls Base` for the base a class declaration names; none for a mixin call or inside a class expression
 - [x] RE04 Imports: `import` → `imports`
 - [x] RE05 Class extends class: `P_Sub` extends `P_Base`
 - [x] RE06 Implements interface / trait: `P_Sub` implements `P_Iface`
 - [x] RE07 Interface extends interface / supertrait: `P_Iface` extends `P_Ext`
-- [ ] RE08 Decorator / annotation / attribute: `@Component` gives no reference
+- [x] RE08 Decorator / annotation / attribute: `@f`, `@x.f` and `@f(…)` give `calls f` from the decorated class, field or method (a parameter's from its method)
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -270,7 +274,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Java (`java`)
 
-Done 22 · Partial 6 · Not done 9 · Not verified 0 · Not applicable 15
+Done 27 · Partial 4 · Not done 6 · Not verified 0 · Not applicable 15
 
 **Functions and methods**
 
@@ -287,7 +291,7 @@ Done 22 · Partial 6 · Not done 9 · Not verified 0 · Not applicable 15
 - [x] TY06 Interface members: `p_im` in interface
 - [x] TY08 Enum: `enum`
 - [x] TY09 Enum members: enum constants as `field`
-- [~] TY10 Record / data class: `record` is a `class`; `p_comp` has no symbol
+- [x] TY10 Record / data class: `record` is a `class`; each component is its implicit accessor `method`
 - [x] TY11 Nested / inner class: static and inner
 - [~] TY12 Anonymous class: method inside a method → enclosing class; field initializer → no symbol
 - [~] TY16 Module / namespace / package: `package` has no symbol
@@ -301,12 +305,12 @@ Done 22 · Partial 6 · Not done 9 · Not verified 0 · Not applicable 15
 
 - [x] RE01 Calls: `p_use` → `p_m`
 - [x] RE02 Constructor call: `new P_Box(1)` → `calls P_Box`
-- [ ] RE03 Super / base constructor call: `super()` and `this()` give no relation
+- [x] RE03 Super / base constructor call: `this(…)` and `super(…)` give `calls` restricted to a constructor declared in the enclosing class or its superclass; `super()` without `extends` (`Object`) or on a JDK-imported superclass is external
 - [x] RE04 Imports: `import java.util.List` → `imports`
 - [x] RE05 Class extends class: `extends P_Base` (ambiguous: same-name file module)
 - [x] RE06 Implements interface / trait: `implements P_Iface` (ambiguous: same-name file module)
-- [ ] RE07 Interface extends interface / supertrait: `interface P_Iface extends P_Ext2` gives no relation
-- [ ] RE08 Decorator / annotation / attribute: `@Override` gives no reference
+- [x] RE07 Interface extends interface / supertrait: `interface B extends A` → `extends`, to an `interface` only
+- [x] RE08 Decorator / annotation / attribute: `@Entity` → `references Entity`, to an annotation type only
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -320,7 +324,7 @@ Done 22 · Partial 6 · Not done 9 · Not verified 0 · Not applicable 15
 - [ ] QU02 Repeated code: listed under `unsupported_languages`
 **Structure**
 
-- [~] ST01 Import graph: local imports resolve, but each import duplicates resolved/ambiguous rows; JDK import duplicates external/unresolved rows
+- [x] ST01 Import graph: `get_dependency_graph`
 - [x] ST02 File outline: `get_file_skeleton` returned the top-level interface/class outline
 - [ ] ST03 Declared dependencies: `pom.xml` not counted
 
@@ -346,7 +350,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Kotlin (`kotlin`)
 
-Done 26 · Partial 7 · Not done 12 · Not verified 0 · Not applicable 7
+Done 30 · Partial 8 · Not done 7 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -371,26 +375,26 @@ Done 26 · Partial 7 · Not done 12 · Not verified 0 · Not applicable 7
 - [x] TY11 Nested / inner class: `P_Nested`, `P_In`
 - [~] TY12 Anonymous class: `object : P_Abs()` gives no class; its function has no parent
 - [~] TY14 Singleton / companion object: `companion object` has no symbol; `P_COMP` is a `field` of the outer class
-- [ ] TY15 Type alias: `typealias` has no symbol
+- [x] TY15 Type alias: `typealias` is a `type_alias`
 - [x] TY16 Module / namespace / package: `package` module
 **Fields, constants and variables**
 
 - [x] DA01 Field / instance attribute: `var p_prop`
 - [x] DA02 Constructor-promoted field: `val p_promo` → `field`
-- [ ] DA03 Constant (module or global): top-level `const val` has no symbol
-- [ ] DA04 Global / module-level variable: top-level `val` has no symbol
+- [~] DA03 Constant (module or global): top-level `const val` is a `constant`; inside a companion or object it is a `field`
+- [x] DA04 Global / module-level variable: top-level `val`/`var` is a `variable`, each name of `val (a, b) = …` too; an extension property `val T.p` is a `field` of `T`
 - [ ] DA05 Local variable: `find_symbol(local)` returns no symbol (MCT probe)
 - [ ] DA06 Parameter: `find_symbol(input)` returns no symbol (MCT probe)
 **Relations**
 
 - [x] RE01 Calls: `useIt` calls `mx`
 - [x] RE02 Constructor call: both `P_Sub()` and `P_Sub(1)` are calls
-- [ ] RE03 Super / base constructor call: secondary `this()` delegation emits no call relation
+- [~] RE03 Super / base constructor call: `: Base(4)` in a class or object header, and `constructor(…) : super(…)` when the header names one supertype without `()`, give `calls Base` from the class (a constructor is no symbol), restricted to a class; `super()` with no supertype is external (`Any`). None for `this(…)` (the class calling itself) or for `super(…)` with several supertypes
 - [~] RE04 Imports: alias `as mx` also appears as an external import
 - [x] RE05 Class extends class: `P_Sub` extends `P_Base`
 - [x] RE06 Implements interface / trait: `P_Sub` implements `P_Iface`
-- [~] RE07 Interface extends interface / supertrait: `interface P_Iface : P_Ext` emits `implements`
-- [ ] RE08 Decorator / annotation / attribute: `@Deprecated` gives no reference
+- [x] RE07 Interface extends interface / supertrait: `interface B : A` → `extends`, to an `interface` only
+- [x] RE08 Decorator / annotation / attribute: `@Marker` → `references Marker`, to a class only
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -422,7 +426,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C# (`csharp`)
 
-Done 25 · Partial 10 · Not done 10 · Not verified 0 · Not applicable 7
+Done 27 · Partial 10 · Not done 8 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -461,18 +465,18 @@ Done 25 · Partial 10 · Not done 10 · Not verified 0 · Not applicable 7
 
 - [x] RE01 Calls: `Go` → `P_HelperFn`; `P_Use` → `P_M`
 - [~] RE02 Constructor call: `new Outer()` is indexed but resolves ambiguously to the class and constructor
-- [ ] RE03 Super / base constructor call: `: base()` gives no call
+- [x] RE03 Super / base constructor call: `: this(…)` and `: base(…)` give `calls` restricted to a constructor declared in the enclosing type or in the base list's first entry; `: base()` with no base list (`object`) is external
 - [x] RE04 Imports: `using System;` parsed as an import relation (MCT probe)
 - [~] RE05 Class extends class: heuristic; ambiguous when a constructor shares the class name
 - [~] RE06 Implements interface / trait: heuristic: `IP_Iface` → `implements`
 - [x] RE07 Interface extends interface / supertrait: `IP_Iface2 : IP_Ext2` → `extends`
-- [ ] RE08 Decorator / annotation / attribute: `[Obsolete]` produces no reference (MCT probe)
+- [x] RE08 Decorator / annotation / attribute: `references XAttribute`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
 - [x] SE02 Callers and callees: `find_callers P_M`
 - [~] SE03 Every use: static class used only as a qualifier gets no reference
-- [x] SE04 Blast radius and context: `build_context_pack`
+- [~] SE04 Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] SE05 Exact text in strings: literal not collected
 **Code quality**
 
@@ -480,7 +484,7 @@ Done 25 · Partial 10 · Not done 10 · Not verified 0 · Not applicable 7
 - [ ] QU02 Repeated code: listed under `unsupported_languages`
 **Structure**
 
-- [~] ST01 Import graph: `using Audit` is recorded as an ambiguous import to two file modules
+- [x] ST01 Import graph: `get_dependency_graph`
 - [x] ST02 File outline: `get_file_skeleton(src/Audit.cs)` returned the top-level outline
 - [ ] ST03 Declared dependencies: `.csproj` `PackageReference` not read
 
@@ -498,7 +502,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C++ (`cpp`)
 
-Done 22 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 14
+Done 25 · Partial 7 · Not done 6 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -513,7 +517,7 @@ Done 22 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 14
 **Types and object-oriented programming**
 
 - [x] TY01 Class: `class`
-- [~] TY02 Abstract class: pure-virtual `Base` is indexed as `struct`; abstractness is not represented
+- [x] TY02 Abstract class: `class`
 - [x] TY03 Struct: `struct`
 - [~] TY04 Union: `P_U` indexed as `struct`
 - [x] TY08 Enum: `enum` and `enum class`
@@ -535,13 +539,13 @@ Done 22 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 14
 - [~] RE02 Constructor call: `new P_Sub()` gives no relation; `X()` form not exercised
 - [~] RE03 Super / base constructor call: `P_Sub() : P_Base()` gives `calls P_Base` when the class and its base are defined in the same file
 - [x] RE04 Imports: `#include` → `imports`
-- [~] RE05 Class extends class: ambiguous when the constructor shares the class name
+- [x] RE05 Class extends class: every base, any access, as `extends`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
 - [x] SE02 Callers and callees: `find_calls p_use`
 - [~] SE03 Every use: `P_St s;` gives no reference
-- [x] SE04 Blast radius and context: `build_context_pack(helper)` returned its caller
+- [~] SE04 Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] SE05 Exact text in strings: literal not collected
 **Code quality**
 
@@ -574,7 +578,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Go (`go`)
 
-Done 14 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 23
+Done 18 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 23
 
 **Functions and methods**
 
@@ -608,7 +612,7 @@ Done 14 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 23
 - [x] SE01 Find a definition: `list_symbols`
 - [x] SE02 Callers and callees: `main.go` calls `P_Helper`
 - [~] SE03 Every use: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
-- [x] SE04 Blast radius and context: `build_context_pack(P_Helper)` returned the cross-file caller
+- [~] SE04 Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] SE05 Exact text in strings: literal not collected
 **Code quality**
 
@@ -616,7 +620,7 @@ Done 14 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 23
 - [ ] QU02 Repeated code: listed under `unsupported_languages`
 **Structure**
 
-- [x] ST01 Import graph: edge only, no external (2026-11 check)
+- [~] ST01 Import graph: `get_dependency_graph`: edges correct; the module import path is also listed as external
 - [x] ST02 File outline: braces collapsed
 - [x] ST03 Declared dependencies: `go.mod` counted
 
@@ -650,7 +654,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PHP (`php`)
 
-Done 30 · Partial 3 · Not done 7 · Not verified 0 · Not applicable 12
+Done 30 · Partial 4 · Not done 6 · Not verified 0 · Not applicable 12
 
 **Functions and methods**
 
@@ -671,7 +675,7 @@ Done 30 · Partial 3 · Not done 7 · Not verified 0 · Not applicable 12
 - [x] TY08 Enum: `enum`
 - [x] TY09 Enum members: `case` as `field`
 - — TY11 Nested / inner class: PHP has no nested class syntax; the [nested-class RFC was declined](https://wiki.php.net/rfc/short-and-inner-classes)
-- [ ] TY12 Anonymous class: `new class {}` gives no symbols
+- [~] TY12 Anonymous class: `new class {}` gives no class or member symbols, except an anonymous Laravel `Migration` (`up`/`down` as methods of the file module)
 - [~] TY16 Module / namespace / package: `namespace` is not a symbol
 **Fields, constants and variables**
 
@@ -726,7 +730,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Lua (`lua`)
 
-Done 14 · Partial 5 · Not done 5 · Not verified 0 · Not applicable 28
+Done 15 · Partial 6 · Not done 3 · Not verified 0 · Not applicable 28
 
 **Functions and methods**
 
@@ -734,15 +738,15 @@ Done 14 · Partial 5 · Not done 5 · Not verified 0 · Not applicable 28
 - [~] FN02 Nested function: `nested` is indexed and callable, but has no parent association
 - [x] FN03 Lambda or closure assigned to a name: `local p_lam = function`
 - [x] FN04 Method: `M.p_mod` and `M:p_meth` as `method`
-- [~] FN07 Operator overload: `__add` is indexed as a method; no operator relation is emitted
+- [x] FN07 Operator overload: `Vec.__add = function(a, b)` → `method` of `Vec`
 **Types and object-oriented programming**
 
-- [x] TY01 Class: `local Widget = setmetatable({}, …)` → `class` (2026-11 record; the 2026-10 record said no symbol)
+- [~] TY01 Class: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it; a nested table (`W.Widget.__index = W.Widget`) stays `module`
 - [x] TY16 Module / namespace / package: file `module` and table `module`
 **Fields, constants and variables**
 
-- [ ] DA01 Field / instance attribute: `self.x` produces no field symbol (MCT probe)
-- [~] DA04 Global / module-level variable: global `MSG = …` → `variable`; top-level `local` not exercised
+- [x] DA01 Field / instance attribute: a file-level `M.x = …` and the first `self.x = …` in a colon method `T:m()` → `field` of `M` / `T`
+- [x] DA04 Global / module-level variable: globals and top-level `local` → `variable`, `<const>` → `constant`
 - [x] DA05 Local variable: `local_value` is indexed under `method`
 - [ ] DA06 Parameter: `find_symbol(input)` returns no symbol (MCT probe)
 **Relations**
@@ -754,8 +758,8 @@ Done 14 · Partial 5 · Not done 5 · Not verified 0 · Not applicable 28
 
 - [x] SE01 Find a definition: `list_symbols`
 - [x] SE02 Callers and callees: `find_calls`
-- [ ] SE03 Every use: reference to table-based `Child` is not indexed (MCT probe)
-- [x] SE04 Blast radius and context: `build_context_pack(method)` returned its caller
+- [~] SE03 Every use: `find_references`: a nested table class (`W.Widget`) used only as a qualifier (`W.Widget.make()`) gets no reference; the call to `make` resolves
+- [~] SE04 Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
 - [ ] SE05 Exact text in strings: literal not collected
 **Code quality**
 
@@ -802,7 +806,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Bash (`bash`)
 
-Done 12 · Partial 2 · Not done 3 · Not verified 0 · Not applicable 35
+Done 11 · Partial 3 · Not done 3 · Not verified 0 · Not applicable 35
 
 **Functions and methods**
 
@@ -834,7 +838,7 @@ Done 12 · Partial 2 · Not done 3 · Not verified 0 · Not applicable 35
 **Structure**
 
 - [~] ST01 Import graph: resolved `source` path also listed as external
-- [x] ST02 File outline: `get_file_skeleton(src/audit.sh)` returned assignments and functions
+- [~] ST02 File outline: `get_file_skeleton`: declaration line only; a one-line function is shown whole, then a placeholder
 - — ST03 Declared dependencies: Bash scripts have no package manifest
 
 **Not applicable:**
@@ -878,11 +882,11 @@ Markup features (MK) do not apply to code languages.
 
 ## PowerShell (`powershell`)
 
-Done 10 · Partial 4 · Not done 13 · Not verified 0 · Not applicable 25
+Done 11 · Partial 3 · Not done 13 · Not verified 0 · Not applicable 25
 
 **Functions and methods**
 
-- [~] FN01 Top-level function: multi-line works; one-line `function f { param(...) … }` is a syntax error
+- [x] FN01 Top-level function: `function`
 - [x] FN02 Nested function: parent is the outer function
 - [~] FN03 Lambda or closure assigned to a name: top-level `$f = { … }` is a `variable`
 - [ ] FN04 Method: PowerShell classes are not indexed (corpus test)
@@ -956,7 +960,7 @@ Markup features (MK) do not apply to code languages.
 
 ### HTML (`html`)
 
-Done 3 · Partial 1 · Not done 3 · Not verified 0 · Not applicable 0
+Done 4 · Partial 1 · Not done 7 · Not verified 0 · Not applicable 4
 
 - [x] MK01 Find a definition: by `id`
 - [x] MK02 Find references: `#id` and `.class` of an identified element
@@ -989,7 +993,7 @@ Search, quality and structure features that apply to markup are the MK features 
 
 ### CSS (`css`)
 
-Done 3 · Partial 1 · Not done 3 · Not verified 0 · Not applicable 0
+Done 6 · Partial 1 · Not done 7 · Not verified 0 · Not applicable 4
 
 - [x] MK01 Find a definition: by selector
 - [x] MK02 Find references: HTML class and ID selectors resolve to their CSS elements (HTML integration tests)
@@ -1024,7 +1028,7 @@ Search, quality and structure features that apply to markup are the MK features 
 
 ### XML (`xml`)
 
-Done 2 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 0
+Done 3 · Partial 0 · Not done 8 · Not verified 0 · Not applicable 4
 
 - [x] MK01 Find a definition: by `id`, `name` or `Name`
 - [ ] MK02 Find references: XML emits no relations (confirmed by corpus and parse tests)
@@ -1056,7 +1060,7 @@ Search, quality and structure features that apply to markup are the MK features 
 
 ### XAML (`xaml`)
 
-Done 3 · Partial 1 · Not done 3 · Not verified 0 · Not applicable 0
+Done 6 · Partial 1 · Not done 6 · Not verified 0 · Not applicable 4
 
 - [x] MK01 Find a definition: by `x:Name`
 - [x] MK02 Find references: event handler names
@@ -1090,7 +1094,7 @@ Search, quality and structure features that apply to markup are the MK features 
 
 ### Markdown (`markdown`)
 
-Done 3 · Partial 1 · Not done 3 · Not verified 0 · Not applicable 0
+Done 9 · Partial 1 · Not done 4 · Not verified 0 · Not applicable 4
 
 - [x] MK01 Find a definition: notes and headings
 - [x] MK02 Find references: wiki links and anchors
