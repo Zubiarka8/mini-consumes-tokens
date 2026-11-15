@@ -686,6 +686,14 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] Kotlin: a local `fun` has the function or method it is declared in
+      as `parent` (it stays a `function`; a member keeps its type). Corpus:
+      5 symbols renamed (`packingSlip::rule`, `recomputeReorderPoint::stdDev`…),
+      none added or removed. Tests updated on purpose: `corpus.rs` and
+      `parse.rs` pinned "no parent", `overrides.rs` rendered the anonymous
+      `object : Runnable`'s `run` with an empty parent (now `start`).
+      Kotlin constructors, companion objects and anonymous classes stay as
+      decided (see the `[!]` items).
 - [x] Java: a field initializer is walked like an initializer block, so
       the calls and anonymous classes in `Runnable r = new Runnable() { … };`
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
