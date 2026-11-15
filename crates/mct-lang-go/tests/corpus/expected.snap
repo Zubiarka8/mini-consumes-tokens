@@ -1,4 +1,4 @@
-# language=go files=7 symbols=463 relations=1298 name_matched_across_files=380
+# language=go files=7 symbols=463 relations=1305 name_matched_across_files=384
 
 == cmd/ledger/main.go (342 lines)
 S 1-342 module main
@@ -619,6 +619,7 @@ R 122:5 calls Error::Error -> WriteString
 R 122:25 calls Error::Error -> Error
 R 124:11 calls Error::Error -> String
 R 132:17 calls Error::Is -> sentinelFor
+R 135:24 references Error::Is -> Error
 R 143:50 calls Error::Temporary -> Retryable
 R 146:20 references ledger::newError -> ErrorCode
 R 146:50 references ledger::newError -> AccountID (name-matched: ledger/account.go)
@@ -1199,6 +1200,7 @@ R 327:7 references Report::Summarize -> Summary
 R 327:25 calls Report::Summarize -> len
 R 327:44 calls Report::Summarize -> make
 R 329:43 calls Report::Summarize -> Add (name-matched: ledger/money.go)
+R 331:25 references Report::Summarize -> MemoryStore (name-matched: ledger/store.go)
 R 332:26 calls Report::Summarize -> Len (name-matched: ledger/errors.go)
 R 338:27 references Summary::Format -> Writer
 R 339:6 calls Summary::Format -> Fprintf
@@ -1446,11 +1448,16 @@ R 348:50 references Service::convert -> Money (name-matched: ledger/money.go)
 R 350:10 references Service::convert -> Money (name-matched: ledger/money.go)
 R 350:19 calls Service::convert -> Invalid (name-matched: ledger/errors.go)
 R 352:21 calls Service::convert -> Convert (name-matched: ledger/money.go)
+R 360:8 references ledger::Label -> Account
 R 361:14 calls ledger::Label -> Sprintf
+R 362:8 references ledger::Label -> Transaction (name-matched: ledger/account.go)
 R 363:14 calls ledger::Label -> Sprintf
+R 364:7 references ledger::Label -> Entry (name-matched: ledger/account.go)
 R 365:14 calls ledger::Label -> Sprintf
+R 366:7 references ledger::Label -> Money (name-matched: ledger/money.go)
 R 367:12 calls ledger::Label -> String (name-matched: ledger/account.go)
 R 369:24 calls ledger::Label -> Error (name-matched: ledger/errors.go)
+R 370:7 references ledger::Label -> Stringer
 R 371:12 calls ledger::Label -> String (name-matched: ledger/account.go)
 R 373:14 calls ledger::Label -> Sprintf
 R 380:12 calls Service::Close -> Close
