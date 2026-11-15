@@ -250,10 +250,17 @@ impl<'a> Walker<'a> {
             }
             // A local function (in a method body or among top-level
             // statements) is a plain function with no owning type; its
-            // calls attach to it, not to the enclosing method.
+            // calls attach to it, not to the enclosing method. It belongs
+            // to the method or local function it is declared in.
             "local_function_statement" => {
                 let name = self.field_text(node, "name");
-                let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
+                let enclosing = self
+                    .symbols
+                    .iter()
+                    .find(|s| s.id == owner)
+                    .filter(|s| matches!(s.kind, SymbolKind::Method | SymbolKind::Function))
+                    .map(|s| s.name.clone());
+                let id = self.push_symbol(name, SymbolKind::Function, location(node), enclosing);
                 self.details
                     .push(details::method_detail(node, id, self.source));
                 self.visit_callable(node, id, None, depth);

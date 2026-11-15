@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 80% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
-| C# | 79% | 34 | 55% | 10 | 0 |
+| C# | 81% | 34 | 55% | 10 | 0 |
 | C++ | 86% | 28 | 50% | 10 | 0 |
 | Go | 75% | 18 | 60% | 10 | 0 |
 | PHP | 85% | 30 | 65% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 81% | 70% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
-| C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
+| C# | 89% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
 | PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
@@ -1094,7 +1094,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Functions and methods**
 
-- [~] Nested function (named, inside a function): local function as `function` with no parent
+- [x] Nested function (named, inside a function): local function as `function`, its parent the enclosing method or local function
 - [ ] Lambda / closure assigned to a name: no symbol
 - [x] Method: `method`
 - [x] Constructor: `method` named after the class, static constructor too

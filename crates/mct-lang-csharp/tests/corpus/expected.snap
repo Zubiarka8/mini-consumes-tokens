@@ -84,7 +84,7 @@ S 277-277 method Entry::Render
 S 280-290 class ErrorCatalog::Http
 S 282-289 method Http::StatusFor
 S 292-305 method ErrorCatalog::Build
-S 295-296 function Add
+S 295-296 function Build::Add
 S 307-314 method ErrorCatalog::Explain
 S 316-321 method ErrorCatalog::SeverityOf
 S 325-378 class Warehouse.Errors::RateLimiter
@@ -164,7 +164,7 @@ R 259:27 calls ErrorCollector::Require -> IsNullOrWhiteSpace
 R 265:27 calls ErrorCollector::ThrowIfAny -> ValidationException
 R 273:72 calls ErrorCatalog::Entries -> Build
 R 294:31 calls ErrorCatalog::Build -> Dictionary
-R 296:37 calls Add -> Entry
+R 296:37 calls Build::Add -> Entry
 R 298:13 calls ErrorCatalog::Build -> Add
 R 299:13 calls ErrorCatalog::Build -> Add
 R 300:13 calls ErrorCatalog::Build -> Add
@@ -617,7 +617,7 @@ S 138-138 field Renderers::Names
 S 140-176 class Renderers::TextRenderer
 S 142-142 field TextRenderer::Name
 S 144-162 method TextRenderer::Render
-S 157-161 function WriteRow
+S 157-161 function Render::WriteRow
 S 164-175 method TextRenderer::Widths
 S 178-194 class Renderers::CsvRenderer
 S 180-180 field CsvRenderer::_separator
@@ -732,11 +732,11 @@ R 150:41 calls TextRenderer::Render -> Join
 R 150:60 calls TextRenderer::Render -> Select
 R 153:21 calls TextRenderer::Render -> WriteRow
 R 155:24 calls TextRenderer::Render -> WriteLine
-R 159:40 calls WriteRow -> Select
-R 159:67 calls WriteRow -> Pad
-R 159:95 calls WriteRow -> IsNumeric
-R 160:28 calls WriteRow -> WriteLine
-R 160:45 calls WriteRow -> Join
+R 159:40 calls Render::WriteRow -> Select
+R 159:67 calls Render::WriteRow -> Pad
+R 159:95 calls Render::WriteRow -> IsNumeric
+R 160:28 calls Render::WriteRow -> WriteLine
+R 160:45 calls Render::WriteRow -> Join
 R 166:60 calls TextRenderer::Widths -> ToArray
 R 166:38 calls TextRenderer::Widths -> Select
 R 171:42 calls TextRenderer::Widths -> Max
@@ -1007,7 +1007,7 @@ S 145-155 method OrderService::OrderService
 S 157-157 field OrderService::PickingDeadline
 S 159-176 method OrderService::DraftAsync
 S 178-211 method OrderService::PlaceAsync
-S 203-210 function Rollback
+S 203-210 function PlaceAsync::Rollback
 S 213-230 method OrderService::PickAsync
 S 232-246 method OrderService::PickLineAsync
 S 248-266 method OrderService::CancelAsync
@@ -1108,8 +1108,8 @@ R 193:27 calls OrderService::PlaceAsync -> SaveAsync (name-matched: Warehouse/Re
 R 194:23 calls OrderService::PlaceAsync -> Notify
 R 199:13 calls OrderService::PlaceAsync -> Rollback
 R 200:34 calls OrderService::PlaceAsync -> Fail (name-matched: Warehouse/Errors.cs)
-R 207:22 calls Rollback -> Release (name-matched: Warehouse/Models.cs)
-R 209:23 calls Rollback -> Notify
+R 207:22 calls PlaceAsync::Rollback -> Release (name-matched: Warehouse/Models.cs)
+R 209:23 calls PlaceAsync::Rollback -> Notify
 R 215:35 calls OrderService::PickAsync -> GetAsync (name-matched: Warehouse/Repository.cs)
 R 217:15 calls OrderService::PickAsync -> MoveTo (name-matched: Warehouse/Models.cs)
 R 218:31 calls OrderService::PickAsync -> StartNew

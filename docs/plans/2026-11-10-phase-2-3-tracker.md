@@ -389,6 +389,18 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] C# local functions: a `local_function_statement` has the method
+          or local function it is declared in as `parent` (a lambda in
+          between is transparent; a constructor is a method named after its
+          class). It stays a `function`. Test: `tests/local_functions.rs`;
+          `corpus.rs` pinned `Rollback` with no parent and now expects
+          `PlaceAsync`. Corpus: 3 local functions gain a `Build::`/`Render::`/
+          `PlaceAsync::` prefix, no relation changes. Repository snapshot (16
+          C# files, 496 symbols): the 28 calls to 5 local-function names
+          resolve identically before and after; dead code 0 -> 0. C# scores
+          79% -> 81% and 83% -> 89%. PHP is left out on purpose: a PHP
+          function declared inside another is global once the outer runs, so
+          the outer is not its owner.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
           `\define`) with a literal name, single-quoted or double-quoted
           without interpolation, declares a `constant` with no parent,

@@ -131,7 +131,11 @@ fn local_functions_are_functions_with_their_own_calls() {
     use SymbolKind::Function;
     let c = corpus();
     assert_eq!(lines("Services.cs", "Rollback", Function), (203, Some(210)));
-    assert_eq!(parent("Services.cs", "Rollback", Function), None);
+    // A local function belongs to the method it is declared in.
+    assert_eq!(
+        parent("Services.cs", "Rollback", Function),
+        Some("PlaceAsync")
+    );
     c.relation("Services.cs", "Rollback", RelationKind::Calls, "Release");
     c.relation("Reports.cs", "WriteRow", RelationKind::Calls, "Pad");
     // Local functions among top-level statements.
