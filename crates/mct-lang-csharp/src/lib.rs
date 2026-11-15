@@ -11,6 +11,7 @@ use tree_sitter::{Node, Parser};
 
 mod aliases;
 mod details;
+mod literals;
 mod receivers;
 
 pub struct CSharpParser;
@@ -60,7 +61,9 @@ impl LanguageParser for CSharpParser {
         module_location.end_line = Some(walker.file_end);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 

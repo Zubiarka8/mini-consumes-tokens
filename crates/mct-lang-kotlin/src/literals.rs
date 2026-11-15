@@ -15,6 +15,7 @@ const GRAMMAR: LiteralGrammar = LiteralGrammar {
     holes: &["interpolation"],
     concatenations: &[],
     statements: &[],
+    opaque: &[],
     dollar_names: true,
 };
 
@@ -24,6 +25,7 @@ pub(crate) fn collect(root: Node, source: &str) -> Vec<StringLiteral> {
         Some(StringStyle {
             raw: string.kind() == "multiline_string_literal",
             doubled_braces: false,
+            doubled_quotes: false,
         })
     })
 }
