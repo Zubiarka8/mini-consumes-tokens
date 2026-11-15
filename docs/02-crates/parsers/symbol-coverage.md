@@ -184,8 +184,8 @@ round to the nearest whole percent, with halves rounded up.
 | C# | 79% | 34 | 55% | 10 | 0 |
 | C++ | 86% | 28 | 50% | 10 | 0 |
 | Go | 75% | 18 | 60% | 10 | 0 |
-| PHP | 85% | 30 | 65% | 10 | 0 |
-| Lua | 86% | 14 | 60% | 10 | 0 |
+| PHP | 85% | 30 | 75% | 10 | 0 |
+| Lua | 86% | 14 | 70% | 10 | 0 |
 | Bash | 81% | 8 | 60% | 10 | 0 |
 | PowerShell | 38% | 17 | 60% | 10 | 0 |
 
@@ -280,8 +280,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
 | C++ | 88% | 94% | 67% | 90% | 60% | 25% | 50% |
 | Go | 67% | 90% | 60% | 80% | 60% | 25% | 83% |
-| PHP | 93% | 89% | 50% | 100% | 80% | 50% | 50% |
-| Lua | 90% | 75% | 75% | 100% | 60% | 75% | 50% |
+| PHP | 93% | 89% | 50% | 100% | 80% | 50% | 83% |
+| Lua | 90% | 75% | 75% | 100% | 60% | 75% | 83% |
 | Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
 | PowerShell | 42% | 25% | 25% | 67% | 80% | 50% | 33% |
 
@@ -707,7 +707,7 @@ languages:
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
 | String literals for `hybrid_search` `"quoted"` queries | Rust, Markdown | Only `mct-lang-rust` and `mct-lang-md` fill `ParsedFile::literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
-| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
+| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go, PHP, Lua | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
 Dead code (`find_dead_code`, `mct-cli dead-code`) uses the same rules for
 every language (`crates/mct-index/src/dead_code.rs`). The rules decide most
@@ -1330,7 +1330,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [~] Import graph: `get_dependency_graph`: edges correct; the resolved `require_once` path is also listed as external
 - [x] File outline: `get_file_skeleton`
-- [ ] Declared dependencies in `get_indexing_status`
+- [x] Declared dependencies in `get_indexing_status`: `composer.json` `require`/`require-dev`; the `php` platform entry is skipped
 
 ### Lua checklist (`lua`)
 
@@ -1377,7 +1377,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Import graph: `get_dependency_graph`
 - [~] File outline: `get_file_skeleton`: declaration line only; a one-line function is shown whole, then a placeholder
-- [ ] Declared dependencies in `get_indexing_status`
+- [x] Declared dependencies in `get_indexing_status`: LuaRocks `.rockspec` `dependencies`; the `lua` interpreter entry is skipped
 
 ### Bash checklist (`bash`)
 
