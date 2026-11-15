@@ -514,6 +514,30 @@ From `rules.md` and the two messages:
           symbols, relations unchanged. Repository snapshot (JS/TS, 24397
           relations): 11 fields added, no relation changed. Dead code
           123 -> 123.
+    - [x] TS interface members: a method signature (`total(): number`) is
+          a `method` and a property signature (`readonly id: string`) a
+          `field` of the interface, each with its signature; overloads give
+          the first one only, and a call, construct or index signature, a
+          computed or numeric name or a member of a nested object type
+          declares none. A value typed by an interface (`cart: Cart`) now
+          reaches the signature in `cart.total()`. So that the new names
+          don't widen name matches: a bare `f()` and a call on a name that
+          is no local (`performance.now()`) or on `this` outside a class set
+          `not_field`, and a bare call to a local (`onSaved()` on a
+          destructured parameter) can reach a function of the file only,
+          never a method. Test: `tests/interface_members.rs`. Corpus:
+          318 -> 402 symbols, relations unchanged in number. Repository
+          snapshot (JS/TS, 24397 relations): 225 fields and 20 methods
+          added; 32 ambiguous and 2 resolved calls, all `x.now()` or
+          `Array.from` that had matched a corpus method, are now
+          unresolved; 4 unresolved become resolved (`bridge.source`,
+          `bridge.cancel`, `StockSource.levels`, `ExchangeRates.rate`, each
+          on a value of the interface's type); 50 unresolved member calls
+          on an untyped local (`bridge.save()` in the bundles and tests)
+          become ambiguous with the interface method; a private `this.#e()`
+          in `notes.js` resolves to its same-file method instead of being
+          ambiguous with a field of `review.js`; 130 ambiguous calls keep
+          their status with a changed candidate list. Dead code 123 -> 123.
     - [x] JS/TS module-level bindings: `const X = 1` is a `constant`,
           `let`/`var` a `variable` (exported or not, each name of
           `let a = 0, b`), with no parent and the declaration without its

@@ -125,8 +125,10 @@ impl<'a> Walker<'a> {
     /// declared type, or a member call when the receiver is a local or an
     /// expression of unproven type. `this.m()` is qualified by the enclosing
     /// class only when its body declares `m`, as a method or a field
-    /// (otherwise `m` may be inherited), and a name that is no local is left
-    /// as it was.
+    /// (otherwise `m` may be inherited). A name that is no local (a
+    /// top-level object, an undeclared global) has no proven type, so a
+    /// same-named field elsewhere is only a name coincidence: the call rules
+    /// out a field, as Python's does (ADR-036).
     fn push_receiver(&mut self, object: Node, method: &str) {
         let this_class = self.this_class.and_then(|i| self.classes.get(i));
         let (qualifier, member) = match object.kind() {
@@ -136,7 +138,19 @@ impl<'a> Walker<'a> {
                 {
                     (Some(class.name.clone()), false)
                 }
-                _ => return,
+                // Outside a class (an object-literal method, a plugin hook)
+                // `this` is whatever the caller binds, so a `this.f()` call
+                // proves no field of a type; the name still decides.
+                None => {
+                    self.relation_targets.push(RelationTarget {
+                        relation: self.relations.len(),
+                        not_field: true,
+                        ..Default::default()
+                    });
+                    return;
+                }
+                // A member the class inherits: the call keeps its name.
+                Some(_) => return,
             },
             "super" => return,
             "identifier" => {
@@ -145,7 +159,14 @@ impl<'a> Walker<'a> {
                     Some(Some(ty)) => (Some(ty.clone()), false),
                     Some(None) => (None, true),
                     None if self.bound.contains(name) => (None, true),
-                    None => return,
+                    None => {
+                        self.relation_targets.push(RelationTarget {
+                            relation: self.relations.len(),
+                            not_field: true,
+                            ..Default::default()
+                        });
+                        return;
+                    }
                 }
             }
             "member_expression" => {
@@ -390,6 +411,40 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// `interface I { f: T; m(): U }`: a method signature is a `method` of
+    /// `I` and a property signature a `field`, each declared once (the first
+    /// overload). Only direct members count: a member of a nested object type
+    /// (`opts: { x: number }`) is not one of `I`'s. Their types are walked as
+    /// before, from `owner`.
+    fn visit_interface_member(&mut self, node: Node, owner: SymbolId, interface: &str, depth: u32) {
+        let kind = match node.kind() {
+            "method_signature" => SymbolKind::Method,
+            _ => SymbolKind::Field,
+        };
+        let name = node
+            .child_by_field_name("name")
+            .and_then(|n| member_name(n, self.source));
+        if let Some(name) = name {
+            let declared = self.symbols.iter().any(|s| {
+                s.name == name && s.kind == kind && s.parent.as_deref() == Some(interface)
+            });
+            if !declared {
+                let id = self.push_symbol(
+                    name.to_string(),
+                    kind,
+                    location(node),
+                    Some(interface.to_string()),
+                );
+                let detail = match kind {
+                    SymbolKind::Method => details::function_detail(node, node, id, self.source),
+                    _ => details::field_detail(node, id, self.source),
+                };
+                self.details.push(detail);
+            }
+        }
+        self.visit_children(node, owner, Some(interface), depth + 1);
+    }
+
     /// `enum E { A, B = f() }`: each member is a `field` of `E`, the property
     /// `E.A` the enum object has at run time (as a Java, Kotlin or PHP enum
     /// constant is a field), and a member's initializer is visited with the
@@ -409,15 +464,7 @@ impl<'a> Walker<'a> {
                 ),
                 _ => (Some(member), None),
             };
-            let name = name_node.and_then(|n| match n.kind() {
-                "property_identifier" => Some(text(n, self.source)),
-                "string" => n
-                    .named_child(0)
-                    .filter(|f| f.kind() == "string_fragment")
-                    .map(|f| text(f, self.source)),
-                _ => None,
-            });
-            if let Some(name) = name {
+            if let Some(name) = name_node.and_then(|n| member_name(n, self.source)) {
                 self.push_symbol(
                     name.to_string(),
                     SymbolKind::Field,
@@ -489,6 +536,13 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
+            }
+            "method_signature" | "property_signature"
+                if node.parent().is_some_and(|p| p.kind() == "interface_body") =>
+            {
+                if let Some(interface) = type_name {
+                    self.visit_interface_member(node, owner, interface, depth);
+                }
             }
             "interface_declaration" => {
                 let name = node
@@ -896,6 +950,8 @@ impl<'a> Walker<'a> {
     }
 
     /// `calls f` for a callee written as a bare name, `f`.
+    /// A bare name is never a property (JavaScript has no implicit `this`),
+    /// so a field is never its target.
     fn push_identifier_call(&mut self, function: Node, owner: SymbolId) {
         let evidence = self.relation_targets.len();
         self.mark_global(function, false);
@@ -907,8 +963,19 @@ impl<'a> Walker<'a> {
             name.to_string(),
             location(function),
         );
-        if self.relation_targets.len() == evidence && self.relations.len() > index {
-            self.bare_calls.push((index, self.bound.contains(name)));
+        if self.relations.len() == index {
+            return;
+        }
+        match self.relation_targets.get_mut(evidence) {
+            Some(target) => target.not_field = true,
+            None => {
+                self.bare_calls.push((index, self.bound.contains(name)));
+                self.relation_targets.push(RelationTarget {
+                    relation: index,
+                    not_field: true,
+                    ..Default::default()
+                });
+            }
         }
     }
 
@@ -1090,14 +1157,13 @@ impl<'a> Walker<'a> {
             })
             .map(|s| s.name.clone())
             .collect();
-        let mut same_file: Vec<usize> = std::mem::take(&mut self.bare_calls)
+        let mut same_file: Vec<(usize, bool)> = std::mem::take(&mut self.bare_calls)
             .into_iter()
             .filter(|&(i, local)| {
                 self.relations
                     .get(i)
                     .is_some_and(|r| file_level.contains(&r.to_name) != local)
             })
-            .map(|(i, _)| i)
             .collect();
         for (owner, name, loc) in std::mem::take(&mut self.value_uses) {
             let own_name = self
@@ -1105,16 +1171,35 @@ impl<'a> Walker<'a> {
                 .get(owner as usize)
                 .is_some_and(|s| s.name == name);
             if functions.contains(&name) && !own_name {
-                same_file.push(self.relations.len());
+                same_file.push((self.relations.len(), false));
                 self.push_relation(owner, RelationKind::References, name, loc);
             }
         }
-        for relation in same_file {
-            self.relation_targets.push(RelationTarget {
-                relation,
-                path: Some(self.path.to_string()),
-                ..Default::default()
-            });
+        // A bare call already carries its `not_field` target; a value use
+        // (a bare name too) gets one here. A call to a local holds a value,
+        // not a member: only a function of this file can be its target,
+        // never a method of a class or an interface
+        // (`function f({ onSaved }: Props) { onSaved(x) }`).
+        for (relation, local) in same_file {
+            let path = Some(self.path.to_string());
+            match self
+                .relation_targets
+                .iter_mut()
+                .find(|t| t.relation == relation)
+            {
+                Some(target) => {
+                    target.path = path;
+                    if local {
+                        target.kind = Some(SymbolKind::Function);
+                    }
+                }
+                None => self.relation_targets.push(RelationTarget {
+                    relation,
+                    path,
+                    not_field: true,
+                    ..Default::default()
+                }),
+            }
         }
         ParsedFile {
             symbols: self.symbols,
@@ -1194,6 +1279,19 @@ fn declares_function(name: Node) -> bool {
 /// type or value expression: `Foo` -> `Foo`, `ns.Foo` -> `Foo`,
 /// `Foo<T>` -> `Foo`, `Mixin(Base)` -> `Mixin`. Used for `extends`/
 /// `implements` targets and `export default <expr>`.
+/// A member's name as written: an identifier, or a string's text without
+/// its quotes (`'dark-blue'`). A computed or numeric name is none.
+fn member_name<'a>(node: Node, source: &'a str) -> Option<&'a str> {
+    match node.kind() {
+        "property_identifier" => Some(text(node, source)),
+        "string" => node
+            .named_child(0)
+            .filter(|f| f.kind() == "string_fragment")
+            .map(|f| text(f, source)),
+        _ => None,
+    }
+}
+
 /// Whether `method` carries `override` and belongs to a class declaration,
 /// whose `extends` the walker recorded; a class expression's methods are
 /// left out, since the enclosing declaration's supertype isn't theirs.

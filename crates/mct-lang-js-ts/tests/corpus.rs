@@ -64,7 +64,24 @@ fn class_members_attach_to_their_class() {
         Some("WarehouseClient")
     );
     assert_eq!(parent("inventory.ts", "#store", Method), Some("StockCache"));
-    assert_eq!(parent("order.ts", "trackingNumber", Field), Some("Order"));
+    // The class field, and the property of the `Shipped` event interface.
+    let c = corpus();
+    let mut tracking: Vec<Option<&str>> = c
+        .symbols_named("trackingNumber")
+        .into_iter()
+        .filter(|(_, s)| s.kind == Field)
+        .map(|(_, s)| s.parent.as_deref())
+        .collect();
+    tracking.sort();
+    assert_eq!(tracking, [Some("Order"), Some("Shipped")]);
+    // An interface's method signature is a method of the interface.
+    let mut compare: Vec<Option<&str>> = c
+        .symbols_named("compareTo")
+        .into_iter()
+        .map(|(_, s)| s.parent.as_deref())
+        .collect();
+    compare.sort();
+    assert_eq!(compare, [Some("Comparable"), Some("Money")]);
 }
 
 #[test]
@@ -142,11 +159,6 @@ fn documented_limits_of_the_parser() {
     let c = corpus();
     // Known limit: a namespace's functions are top-level functions.
     assert_eq!(parent("money.ts", "fromCents", Function), None);
-    // Known limit: interface members are not symbols.
-    assert!(c
-        .symbols_named("compareTo")
-        .iter()
-        .all(|(_, s)| s.parent.as_deref() == Some("Money")));
     // Known limit: JSX elements are not calls of their component (see the
     // crate docs).
     assert!(!c.has_relation("OrderTable", Calls, "StockBadge"));
