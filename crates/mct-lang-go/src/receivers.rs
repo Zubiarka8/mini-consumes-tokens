@@ -290,3 +290,100 @@ fn collect_kind<'t>(node: Node<'t>, kind: &str, out: &mut Vec<Node<'t>>, depth: 
         }
     }
 }
+
+/// The types of Go's universe block ([Predeclared identifiers]): no
+/// declaration of the repository declares them.
+///
+/// [Predeclared identifiers]: https://go.dev/ref/spec#Predeclared_identifiers
+pub(crate) const PREDECLARED_TYPES: &[&str] = &[
+    "any",
+    "bool",
+    "byte",
+    "comparable",
+    "complex64",
+    "complex128",
+    "error",
+    "float32",
+    "float64",
+    "int",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "rune",
+    "string",
+    "uint",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uintptr",
+];
+
+/// The type parameter names a method receiver binds: `T` and `U` in
+/// `(b *Box[T, U])`.
+pub(crate) fn collect_receiver_type_params(
+    node: Node,
+    source: &str,
+    out: &mut Vec<String>,
+    depth: u32,
+) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    if node.kind() == "type_arguments" || node.kind() == "type_parameter_list" {
+        for argument in node.named_children(&mut node.walk()) {
+            let name = if argument.kind() == "type_elem" {
+                argument.named_child(0)
+            } else {
+                Some(argument)
+            };
+            if let Some(name) =
+                name.filter(|n| matches!(n.kind(), "type_identifier" | "identifier"))
+            {
+                out.push(text(name, source).to_string());
+            }
+        }
+        return;
+    }
+    for child in node.named_children(&mut node.walk()) {
+        collect_receiver_type_params(child, source, out, depth + 1);
+    }
+}
+
+/// The names a file's aliased repository imports bind, each to the last
+/// directory of its import path: `db` → `database` for `db
+/// "example.com/app/database"`. The path proves where the package lives;
+/// its `package` clause may differ, so only the directory is evidence. A
+/// blank (`_`) or dot (`.`) import binds no name, and a name an unaliased
+/// import also binds is left out.
+pub(crate) fn aliased_repo_packages(root: Node, source: &str) -> HashMap<String, String> {
+    let mut specs = Vec::new();
+    for declaration in root.named_children(&mut root.walk()) {
+        if declaration.kind() == "import_declaration" {
+            crate::collect_import_specs(declaration, &mut specs);
+        }
+    }
+    let mut aliased = HashMap::new();
+    let mut unaliased = HashSet::new();
+    for spec in specs {
+        let Some(path) = spec.child_by_field_name("path") else {
+            continue;
+        };
+        let path = text(path, source).trim_matches(|c| c == '"' || c == '`');
+        let Some(directory) = crate::Walker::package_dir_name(path) else {
+            continue;
+        };
+        match spec.child_by_field_name("name") {
+            Some(alias) if alias.kind() == "package_identifier" => {
+                aliased.insert(text(alias, source).to_string(), directory);
+            }
+            Some(_) => {}
+            None => {
+                unaliased.insert(directory);
+            }
+        }
+    }
+    aliased.retain(|name, _| !unaliased.contains(name));
+    aliased
+}
