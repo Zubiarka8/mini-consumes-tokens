@@ -719,8 +719,10 @@ From `rules.md` and the two messages:
         resolved, each to the right item (`inner::delegate()` in the
         dead-code fixture no longer stays unresolved, `dimensions::Size`
         and `dimensions::stacked_volume` in the corpus), nothing else
-        changes state, dead code unchanged at 123. Test:
-        `mct-lang-rust/tests/inline_modules.rs`.
+        changes state, dead code unchanged at 123. In the dead-code
+        fixture the outer `delegate`, which nothing calls, is now a
+        candidate: the call no longer counts for it by name. Tests:
+        `mct-lang-rust/tests/inline_modules.rs`, `dead_code.rs`.
   - [ ] `m::Type::f()`: the method's parent is the type, so the module
         evidence finds no candidate. Matching it needs the view to look at
         the type's parent (a migration), so an issue first.
