@@ -903,6 +903,20 @@ From `rules.md` and the two messages:
           changes); database file 39,493,632 bytes either side. Dead code
           123 -> 123. Kotlin feature score 65% -> 75%; area Search 80% ->
           100%.
+    - [x] C# string literals: each run of fixed text of a plain,
+          verbatim (`@"…"`), raw (`"""…"""`) or interpolated (`$"…"`,
+          `$@"…"`, `$"""…"""`) string, between `{…}` holes, goes through
+          the shared prose filter into `ParsedFile::literals`. A verbatim
+          string has no fragment children, so the shared walk gains
+          `LiteralGrammar::opaque` (its text between the quotes is one
+          fragment) and `StringStyle::doubled_quotes` (`""` is one quote).
+          Test: `tests/literals.rs` (parser and `search_literals`); the
+          other languages' literal tests are unchanged. Corpus: no changes.
+          Repository snapshot (with `init --force`): 0 -> 44 C# literals;
+          other languages' literal rows identical; C# relations unchanged
+          (764, no resolution changes); database file 39,493,632 bytes
+          either side. Dead code 123 -> 123. C# feature score 60% -> 70%;
+          area Search 70% -> 90%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
