@@ -109,6 +109,9 @@ mod details;
 mod libraries;
 mod literals;
 mod names;
+mod tokens;
+
+pub use tokens::PhpTokenSource;
 
 pub struct PhpParser;
 
@@ -184,7 +187,7 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 /// The bare identifier inside a `variable_name` node (its one required
 /// `name` child) — the grammar already excludes the leading `$`.
-fn variable_text<'a>(node: Node<'a>, source: &'a str) -> Option<&'a str> {
+pub(crate) fn variable_text<'a>(node: Node<'a>, source: &'a str) -> Option<&'a str> {
     if node.kind() != "variable_name" {
         return None;
     }

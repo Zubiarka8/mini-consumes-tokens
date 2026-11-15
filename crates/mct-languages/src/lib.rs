@@ -42,6 +42,7 @@ pub fn build_token_sources() -> TokenSourceRegistry {
     registry.register(Arc::new(mct_lang_kotlin::KotlinTokenSource));
     registry.register(Arc::new(mct_lang_csharp::CSharpTokenSource));
     registry.register(Arc::new(mct_lang_cpp::CppTokenSource));
+    registry.register(Arc::new(mct_lang_php::PhpTokenSource));
     registry
 }
 
@@ -129,6 +130,7 @@ mod tests {
                 "javascript_typescript",
                 "kotlin",
                 "lua",
+                "php",
                 "python",
                 "rust"
             ]

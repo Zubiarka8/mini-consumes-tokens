@@ -1064,6 +1064,19 @@ From `rules.md` and the two messages:
           skipped, groups 148 -> 149; at 2 lines / 12 tokens, 2 groups
           with C++ members. C++ feature score 60% -> 70%; area Quality
           25% -> 75%.
+    - [x] PHP repeated code: `PhpTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.php` files and is registered
+          in `build_token_sources`. Functions and methods (attributes
+          included, abstract and interface ones too) have callable spans
+          matching their symbols, and a closure or arrow function assigned
+          to a variable (`$cb = function () { … };`) gets the span of the
+          closure under the variable's name, so none is skipped. The
+          `<?php` tag and inline HTML are trivia. Test:
+          `tests/duplicates.rs` (through the real index; the bound-closure
+          case fails without that span). Repository snapshot, defaults:
+          candidates 11,677 -> 11,946, 0 skipped, groups 149 -> 149; at 2
+          lines / 12 tokens, 12 groups with PHP members (getters in the PHP
+          corpus). PHP feature score 75% -> 85%; area Quality 50% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
