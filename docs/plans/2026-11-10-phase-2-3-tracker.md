@@ -1354,6 +1354,13 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] C#: `get_indexing_status` lists the `PackageReference` items of a
+      `.csproj` (version from the attribute or a `<Version>` element; none
+      for a central-package reference; commented-out items skipped).
+      `Directory.Packages.props` and `packages.config` are not read.
+      Scores: C# features 55→65, structure 67→100. Java (`pom.xml`),
+      Kotlin (Gradle DSL) and C++ (`CMakeLists.txt`) stay out: no single
+      stable format, as `manifests.rs` already says.
 - [x] Java: a field initializer is walked like an initializer block, so
       the calls and anonymous classes in `Runnable r = new Runnable() { … };`
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
