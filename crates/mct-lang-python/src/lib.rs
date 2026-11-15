@@ -324,7 +324,11 @@ impl<'a> Walker<'a> {
                 }
             }
             "assignment" => {
-                self.push_bindings(node, depth);
+                // `f = lambda …` declares `f`, and the lambda's body is its.
+                let owner = self.push_lambda_binding(node).unwrap_or_else(|| {
+                    self.push_bindings(node, depth);
+                    owner
+                });
                 self.push_self_fields(node, depth);
                 if let Some(right) = node.child_by_field_name("right") {
                     self.push_value_references(right, owner, depth + 1);
@@ -372,6 +376,39 @@ impl<'a> Walker<'a> {
                 self.push_binding(name_node, kind, scope, annotation_text);
             }
         }
+    }
+
+    /// A module-level or class-body `name = lambda …` (one plain name, no
+    /// annotation): a `function` of the module or a `method` of the class,
+    /// as a JS arrow bound to a `const` is. `None` for any other assignment,
+    /// or when the file already declares the name there.
+    fn push_lambda_binding(&mut self, assignment: Node) -> Option<SymbolId> {
+        let left = assignment.child_by_field_name("left")?;
+        let lambda = assignment
+            .child_by_field_name("right")
+            .filter(|r| r.kind() == "lambda")?;
+        if left.kind() != "identifier" || assignment.child_by_field_name("type").is_some() {
+            return None;
+        }
+        let scope = binding_scope(assignment, self.source)?;
+        let name = text(left, self.source);
+        let parent = scope.map(str::to_string);
+        if name == "_" || self.declared.contains(&(parent.clone(), name.to_string())) {
+            return None;
+        }
+        let kind = match scope {
+            Some(_) => SymbolKind::Method,
+            None => SymbolKind::Function,
+        };
+        let id = self.push_symbol(name.to_string(), kind, location(left), parent);
+        self.details.push(details::lambda_detail(
+            assignment,
+            lambda,
+            scope.is_some(),
+            id,
+            self.source,
+        ));
+        Some(id)
     }
 
     /// The fields `self.x = …` declares in a method: each `x` of an
