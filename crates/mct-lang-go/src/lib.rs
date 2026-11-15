@@ -310,8 +310,15 @@ impl<'a> Walker<'a> {
             "const_declaration" | "var_declaration"
                 if node.parent().is_some_and(|p| p.kind() == "source_file") =>
             {
-                self.push_package_values(node, package_name);
-                self.visit_children(node, owner, package_name, depth + 1);
+                for (spec, function) in self.push_package_values(node, package_name) {
+                    match function {
+                        // The literal's body is the function's own.
+                        Some((literal, id)) => {
+                            self.visit_function(literal, id, package_name, depth + 1)
+                        }
+                        None => self.visit_children(spec, owner, package_name, depth + 1),
+                    }
+                }
             }
             "import_declaration" => {
                 let mut specs = Vec::new();
@@ -497,8 +504,14 @@ impl<'a> Walker<'a> {
 
     /// Each name of a package-level `const` / `var` declaration, grouped
     /// (`const ( … )`, `var ( … )`) or not, is a `Constant` / `Variable` of
-    /// the package.
-    fn push_package_values(&mut self, declaration: Node, package_name: Option<&str>) {
+    /// the package; `var f = func(…) {…}` (one name, no type) is a
+    /// `Function`, as a JS arrow bound to a name is. Returns each spec, with
+    /// the function literal and symbol of such a binding.
+    fn push_package_values<'t>(
+        &mut self,
+        declaration: Node<'t>,
+        package_name: Option<&str>,
+    ) -> Vec<(Node<'t>, Option<(Node<'t>, SymbolId)>)> {
         let (keyword, kind) = if declaration.kind() == "const_declaration" {
             ("const", SymbolKind::Constant)
         } else {
@@ -516,9 +529,42 @@ impl<'a> Walker<'a> {
                 _ => {}
             }
         }
+        let mut out = Vec::new();
         for spec in specs {
-            self.push_names(spec, keyword, kind, package_name);
+            let function = match func_value(spec) {
+                Some(literal) if kind == SymbolKind::Variable => self
+                    .push_func_value(spec, literal, package_name)
+                    .map(|id| (literal, id)),
+                _ => None,
+            };
+            if function.is_none() {
+                self.push_names(spec, keyword, kind, package_name);
+            }
+            out.push((spec, function));
         }
+        out
+    }
+
+    /// The `Function` `var f = func(…) {…}` declares, unless its name is `_`.
+    fn push_func_value(
+        &mut self,
+        spec: Node,
+        literal: Node,
+        parent: Option<&str>,
+    ) -> Option<SymbolId> {
+        let name_node = spec.child_by_field_name("name")?;
+        let name = text(name_node, self.source);
+        if name == "_" {
+            return None;
+        }
+        let detail = details::func_value_detail(spec, literal, name, self.next_id, self.source);
+        self.details.push(detail);
+        Some(self.push_symbol(
+            name.to_string(),
+            SymbolKind::Function,
+            location(name_node),
+            parent.map(str::to_string),
+        ))
     }
 
     /// One `kind` symbol per declared name of `spec`, skipping `_`.
@@ -836,4 +882,23 @@ fn callee_identifier(function: Node) -> Option<Node> {
         "type_identifier" => Some(function),
         _ => None,
     }
+}
+
+/// The function literal of a `var_spec` that binds one name, with no type,
+/// to one `func(…) {…}`.
+fn func_value(spec: Node) -> Option<Node> {
+    if spec.kind() != "var_spec"
+        || spec.child_by_field_name("type").is_some()
+        || spec
+            .children_by_field_name("name", &mut spec.walk())
+            .count()
+            != 1
+    {
+        return None;
+    }
+    let values = spec.child_by_field_name("value")?;
+    if values.named_child_count() != 1 {
+        return None;
+    }
+    values.named_child(0).filter(|v| v.kind() == "func_literal")
 }
