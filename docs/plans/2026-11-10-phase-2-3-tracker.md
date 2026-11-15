@@ -964,6 +964,13 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] C++, casts and alias targets: the type in `static_cast<T*>`,
+      `dynamic_cast`, `reinterpret_cast`, `const_cast`, a C-style
+      `(T*)p` cast and the target of `using Name = T;` is a `references`
+      relation with the evidence a declared type gets (this file's type is
+      pinned, `std::` is external, built-ins and template parameters give
+      none). Stacked on #441. Corpus: 809 -> 823 relations, all `std::`
+      or same-file types.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:

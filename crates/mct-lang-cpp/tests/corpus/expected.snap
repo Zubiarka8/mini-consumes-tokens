@@ -1,4 +1,4 @@
-# language=cpp files=5 symbols=423 relations=809 name_matched_across_files=160
+# language=cpp files=5 symbols=423 relations=823 name_matched_across_files=160
 
 == include/inventory/model.hpp (342 lines)
 S 1-342 module model
@@ -198,6 +198,7 @@ R 327:33 calls inv::net_change -> begin
 R 327:52 calls inv::net_change -> end
 R 19:16 references model -> size_t
 R 22:23 references model -> string_view
+R 24:28 references inv::Clock -> system_clock
 R 46:35 references inv::unit_symbol -> Unit
 R 61:13 references model -> optional
 R 61:44 references inv::parse_unit -> string_view
@@ -229,6 +230,8 @@ R 137:34 references Quantity::require_same_unit -> Quantity
 R 141:50 references Quantity::throw_unit_mismatch -> Unit
 R 141:58 references Quantity::throw_unit_mismatch -> Unit
 R 144:5 references model -> Unit
+R 147:15 references inv::Count -> Quantity
+R 148:16 references inv::Weight -> Quantity
 R 157:24 references Dimensions::fits_in -> Dimensions
 R 158:14 references Dimensions::fits_in -> array
 R 159:14 references Dimensions::fits_in -> array
@@ -281,6 +284,7 @@ R 253:5 references model -> Count
 R 254:10 references model -> string
 R 257:5 references model -> Count
 R 259:10 references model -> string
+R 261:27 references inv::MovementKind -> variant
 R 265:5 references model -> ProductId
 R 266:5 references model -> Location
 R 267:5 references model -> MovementKind
@@ -490,6 +494,8 @@ R 253:26 calls Transaction::~Transaction -> rollback
 R 257:23 calls Transaction::rollback -> restore_snapshot
 R 301:64 calls hash::operator() -> value
 R 181:26 references StockKey::operator< -> StockKey
+R 188:27 references inv::ProductRepository -> Repository
+R 189:25 references inv::StockRepository -> MemoryRepository
 R 200:24 references FileStore::FileStore -> Options
 R 203:21 references FileStore::FileStore -> FileStore
 R 204:5 references storage -> FileStore
@@ -682,6 +688,7 @@ R 307:17 calls main -> run
 R 23:6 references main -> unique_ptr
 R 26:79 references inv::service::average_stock -> size_t
 R 29:6 references main -> string
+R 33:19 references cli::Args -> vector
 R 46:10 references main -> string
 R 49:10 references main -> string
 R 50:5 references main -> Args
@@ -697,6 +704,8 @@ R 86:5 references cli::parse_options -> Options
 R 89:20 references cli::parse_options -> string
 R 112:41 references cli::parse_location -> string
 R 116:10 references cli::parse_location -> istringstream
+R 124:36 references cli::parse_location -> uint16_t
+R 125:36 references cli::parse_location -> uint16_t
 R 129:41 references cli::parse_product -> string
 R 137:6 references main -> int64_t
 R 137:38 references cli::parse_amount -> string
@@ -960,6 +969,7 @@ R 70:10 references service -> int64_t
 R 71:10 references service -> int64_t
 R 77:10 references service -> int64_t
 R 78:10 references service -> string
+R 83:27 references InventoryService::Observer -> function
 R 87:5 references service -> Result
 R 87:72 references InventoryService::receive -> int64_t
 R 87:93 references InventoryService::receive -> string
@@ -986,6 +996,7 @@ R 148:83 references InventoryService::ship -> int64_t
 R 149:48 references InventoryService::ship -> string
 R 163:1 references service -> Result
 R 164:88 references InventoryService::transfer -> int64_t
+R 165:23 references InventoryService::transfer -> pair
 R 176:72 references InventoryService::reserve -> int64_t
 R 184:72 references InventoryService::release -> int64_t
 R 191:6 references service -> int64_t
@@ -1200,6 +1211,8 @@ R 33:10 references to_int -> size_t
 R 46:6 references storage -> string
 R 47:10 references encode_location -> ostringstream
 R 52:36 references decode_location -> string_view
+R 57:40 references decode_location -> uint16_t
+R 58:40 references decode_location -> uint16_t
 R 77:37 references Product::Product -> string
 R 83:28 references Product::has_tag -> string_view
 R 87:6 references storage -> string
@@ -1233,6 +1246,7 @@ R 219:6 references storage -> string
 R 220:10 references FileStore::encode -> ostringstream
 R 227:6 references storage -> optional
 R 227:48 references FileStore::decode -> string_view
+R 231:51 references FileStore::decode -> uint64_t
 R 257:10 references inv::restore_snapshot -> vector
 R 265:6 references storage -> unique_ptr
 R 265:65 references inv::make_product_repository -> string_view
