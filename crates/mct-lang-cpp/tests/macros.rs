@@ -64,3 +64,23 @@ fn a_function_like_macro_is_called_by_name() {
         .iter()
         .any(|r| r.kind == RelationKind::Calls && r.to_name == "SQ"));
 }
+
+/// A directive's node runs through its line break; the macro still ends on
+/// its own last line, so `#define SQ(x) …` on line 4 spans line 4 only and
+/// a macro continued with `\` ends where its text does.
+#[test]
+fn a_macro_ends_on_its_last_line() {
+    let parsed = mct_corpus::parse_source(
+        &CppParser,
+        "src/m.hpp",
+        "C++",
+        "#define SQ(x) ((x) * (x))\n#define ADD(a, b) \\\n    ((a) + (b))\nint z;\n",
+    );
+    let spans: Vec<(&str, u32, Option<u32>)> = parsed
+        .symbols
+        .iter()
+        .filter(|s| s.kind == SymbolKind::Function)
+        .map(|s| (s.name.as_str(), s.location.line, s.location.end_line))
+        .collect();
+    assert_eq!(spans, [("SQ", 1, Some(1)), ("ADD", 2, Some(3))]);
+}
