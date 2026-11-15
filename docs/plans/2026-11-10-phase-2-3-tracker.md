@@ -754,6 +754,14 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] Python, `__all__`: each string of a module-level `__all__ = [...]`
+      (or `+=`, list or tuple) that names a `def` or `class` of the file is
+      a `references` relation from the module, pinned to the file, so a
+      function that is only re-exported is not dead code. A name defined
+      elsewhere, a list built by a call and an `__all__` inside a function
+      record nothing. Probe: an exported-only function was dead code, now it
+      is not; this repository has no `__all__`, so no measurement on real
+      code.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
