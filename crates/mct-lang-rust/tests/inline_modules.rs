@@ -29,6 +29,10 @@ pub fn entry() -> u8 {
 
 const OTHER: &str = "pub fn helper() -> u8 { 3 }\n";
 
+/// Another file's inline module of the same name: a path in `lib.rs`
+/// cannot reach it, since `lib.rs` declares its own `inner`.
+const ELSEWHERE: &str = "mod inner {\n    pub fn helper() -> u8 { 4 }\n}\n";
+
 #[test]
 fn an_inline_module_item_has_the_module_as_its_parent() {
     let parsed = RustParser
@@ -65,6 +69,7 @@ fn a_path_through_an_inline_module_resolves_to_its_item() {
     std::fs::create_dir_all(root.join("src")).unwrap();
     std::fs::write(root.join("src/lib.rs"), LIB).unwrap();
     std::fs::write(root.join("src/other.rs"), OTHER).unwrap();
+    std::fs::write(root.join("src/elsewhere.rs"), ELSEWHERE).unwrap();
     let index = mct_corpus::open_fixture_indexed(&root, Arc::new(RustParser));
     let mut hits: Vec<String> = index
         .find_calls("entry")
@@ -83,8 +88,9 @@ fn a_path_through_an_inline_module_resolves_to_its_item() {
     std::fs::remove_dir_all(root).unwrap();
     assert!(!things.is_empty());
     assert!(things.iter().all(|t| t.ends_with("Resolved")), "{things:?}");
-    // Each path through `inner` reaches its own item (the only one whose
-    // parent is the module); `other::helper` the file module's; and
+    // Each path through `inner` reaches its own item: the one whose parent
+    // is the module, in this file (`elsewhere.rs` has an `inner` too);
+    // `other::helper` the file module's; and
     // `missing::helper`, through no module of the project, nothing.
     assert_eq!(
         hits,
