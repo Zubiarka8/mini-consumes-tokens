@@ -710,8 +710,7 @@ pub fn migrations() -> Migrations<'static> {
                   AND (r.qualifier IS NULL
                        OR s.parent = r.qualifier
                        OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<'
-                       OR (r.qualifier IS NOT NULL
-                           AND EXISTS (SELECT 1 FROM relations sr
+                       OR (EXISTS (SELECT 1 FROM relations sr
                                        WHERE sr.to_name = s.parent
                                          AND sr.kind IN ('extends', 'implements'))
                            AND NOT EXISTS (SELECT 1 FROM symbols own
