@@ -1382,8 +1382,16 @@ From `rules.md` and the two messages:
         this repository, `mct-lang-rust` `visit_node` (L291-L827) ends with
         `L491-L827`. Test: `context_pack.rs`
         `a_body_longer_than_the_source_lines_cap_names_the_lines_to_read`.
-  - [ ] Paging past the cap through the tool itself (`source_offset`):
-        an MCP signature change, so issue #371 first.
+  - [x] Paging past the cap through the tool itself: an optional
+        `source_offset` (lines of each definition to skip, default 0;
+        additive, issue #371). The page starts at that line, the doc comment
+        shows on the first page only, and a body past the cap ends with
+        `pass \`source_offset: N\` for the rest`. On this repository,
+        `mct-lang-rust` `visit_node` (L296-L849, measured with the
+        built `mct-cli`): offset 0 shows L296-L495, `source_offset: 200`
+        L496-L695, `400` L696-L849 with no footer. Test: `context_pack.rs`
+        `source_offset_pages_past_the_source_lines_cap`; the capped-footer
+        test now expects the new wording.
 - [ ] False positives in impact analysis and dead code (D7 #331 covers part
       of this).
   - [x] Python: a function or class passed by name as an argument
