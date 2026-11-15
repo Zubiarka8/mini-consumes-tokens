@@ -1244,7 +1244,7 @@ fn rust_and_python_twins_are_grouped_per_language_by_the_real_token_sources() {
     let text = grouping_report(&project);
     assert!(text.contains("\nstatus: complete\n"), "{text}");
     assert!(
-        text.contains("\nsupported_languages[5]: go,javascript_typescript,lua,python,rust\n"),
+        text.contains("\nsupported_languages[6]: go,java,javascript_typescript,lua,python,rust\n"),
         "{text}"
     );
     assert!(text.contains("\ntotal_groups: 1\n"), "{text}");
