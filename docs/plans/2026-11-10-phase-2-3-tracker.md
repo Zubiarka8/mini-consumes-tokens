@@ -707,7 +707,23 @@ From `rules.md` and the two messages:
       `find_references`/`find_calls`/`find_callers`, `list_symbols`,
       `get_project_overview` and `find_dead_code`; `find_duplicate_code`
       only trimmed the trailing slash.
-- [ ] Inline module resolution.
+- [~] Inline module resolution.
+  - [x] Rust: an item declared in an inline `mod m { … }` (function,
+        struct, enum, trait, type, const, static, macro, nested `mod`) has
+        `m` as its parent, as a C++ namespace member does, so `m::f()`,
+        `m::Type` and `m::n::f()` match it through the `module = m`
+        evidence the path already carries. No schema change. Against
+        `main` on this repository's snapshot: Rust relations and symbols
+        unchanged (96923, 59013), 658 symbols gain a parent (mostly
+        `#[cfg(test)] mod tests` functions), 3 relations unresolved →
+        resolved, each to the right item (`inner::delegate()` in the
+        dead-code fixture no longer stays unresolved, `dimensions::Size`
+        and `dimensions::stacked_volume` in the corpus), nothing else
+        changes state, dead code unchanged at 123. Test:
+        `mct-lang-rust/tests/inline_modules.rs`.
+  - [ ] `m::Type::f()`: the method's parent is the type, so the module
+        evidence finds no candidate. Matching it needs the view to look at
+        the type's parent (a migration), so an issue first.
 - [~] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
