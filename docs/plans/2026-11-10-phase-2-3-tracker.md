@@ -1326,7 +1326,29 @@ From `rules.md` and the two messages:
       `find_references`/`find_calls`/`find_callers`, `list_symbols`,
       `get_project_overview` and `find_dead_code`; `find_duplicate_code`
       only trimmed the trailing slash.
-- [ ] Inline module resolution.
+- [~] Inline module resolution.
+  - [x] Rust: an item declared in an inline `mod m { … }` (function,
+        struct, enum, trait, type, const, static, macro, nested `mod`) has
+        `m` as its parent, as a C++ namespace member does, so `m::f()`,
+        `m::Type` and `m::n::f()` match it through the `module = m`
+        evidence the path already carries. No schema change. Against
+        `main` on this repository's snapshot: Rust relations and symbols
+        unchanged (96923, 59013), 658 symbols gain a parent (mostly
+        `#[cfg(test)] mod tests` functions), 3 relations unresolved →
+        resolved, each to the right item (`inner::delegate()` in the
+        dead-code fixture no longer stays unresolved, `dimensions::Size`
+        and `dimensions::stacked_volume` in the corpus), nothing else
+        changes state, dead code unchanged at 123. In the dead-code
+        fixture the outer `delegate`, which nothing calls, is now a
+        candidate: the call no longer counts for it by name. Tests:
+        `mct-lang-rust/tests/inline_modules.rs`, `dead_code.rs`. A path
+        whose modules are all inline in the calling file also names that
+        file as its target, so another file's same-named `mod` (or an
+        `impl From<Id> for u64` under a local `mod u64`) is not a
+        candidate (`primitive_conversions.rs`).
+  - [ ] `m::Type::f()`: the method's parent is the type, so the module
+        evidence finds no candidate. Matching it needs the view to look at
+        the type's parent (a migration): #478.
 - [~] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
@@ -1369,10 +1391,35 @@ From `rules.md` and the two messages:
       pinned, `std::` is external, built-ins and template parameters give
       none). Stacked on #441. Corpus: 809 -> 823 relations, all `std::`
       or same-file types.
-- [x] Go, assertions and type switches: the type in `o.(Marker)` and in a
-      `case Row, *Cfg:` is a `references` relation with the evidence a
-      declared type gets; `nil` and predeclared types give none. Stacked on
-       #442. Corpus: 1298 -> 1305 relations.
+  - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
+        expression, not part of the arm's pattern, so its names are uses.
+        Before, `is_final` was taken for a local of the whole function and
+        its value use was dropped. This repository's snapshot: dead code
+        123 → 122 (`mct-lang-python`'s `is_final`). Test:
+        `a_match_guard_uses_a_function_its_pattern_does_not_bind` in
+        `mct-lang-rust/tests/parse.rs`.
+  - [x] Next.js App Router: the exports it loads by file name (`page` and
+        `layout` default exports, `route` handlers, `generateStaticParams`,
+        `generateMetadata`) stay candidates and carry a possible-entry-point
+        note when `<root>/package.json` declares `next` 13 or later
+        (ADR-027). This repository's snapshot: 10 of the 12 `website/`
+        candidates get the note; the count is unchanged by design. Tests:
+        `mct-lang-js-ts/tests/nextjs.rs`, `dead_code.rs`.
+  - [ ] Object-literal methods called by a library (`tokenizer(src) {…}` in
+        `web-ui/src/notes/obsidian.ts`, a `MarkedExtension`) are parentless
+        functions with no in-repo caller: 5 candidates, plus the same shape
+        in the bundles. Telling them apart needs a stored fact about the
+        declaration (schema or symbol details): issue #475.
+  - [ ] A renamed default import (`import SearchDialog from
+        '@/components/search'`) does not reach the default-exported
+        `DefaultSearchDialog`: needs default-export resolution across files.
+  - [ ] The committed Vite bundles (`crates/mct-cli/src/web/*-dist/`) give
+        23 candidates. `.mctignore` is git-ignored here, so excluding them
+        is the user's local choice, not a repository change.
+  - [x] Go, assertions and type switches: the type in `o.(Marker)` and in a
+        `case Row, *Cfg:` is a `references` relation with the evidence a
+        declared type gets; `nil` and predeclared types give none. Stacked on
+        #442. Corpus: 1298 -> 1305 relations.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
