@@ -199,7 +199,7 @@ Done 26 · Partial 5 · Not done 12 · Not verified 0 · Not applicable 9
 **Functions and methods**
 
 - [x] FN01 Top-level function: `function`
-- [~] FN02 Nested function: nested function is indexed, but parser test confirms `parent` is `None`
+- [x] FN02 Nested function: nested function is indexed with the enclosing function or method as `parent`
 - [x] FN03 Lambda or closure assigned to a name: `const p_arrow = …` → `function`
 - [x] FN04 Method: `p_m` as `method`
 - [x] FN05 Constructor: `constructor` as `method`

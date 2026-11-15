@@ -686,6 +686,12 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] JS/TS: a named function declared inside a function or method has it
+      as `parent` (`function inner` and `const helper = () => …` alike); a
+      class declared there keeps no parent, its methods keep the class.
+      Corpus: 9 symbols renamed `outer::inner`, none added or removed, no
+      relation changed but its source name. `corpus.rs` test updated on
+      purpose: it pinned "nested functions are parentless".
 - [x] Java: a field initializer is walked like an initializer block, so
       the calls and anonymous classes in `Runnable r = new Runnable() { … };`
       are indexed. Corpus: +16 calls (`new HashMap<>()`,

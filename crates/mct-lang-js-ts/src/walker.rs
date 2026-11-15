@@ -59,6 +59,9 @@ pub(super) struct Walker<'a> {
     /// The class each enclosing class body `extends`, innermost last: what
     /// an `override` method there overrides (D8). Empty without `extends`.
     supertypes: Vec<Vec<Supertype>>,
+    /// The named function or method whose body is being walked: the
+    /// `parent` of a function declared inside it.
+    function_scope: Option<String>,
 }
 
 impl<'a> Walker<'a> {
@@ -80,6 +83,7 @@ impl<'a> Walker<'a> {
             this_class: None,
             details: Vec::new(),
             supertypes: Vec::new(),
+            function_scope: None,
         }
     }
 
@@ -397,10 +401,17 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Function,
+                    location(node),
+                    self.function_scope.clone(),
+                );
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
+                let outer_scope = self.function_scope.replace(name);
                 self.visit_function_like_body(node, id, depth);
+                self.function_scope = outer_scope;
             }
             "class_declaration" | "abstract_class_declaration" => {
                 let name = node
@@ -532,8 +543,12 @@ impl<'a> Walker<'a> {
                     Some("object") => SymbolKind::Function,
                     _ => SymbolKind::Method,
                 };
-                let id =
-                    self.push_symbol(name, kind, location(node), type_name.map(str::to_string));
+                let id = self.push_symbol(
+                    name.clone(),
+                    kind,
+                    location(node),
+                    type_name.map(str::to_string),
+                );
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
                 self.push_decorators(node, id, depth);
@@ -554,7 +569,9 @@ impl<'a> Walker<'a> {
                         );
                     }
                 }
+                let outer_scope = self.function_scope.replace(name);
                 self.visit_function_like_body(node, id, depth);
+                self.function_scope = outer_scope;
             }
             // JS's `field_definition` vs TS's `public_field_definition` —
             // otherwise identical shape (`property`/`name` field, optional
@@ -646,15 +663,20 @@ impl<'a> Walker<'a> {
                     matches!(value.kind(), "arrow_function" | "function_expression"),
                     name_node,
                 ) {
+                    let name = text(name_node, self.source).to_string();
                     let id = self.push_symbol(
-                        text(name_node, self.source).to_string(),
+                        name.clone(),
                         SymbolKind::Function,
                         location(node),
-                        type_name.map(str::to_string),
+                        type_name
+                            .map(str::to_string)
+                            .or_else(|| self.function_scope.clone()),
                     );
                     self.details
                         .push(details::function_detail(node, value, id, self.source));
+                    let outer_scope = self.function_scope.replace(name);
                     self.visit_function_like_body(value, id, depth);
+                    self.function_scope = outer_scope;
                     return;
                 }
                 self.visit(value, owner, type_name, depth + 1);

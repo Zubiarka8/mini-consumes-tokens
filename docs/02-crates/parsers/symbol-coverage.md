@@ -178,7 +178,7 @@ round to the nearest whole percent, with halves rounded up.
 |---|--:|--:|--:|--:|--:|
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 81% | 29 | 85% | 10 | 0 |
-| JS/TS | 80% | 33 | 80% | 10 | 1 |
+| JS/TS | 82% | 33 | 80% | 10 | 1 |
 | Java | 83% | 27 | 65% | 10 | 0 |
 | Kotlin | 79% | 35 | 65% | 10 | 0 |
 | C# | 79% | 34 | 55% | 10 | 0 |
@@ -274,7 +274,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|--:|--:|--:|--:|--:|--:|--:|
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 78% | 88% | 50% | 100% | 80% | 100% | 83% |
-| JS/TS | 81% | 70% | 67% | 100% | 80% | 50% | 100% |
+| JS/TS | 88% | 70% | 67% | 100% | 80% | 50% | 100% |
 | Java | 80% | 90% | 38% | 100% | 80% | 25% | 67% |
 | Kotlin | 72% | 88% | 58% | 88% | 80% | 50% | 50% |
 | C# | 83% | 92% | 30% | 88% | 60% | 25% | 67% |
@@ -368,7 +368,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | A name used in a file with `from m import *` gets no evidence | By design | the star import could bind any name, so the call is left to name resolution (`library/cli.py` `int(…)` still matches a fixture variable named `int`) |
 | Lambdas | Not implemented | no arm for `lambda` |
 | Enum subclasses | Not implemented | ordinary class traversal emits `class` plus `extends Enum`; assigned enum values are `field`, as any class attribute |
-| Nested functions have no parent | Not implemented | the parent is set only for class members |
 | Getter and setter as two rows | Not implemented | both are emitted as methods; the shared `field` kind could model a combined property, as in C# |
 | Exact-text search in strings | Not implemented | the parser does not fill `literals` |
 | A builtin is not `external` anywhere in a file that binds its name once, even in another function | By design | bindings are read file-wide, not per scope: it loses some `external` answers but never claims a wrong one |
@@ -900,7 +899,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function`, also `module.exports.x = function`
-- [~] Nested function (named, inside a function): `function` with no parent
+- [x] Nested function (named, inside a function): `function` whose parent is the enclosing function or method
 - [x] Lambda / closure assigned to a name: arrow and function expressions become `function`; a class-field arrow becomes `method`
 - [x] Method: `method`
 - [x] Constructor: `constructor` as `method`
