@@ -404,6 +404,17 @@ From `rules.md` and the two messages:
           gives no reference and `P_St` is reported as dead code, #441) and
           RE02 (`new P_Sub()` is ambiguous the same way). TY02/TY04 stay
           `[~]` by design. Go cells are still to re-probe.
+    - [x] Go cells re-probed with a current `mct-cli` (`a.go` with a
+          `const`, a `var`, an embedded struct, an embedded interface, a
+          composite literal and a function-local closure). The scored list of
+          `symbol-coverage.md` already had them as done; the older
+          `checklists/*.md` views are brought in line: DA01 (struct fields),
+          DA03, DA04, RE02 (`T{}` gives `references T`), RE07 and RE09
+          (embedding gives `extends`), SE03 and QU01 (a composite-only use
+          keeps the struct alive: `P_Struct` is referenced and not reported
+          as dead). Still open in the probe: FN03 (`f := func()` in a
+          function has no symbol) and `var i P_Iface = s` gives no reference
+          to `P_Iface` (#442); RE06 (structural implements) is by design.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
           `\define`) with a literal name, single-quoted or double-quoted
           without interpolation, declares a `constant` with no parent,

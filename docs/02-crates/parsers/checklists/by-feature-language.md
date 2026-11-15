@@ -748,7 +748,7 @@ Marks:
 - [x] Kotlin: `var p_prop`
 - [x] C#: fields, properties and events as `field`
 - [x] C++: `p_field` and union members
-- [ ] Go: struct fields have no symbol
+- [x] Go: each named struct field is a `field` of the struct
 - [x] PHP: property `$prop`
 - [ ] Lua: `self.x` produces no field symbol (MCT probe)
 - — Bash: Bash has no field / instance attribute
@@ -803,7 +803,7 @@ Marks:
 - [ ] Kotlin: top-level `const val` has no symbol
 - [~] C#: `const` is a `field`
 - [x] C++: `const int P_CONST` → `constant`
-- [ ] Go: `const` has no symbol
+- [x] Go: package-level `const` → `constant`
 - [x] PHP: `const` top-level and in classes
 - — Lua: no `const` keyword
 - [~] Bash: `readonly X=…` → `variable`
@@ -830,7 +830,7 @@ Marks:
 - [ ] Kotlin: top-level `val` has no symbol
 - — C#: C# has no global / module-level variable
 - [x] C++: `p_global` → `variable`
-- [ ] Go: `var` has no symbol
+- [x] Go: package-level `var` → `variable`
 - [ ] PHP: `$p_glob = …` has no symbol
 - [~] Lua: global `MSG = …` → `variable`; top-level `local` not exercised
 - [x] Bash: `P_GLOBAL` → `variable`
@@ -968,7 +968,7 @@ Marks:
 - [x] Kotlin: `P_Sub()` and `P_Sub(1)` each produce a call relation
 - [~] C#: `new Outer()` resolves ambiguously to the class and constructor
 - [~] C++: `new P_Sub()` gives no relation; `X()` form not exercised
-- [ ] Go: composite literal `T{}` gives no relation
+- [x] Go: composite literal `T{}` gives `references T`
 - [x] PHP: `new Box()` produces `calls Box` (MCT probe)
 - — Lua: Lua has no constructor call
 - — Bash: Bash has no constructor call
@@ -1105,7 +1105,7 @@ Marks:
 - [~] Kotlin: `interface P_Iface : P_Ext` emits `implements`
 - [x] C#: `IP_Iface2 : IP_Ext2` → `extends`
 - — C++: C++ has no interface extends interface / supertrait
-- [ ] Go: embedded interface gives no relation
+- [x] Go: an embedded interface gives `extends`
 - [x] PHP: `ChildContract` extends `Contract` (MCT probe)
 - — Lua: Lua has no interface extends interface / supertrait
 - — Bash: Bash has no interface extends interface / supertrait
@@ -1160,7 +1160,7 @@ Marks:
 - — Kotlin: Kotlin has no struct / type embedding
 - — C#: C# has no struct / type embedding
 - — C++: C++ has no struct / type embedding
-- [ ] Go: embedded `P_Embedded` gives no relation
+- [x] Go: embedded `P_Embedded` gives `extends`
 - — PHP: PHP has no struct / type embedding
 - — Lua: Lua has no struct / type embedding
 - — Bash: Bash has no struct / type embedding
@@ -1243,7 +1243,7 @@ Marks:
 - [x] Kotlin: references to `p_helper`
 - [~] C#: static class used only as a qualifier gets no reference
 - [~] C++: `P_St s;` gives no reference
-- [~] Go: struct used only in a composite literal gets no reference
+- [x] Go: a struct used only in a composite literal is referenced
 - [x] PHP: references to `p_helper`
 - [ ] Lua: reference to table-based `Child` is not indexed (MCT probe)
 - [x] Bash: references to `p_helper`
@@ -1326,7 +1326,7 @@ Marks:
 - [x] Kotlin: top-level function and class reported
 - [~] C#: methods skipped; unused class reported
 - [~] C++: unused function and class reported; declaration-only case not exercised
-- [~] Go: unused struct and function reported; composite-only case not exercised
+- [x] Go: unused struct and function reported; a composite-only use keeps the struct alive
 - [x] PHP: function and class reported
 - [~] Lua: free functions are candidates; table methods not exercised
 - [x] Bash: unused function reported
