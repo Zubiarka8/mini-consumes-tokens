@@ -342,6 +342,31 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// `array_map('shout', $xs)`: a string argument of a function that takes
+    /// a callable, naming a function declared in this file, is a
+    /// `References` relation to it. Any other string, and any other function,
+    /// records nothing.
+    fn reference_string_callables(&mut self, function: Node, arguments: Node, owner: SymbolId) {
+        if function.kind() != "name" {
+            return;
+        }
+        let callee = text(function, self.source).to_ascii_lowercase();
+        if !CALLABLE_TAKING_FUNCTIONS.contains(&callee.as_str()) {
+            return;
+        }
+        for argument in named_children(arguments) {
+            let Some(value) = argument.named_child(0) else {
+                continue;
+            };
+            let Some(name) = plain_string_value(value, self.source) else {
+                continue;
+            };
+            if self.declared_functions.contains(&name.to_ascii_lowercase()) {
+                self.push_relation(owner, RelationKind::References, name, location(value));
+            }
+        }
+    }
+
     /// A reference to the class-like type written at `name_node`
     /// (`User`, `Models\User`, `\App\User`), resolved through the namespace
     /// and imports in effect. `self`, `static`, `parent` and the built-in
@@ -912,6 +937,9 @@ impl<'a> Walker<'a> {
                     self.visit(function, owner, type_name, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
+                    if let Some(function) = node.child_by_field_name("function") {
+                        self.reference_string_callables(function, arguments, owner);
+                    }
                     self.visit_children(arguments, owner, type_name, depth + 1);
                 }
             }
@@ -1394,6 +1422,30 @@ fn plain_string_value(node: Node, source: &str) -> Option<String> {
     let value = text(node, source).trim_matches(|c| c == '"' || c == '\'');
     (!value.is_empty()).then(|| value.to_string())
 }
+
+/// PHP functions whose arguments may name a function by a string.
+const CALLABLE_TAKING_FUNCTIONS: [&str; 20] = [
+    "array_map",
+    "array_filter",
+    "array_reduce",
+    "array_walk",
+    "array_walk_recursive",
+    "usort",
+    "uasort",
+    "uksort",
+    "call_user_func",
+    "call_user_func_array",
+    "forward_static_call",
+    "forward_static_call_array",
+    "is_callable",
+    "iterator_apply",
+    "register_shutdown_function",
+    "register_tick_function",
+    "set_error_handler",
+    "set_exception_handler",
+    "spl_autoload_register",
+    "preg_replace_callback",
+];
 
 fn literal_string_text(node: Node, source: &str) -> Option<String> {
     if node.kind() != "string" {
