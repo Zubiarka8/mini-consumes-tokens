@@ -296,7 +296,9 @@ impl LanguageParser for KotlinParser {
         }
 
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -413,6 +415,22 @@ fn is_interface(class_declaration: Node) -> bool {
     children.into_iter().any(|c| c.kind() == "interface")
 }
 
+/// Whether `class_declaration` is an `enum class`: an `enum` class
+/// modifier, or an enum body (`enum class E { A }` misread after an
+/// annotation keeps only the body).
+fn is_enum(class_declaration: Node) -> bool {
+    if find_child(class_declaration, "enum_class_body").is_some() {
+        return true;
+    }
+    find_child(class_declaration, "modifiers").is_some_and(|modifiers| {
+        let mut cursor = modifiers.walk();
+        let found = modifiers.named_children(&mut cursor).any(|m| {
+            m.kind() == "class_modifier" && m.child(0).is_some_and(|k| k.kind() == "enum")
+        });
+        found
+    })
+}
+
 /// The last `identifier` child of a `navigation_expression`
 /// (`receiver.member` → `member`), i.e. the callee name for a
 /// `receiver.method(...)` call — same "outermost field wins" precedent as
@@ -486,7 +504,11 @@ fn is_promoted_property(class_parameter: Node) -> bool {
 }
 
 mod details;
+mod literals;
 mod receivers;
+mod tokens;
+
+pub use tokens::KotlinTokenSource;
 
 #[derive(Default)]
 struct Walker<'a> {
@@ -687,6 +709,8 @@ impl<'a> Walker<'a> {
             "class_declaration" | "object_declaration" => {
                 let kind = if node.kind() == "class_declaration" && is_interface(node) {
                     SymbolKind::Interface
+                } else if node.kind() == "class_declaration" && is_enum(node) {
+                    SymbolKind::Enum
                 } else {
                     // `object_declaration` reuses Class — see module doc.
                     SymbolKind::Class
@@ -768,13 +792,16 @@ impl<'a> Walker<'a> {
                     .push(receivers::class_scope(&name, node, self.source));
                 let outer_this = self.this_class.replace(self.classes.len() - 1);
                 let outer_locals = std::mem::take(&mut self.locals);
+                // What runs as the class is built (parameter defaults,
+                // property initializers, `init` blocks, secondary
+                // constructors) is the class's: a constructor is no symbol.
                 if let Some(primary_ctor) = find_child(node, "primary_constructor") {
-                    self.visit_children(primary_ctor, owner, Some(&name), depth + 1);
+                    self.visit_children(primary_ctor, id, Some(&name), depth + 1);
                 }
                 if let Some(body) =
                     find_child(node, "class_body").or_else(|| find_child(node, "enum_class_body"))
                 {
-                    self.visit_children(body, owner, Some(&name), depth + 1);
+                    self.visit_children(body, id, Some(&name), depth + 1);
                 }
                 self.locals = outer_locals;
                 self.this_class = outer_this;
@@ -886,6 +913,9 @@ impl<'a> Walker<'a> {
                 self.visit_children(node, owner, type_name, depth + 1);
                 self.this_class = outer_this;
             }
+            "property_declaration" if type_name.is_none() && named_lambda(node).is_some() => {
+                self.visit_named_lambda(node, owner, depth);
+            }
             "property_declaration" => {
                 if type_name.is_some() {
                     if let Some(var_decl) = find_child(node, "variable_declaration") {
@@ -981,6 +1011,41 @@ impl<'a> Walker<'a> {
     /// `variable`, with no parent; each name of `val (a, b) = …` is one.
     /// An extension property (`val Money.isPositive`) is a `field` of its
     /// receiver type, as an extension function is a method of it.
+    /// `val f = { x: Int -> … }` or `val f = fun(…) { … }` outside a class
+    /// body: the `Function` `f`, top-level like a top-level `fun`, or owned
+    /// by the enclosing function in a body; the lambda's calls are its own.
+    fn visit_named_lambda(&mut self, node: Node, owner: SymbolId, depth: u32) {
+        let Some((name_node, lambda)) = named_lambda(node) else {
+            return;
+        };
+        let top_level = node.parent().is_some_and(|p| p.kind() == "source_file");
+        let parent = if top_level {
+            None
+        } else {
+            self.symbols
+                .iter()
+                .find(|s| s.id == owner && s.kind != SymbolKind::Module)
+                .map(|s| s.name.clone())
+        };
+        let id = self.push_symbol(
+            text(name_node, self.source).to_string(),
+            SymbolKind::Function,
+            location(node),
+            parent,
+        );
+        self.details
+            .push(details::lambda_detail(node, lambda, id, self.source));
+        self.push_annotations(node, id);
+        let parts: Vec<Node> = node.children(&mut node.walk()).collect();
+        for part in parts {
+            if part.id() == lambda.id() {
+                self.visit(part, id, None, depth + 1);
+            } else {
+                self.visit(part, owner, None, depth + 1);
+            }
+        }
+    }
+
     fn push_file_properties(&mut self, node: Node) {
         let receiver = find_child(node, "user_type").map(|t| receiver_type_name(t, self.source));
         let is_const = find_child(node, "modifiers").is_some_and(|modifiers| {
@@ -1112,4 +1177,26 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
+}
+
+/// The name and value of `val f = { … }` / `val f = fun(…) { … }`: one
+/// plain name (no destructuring, no extension receiver, no delegate)
+/// initialized with exactly a lambda or an anonymous function.
+pub(crate) fn named_lambda(node: Node) -> Option<(Node, Node)> {
+    let children: Vec<Node> = node.children(&mut node.walk()).collect();
+    if children.iter().any(|c| {
+        matches!(
+            c.kind(),
+            "multi_variable_declaration" | "property_delegate" | "user_type"
+        )
+    }) {
+        return None;
+    }
+    let name = children
+        .iter()
+        .find(|c| c.kind() == "variable_declaration")
+        .and_then(|d| d.named_child(0))?;
+    let equals = children.iter().position(|c| c.kind() == "=")?;
+    let value = children[equals + 1..].iter().find(|c| c.is_named())?;
+    matches!(value.kind(), "lambda_literal" | "anonymous_function").then_some((name, *value))
 }
