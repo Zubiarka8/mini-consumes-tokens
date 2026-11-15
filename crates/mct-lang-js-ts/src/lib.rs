@@ -39,6 +39,7 @@ use mct_core::{LanguageParser, ParseError, ParsedFile, SourceFile, SymbolKind};
 use mct_tree_sitter::{first_error, module_location};
 use tree_sitter::Parser;
 
+mod nextjs;
 mod walker;
 
 use walker::Walker;
@@ -100,7 +101,10 @@ impl LanguageParser for JsTsParser {
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.entry_points =
+            nextjs::hints(&file.relative_path, root, &file.contents, &parsed.symbols);
+        Ok(parsed)
     }
 }
 
