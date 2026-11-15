@@ -68,7 +68,7 @@ impl LanguageParser for LuaParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents, root);
+        let mut walker = Walker::new(&file.contents, &file.relative_path, root);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, 0);
@@ -123,6 +123,13 @@ struct TargetRef {
 
 struct Walker<'a> {
     source: &'a str,
+    /// This file's path, the target of a reference to one of its classes.
+    path: &'a str,
+    /// Call qualifiers naming a table of this file (`Animal` in
+    /// `Animal.new()`, `W.Widget` in `W.Widget.make()`): the caller, the
+    /// dotted table path and where it is written. `finish` keeps those that
+    /// name a class.
+    qualifier_uses: Vec<(SymbolId, String, Location)>,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
@@ -143,10 +150,12 @@ struct Walker<'a> {
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str, root: Node) -> Self {
+    fn new(source: &'a str, path: &'a str, root: Node) -> Self {
         Self {
             std_globals: globals::StdGlobals::of(root, source),
             source,
+            path,
+            qualifier_uses: Vec::new(),
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
@@ -340,6 +349,7 @@ impl<'a> Walker<'a> {
                             self.push_receiver_evidence(relation, callee);
                         }
                         self.push_std_evidence(relation, callee);
+                        self.push_qualifier_use(owner, callee);
                     }
                     // `money.gross(net):to_json()`: the call this one is
                     // chained on sits in the callee's table expression.
@@ -987,6 +997,42 @@ impl<'a> Walker<'a> {
         on_self.then(|| self.self_table.clone()).flatten()
     }
 
+    /// The table a call is read from (`Animal` in `Animal.new()` or
+    /// `Animal:speak()`, `W.Widget` in `W.Widget.make()`), when it is a
+    /// dotted path of names whose first name means this file's table: one
+    /// declared at file scope that no local or parameter shadows and no
+    /// `require` binds.
+    fn push_qualifier_use(&mut self, owner: SymbolId, callee: Node) {
+        let Some(table) = callee.child_by_field_name("table") else {
+            return;
+        };
+        let mut root = table;
+        while root.kind() == "dot_index_expression" {
+            match root.child_by_field_name("table") {
+                Some(inner) => root = inner,
+                None => return,
+            }
+        }
+        if root.kind() != "identifier" {
+            return;
+        }
+        let name = text(root, self.source);
+        let innermost = self
+            .scopes
+            .iter()
+            .rposition(|scope| scope.contains_key(name));
+        let file_binding = match innermost {
+            Some(0) => self.scopes[0].get(name),
+            Some(_) => return,
+            None => None,
+        };
+        if file_binding.is_some_and(|b| b.import.is_some() || b.alias_of.is_some()) {
+            return;
+        }
+        let path = flatten_table(table, self.source);
+        self.qualifier_uses.push((owner, path, location(table)));
+    }
+
     fn push_receiver_evidence(&mut self, relation: usize, callee: Node) {
         let on_self = callee
             .child_by_field_name("table")
@@ -1201,7 +1247,33 @@ impl<'a> Walker<'a> {
         table_key_name(key, self.source)
     }
 
-    fn finish(self) -> ParsedFile {
+    fn finish(mut self) -> ParsedFile {
+        // A qualifier references the class it names only when this file
+        // declares that class: `Animal` a file-level class, `W.Widget` the
+        // class `Widget` of `W`. The target is that class, never a function
+        // or field named like it.
+        for (owner, path, loc) in std::mem::take(&mut self.qualifier_uses) {
+            let (outer, name) = match path.rsplit_once('.') {
+                Some((outer, name)) => (Some(outer), name),
+                None => (None, path.as_str()),
+            };
+            let declared = self.symbols.iter().any(|s| {
+                s.kind == SymbolKind::Class && s.name == name && s.parent.as_deref() == outer
+            });
+            if !declared {
+                continue;
+            }
+            let relation = self.relations.len();
+            self.push_relation(owner, RelationKind::References, name.to_string(), loc);
+            if self.relations.len() > relation {
+                self.relation_targets.push(RelationTarget {
+                    relation,
+                    path: Some(self.path.to_string()),
+                    kind: Some(SymbolKind::Class),
+                    ..Default::default()
+                });
+            }
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
