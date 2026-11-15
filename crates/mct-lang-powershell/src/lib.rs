@@ -29,10 +29,15 @@
 //!   `$x[0] = ...` changes an existing value rather than declaring `x`.
 //!   A variable's scope prefix
 //!   (`$script:x`, `$global:x`, ...) is stripped from the recorded name.
-//! - PowerShell classes (`class Foo { ... }`), their methods and `enum`s are **not**
-//!   indexed — out of scope for what this plugin was asked to cover
-//!   (systems-scripting `.ps1`/`.psm1` files), and classes are rare in that
-//!   style of script. Only `function`-style definitions are.
+//! - A `class` is a `Class`, its properties `Field`s and its methods
+//!   (constructors included, named after the class) `Method`s; an `enum` is
+//!   an `Enum` whose members are `Field`s. A method owns the commands its
+//!   body runs. A command invocation names a function, cmdlet or executable,
+//!   never a method, so its target must be a `Function`. `[T]::new(…)` and
+//!   `New-Object T` construct a class: `calls T`, whose target must be a
+//!   `Class` (a dotted or generic `T` is a .NET type, and gives none). A
+//!   class's first base is `Extends` unless it is named like an interface
+//!   (`IFoo`), as in C#; the rest are `Implements`.
 
 use mct_core::{
     LanguageParser, Location, ParseError, ParsedFile, RelationKind, RelationTarget, SourceFile,
@@ -42,6 +47,10 @@ use mct_tree_sitter::{find_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod literals;
+mod tokens;
+
+pub use tokens::PowerShellTokenSource;
 
 pub struct PowerShellParser;
 
@@ -111,7 +120,9 @@ impl LanguageParser for PowerShellParser {
             None,
         );
         walker.visit_children(root, module_id, &module_name, module_id, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -190,6 +201,15 @@ fn terminate_param_blocks(node: Node, normalized: &mut [u8], depth: u32) -> bool
     changed
 }
 
+/// `IFoo`: an `I`, an upper-case letter, then a lower-case one — the .NET
+/// naming convention for interfaces (`IO` or `ID` alone don't match).
+fn looks_like_interface(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next() == Some('I')
+        && chars.next().is_some_and(char::is_uppercase)
+        && chars.next().is_some_and(char::is_lowercase)
+}
+
 fn simple_identifier(value: &str) -> bool {
     let mut bytes = value.bytes();
     bytes
@@ -263,11 +283,10 @@ struct Walker<'a> {
     /// This file's repository-relative path, the base of relative sources.
     path: &'a str,
     next_id: SymbolId,
-    /// How many `class` bodies enclose the node being visited. Classes have
-    /// no symbol, so their methods' statements keep the file as owner, but
-    /// an assignment there is a method local or a property, never a script
-    /// variable.
-    class_depth: u32,
+    /// Each `[T]` type literal of one plain name, but `[T]::new()`'s: its
+    /// owner, `T` and where. `finish` keeps those naming one class or enum
+    /// of this file.
+    type_uses: Vec<(SymbolId, String, Location)>,
 }
 
 impl<'a> Walker<'a> {
@@ -355,13 +374,12 @@ impl<'a> Walker<'a> {
                     self.visit_children(block, id, &name, module_id, depth + 1);
                 }
             }
-            "class_statement" => {
-                self.class_depth += 1;
-                self.visit_children(node, owner, scope_name, module_id, depth + 1);
-                self.class_depth -= 1;
-            }
+            "class_statement" => self.visit_class(node, scope_name, module_id, depth),
+            "enum_statement" => self.visit_enum(node, scope_name),
             "assignment_expression" => {
-                if owner == module_id && self.class_depth == 0 {
+                // Inside a class the owner is the class or a method, so an
+                // assignment there is a property value or a method local.
+                if owner == module_id {
                     if let Some((lhs, var_node)) = find_child(node, "left_assignment_expression")
                         .and_then(|lhs| Some((lhs, find_descendant(lhs, "variable")?)))
                         .filter(|(lhs, var_node)| !is_member_or_element_target(*lhs, *var_node))
@@ -412,12 +430,23 @@ impl<'a> Walker<'a> {
                                 );
                             }
                         } else {
+                            if cmd_text.eq_ignore_ascii_case("New-Object") {
+                                if let Some(class) = new_object_class(node, self.source) {
+                                    self.push_construction(owner, class);
+                                }
+                            }
+                            let relation = self.relations.len();
                             self.push_relation(
                                 owner,
                                 RelationKind::Calls,
                                 cmd_text,
                                 location(name_node),
                             );
+                            self.relation_targets.push(RelationTarget {
+                                relation,
+                                kind: Some(SymbolKind::Function),
+                                ..Default::default()
+                            });
                         }
                     }
                 }
@@ -426,11 +455,195 @@ impl<'a> Walker<'a> {
                 // are still picked up.
                 self.visit_children(node, owner, scope_name, module_id, depth + 1);
             }
+            "type_literal" => {
+                let constructs = node
+                    .parent()
+                    .and_then(|p| static_new_class(p, self.source))
+                    .is_some();
+                if let (false, Some(name)) = (constructs, plain_type_name(node, self.source)) {
+                    self.type_uses.push((
+                        owner,
+                        text(name, self.source).to_string(),
+                        location(name),
+                    ));
+                }
+            }
+            "invokation_expression" => {
+                if let Some(class) = static_new_class(node, self.source) {
+                    self.push_construction(owner, class);
+                }
+                self.visit_children(node, owner, scope_name, module_id, depth + 1);
+            }
             _ => self.visit_children(node, owner, scope_name, module_id, depth + 1),
         }
     }
 
-    fn finish(self) -> ParsedFile {
+    /// `calls` the class `name_node` names, which only a `Class` can answer.
+    fn push_construction(&mut self, owner: SymbolId, name_node: Node) {
+        let relation = self.relations.len();
+        self.push_relation(
+            owner,
+            RelationKind::Calls,
+            text(name_node, self.source).to_string(),
+            location(name_node),
+        );
+        self.relation_targets.push(RelationTarget {
+            relation,
+            kind: Some(SymbolKind::Class),
+            ..Default::default()
+        });
+    }
+
+    /// `class Name : Base, IFoo { … }`: the first `simple_name` is the
+    /// class's own name, the rest its bases. A property initializer runs as
+    /// the class; a method body as the method.
+    fn visit_class(&mut self, node: Node, scope_name: &str, module_id: SymbolId, depth: u32) {
+        let Some(name_node) = find_child(node, "simple_name") else {
+            return;
+        };
+        let class_name = text(name_node, self.source).to_string();
+        let class_id = self.push_symbol(
+            class_name.clone(),
+            SymbolKind::Class,
+            location(node),
+            Some(scope_name.to_string()),
+        );
+        self.details
+            .push(details::header_detail(node, class_id, self.source));
+        self.push_bases(node, name_node, class_id);
+        mct_tree_sitter::for_each_child(node, |member| match member.kind() {
+            "class_property_definition" => {
+                let Some(variable) = find_child(member, "variable") else {
+                    return;
+                };
+                let name = clean_variable_name(text(variable, self.source));
+                if name.is_empty() {
+                    return;
+                }
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(member),
+                    Some(class_name.clone()),
+                );
+                self.details
+                    .push(details::property_detail(member, variable, id, self.source));
+                self.visit_children(member, class_id, &class_name, module_id, depth + 1);
+            }
+            "class_method_definition" => {
+                let Some(method_name) = find_child(member, "simple_name") else {
+                    return;
+                };
+                let name = text(method_name, self.source).to_string();
+                let id = self.push_symbol(
+                    name.clone(),
+                    SymbolKind::Method,
+                    location(member),
+                    Some(class_name.clone()),
+                );
+                self.details
+                    .push(details::method_detail(member, id, self.source));
+                // The return and parameter types are the method's too.
+                mct_tree_sitter::for_each_child(member, |part| {
+                    if part.kind() != "script_block" {
+                        self.visit(part, id, &name, module_id, depth + 1);
+                    }
+                });
+                if let Some(block) = find_child(member, "script_block") {
+                    self.visit_children(block, id, &name, module_id, depth + 1);
+                }
+            }
+            _ => {}
+        });
+    }
+
+    /// The base list after the class's name: the base class first, then
+    /// interfaces. As in C#, a first base named like an interface (`IFoo`)
+    /// is one. A script declares no interface, so an `extends` target must
+    /// be a `Class` and an `implements` one an `Interface`.
+    fn push_bases(&mut self, node: Node, name_node: Node, class_id: SymbolId) {
+        let mut cursor = node.walk();
+        let bases: Vec<Node> = node
+            .named_children(&mut cursor)
+            .filter(|c| c.kind() == "simple_name" && c.id() != name_node.id())
+            .collect();
+        for (i, base) in bases.into_iter().enumerate() {
+            let name = text(base, self.source).trim().to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let (kind, target) = if i == 0 && !looks_like_interface(&name) {
+                (RelationKind::Extends, SymbolKind::Class)
+            } else {
+                (RelationKind::Implements, SymbolKind::Interface)
+            };
+            let relation = self.relations.len();
+            self.push_relation(class_id, kind, name, location(base));
+            self.relation_targets.push(RelationTarget {
+                relation,
+                kind: Some(target),
+                ..Default::default()
+            });
+        }
+    }
+
+    /// `enum Name { A; B = 2 }`: each `enum_member` is a field of the enum.
+    fn visit_enum(&mut self, node: Node, scope_name: &str) {
+        let Some(name_node) = find_child(node, "simple_name") else {
+            return;
+        };
+        let enum_name = text(name_node, self.source).to_string();
+        let enum_id = self.push_symbol(
+            enum_name.clone(),
+            SymbolKind::Enum,
+            location(node),
+            Some(scope_name.to_string()),
+        );
+        self.details
+            .push(details::header_detail(node, enum_id, self.source));
+        mct_tree_sitter::for_each_child(node, |member| {
+            if member.kind() != "enum_member" {
+                return;
+            }
+            let Some(member_name) = find_child(member, "simple_name") else {
+                return;
+            };
+            let id = self.push_symbol(
+                text(member_name, self.source).to_string(),
+                SymbolKind::Field,
+                location(member),
+                Some(enum_name.clone()),
+            );
+            self.details
+                .push(details::member_detail(member, id, self.source));
+        });
+    }
+
+    fn finish(mut self) -> ParsedFile {
+        // A script class is visible in another file only through `using
+        // module`, so a `[T]` reaches a class or enum of this file or none.
+        // PowerShell type names ignore case.
+        // The target is that type, never a method or field named like it.
+        let types: Vec<(String, SymbolKind)> = self
+            .symbols
+            .iter()
+            .filter(|s| matches!(s.kind, SymbolKind::Class | SymbolKind::Enum))
+            .map(|s| (s.name.clone(), s.kind))
+            .collect();
+        for (owner, name, loc) in std::mem::take(&mut self.type_uses) {
+            let mut declared = types.iter().filter(|(t, _)| t.eq_ignore_ascii_case(&name));
+            let (Some((declared, kind)), None) = (declared.next(), declared.next()) else {
+                continue;
+            };
+            let relation = self.relations.len();
+            self.push_relation(owner, RelationKind::References, declared.clone(), loc);
+            self.relation_targets.push(RelationTarget {
+                relation,
+                path: Some(self.path.to_string()),
+                kind: Some(*kind),
+                ..Default::default()
+            });
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
@@ -475,6 +688,53 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
+}
+
+/// The class `[T]::new(…)` constructs: a `T` of one plain identifier, as a
+/// script class is named; a dotted or generic type is .NET's.
+fn static_new_class<'a>(node: Node<'a>, source: &str) -> Option<Node<'a>> {
+    let literal = node.named_child(0).filter(|n| n.kind() == "type_literal")?;
+    let member = find_child(node, "member_name").and_then(|m| find_child(m, "simple_name"))?;
+    if !text(member, source).eq_ignore_ascii_case("new") {
+        return None;
+    }
+    plain_type_name(literal, source)
+}
+
+/// The `type_identifier` of a type literal of one plain identifier
+/// (`[Spot]`), as a script class or enum is named; a dotted or generic type
+/// is .NET's.
+fn plain_type_name<'a>(literal: Node<'a>, source: &str) -> Option<Node<'a>> {
+    let type_name = find_child(find_child(literal, "type_spec")?, "type_name")?;
+    if type_name.named_child_count() != 1 {
+        return None;
+    }
+    type_name
+        .named_child(0)
+        .filter(|n| n.kind() == "type_identifier")
+        .filter(|n| simple_identifier(text(*n, source)))
+}
+
+/// The class `New-Object T` constructs: a first argument of one plain
+/// identifier, unless a `-ComObject` parameter (any `-c…` abbreviation)
+/// makes it a COM ProgID.
+fn new_object_class<'a>(command: Node<'a>, source: &str) -> Option<Node<'a>> {
+    let elements = command.child_by_field_name("command_elements")?;
+    let mut cursor = elements.walk();
+    let com = elements
+        .named_children(&mut cursor)
+        .filter(|c| c.kind() == "command_parameter")
+        .any(|c| {
+            text(c, source)
+                .get(..2)
+                .is_some_and(|p| p.eq_ignore_ascii_case("-c"))
+        });
+    if com {
+        return None;
+    }
+    first_command_argument_node(command)
+        .filter(|arg| arg.kind() == "generic_token")
+        .filter(|arg| simple_identifier(text(*arg, source)))
 }
 
 /// A `command`'s `command_name` field is either the literal name directly
