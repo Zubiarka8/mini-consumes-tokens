@@ -43,6 +43,7 @@ pub fn build_token_sources() -> TokenSourceRegistry {
     registry.register(Arc::new(mct_lang_csharp::CSharpTokenSource));
     registry.register(Arc::new(mct_lang_cpp::CppTokenSource));
     registry.register(Arc::new(mct_lang_php::PhpTokenSource));
+    registry.register(Arc::new(mct_lang_bash::BashTokenSource));
     registry
 }
 
@@ -123,6 +124,7 @@ mod tests {
         assert_eq!(
             sources.language_ids(),
             [
+                "bash",
                 "cpp",
                 "csharp",
                 "go",

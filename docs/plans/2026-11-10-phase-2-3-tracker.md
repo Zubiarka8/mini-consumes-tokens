@@ -1077,6 +1077,18 @@ From `rules.md` and the two messages:
           candidates 11,677 -> 11,946, 0 skipped, groups 149 -> 149; at 2
           lines / 12 tokens, 12 groups with PHP members (getters in the PHP
           corpus). PHP feature score 75% -> 85%; area Quality 50% -> 100%.
+    - [x] Bash repeated code: `BashTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of shell files and is registered
+          in `build_token_sources`. Every function, in both forms
+          (`function f` and `f()`), nested, redirected or with a subshell
+          body, has a callable span matching its symbol, so none is
+          skipped. A command's words are identifiers, as a call's callee
+          is in other languages: the broad normalization compares the
+          shape of commands and the consistent one tells commands apart.
+          Test: `tests/duplicates.rs` (through the real index). Repository
+          snapshot, defaults: candidates 11,946 -> 12,106, 0 skipped,
+          groups 149 -> 149; at 2 lines / 12 tokens, no group with Bash
+          members. Bash feature score 70% -> 80%; area Quality 50% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
