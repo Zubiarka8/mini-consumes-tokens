@@ -305,6 +305,18 @@ impl<'a> Walker<'a> {
                                     cmd_text.to_string(),
                                     location(word_node),
                                 );
+                                // `trap handler SIGNAL` runs `handler` when
+                                // the signal arrives.
+                                if cmd_text == "trap" {
+                                    if let Some(handler) = trap_handler(node, self.source) {
+                                        self.push_relation(
+                                            owner,
+                                            RelationKind::Calls,
+                                            handler,
+                                            location(node),
+                                        );
+                                    }
+                                }
                             }
                         }
                     }
@@ -369,6 +381,20 @@ fn literal_word_child(command_name_node: Node) -> Option<Node> {
 
 /// The literal text of a `command`'s first `argument` field, quotes
 /// trimmed — used for `source`/`.`'s target path.
+/// The function a `trap` names as its handler: its first argument when that
+/// is a single plain word (`trap cleanup EXIT`, `trap 'on_err' ERR`). A
+/// command string with arguments, `-`, an empty handler, an option
+/// (`-p`, `-l`) or an expansion names no function.
+fn trap_handler(command_node: Node, source: &str) -> Option<String> {
+    let handler = first_argument_text(command_node, source)?;
+    let mut chars = handler.chars();
+    let starts_like_a_name = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+    (starts_like_a_name && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.')))
+        .then_some(handler)
+}
+
 /// Expressions that evaluate to the sourcing script's own directory.
 const SCRIPT_DIR_PREFIXES: [&str; 7] = [
     "$(dirname \"$0\")",

@@ -754,6 +754,13 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Bash: `trap handler SIGNAL` calls `handler` when the handler is a
+        single plain word (`trap cleanup EXIT`, `trap 'on_err' ERR`), so a
+        trap handler is not dead code. A command string (`trap 'echo bye;
+        exit' EXIT`), `-`, `''`, `-p`/`-l` and an expansion name nothing.
+        Corpus: +1 call (`trap run_cleanup EXIT` in `lib/log.sh`), symbols
+        unchanged. Probe on a tiny tree: dead code listed `cleanup` before.
+        Test: `mct-lang-bash/tests/trap_handlers.rs`.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
