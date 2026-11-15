@@ -290,3 +290,63 @@ fn collect_kind<'t>(node: Node<'t>, kind: &str, out: &mut Vec<Node<'t>>, depth: 
         }
     }
 }
+
+/// The types of Go's universe block ([Predeclared identifiers]): no
+/// declaration of the repository declares them.
+///
+/// [Predeclared identifiers]: https://go.dev/ref/spec#Predeclared_identifiers
+pub(crate) const PREDECLARED_TYPES: &[&str] = &[
+    "any",
+    "bool",
+    "byte",
+    "comparable",
+    "complex64",
+    "complex128",
+    "error",
+    "float32",
+    "float64",
+    "int",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "rune",
+    "string",
+    "uint",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uintptr",
+];
+
+/// The type parameter names a method receiver binds: `T` and `U` in
+/// `(b *Box[T, U])`.
+pub(crate) fn collect_receiver_type_params(
+    node: Node,
+    source: &str,
+    out: &mut Vec<String>,
+    depth: u32,
+) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    if node.kind() == "type_arguments" || node.kind() == "type_parameter_list" {
+        for argument in node.named_children(&mut node.walk()) {
+            let name = if argument.kind() == "type_elem" {
+                argument.named_child(0)
+            } else {
+                Some(argument)
+            };
+            if let Some(name) =
+                name.filter(|n| matches!(n.kind(), "type_identifier" | "identifier"))
+            {
+                out.push(text(name, source).to_string());
+            }
+        }
+        return;
+    }
+    for child in node.named_children(&mut node.walk()) {
+        collect_receiver_type_params(child, source, out, depth + 1);
+    }
+}

@@ -705,6 +705,20 @@ From `rules.md` and the two messages:
           snapshot: 515 -> 809 relations. Repository snapshot (C++, with
           `init --force`): 542 -> 838 relations, 118 resolved (all to a
           type of the same file), 178 external. Dead code 123 -> 123.
+    - [x] Go declaration types: the type of a `var`/`const`, a parameter,
+          a result and a struct field (`var c Cart`, `func f(c *Cart)
+          (Money, error)`), unwrapped through `*T`, `[]T`, `map[K]V`,
+          `chan T`, `func(T) U` and generic arguments, references that type
+          with the composite-literal evidence: a bare name is a declaration
+          of this package (`qualifier`), `pkg.T` is external through a
+          standard package and a declaration of `pkg` through an unaliased
+          repository import. Predeclared types (`int`, `error`), type
+          parameters (`T`) and aliased or unknown packages give nothing.
+          Test: `tests/declaration_types.rs`. Corpus snapshot: 917 -> 1298
+          relations; corpus index: 384 resolved (all struct, alias or
+          interface), 76 external, 0 ambiguous, 0 unresolved. Repository
+          snapshot (Go, with `init --force`): 946 -> 1328 relations, +311
+          resolved (all to a type), +71 external. Dead code 123 -> 123.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
