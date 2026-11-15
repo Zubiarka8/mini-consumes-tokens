@@ -23,6 +23,9 @@ mod details;
 mod literals;
 mod receivers;
 mod stdlib;
+mod tokens;
+
+pub use tokens::GoTokenSource;
 
 pub struct GoParser;
 
@@ -1032,7 +1035,7 @@ fn callee_identifier(function: Node) -> Option<Node> {
 
 /// The function literal of a `var_spec` that binds one name, with no type,
 /// to one `func(…) {…}`.
-fn func_value(spec: Node) -> Option<Node> {
+pub(crate) fn func_value(spec: Node) -> Option<Node> {
     if spec.kind() != "var_spec"
         || spec.child_by_field_name("type").is_some()
         || spec
