@@ -49,8 +49,8 @@ fn a_local_function_has_its_enclosing_function_as_parent() {
     };
     assert_eq!(parent_of("Twice"), Some("Total"));
     assert_eq!(parent_of("Inner"), Some("Twice"));
-    // A lambda is transparent: the method around it counts.
-    assert_eq!(parent_of("InLambda"), Some("Total"));
+    // A named lambda is itself an indexed function and owns its locals.
+    assert_eq!(parent_of("InLambda"), Some("f"));
     // A constructor is a method named after its class.
     assert_eq!(parent_of("Setup"), Some("Shop"));
 }

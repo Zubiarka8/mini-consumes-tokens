@@ -4,8 +4,9 @@
 //! name, an index, a call result, a field) whose type the syntax doesn't
 //! prove calls a method, never a package-level name. `pkg.F()` through an
 //! unaliased import whose path ends in `pkg` names a declaration of that
-//! package. Anything else (an aliased import, an undeclared name) proves
-//! nothing.
+//! package; through an aliased one (`db "…/database"`), a declaration
+//! under the path's last directory (`dir:database`). Anything else (an
+//! undeclared name) proves nothing.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -52,7 +53,11 @@ fn calls(parsed: &ParsedFile) -> Vec<String> {
             let target = parsed.relation_targets.iter().find(|t| t.relation == i);
             let evidence = match target {
                 Some(t) if t.kind == Some(SymbolKind::Method) => "method".to_string(),
-                Some(t) => t.qualifier.clone().unwrap_or_else(|| "?".to_string()),
+                Some(t) => t
+                    .qualifier
+                    .clone()
+                    .or_else(|| t.module.as_ref().map(|m| format!("dir:{m}")))
+                    .unwrap_or_else(|| "?".to_string()),
                 None => "-".to_string(),
             };
             format!("{} {} {evidence}", r.location.line, r.to_name)
@@ -67,7 +72,7 @@ fn a_call_carries_what_its_syntax_proves() {
         [
             "9 helper shop",
             "10 Open store",
-            "11 Open -",
+            "11 Open dir:database",
             "12 Price method",
             "13 Total method",
             "13 build shop",
