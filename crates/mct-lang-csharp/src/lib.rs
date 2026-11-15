@@ -57,6 +57,7 @@ impl LanguageParser for CSharpParser {
         module_location.end_line = Some(walker.file_end);
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.visit_children(root, module_id, None, 0);
+        walker.push_type_uses(root, module_id, 0);
         Ok(walker.finish())
     }
 }
@@ -116,6 +117,69 @@ impl<'a> Walker<'a> {
             classes: Vec::new(),
             supertypes: Vec::new(),
         }
+    }
+
+    /// A `references` relation for every type named in a declaration or an
+    /// expression: the `type` (or `returns`) of a field, property, parameter,
+    /// local, cast, `typeof`, `catch`… and the right side of `is`/`as`. It
+    /// comes from the innermost symbol whose lines hold the type. The type
+    /// of a `new` (already a call), a base type (already `extends`/
+    /// `implements`) and a type parameter add nothing.
+    fn push_type_uses(&mut self, node: Node, module: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        let typed = match node.kind() {
+            "object_creation_expression" | "base_list" => None,
+            "method_declaration" => node.child_by_field_name("returns"),
+            "is_expression" | "as_expression" => node.child_by_field_name("right"),
+            // `o is Marker` parses as a constant pattern: a type or a
+            // constant, either way a name that is used.
+            "constant_pattern" => node
+                .named_child(0)
+                .filter(|c| matches!(c.kind(), "identifier" | "generic_name")),
+            kind if TYPED_NODES.contains(&kind) => node.child_by_field_name("type"),
+            _ => None,
+        };
+        if let Some(ty) = typed {
+            let mut names = Vec::new();
+            collect_type_names(ty, &mut names, 0);
+            for name_node in names {
+                let name = text(name_node, self.source);
+                if is_type_parameter(name_node, name, self.source) {
+                    continue;
+                }
+                let owner = self.enclosing_symbol(name_node, module);
+                self.push_relation(
+                    owner,
+                    RelationKind::References,
+                    name.to_string(),
+                    location(name_node),
+                );
+            }
+        }
+        let mut cursor = node.walk();
+        let children: Vec<Node> = node.named_children(&mut cursor).collect();
+        for child in children {
+            if child.kind() == "base_list" {
+                continue;
+            }
+            self.push_type_uses(child, module, depth + 1);
+        }
+    }
+
+    /// The innermost symbol (the smallest line range) holding `node`'s
+    /// line, else the file's module.
+    fn enclosing_symbol(&self, node: Node, module: SymbolId) -> SymbolId {
+        let line = node.start_position().row as u32 + 1;
+        self.symbols
+            .iter()
+            .filter(|s| s.id != module)
+            .filter(|s| {
+                s.location.line <= line && line <= s.location.end_line.unwrap_or(s.location.line)
+            })
+            .min_by_key(|s| s.location.end_line.unwrap_or(s.location.line) - s.location.line)
+            .map_or(module, |s| s.id)
     }
 
     fn push_symbol(
@@ -853,4 +917,86 @@ fn last_identifier(node: Node) -> Option<Node> {
         "qualified_name" => node.child_by_field_name("name").and_then(last_identifier),
         _ => None,
     }
+}
+
+/// Declarations and expressions whose `type` field names a type.
+const TYPED_NODES: [&str; 20] = [
+    "variable_declaration",
+    "parameter",
+    "property_declaration",
+    "indexer_declaration",
+    "event_declaration",
+    "delegate_declaration",
+    "operator_declaration",
+    "conversion_operator_declaration",
+    "local_function_statement",
+    "cast_expression",
+    "typeof_expression",
+    "sizeof_expression",
+    "default_expression",
+    "catch_declaration",
+    "declaration_pattern",
+    "type_pattern",
+    "recursive_pattern",
+    "foreach_statement",
+    "type_parameter_constraint",
+    "declaration_expression",
+];
+
+/// The identifiers a type names: `Row` in `List<Row>?`, `Money` in
+/// `a.b.Money` (its last segment). Built-in keywords are no identifiers.
+fn collect_type_names<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    match node.kind() {
+        "identifier" => out.push(node),
+        "qualified_name" => {
+            if let Some(name) = node.child_by_field_name("name") {
+                collect_type_names(name, out, depth + 1);
+            }
+        }
+        "generic_name" => {
+            let mut cursor = node.walk();
+            let children: Vec<Node> = node.named_children(&mut cursor).collect();
+            for child in children {
+                collect_type_names(child, out, depth + 1);
+            }
+        }
+        "type_argument_list" | "nullable_type" | "array_type" | "tuple_type" | "tuple_element"
+        | "ref_type" | "scoped_type" | "pointer_type" => {
+            let mut cursor = node.walk();
+            let children: Vec<Node> = node.named_children(&mut cursor).collect();
+            for child in children {
+                if child.kind() != "array_rank_specifier" {
+                    collect_type_names(child, out, depth + 1);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Whether `name` is a type parameter (`<T>`) of a declaration enclosing
+/// `node`.
+fn is_type_parameter(node: Node, name: &str, source: &str) -> bool {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        let mut cursor = ancestor.walk();
+        let lists: Vec<Node> = ancestor
+            .named_children(&mut cursor)
+            .filter(|c| c.kind() == "type_parameter_list")
+            .collect();
+        for list in lists {
+            let mut inner = list.walk();
+            let declares = list
+                .named_children(&mut inner)
+                .any(|p| p.kind() == "type_parameter" && text(p, source).trim() == name);
+            if declares {
+                return true;
+            }
+        }
+        current = ancestor.parent();
+    }
+    false
 }

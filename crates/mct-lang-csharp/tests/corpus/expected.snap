@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=454 relations=679 name_matched_across_files=156
+# language=csharp files=6 symbols=454 relations=1103 name_matched_across_files=239
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -184,6 +184,61 @@ R 367:23 calls RateLimiter::Refill -> Min
 R 371:55 extends RateLimiter::QuotaExceededException -> WarehouseException
 R 374:17 calls QuotaExceededException::QuotaExceededException -> WarehouseException
 R 376:39 overrides QuotaExceededException::Code -> Code
+R 38:35 references ErrorCodeAttribute::ErrorCodeAttribute -> ErrorCode
+R 40:16 references ErrorCodeAttribute::Code -> ErrorCode
+R 42:16 references ErrorCodeAttribute::Severity -> Severity
+R 48:26 references WarehouseException::_context -> Dictionary
+R 50:54 references WarehouseException::WarehouseException -> Exception
+R 56:16 references WarehouseException::RaisedAt -> DateTimeOffset
+R 58:25 references WarehouseException::Code -> ErrorCode
+R 60:16 references WarehouseException::Context -> IReadOnlyDictionary
+R 62:16 references WarehouseException::With -> WarehouseException
+R 95:25 references NotFoundException::Code -> ErrorCode
+R 101:26 references ValidationException::_errors -> List
+R 101:31 references ValidationException::_errors -> FieldError
+R 103:36 references ValidationException::ValidationException -> IEnumerable
+R 103:48 references ValidationException::ValidationException -> FieldError
+R 114:16 references ValidationException::Errors -> IReadOnlyList
+R 114:30 references ValidationException::Errors -> FieldError
+R 116:25 references ValidationException::Code -> ErrorCode
+R 135:25 references OutOfStockException::Code -> ErrorCode
+R 151:25 references ConflictException::Code -> ErrorCode
+R 165:34 references Result::Result -> WarehouseException
+R 171:16 references Result::Error -> WarehouseException
+R 177:23 references Result::Ok -> Result
+R 179:23 references Result::Fail -> Result
+R 179:38 references Result::Fail -> WarehouseException
+R 181:16 references Result::Map -> Result
+R 181:39 references Result::Map -> Func
+R 184:16 references Result::Bind -> Result
+R 184:40 references Result::Bind -> Func
+R 184:48 references Result::Bind -> Result
+R 189:41 references Result::operator Result -> Result
+R 191:64 references Result::Deconstruct -> WarehouseException
+R 245:26 references ErrorCollector::_errors -> List
+R 245:31 references ErrorCollector::_errors -> FieldError
+R 249:16 references ErrorCollector::Check -> ErrorCollector
+R 258:16 references ErrorCollector::Require -> ErrorCollector
+R 273:33 references ErrorCatalog::Entries -> Dictionary
+R 273:44 references ErrorCatalog::Entries -> ErrorCode
+R 273:55 references ErrorCatalog::Entries -> Entry
+R 275:36 references ErrorCatalog::Entry -> ErrorCode
+R 275:66 references ErrorCatalog::Entry -> Severity
+R 282:41 references Http::StatusFor -> ErrorCode
+R 292:24 references ErrorCatalog::Build -> Dictionary
+R 292:35 references ErrorCatalog::Build -> ErrorCode
+R 292:46 references ErrorCatalog::Build -> Entry
+R 295:22 references Add -> ErrorCode
+R 295:52 references Add -> Severity
+R 307:38 references ErrorCatalog::Explain -> WarehouseException
+R 316:23 references ErrorCatalog::SeverityOf -> Severity
+R 316:43 references ErrorCatalog::SeverityOf -> Exception
+R 318:13 references ErrorCatalog::SeverityOf -> WarehouseException
+R 319:13 references ErrorCatalog::SeverityOf -> OperationCanceledException
+R 329:26 references RateLimiter::_refill -> TimeSpan
+R 331:17 references RateLimiter::_last -> DateTime
+R 333:42 references RateLimiter::RateLimiter -> TimeSpan
+R 376:29 references QuotaExceededException::Code -> ErrorCode
 
 == Warehouse/Models.cs (391 lines)
 S 1-391 module Models
@@ -394,6 +449,85 @@ R 369:33 calls ModelExtensions::Nearest -> Distance
 R 380:26 calls ModelExtensions::Project -> projection
 R 388:82 calls ModelExtensions::Describe -> ToLowerInvariant
 R 388:71 calls ModelExtensions::Describe -> ToString
+R 51:19 references Sku::Parse -> Sku
+R 53:51 references Sku::TryParse -> Sku
+R 66:44 references Sku::operator string -> Sku
+R 70:37 references Warehouse.Models::Price -> Money
+R 72:28 references Price::Zero -> Price
+R 74:12 references Price::Validated -> Price
+R 76:19 references Price::operator + -> Price
+R 76:36 references Price::operator + -> Price
+R 76:45 references Price::operator + -> Price
+R 82:19 references Price::operator * -> Price
+R 82:36 references Price::operator * -> Price
+R 82:68 references Price::operator * -> Amount
+R 84:35 references Price::operator > -> Price
+R 84:44 references Price::operator > -> Price
+R 86:35 references Price::operator < -> Price
+R 86:44 references Price::operator < -> Price
+R 88:32 references Price::Compare -> Price
+R 88:41 references Price::Compare -> Price
+R 94:38 references Price::SameCurrency -> Price
+R 94:47 references Price::SameCurrency -> Price
+R 109:5 references IEntity::Id -> TKey
+R 118:5 references IAuditable::CreatedAt -> DateTimeOffset
+R 120:5 references IAuditable::UpdatedAt -> DateTimeOffset
+R 139:12 references Entity::CreatedAt -> DateTimeOffset
+R 141:12 references Entity::UpdatedAt -> DateTimeOffset
+R 146:11 references Entity::Bump -> IAuditable
+R 150:16 references Entity::Equals -> Entity
+R 158:22 references Product::_tags -> HashSet
+R 160:20 references Product::Product -> Sku
+R 160:42 references Product::Product -> Price
+R 160:55 references Product::Product -> Unit
+R 170:12 references Product::Price -> Price
+R 172:12 references Product::Unit -> Unit
+R 174:12 references Product::Tags -> IReadOnlyCollection
+R 178:12 references Product::Rename -> Product
+R 185:12 references Product::Reprice -> Product
+R 185:28 references Product::Reprice -> Price
+R 192:12 references Product::Tag -> Product
+R 207:19 references Location::Parse -> Location
+R 217:26 references Location::CompareTo -> Location
+R 221:25 references Location::Distance -> Location
+R 228:31 references Warehouse.Models::StockLine -> Sku
+R 228:40 references Warehouse.Models::StockLine -> Location
+R 230:12 references StockLine::Sku -> Sku
+R 232:12 references StockLine::Bin -> Location
+R 271:32 references Warehouse.Models::OrderLine -> Sku
+R 271:55 references Warehouse.Models::OrderLine -> Price
+R 273:12 references OrderLine::Total -> Price
+R 279:22 references Order::_lines -> List
+R 279:27 references Order::_lines -> OrderLine
+R 281:18 references Order::Order -> Guid
+R 289:12 references Order::Status -> OrderStatus
+R 291:12 references Order::this -> OrderLine
+R 291:28 references Order::this -> Sku
+R 295:12 references Order::Total -> Price
+R 297:12 references Order::Add -> Order
+R 297:22 references Order::Add -> Product
+R 315:12 references Order::GetEnumerator -> IEnumerator
+R 315:24 references Order::GetEnumerator -> OrderLine
+R 317:5 references Order::GetEnumerator -> IEnumerator
+R 322:29 references Order::Transitions -> Dictionary
+R 322:40 references Order::Transitions -> OrderStatus
+R 322:53 references Order::Transitions -> OrderStatus
+R 329:24 references Order::MoveTo -> OrderStatus
+R 340:31 references Order::EnsureStatus -> OrderStatus
+R 355:35 references Warehouse.Models::StockChanged -> Sku
+R 357:17 references Warehouse.Models::Projection -> TResult
+R 357:61 references Warehouse.Models::Projection -> TSource
+R 362:43 references ModelExtensions::TotalAvailable -> IEnumerable
+R 362:55 references ModelExtensions::TotalAvailable -> StockLine
+R 362:73 references ModelExtensions::TotalAvailable -> Sku
+R 365:19 references ModelExtensions::Nearest -> StockLine
+R 365:43 references ModelExtensions::Nearest -> IEnumerable
+R 365:55 references ModelExtensions::Nearest -> StockLine
+R 365:73 references ModelExtensions::Nearest -> Location
+R 374:19 references ModelExtensions::Project -> IEnumerable
+R 375:14 references ModelExtensions::Project -> IEnumerable
+R 376:9 references ModelExtensions::Project -> Projection
+R 384:40 references ModelExtensions::Describe -> Product
 
 == Warehouse/Program.cs (302 lines)
 S 1-302 module Program
@@ -572,6 +706,55 @@ R 289:22 calls CommandRegistry::Default -> TagsCommand
 R 297:56 calls CommandRegistry::Find -> GetValueOrDefault
 R 300:51 calls CommandRegistry::Describe -> Select
 R 300:30 calls CommandRegistry::Describe -> OrderBy
+R 27:7 references RunAsync -> Task
+R 27:41 references RunAsync -> CancellationToken
+R 46:12 references RunAsync -> WarehouseException (name-matched: Warehouse/Errors.cs)
+R 51:12 references RunAsync -> OperationCanceledException
+R 87:26 references Options::_named -> Dictionary
+R 88:26 references Options::_positional -> List
+R 90:16 references Options::Positional -> IReadOnlyList
+R 92:23 references Options::Parse -> Options
+R 92:37 references Options::Parse -> IEnumerable
+R 143:27 references Command::Command -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 145:19 references Command::Host -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 151:17 references Command::Metadata -> CommandAttribute
+R 152:14 references Command::Metadata -> CommandAttribute
+R 152:79 references Command::Metadata -> CommandAttribute
+R 154:25 references Command::RunAsync -> Task
+R 154:44 references Command::RunAsync -> Options
+R 154:61 references Command::RunAsync -> CancellationToken
+R 162:31 references ReceiveCommand::ReceiveCommand -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 167:31 references ReceiveCommand::RunAsync -> Task
+R 167:50 references ReceiveCommand::RunAsync -> Options
+R 167:67 references ReceiveCommand::RunAsync -> CancellationToken
+R 188:29 references OrderCommand::OrderCommand -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 193:31 references OrderCommand::RunAsync -> Task
+R 193:50 references OrderCommand::RunAsync -> Options
+R 193:67 references OrderCommand::RunAsync -> CancellationToken
+R 211:32 references OrderCommand::ParseLine -> Sku (name-matched: Warehouse/Models.cs)
+R 211:41 references OrderCommand::ParseLine -> Quantity (name-matched: Warehouse/Models.cs)
+R 220:39 references Warehouse.Cli::CancelCommand -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 222:31 references CancelCommand::RunAsync -> Task
+R 222:50 references CancelCommand::RunAsync -> Options
+R 222:67 references CancelCommand::RunAsync -> CancellationToken
+R 234:30 references ReportCommand::ReportCommand -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 239:31 references ReportCommand::RunAsync -> Task
+R 239:50 references ReportCommand::RunAsync -> Options
+R 239:67 references ReportCommand::RunAsync -> CancellationToken
+R 263:28 references TagsCommand::TagsCommand -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 268:31 references TagsCommand::RunAsync -> Task
+R 268:50 references TagsCommand::RunAsync -> Options
+R 268:67 references TagsCommand::RunAsync -> CancellationToken
+R 282:26 references CommandRegistry::_commands -> Dictionary
+R 282:45 references CommandRegistry::_commands -> Command
+R 284:23 references CommandRegistry::Default -> CommandRegistry
+R 284:47 references CommandRegistry::Default -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 291:16 references CommandRegistry::Add -> CommandRegistry
+R 291:36 references CommandRegistry::Add -> Command
+R 297:16 references CommandRegistry::Find -> Command
+R 299:16 references CommandRegistry::Describe -> IEnumerable
+R 299:36 references CommandRegistry::Describe -> Name
+R 299:49 references CommandRegistry::Describe -> Summary
 
 == Warehouse/Reports.cs (319 lines)
 S 1-319 module Reports
@@ -782,6 +965,68 @@ R 311:49 calls Summary::ComputeAsync -> InventoryAsync
 R 312:42 calls Summary::ComputeAsync -> OpenAsync (name-matched: Warehouse/Repository.cs)
 R 313:24 calls Summary::ComputeAsync -> Summary
 R 313:75 calls Summary::ComputeAsync -> GrandTotal
+R 37:21 references IRenderer::Render -> TextWriter
+R 37:72 references IRenderer::Render -> Table
+R 42:38 references Warehouse.Reporting::InventoryRow -> Sku (name-matched: Warehouse/Models.cs)
+R 45:41 references Warehouse.Reporting::InventoryRow -> Price (name-matched: Warehouse/Models.cs)
+R 50:37 references Warehouse.Reporting::BacklogRow -> Guid
+R 50:63 references Warehouse.Reporting::BacklogRow -> OrderStatus (name-matched: Warehouse/Models.cs)
+R 50:94 references Warehouse.Reporting::BacklogRow -> Price (name-matched: Warehouse/Models.cs)
+R 57:22 references Warehouse.Reporting::Report -> IRow
+R 65:28 references Report::Rows -> IEnumerable
+R 67:34 references Report::RenderWith -> IRenderer
+R 81:26 references InventoryReport::_products -> IReadOnlyList
+R 81:40 references InventoryReport::_products -> Product (name-matched: Warehouse/Models.cs)
+R 82:26 references InventoryReport::_counts -> IReadOnlyDictionary
+R 82:46 references InventoryReport::_counts -> Sku (name-matched: Warehouse/Models.cs)
+R 84:32 references InventoryReport::InventoryReport -> IReadOnlyList
+R 84:46 references InventoryReport::InventoryReport -> Product (name-matched: Warehouse/Models.cs)
+R 84:65 references InventoryReport::InventoryReport -> IReadOnlyDictionary
+R 84:85 references InventoryReport::InventoryReport -> Sku (name-matched: Warehouse/Models.cs)
+R 93:28 references InventoryReport::Rows -> IEnumerable
+R 93:40 references InventoryReport::Rows -> InventoryRow
+R 98:97 references InventoryReport::Rows -> Price (name-matched: Warehouse/Models.cs)
+R 102:16 references InventoryReport::GrandTotal -> Price (name-matched: Warehouse/Models.cs)
+R 107:26 references BacklogReport::_orders -> IReadOnlyList
+R 107:40 references BacklogReport::_orders -> Order (name-matched: Warehouse/Models.cs)
+R 109:30 references BacklogReport::BacklogReport -> IReadOnlyList
+R 109:44 references BacklogReport::BacklogReport -> Order (name-matched: Warehouse/Models.cs)
+R 114:28 references BacklogReport::Rows -> IEnumerable
+R 114:40 references BacklogReport::Rows -> BacklogRow
+R 123:33 references Renderers::Registry -> Dictionary
+R 123:52 references Renderers::Registry -> IRenderer
+R 125:32 references Renderers::Text -> IRenderer
+R 127:32 references Renderers::Csv -> IRenderer
+R 129:23 references Renderers::Register -> IRenderer
+R 129:42 references Renderers::Register -> IRenderer
+R 135:23 references Renderers::Get -> IRenderer
+R 138:23 references Renderers::Names -> IEnumerable
+R 144:32 references TextRenderer::Render -> TextWriter
+R 144:83 references TextRenderer::Render -> Table
+R 157:38 references WriteRow -> TextWriter
+R 164:59 references TextRenderer::Widths -> Table
+R 186:35 references CsvRenderer::Render -> TextWriter
+R 186:86 references CsvRenderer::Render -> Table
+R 192:33 references CsvRenderer::Line -> IEnumerable
+R 219:20 references Style::Colors -> Palette
+R 223:40 references Palette::Plain -> Palette
+R 225:40 references Palette::Ansi -> Palette
+R 241:29 references ReportBuilder::InventoryAsync -> Task
+R 241:34 references ReportBuilder::InventoryAsync -> InventoryReport
+R 241:66 references ReportBuilder::InventoryAsync -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 248:29 references ReportBuilder::BacklogAsync -> Task
+R 248:34 references ReportBuilder::BacklogAsync -> BacklogReport
+R 248:62 references ReportBuilder::BacklogAsync -> OrderRepository (name-matched: Warehouse/Repository.cs)
+R 254:37 references ReportBuilder::Errors -> IEnumerable
+R 254:49 references ReportBuilder::Errors -> WarehouseException (name-matched: Warehouse/Errors.cs)
+R 272:43 references ReportBuilder::Render -> Report
+R 273:26 references ReportBuilder::Render -> IRow
+R 296:54 references Summary::Summary -> Price (name-matched: Warehouse/Models.cs)
+R 307:16 references Summary::StockValue -> Price (name-matched: Warehouse/Models.cs)
+R 309:29 references Summary::ComputeAsync -> Task
+R 309:34 references Summary::ComputeAsync -> Summary
+R 309:56 references Summary::ComputeAsync -> ServiceHost (name-matched: Warehouse/Services.cs)
+R 316:48 references Summary::operator string -> Summary
 
 == Warehouse/Repository.cs (336 lines)
 S 1-336 module Repository
@@ -963,6 +1208,93 @@ R 331:55 calls Seed::Demo -> GetResult
 R 331:42 calls Seed::Demo -> GetAwaiter
 R 331:23 calls Seed::Demo -> SaveAsync
 R 333:25 calls Seed::Demo -> ProductRepository
+R 27:42 references ChangeEventArgs::ChangeEventArgs -> ChangeKind
+R 36:16 references ChangeEventArgs::Kind -> ChangeKind
+R 44:32 references Warehouse.Data::IReadRepository -> IEntity (name-matched: Warehouse/Models.cs)
+R 46:9 references IReadRepository::FindAsync -> Task
+R 46:44 references IReadRepository::FindAsync -> CancellationToken
+R 48:9 references IReadRepository::ListAsync -> Task
+R 48:14 references IReadRepository::ListAsync -> IReadOnlyList
+R 48:48 references IReadRepository::ListAsync -> Func
+R 48:84 references IReadRepository::ListAsync -> CancellationToken
+R 50:15 references IReadRepository::GetAsync -> Task
+R 50:48 references IReadRepository::GetAsync -> CancellationToken
+R 60:32 references Warehouse.Data::IRepository -> IEntity (name-matched: Warehouse/Models.cs)
+R 62:15 references IRepository::Changed -> EventHandler
+R 62:28 references IRepository::Changed -> ChangeEventArgs
+R 64:9 references IRepository::SaveAsync -> Task
+R 64:62 references IRepository::SaveAsync -> CancellationToken
+R 66:9 references IRepository::RemoveAsync -> Task
+R 66:42 references IRepository::RemoveAsync -> CancellationToken
+R 72:32 references Warehouse.Data::InMemoryRepository -> IEntity (name-matched: Warehouse/Models.cs)
+R 76:26 references InMemoryRepository::_items -> ConcurrentDictionary
+R 77:26 references InMemoryRepository::_lock -> ReaderWriterLockSlim
+R 78:17 references InMemoryRepository::_changed -> EventHandler
+R 78:30 references InMemoryRepository::_changed -> ChangeEventArgs
+R 91:35 references InMemoryRepository::InMemoryRepository -> IEnumerable
+R 106:22 references InMemoryRepository::Changed -> EventHandler
+R 106:35 references InMemoryRepository::Changed -> ChangeEventArgs
+R 112:16 references InMemoryRepository::FindAsync -> Task
+R 112:51 references InMemoryRepository::FindAsync -> CancellationToken
+R 118:16 references InMemoryRepository::ListAsync -> Task
+R 118:21 references InMemoryRepository::ListAsync -> IReadOnlyList
+R 118:55 references InMemoryRepository::ListAsync -> Func
+R 118:91 references InMemoryRepository::ListAsync -> CancellationToken
+R 121:13 references InMemoryRepository::ListAsync -> IReadOnlyList
+R 125:24 references InMemoryRepository::SaveAsync -> Task
+R 125:77 references InMemoryRepository::SaveAsync -> CancellationToken
+R 143:16 references InMemoryRepository::RemoveAsync -> Task
+R 143:49 references InMemoryRepository::RemoveAsync -> CancellationToken
+R 154:52 references InMemoryRepository::OnChanged -> ChangeKind
+R 159:27 references InMemoryRepository::Read -> Func
+R 172:28 references InMemoryRepository::Write -> Func
+R 203:38 references ProductRepository::ProductRepository -> IEnumerable
+R 203:50 references ProductRepository::ProductRepository -> Product (name-matched: Warehouse/Models.cs)
+R 208:26 references ProductRepository::ByTagAsync -> Task
+R 208:31 references ProductRepository::ByTagAsync -> IReadOnlyList
+R 208:45 references ProductRepository::ByTagAsync -> Product (name-matched: Warehouse/Models.cs)
+R 208:78 references ProductRepository::ByTagAsync -> CancellationToken
+R 214:26 references ProductRepository::ByFamilyAsync -> Task
+R 214:31 references ProductRepository::ByFamilyAsync -> ILookup
+R 214:47 references ProductRepository::ByFamilyAsync -> Product (name-matched: Warehouse/Models.cs)
+R 214:71 references ProductRepository::ByFamilyAsync -> CancellationToken
+R 229:26 references StockRepository::ForSkuAsync -> Task
+R 229:31 references StockRepository::ForSkuAsync -> IReadOnlyList
+R 229:45 references StockRepository::ForSkuAsync -> StockLine (name-matched: Warehouse/Models.cs)
+R 229:69 references StockRepository::ForSkuAsync -> Sku (name-matched: Warehouse/Models.cs)
+R 229:78 references StockRepository::ForSkuAsync -> CancellationToken
+R 234:26 references StockRepository::AvailableAsync -> Task
+R 234:51 references StockRepository::AvailableAsync -> Sku (name-matched: Warehouse/Models.cs)
+R 234:60 references StockRepository::AvailableAsync -> CancellationToken
+R 240:48 references StockRepository::OnChanged -> Sku (name-matched: Warehouse/Models.cs)
+R 240:53 references StockRepository::OnChanged -> Location (name-matched: Warehouse/Models.cs)
+R 240:68 references StockRepository::OnChanged -> ChangeKind
+R 246:20 references StockRepository::LastChanged -> Sku (name-matched: Warehouse/Models.cs)
+R 252:20 references OrderRepository::OpenAsync -> Task
+R 252:25 references OrderRepository::OpenAsync -> IReadOnlyList
+R 252:39 references OrderRepository::OpenAsync -> Order (name-matched: Warehouse/Models.cs)
+R 252:57 references OrderRepository::OpenAsync -> CancellationToken
+R 255:26 references OrderRepository::StreamAsync -> IAsyncEnumerable
+R 255:43 references OrderRepository::StreamAsync -> Order (name-matched: Warehouse/Models.cs)
+R 269:26 references UnitOfWork::_pending -> List
+R 269:31 references UnitOfWork::_pending -> Func
+R 269:36 references UnitOfWork::_pending -> CancellationToken
+R 269:55 references UnitOfWork::_pending -> Task
+R 270:26 references UnitOfWork::_limiter -> RateLimiter (name-matched: Warehouse/Errors.cs)
+R 273:27 references UnitOfWork::UnitOfWork -> RateLimiter (name-matched: Warehouse/Errors.cs)
+R 279:16 references UnitOfWork::Save -> UnitOfWork
+R 279:47 references UnitOfWork::Save -> IRepository
+R 281:36 references UnitOfWork::Save -> IEntity (name-matched: Warehouse/Models.cs)
+R 288:16 references UnitOfWork::Remove -> UnitOfWork
+R 288:49 references UnitOfWork::Remove -> IRepository
+R 290:36 references UnitOfWork::Remove -> IEntity (name-matched: Warehouse/Models.cs)
+R 296:22 references UnitOfWork::CommitAsync -> Task
+R 296:39 references UnitOfWork::CommitAsync -> CancellationToken
+R 308:16 references UnitOfWork::DisposeAsync -> ValueTask
+R 318:36 references Seed::Demo -> ProductRepository
+R 318:54 references Seed::Demo -> Products (name-matched: Warehouse/Reports.cs)
+R 318:76 references Seed::Demo -> StockRepository
+R 318:92 references Seed::Demo -> Stock (name-matched: Warehouse/Services.cs)
 
 == Warehouse/Services.cs (321 lines)
 S 1-321 module Services
@@ -1144,3 +1476,95 @@ R 309:18 calls ServiceHost::DisposeAsync -> Dispose (name-matched: Warehouse/Rep
 R 310:15 calls ServiceHost::DisposeAsync -> Dispose (name-matched: Warehouse/Repository.cs)
 R 311:16 calls ServiceHost::DisposeAsync -> Dispose (name-matched: Warehouse/Repository.cs)
 R 320:69 calls Prüfung::集計 -> Sum
+R 20:5 references IClock::Now -> DateTimeOffset
+R 22:21 references IClock::Create -> IClock
+R 27:12 references SystemClock::Now -> DateTimeOffset
+R 29:19 references SystemClock::Create -> IClock
+R 32:32 references Warehouse.Services::FixedClock -> DateTimeOffset
+R 34:12 references FixedClock::Now -> DateTimeOffset
+R 36:19 references FixedClock::Create -> IClock
+R 38:25 references FixedClock::Advance -> TimeSpan
+R 54:22 references RecordingNotifier::_sent -> List
+R 54:35 references RecordingNotifier::_sent -> Topic
+R 54:49 references RecordingNotifier::_sent -> Message
+R 56:12 references RecordingNotifier::Sent -> IReadOnlyList
+R 56:34 references RecordingNotifier::Sent -> Topic
+R 56:48 references RecordingNotifier::Sent -> Message
+R 64:22 references InventoryService::_stock -> StockRepository (name-matched: Warehouse/Repository.cs)
+R 65:22 references InventoryService::_products -> ProductRepository (name-matched: Warehouse/Repository.cs)
+R 66:22 references InventoryService::_notifier -> INotifier
+R 68:29 references InventoryService::InventoryService -> StockRepository (name-matched: Warehouse/Repository.cs)
+R 68:52 references InventoryService::InventoryService -> ProductRepository (name-matched: Warehouse/Repository.cs)
+R 68:80 references InventoryService::InventoryService -> INotifier
+R 76:18 references InventoryService::StockChanged -> StockChanged
+R 80:18 references InventoryService::ReceiveAsync -> Task
+R 80:23 references InventoryService::ReceiveAsync -> Result (name-matched: Warehouse/Errors.cs)
+R 80:30 references InventoryService::ReceiveAsync -> StockLine (name-matched: Warehouse/Models.cs)
+R 80:97 references InventoryService::ReceiveAsync -> CancellationToken
+R 95:16 references InventoryService::ReceiveAsync -> WarehouseException (name-matched: Warehouse/Errors.cs)
+R 102:18 references InventoryService::MoveAsync -> Task
+R 102:33 references InventoryService::MoveAsync -> Sku (name-matched: Warehouse/Models.cs)
+R 102:42 references InventoryService::MoveAsync -> Location (name-matched: Warehouse/Models.cs)
+R 102:57 references InventoryService::MoveAsync -> Location (name-matched: Warehouse/Models.cs)
+R 102:84 references InventoryService::MoveAsync -> CancellationToken
+R 114:18 references InventoryService::CountAsync -> Task
+R 114:23 references InventoryService::CountAsync -> IReadOnlyDictionary
+R 114:43 references InventoryService::CountAsync -> Sku (name-matched: Warehouse/Models.cs)
+R 114:65 references InventoryService::CountAsync -> CancellationToken
+R 125:32 references InventoryService::LowStockCheck -> Sku (name-matched: Warehouse/Models.cs)
+R 138:22 references OrderService::_orders -> OrderRepository (name-matched: Warehouse/Repository.cs)
+R 139:22 references OrderService::_inventory -> InventoryService
+R 140:22 references OrderService::_stock -> StockRepository (name-matched: Warehouse/Repository.cs)
+R 141:22 references OrderService::_products -> ProductRepository (name-matched: Warehouse/Repository.cs)
+R 142:22 references OrderService::_notifier -> INotifier
+R 143:22 references OrderService::_clock -> IClock
+R 146:9 references OrderService::OrderService -> OrderRepository (name-matched: Warehouse/Repository.cs)
+R 147:9 references OrderService::OrderService -> InventoryService
+R 148:9 references OrderService::OrderService -> StockRepository (name-matched: Warehouse/Repository.cs)
+R 149:9 references OrderService::OrderService -> ProductRepository (name-matched: Warehouse/Repository.cs)
+R 150:9 references OrderService::OrderService -> INotifier
+R 151:9 references OrderService::OrderService -> IClock
+R 157:12 references OrderService::PickingDeadline -> TimeSpan
+R 159:18 references OrderService::DraftAsync -> Task
+R 159:23 references OrderService::DraftAsync -> Order (name-matched: Warehouse/Models.cs)
+R 159:58 references OrderService::DraftAsync -> IEnumerable
+R 159:78 references OrderService::DraftAsync -> Sku (name-matched: Warehouse/Models.cs)
+R 159:87 references OrderService::DraftAsync -> Quantity (name-matched: Warehouse/Models.cs)
+R 159:105 references OrderService::DraftAsync -> CancellationToken
+R 178:18 references OrderService::PlaceAsync -> Task
+R 178:23 references OrderService::PlaceAsync -> Result (name-matched: Warehouse/Errors.cs)
+R 178:30 references OrderService::PlaceAsync -> Order (name-matched: Warehouse/Models.cs)
+R 178:49 references OrderService::PlaceAsync -> Guid
+R 178:58 references OrderService::PlaceAsync -> CancellationToken
+R 197:16 references OrderService::PlaceAsync -> WarehouseException (name-matched: Warehouse/Errors.cs)
+R 197:57 references OrderService::PlaceAsync -> OutOfStockException (name-matched: Warehouse/Errors.cs)
+R 197:80 references OrderService::PlaceAsync -> ValidationException (name-matched: Warehouse/Errors.cs)
+R 213:18 references OrderService::PickAsync -> Task
+R 213:23 references OrderService::PickAsync -> Order (name-matched: Warehouse/Models.cs)
+R 213:40 references OrderService::PickAsync -> Guid
+R 213:49 references OrderService::PickAsync -> CancellationToken
+R 232:19 references OrderService::PickLineAsync -> Task
+R 232:38 references OrderService::PickLineAsync -> OrderLine (name-matched: Warehouse/Models.cs)
+R 232:54 references OrderService::PickLineAsync -> CancellationToken
+R 248:18 references OrderService::CancelAsync -> Task
+R 248:41 references OrderService::CancelAsync -> Guid
+R 248:65 references OrderService::CancelAsync -> CancellationToken
+R 268:12 references OrderService::SnapshotAsync -> Task
+R 268:17 references OrderService::SnapshotAsync -> IReadOnlyDictionary
+R 268:37 references OrderService::SnapshotAsync -> Sku (name-matched: Warehouse/Models.cs)
+R 274:25 references ServiceHost::ServiceHost -> INotifier
+R 284:12 references ServiceHost::Products -> ProductRepository (name-matched: Warehouse/Repository.cs)
+R 286:12 references ServiceHost::Stock -> StockRepository (name-matched: Warehouse/Repository.cs)
+R 288:12 references ServiceHost::Orders -> OrderRepository (name-matched: Warehouse/Repository.cs)
+R 290:12 references ServiceHost::Notifier -> INotifier
+R 292:12 references ServiceHost::Inventory -> InventoryService
+R 294:12 references ServiceHost::OrdersService -> OrderService
+R 296:12 references ServiceHost::UnitOfWork -> UnitOfWork
+R 298:19 references ServiceHost::Build -> ServiceHost
+R 298:37 references ServiceHost::Build -> INotifier
+R 300:19 references ServiceHost::BuildForTests -> ServiceHost
+R 300:49 references ServiceHost::BuildForTests -> RecordingNotifier
+R 306:18 references ServiceHost::DisposeAsync -> ValueTask
+R 318:32 references Prüfung::Gültig -> Product (name-matched: Warehouse/Models.cs)
+R 320:30 references Prüfung::集計 -> IEnumerable
+R 320:42 references Prüfung::集計 -> StockLine (name-matched: Warehouse/Models.cs)

@@ -754,6 +754,21 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] C#: a type named in a field, property, parameter, return type,
+        local, generic argument, cast, `is`/`as` check, `typeof`, `catch`,
+        pattern or `foreach` is a `references` relation from the member that
+        names it (last segment of a qualified name), so a class or interface
+        used only as a type is not dead code. Before, C# recorded types only
+        for base types. A type parameter, the type of `new` (already a call)
+        and a base type add nothing; `int`/`string` are keywords, not
+        identifiers. An `x is MAX` constant pattern is a reference to `MAX`
+        too. Corpus: +424 relations (679 → 1103, 239 name-matched across
+        files from 156), symbols unchanged; BCL names (`Task`,
+        `CancellationToken`, `IEnumerable`) have no candidate. Dead code over
+        the corpus project: 20 → 10 (`ErrorCode`, `Severity`, `Result`,
+        `Unit`, `OrderStatus`, `StockChanged`, `Projection`, `Palette`,
+        `ChangeKind`, `ServiceHost` were false positives). Probe: 8
+        candidates → 0. Test: `mct-lang-csharp/tests/type_references.rs`.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
