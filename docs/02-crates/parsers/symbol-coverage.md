@@ -186,7 +186,7 @@ round to the nearest whole percent, with halves rounded up.
 | Go | 78% | 18 | 80% | 10 | 0 |
 | PHP | 88% | 30 | 75% | 10 | 0 |
 | Lua | 89% | 14 | 70% | 10 | 0 |
-| Bash | 81% | 8 | 60% | 10 | 0 |
+| Bash | 81% | 8 | 70% | 10 | 0 |
 | PowerShell | 81% | 18 | 50% | 10 | 0 |
 
 ## Language by language
@@ -282,7 +282,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Go | 83% | 90% | 60% | 80% | 90% | 50% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 50% | 50% |
 | Lua | 90% | 100% | 75% | 100% | 80% | 75% | 50% |
-| Bash | 100% | 100% | 50% | 100% | 80% | 50% | 33% |
+| Bash | 100% | 100% | 50% | 100% | 100% | 50% | 33% |
 | PowerShell | 90% | 100% | 50% | 80% | 60% | 50% | 33% |
 
 ### Rust
@@ -658,6 +658,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | `f() {}`, `function f {}` | `function_definition` | `function`, parent the file |
 | top-level `X=1`, `export`, `readonly`, `declare` | `variable_assignment`, `declaration_command` | `variable` |
+| `"…"`, `'…'`, `$'…'` strings | `string` (`string_content`), `raw_string`, `ansi_c_string` | literals for exact-text search, one per run of fixed text between `$x`, `${…}`, `$(…)` and `$((…))` expansions; in `"…"` only `\"`, `\\`, `` \` ``, `\$` and a backslash-newline are escapes, `'…'` has none, `$'…'` resolves C escapes |
 | `source x`, `. x` | `command` | `imports` (path and stem) |
 | any literal command | `command`, `command_name` | `calls` |
 
@@ -669,6 +670,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Commands through a variable (`$CMD arg`) | By design | explicit static-name decision in [crate docs](../../../crates/mct-lang-bash/src/lib.rs#L24) |
 | `coproc NAME { … }` | Grammar | truncates the enclosing function, issue #79 |
 | Some quoted `${a:+…}` semicolon forms | Grammar | `"${name:+before;after}"` still fails. The ERR-001 form `"${stale:+$stale; }"` is accepted by the parser's [targeted recovery](../../../crates/mct-lang-bash/src/lib.rs#L111), preserving original text and locations |
+| Heredoc text, exact-text search | Grammar | the grammar leaves a heredoc's text before its first expansion outside any node, and a quoted heredoc (`<<'EOT'`) has no children, so heredoc bodies give no literals |
 
 ### PowerShell
 
@@ -722,7 +724,7 @@ languages:
 | Feature | Languages | Where it is decided |
 |---|---|---|
 | Repeated code (`mct-cli duplicates`) | Rust, Python | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-csharp`, `mct-lang-cpp`, `mct-lang-go`, `mct-lang-php`, `mct-lang-lua` and `mct-lang-md` fill `ParsedFile::literals`; all but Rust and Markdown share `mct_tree_sitter::collect_literals` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, Markdown | Only `mct-lang-rust`, `mct-lang-python`, `mct-lang-js-ts`, `mct-lang-java`, `mct-lang-kotlin`, `mct-lang-csharp`, `mct-lang-cpp`, `mct-lang-go`, `mct-lang-php`, `mct-lang-lua`, `mct-lang-bash` and `mct-lang-md` fill `ParsedFile::literals`; all but Rust and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
 | Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
@@ -1424,7 +1426,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Who calls / what is called: `find_callers`, `find_calls`
 - [x] Every use: `find_references`
 - [x] Blast radius and context: `impact_analysis`, `build_context_pack`
-- [ ] Exact text in strings: `hybrid_search` with a `"quoted"` query: string literals are not collected; only symbol names match
+- [x] Exact text in strings: `hybrid_search` with a `"quoted"` query: each run of fixed text of a `"…"` string (between expansions) and each `'…'` or `$'…'` string that the prose filter keeps, listed as `path:line`; a heredoc body is not read
 
 **Features: Code quality**
 
