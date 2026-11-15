@@ -121,6 +121,11 @@ struct Walker<'a> {
     /// identifier naming one is a use of that closure, recorded like a free
     /// function's value use.
     local_fns: HashSet<String>,
+    /// Symbols of the inline `mod name { … }` items walked so far: an item
+    /// declared directly in one has that module as its parent, as a C++
+    /// namespace member does, so a path through it (`name::item`) matches
+    /// the item with the module evidence the path carries.
+    inline_modules: HashSet<SymbolId>,
     /// Type parameters declared by the items enclosing the current node: a
     /// type named like one of them is that parameter, not a type to record.
     generics: HashSet<String>,
@@ -151,6 +156,7 @@ impl<'a> Walker<'a> {
             scope: FileScope::default(),
             bound: HashSet::new(),
             local_fns: HashSet::new(),
+            inline_modules: HashSet::new(),
             generics: HashSet::new(),
             relation_targets: Vec::new(),
             self_type: None,
@@ -307,7 +313,8 @@ impl<'a> Walker<'a> {
                 };
                 let parent = impl_type
                     .map(str::to_string)
-                    .or_else(|| self.callable_owner(owner));
+                    .or_else(|| self.callable_owner(owner))
+                    .or_else(|| self.module_owner(owner));
                 let id = self.push_symbol(name, kind, location(node), parent);
                 self.record_detail(node, id);
                 // Locals are per function: a nested `fn` starts from an empty
@@ -496,7 +503,10 @@ impl<'a> Walker<'a> {
                 if let Some(name) = node.child_by_field_name("name") {
                     self.macros.insert(text(name, self.source).to_string());
                 }
-                self.push_named(node, SymbolKind::Function, self.callable_owner(owner));
+                let parent = self
+                    .callable_owner(owner)
+                    .or_else(|| self.module_owner(owner));
+                self.push_named(node, SymbolKind::Function, parent);
             }
             "parameter" => {
                 if let Some(pattern) = node.child_by_field_name("pattern") {
@@ -574,7 +584,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Struct, location(node), None);
+                let parent = self.module_owner(owner);
+                let id = self.push_symbol(name.clone(), SymbolKind::Struct, location(node), parent);
                 self.record_detail(node, id);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit(body, id, Some(&name), depth + 1);
@@ -585,7 +596,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Enum, location(node), None);
+                let parent = self.module_owner(owner);
+                let id = self.push_symbol(name.clone(), SymbolKind::Enum, location(node), parent);
                 self.record_detail(node, id);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit(body, id, Some(&name), depth + 1);
@@ -635,8 +647,11 @@ impl<'a> Walker<'a> {
             // Associated types/consts of an `impl`/`trait` hang off the type,
             // like its methods do.
             "type_item" | "associated_type" => {
-                let id =
-                    self.push_named(node, SymbolKind::TypeAlias, impl_type.map(str::to_string));
+                let id = self.push_named(
+                    node,
+                    SymbolKind::TypeAlias,
+                    self.item_parent(impl_type, owner),
+                );
                 self.record_detail(node, id);
                 if let Some(ty) = node.child_by_field_name("type") {
                     self.visit(ty, id, None, depth + 1);
@@ -648,7 +663,7 @@ impl<'a> Walker<'a> {
                 } else {
                     SymbolKind::Constant
                 };
-                let id = self.push_named(node, kind, impl_type.map(str::to_string));
+                let id = self.push_named(node, kind, self.item_parent(impl_type, owner));
                 self.record_detail(node, id);
                 if let Some(ty) = node.child_by_field_name("type") {
                     self.visit(ty, id, None, depth + 1);
@@ -662,7 +677,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Trait, location(node), None);
+                let parent = self.module_owner(owner);
+                let id = self.push_symbol(name.clone(), SymbolKind::Trait, location(node), parent);
                 self.record_detail(node, id);
                 if let Some(bounds) = node.child_by_field_name("bounds") {
                     let mut cursor = bounds.walk();
@@ -743,8 +759,10 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Module, location(node), None);
+                let parent = self.module_owner(owner);
+                let id = self.push_symbol(name.clone(), SymbolKind::Module, location(node), parent);
                 if let Some(body) = node.child_by_field_name("body") {
+                    self.inline_modules.insert(id);
                     self.visit_children(body, id, None, depth + 1);
                 } else if !name.is_empty() {
                     // `mod name;` pulls in the file `name.rs`: a dependency
@@ -1237,6 +1255,23 @@ impl<'a> Walker<'a> {
             self.literals
                 .push(&unescape(fragment, is_raw), fragment_line);
         }
+    }
+
+    /// The inline module `owner` is, when it is one (see
+    /// [`Walker::inline_modules`]).
+    fn module_owner(&self, owner: SymbolId) -> Option<String> {
+        if !self.inline_modules.contains(&owner) {
+            return None;
+        }
+        self.symbols.get(owner as usize).map(|s| s.name.clone())
+    }
+
+    /// The parent of an associated or module-level item: the enclosing
+    /// `impl`/`trait` type, else the inline module it is declared in.
+    fn item_parent(&self, impl_type: Option<&str>, owner: SymbolId) -> Option<String> {
+        impl_type
+            .map(str::to_string)
+            .or_else(|| self.module_owner(owner))
     }
 
     fn callable_owner(&self, owner: SymbolId) -> Option<String> {
