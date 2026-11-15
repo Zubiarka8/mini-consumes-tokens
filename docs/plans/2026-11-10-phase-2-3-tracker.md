@@ -979,6 +979,22 @@ From `rules.md` and the two messages:
           relations unchanged (830, no resolution changes); database file
           39,493,632 bytes either side. Dead code 123 -> 123. PowerShell
           feature score 50% -> 60%; area Search 60% -> 80%.
+    - [x] JS/TS repeated code: `JsTsTokenSource` (`src/tokens.rs`) gives
+          `mct-cli duplicates` the tokens of `.js`/`.jsx`/`.mjs`/`.cjs`/
+          `.ts`/`.mts`/`.cts`/`.tsx` files, with the grammar the parser picks
+          (`grammar_for`), and is registered in `build_token_sources`. Each
+          function or method the parser indexes has a callable span that
+          matches its symbol exactly: declarations, class and object
+          methods, bodyless TS method signatures, `const f = () => …`,
+          arrow-valued class fields, CommonJS member exports and export
+          object pairs. A TypeScript `...rest` parameter keeps no parameter
+          role (its wrapper's parent also holds the default value). Tests:
+          `tests/duplicates.rs` (through the real index) and
+          `tests/tokens.rs`. Repository snapshot, defaults (6 lines, 40
+          tokens): candidates 7,464 -> 10,483, JS/TS now in
+          `supported_languages`, 0 skipped (status complete), groups 147 ->
+          147 (no JS/TS clone that large); at 2 lines / 12 tokens, 2 JS/TS
+          groups. JS/TS feature score 90% -> 100%; area Quality 50% -> 100%.
     - Measurement note: until 2026-11-13 a repository snapshot taken
           with `init` (no `--force`) kept the parse of unchanged files, so
           the C#, PowerShell and Kotlin entries above first reported no
