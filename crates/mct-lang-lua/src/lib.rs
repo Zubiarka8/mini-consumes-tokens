@@ -14,6 +14,7 @@
 mod details;
 mod globals;
 mod libraries;
+mod literals;
 mod tokens;
 
 pub use tokens::LuaTokenSource;
@@ -68,11 +69,13 @@ impl LanguageParser for LuaParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents, root);
+        let mut walker = Walker::new(&file.contents, &file.relative_path, root);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -112,6 +115,9 @@ struct Binding {
     import: Option<Import>,
     /// The in-file name an alias such as `local B = Child` stands for.
     alias_of: Option<String>,
+    /// The class of this file an instance local is built from
+    /// (`local self = setmetatable({}, T)`): its `x.f = …` are fields of `T`.
+    instance_of: Option<String>,
 }
 
 /// The target of an `Extends` or `References` relation: the name to link and
@@ -123,6 +129,13 @@ struct TargetRef {
 
 struct Walker<'a> {
     source: &'a str,
+    /// This file's path, the target of a reference to one of its classes.
+    path: &'a str,
+    /// Call qualifiers naming a table of this file (`Animal` in
+    /// `Animal.new()`, `W.Widget` in `W.Widget.make()`): the caller, the
+    /// dotted table path and where it is written. `finish` keeps those that
+    /// name a class.
+    qualifier_uses: Vec<(SymbolId, String, Location)>,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
@@ -146,10 +159,12 @@ struct Walker<'a> {
 }
 
 impl<'a> Walker<'a> {
-    fn new(source: &'a str, root: Node) -> Self {
+    fn new(source: &'a str, path: &'a str, root: Node) -> Self {
         Self {
             std_globals: globals::StdGlobals::of(root, source),
             source,
+            path,
+            qualifier_uses: Vec::new(),
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
@@ -319,6 +334,7 @@ impl<'a> Walker<'a> {
                         self.push_relation(owner, kind, path, location(node));
                     } else if name == "setmetatable" && callee.kind() == "identifier" {
                         self.visit_setmetatable(node);
+                        self.push_instance_keys(node);
                         let relation = self.relations.len();
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                         self.push_std_evidence(relation, callee);
@@ -346,8 +362,11 @@ impl<'a> Walker<'a> {
                             && callee.kind() == "method_index_expression"
                         {
                             self.push_receiver_evidence(relation, callee);
+                        } else if self.relations.len() > relation {
+                            self.push_instance_member_evidence(relation, callee);
                         }
                         self.push_std_evidence(relation, callee);
+                        self.push_qualifier_use(owner, callee);
                     }
                     // `money.gross(net):to_json()`: the call this one is
                     // chained on sits in the callee's table expression.
@@ -620,6 +639,18 @@ impl<'a> Walker<'a> {
                 }
             }
         }
+        // `x = …` rebinds a local: it is an instance of what it now holds.
+        if !is_local {
+            for (i, var) in vars.iter().enumerate() {
+                if var.kind() != "identifier" {
+                    continue;
+                }
+                let instance = vals.get(i).and_then(|v| self.instance_class(*v));
+                if let Some(binding) = self.lookup_mut(text(*var, self.source)) {
+                    binding.instance_of = instance;
+                }
+            }
+        }
         // A local is in scope after its own declaration, never inside the
         // values it is initialised from (`local x = x`).
         if is_local {
@@ -644,6 +675,7 @@ impl<'a> Walker<'a> {
             return binding;
         };
         binding.import = self.import_of(value);
+        binding.instance_of = self.instance_class(value);
         if binding.import.is_none() && value.kind() == "identifier" {
             let name = text(value, self.source);
             binding.alias_of = Some(
@@ -768,31 +800,52 @@ impl<'a> Walker<'a> {
         Some(symbol.id)
     }
 
-    /// `Class.__index = Class` makes the table `Class` a class. Returns
-    /// whether the assignment was that idiom (and so declares nothing else).
+    /// `Class.__index = Class` makes the table `Class` a class, and
+    /// `W.Widget.__index = W.Widget` the nested table `Widget` of `W`.
+    /// Returns whether the assignment was that idiom (and so declares
+    /// nothing else).
     fn mark_class_by_index(&mut self, var: Node, value: Node) -> bool {
         if var.kind() != "dot_index_expression" || !self.at_file_scope() {
             return false;
         }
         let (field, table, _) = target_name(var, self.source);
-        if field != "__index" || value.kind() != "identifier" {
+        if field != "__index" {
             return false;
         }
         let Some(table) = table else {
             return false;
         };
-        if text(value, self.source) != table {
-            return false;
+        match value.kind() {
+            "identifier" if text(value, self.source) == table => {
+                self.promote_to_class(&table);
+            }
+            "dot_index_expression" if flatten_table(value, self.source) == table => {
+                if let Some((outer, name)) = table.rsplit_once('.') {
+                    self.promote_nested_to_class(outer, name);
+                }
+            }
+            _ => return false,
         }
-        self.promote_to_class(&table);
         true
     }
 
+    /// The table `name` of `outer` (`W.Widget = {}`), promoted to a `Class`.
+    fn promote_nested_to_class(&mut self, outer: &str, name: &str) {
+        if let Some(symbol) = self.symbols.iter_mut().rev().find(|s| {
+            s.name == name
+                && s.parent.as_deref() == Some(outer)
+                && matches!(s.kind, SymbolKind::Module | SymbolKind::Class)
+        }) {
+            symbol.kind = SymbolKind::Class;
+        }
+    }
+
     /// `local Dog = setmetatable({}, { __index = Animal })` at file level
-    /// declares the class `Dog` extending `Animal`; without a base it is an
-    /// ordinary value. Returns whether a class was declared.
+    /// declares the class `Dog` extending `Animal`, and `W.Dog = …` the
+    /// class `Dog` of `W`; without a base it is an ordinary value. Returns
+    /// whether a class was declared.
     fn push_class_from_setmetatable(&mut self, var: Node, value: Node) -> bool {
-        if !self.at_file_scope() || var.kind() != "identifier" || value.kind() != "function_call" {
+        if !self.at_file_scope() || !is_name_target(var) || value.kind() != "function_call" {
             return false;
         }
         let Some(callee) = value.child_by_field_name("name") else {
@@ -804,12 +857,8 @@ impl<'a> Walker<'a> {
         let Some(base) = self.metatable_base(value, 1) else {
             return false;
         };
-        let id = self.push_symbol(
-            text(var, self.source).to_string(),
-            SymbolKind::Class,
-            span(var, value),
-            None,
-        );
+        let (name, parent, _) = target_name(var, self.source);
+        let id = self.push_symbol(name, SymbolKind::Class, span(var, value), parent);
         self.push_extends(id, base);
         true
     }
@@ -926,6 +975,15 @@ impl<'a> Walker<'a> {
         if self.relations.len() == relation {
             return;
         }
+        if target.import.is_none() && self.is_nested_class_of_file(node) {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                path: Some(self.path.to_string()),
+                kind: Some(SymbolKind::Class),
+                ..Default::default()
+            });
+            return;
+        }
         if let Some(import) = target.import {
             let mut segments = import.module.rsplit('.');
             let stem = segments.next().map(str::to_string);
@@ -938,6 +996,21 @@ impl<'a> Walker<'a> {
                 ..Default::default()
             });
         }
+    }
+
+    /// Whether `node` (`W.Animal`) names a class this file declared in its
+    /// table `W`, so the name is that class, never a namesake elsewhere.
+    fn is_nested_class_of_file(&self, node: Node) -> bool {
+        if node.kind() != "dot_index_expression" {
+            return false;
+        }
+        let path = flatten_table(node, self.source);
+        let Some((outer, name)) = path.rsplit_once('.') else {
+            return false;
+        };
+        self.symbols.iter().any(|s| {
+            s.kind == SymbolKind::Class && s.name == name && s.parent.as_deref() == Some(outer)
+        })
     }
 
     /// `self:m()` inside `function T:x()` is qualified by `T`; any other
@@ -968,18 +1041,169 @@ impl<'a> Walker<'a> {
     /// The table `T` whose implicit `self` `node` (`self.x`) is reached
     /// through, inside a colon method `function T:m()`.
     fn self_table_of(&self, node: Node) -> Option<String> {
-        let on_self = node.kind() == "dot_index_expression"
-            && node
-                .child_by_field_name("table")
-                .is_some_and(|t| t.kind() == "identifier" && text(t, self.source) == "self");
-        on_self.then(|| self.self_table.clone()).flatten()
+        if node.kind() != "dot_index_expression" {
+            return None;
+        }
+        self.instance_table(node.child_by_field_name("table")?)
+    }
+
+    /// The table an instance name stands for: a local built by
+    /// `setmetatable({…}, T)`, or the implicit `self` of `function T:m()`.
+    fn instance_table(&self, name: Node) -> Option<String> {
+        if name.kind() != "identifier" {
+            return None;
+        }
+        let name = text(name, self.source);
+        let binding = self.lookup(name);
+        if let Some(class) = binding.and_then(|b| b.instance_of.clone()) {
+            return Some(class);
+        }
+        (name == "self").then(|| self.self_table.clone()).flatten()
+    }
+
+    /// The class of this file `setmetatable({…}, T)` (or `{ __index = T }`)
+    /// makes `value` an instance of, when `setmetatable` is the global or a
+    /// local alias of it (`local setmetatable = setmetatable`).
+    fn instance_class(&self, value: Node) -> Option<String> {
+        let global = self
+            .lookup("setmetatable")
+            .is_none_or(|b| b.import.is_none() && b.alias_of.as_deref() == Some("setmetatable"));
+        if value.kind() != "function_call" || !global {
+            return None;
+        }
+        let callee = value.child_by_field_name("name")?;
+        if callee.kind() != "identifier" || text(callee, self.source) != "setmetatable" {
+            return None;
+        }
+        let arguments = value.child_by_field_name("arguments")?;
+        let mut cursor = arguments.walk();
+        let first = arguments.named_children(&mut cursor).next()?;
+        if first.kind() != "table_constructor" {
+            return None;
+        }
+        let base = self.metatable_base(value, 1)?;
+        if base.kind() != "identifier" {
+            return None;
+        }
+        let name = text(base, self.source);
+        let binding = self.lookup(name);
+        if binding.is_some_and(|b| b.import.is_some() || b.alias_of.is_some()) {
+            return None;
+        }
+        self.symbols
+            .iter()
+            .any(|s| s.kind == SymbolKind::Class && s.parent.is_none() && s.name == name)
+            .then(|| name.to_string())
+    }
+
+    /// `setmetatable({ k = v }, T)`: each named key is a field of the class
+    /// `T` of this file, unless `T` declares that name already.
+    fn push_instance_keys(&mut self, call: Node) {
+        let Some(class) = self.instance_class(call) else {
+            return;
+        };
+        let Some(arguments) = call.child_by_field_name("arguments") else {
+            return;
+        };
+        let mut cursor = arguments.walk();
+        let Some(table) = arguments.named_children(&mut cursor).next() else {
+            return;
+        };
+        let mut fields = table.walk();
+        let keys: Vec<Node> = table
+            .named_children(&mut fields)
+            .filter(|f| f.kind() == "field")
+            .filter_map(|f| f.child_by_field_name("name"))
+            .filter(|n| n.kind() == "identifier")
+            .collect();
+        for key in keys {
+            let name = text(key, self.source).to_string();
+            let declared = self
+                .symbols
+                .iter()
+                .any(|s| s.name == name && s.parent.as_deref() == Some(class.as_str()));
+            if !declared {
+                let field = key.parent().unwrap_or(key);
+                self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(field),
+                    Some(class.clone()),
+                );
+            }
+        }
+    }
+
+    /// The table a call is read from (`Animal` in `Animal.new()` or
+    /// `Animal:speak()`, `W.Widget` in `W.Widget.make()`), when it is a
+    /// dotted path of names whose first name means this file's table: one
+    /// declared at file scope that no local or parameter shadows and no
+    /// `require` binds.
+    fn push_qualifier_use(&mut self, owner: SymbolId, callee: Node) {
+        let Some(table) = callee.child_by_field_name("table") else {
+            return;
+        };
+        let mut root = table;
+        while root.kind() == "dot_index_expression" {
+            match root.child_by_field_name("table") {
+                Some(inner) => root = inner,
+                None => return,
+            }
+        }
+        if root.kind() != "identifier" {
+            return;
+        }
+        let name = text(root, self.source);
+        let innermost = self
+            .scopes
+            .iter()
+            .rposition(|scope| scope.contains_key(name));
+        let file_binding = match innermost {
+            Some(0) => self.scopes[0].get(name),
+            Some(_) => return,
+            None => None,
+        };
+        if file_binding.is_some_and(|b| b.import.is_some() || b.alias_of.is_some()) {
+            return;
+        }
+        let path = flatten_table(table, self.source);
+        self.qualifier_uses.push((owner, path, location(table)));
+    }
+
+    /// `self.f()` on an instance of `T` (see [`Walker::instance_table`]) is
+    /// qualified by `T` when this file declares `f` in `T`, a field holding
+    /// a function or a method; otherwise `f` may come from elsewhere.
+    fn push_instance_member_evidence(&mut self, relation: usize, callee: Node) {
+        if callee.kind() != "dot_index_expression" {
+            return;
+        }
+        let (Some(table), Some(field)) = (
+            callee.child_by_field_name("table"),
+            callee.child_by_field_name("field"),
+        ) else {
+            return;
+        };
+        let Some(class) = self.instance_table(table) else {
+            return;
+        };
+        let name = text(field, self.source);
+        let declared = self
+            .symbols
+            .iter()
+            .any(|s| s.name == name && s.parent.as_deref() == Some(class.as_str()));
+        if declared {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                qualifier: Some(class),
+                ..Default::default()
+            });
+        }
     }
 
     fn push_receiver_evidence(&mut self, relation: usize, callee: Node) {
-        let on_self = callee
+        let qualifier = callee
             .child_by_field_name("table")
-            .is_some_and(|t| t.kind() == "identifier" && text(t, self.source) == "self");
-        let qualifier = on_self.then(|| self.self_table.clone()).flatten();
+            .and_then(|t| self.instance_table(t));
         self.relation_targets.push(RelationTarget {
             relation,
             member: qualifier.is_none(),
@@ -1189,7 +1413,33 @@ impl<'a> Walker<'a> {
         table_key_name(key, self.source)
     }
 
-    fn finish(self) -> ParsedFile {
+    fn finish(mut self) -> ParsedFile {
+        // A qualifier references the class it names only when this file
+        // declares that class: `Animal` a file-level class, `W.Widget` the
+        // class `Widget` of `W`. The target is that class, never a function
+        // or field named like it.
+        for (owner, path, loc) in std::mem::take(&mut self.qualifier_uses) {
+            let (outer, name) = match path.rsplit_once('.') {
+                Some((outer, name)) => (Some(outer), name),
+                None => (None, path.as_str()),
+            };
+            let declared = self.symbols.iter().any(|s| {
+                s.kind == SymbolKind::Class && s.name == name && s.parent.as_deref() == outer
+            });
+            if !declared {
+                continue;
+            }
+            let relation = self.relations.len();
+            self.push_relation(owner, RelationKind::References, name.to_string(), loc);
+            if self.relations.len() > relation {
+                self.relation_targets.push(RelationTarget {
+                    relation,
+                    path: Some(self.path.to_string()),
+                    kind: Some(SymbolKind::Class),
+                    ..Default::default()
+                });
+            }
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
