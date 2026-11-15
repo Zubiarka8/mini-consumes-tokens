@@ -22,6 +22,10 @@ use mct_tree_sitter::{find_child, first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod literals;
+mod tokens;
+
+pub use tokens::CppTokenSource;
 
 pub struct CppParser;
 
@@ -77,7 +81,9 @@ impl LanguageParser for CppParser {
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.opens_std = opens_std(root, &file.contents, 0);
         walker.visit_children(root, Ctx::file(module_id), 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -193,6 +199,13 @@ struct Walker<'a> {
     /// Whether this file opens namespace `std` (to specialize a template),
     /// so a `std::` call may reach a declaration of the file's own.
     opens_std: bool,
+    /// Types named in a declaration (`Widget w;`, `void f(Point p)`), with
+    /// the declaring owner, the written type and where it is written.
+    /// `finish` pins one to this file when the file declares that type.
+    type_uses: Vec<(SymbolId, String, bool, Location)>,
+    /// The type parameters of each enclosing `template<...>`, innermost
+    /// last: `T` in `template <typename T>` names no declared type.
+    template_params: Vec<Vec<&'a str>>,
 }
 
 impl<'a> Walker<'a> {
@@ -209,6 +222,8 @@ impl<'a> Walker<'a> {
             supertypes: Vec::new(),
             class_bases: HashMap::new(),
             opens_std: false,
+            type_uses: Vec::new(),
+            template_params: Vec::new(),
         }
     }
 
@@ -378,6 +393,8 @@ impl<'a> Walker<'a> {
                     self.source,
                 ));
                 self.push_overrides(id, func_declarator, ctx);
+                self.push_type_use(ctx.owner, node);
+                self.push_parameter_type_uses(id, func_declarator);
                 let inner = ctx.in_body_of(id);
                 if let Some(params) = func_declarator.child_by_field_name("parameters") {
                     self.visit_children(params, inner, depth + 1);
@@ -411,12 +428,32 @@ impl<'a> Walker<'a> {
             // locals — `std::lock_guard lock(m);` even parses like a
             // function prototype — so only their initializers are walked.
             "field_declaration" | "declaration" => {
+                self.push_type_use(ctx.owner, node);
                 let mut cursor = node.walk();
                 let declarators: Vec<Node<'a>> = node
                     .children_by_field_name("declarator", &mut cursor)
                     .collect();
+                let mut lambdas = Vec::new();
+                if node.kind() == "declaration" && !ctx.in_type() {
+                    for declarator in &declarators {
+                        if let Some((name_node, lambda)) = named_lambda(*declarator) {
+                            self.push_named_lambda(
+                                node,
+                                *declarator,
+                                name_node,
+                                lambda,
+                                ctx,
+                                depth,
+                            );
+                            lambdas.push(declarator.id());
+                        }
+                    }
+                }
                 if !ctx.local {
                     for declarator in &declarators {
+                        if lambdas.contains(&declarator.id()) {
+                            continue;
+                        }
                         if let Some(func_declarator) = find_function_declarator(*declarator) {
                             let (name, parent, kind) = self.function_identity(
                                 func_declarator.child_by_field_name("declarator"),
@@ -430,6 +467,7 @@ impl<'a> Walker<'a> {
                                 self.source,
                             ));
                             self.push_overrides(id, func_declarator, ctx);
+                            self.push_parameter_type_uses(id, func_declarator);
                         } else if let Some(name_node) = plain_declarator_identifier(*declarator) {
                             let kind = if !ctx.in_type()
                                 && declares_constant(node, *declarator, self.source)
@@ -455,8 +493,16 @@ impl<'a> Walker<'a> {
                 }
                 // Initializers (`= make()`, `x(make())`, `{a, b}`), default
                 // member initializers and an inline type definition
-                // (`struct { ... } x;`) can all contain calls or symbols.
-                self.visit_children(node, ctx, depth + 1);
+                // (`struct { ... } x;`) can all contain calls or symbols. A
+                // named lambda's body was walked as its own.
+                let mut cursor = node.walk();
+                let rest: Vec<Node<'a>> = node
+                    .children(&mut cursor)
+                    .filter(|c| !lambdas.contains(&c.id()))
+                    .collect();
+                for child in rest {
+                    self.visit(child, ctx, depth + 1);
+                }
             }
             // A macro: object-like is a `constant`, function-like a
             // `function` (as Rust's `macro_rules!`). The preprocessor knows
@@ -472,7 +518,7 @@ impl<'a> Walker<'a> {
                     self.push_symbol(
                         text(name, self.source).to_string(),
                         kind,
-                        location(node),
+                        directive_location(node),
                         None,
                     );
                 }
@@ -520,6 +566,15 @@ impl<'a> Walker<'a> {
             // `new T(...)` runs a constructor of `T` exactly as `T(...)` does
             // ([expr.new]), so it is the same `calls T`. A built-in type
             // (`new int[4]`) names no constructor.
+            "template_declaration" => {
+                let names = node
+                    .child_by_field_name("parameters")
+                    .map(|list| template_parameter_names(list, self.source))
+                    .unwrap_or_default();
+                self.template_params.push(names);
+                self.visit_children(node, ctx, depth + 1);
+                self.template_params.pop();
+            }
             "new_expression" => {
                 if let Some(written) = node.child_by_field_name("type") {
                     if let Some(name_node) = constructed_type_name(written) {
@@ -756,7 +811,129 @@ impl<'a> Walker<'a> {
         (name, parent, kind)
     }
 
-    fn finish(self) -> ParsedFile {
+    /// `auto f = [](int x) { … };`: the `Function` `f`, of the enclosing
+    /// namespace, or owned by the enclosing function in a body, whose body
+    /// holds the lambda's calls.
+    fn push_named_lambda(
+        &mut self,
+        declaration: Node<'a>,
+        declarator: Node<'a>,
+        name_node: Node<'a>,
+        lambda: Node<'a>,
+        ctx: Ctx<'a>,
+        depth: u32,
+    ) {
+        let parent = if ctx.local {
+            self.symbols
+                .iter()
+                .find(|s| s.id == ctx.owner)
+                .map(|s| s.name.clone())
+        } else {
+            ctx.parent()
+        };
+        let id = self.push_symbol(
+            text(name_node, self.source).to_string(),
+            SymbolKind::Function,
+            location(declarator),
+            parent,
+        );
+        self.details.push(details::lambda_detail(
+            declaration,
+            declarator,
+            lambda,
+            id,
+            self.source,
+        ));
+        self.visit_children(lambda, ctx.in_body_of(id), depth + 1);
+    }
+
+    /// The class, struct, enum or alias a declaration's type names
+    /// (`Widget` in `Widget w;`, `shop::Cart` in `shop::Cart* c`), as a
+    /// `References` relation from `owner`. A built-in type (`int`), `auto`
+    /// and an inline `struct { ... }` name none.
+    fn push_type_use(&mut self, owner: SymbolId, declaration: Node<'a>) {
+        let Some(written) = declaration.child_by_field_name("type") else {
+            return;
+        };
+        let Some(name_node) = constructed_type_name(written) else {
+            return;
+        };
+        let name = text(name_node, self.source);
+        if self.template_params.iter().flatten().any(|p| *p == name) {
+            return;
+        }
+        let std = !self.opens_std && is_std_qualified(written, self.source);
+        self.type_uses
+            .push((owner, name.to_string(), std, location(name_node)));
+    }
+
+    /// The types the parameters of function `owner` name. Only a real
+    /// function's declarator counts: in a body, `std::lock_guard g(m);`
+    /// parses as a prototype whose "parameter" `m` is a value.
+    fn push_parameter_type_uses(&mut self, owner: SymbolId, func_declarator: Node<'a>) {
+        let Some(params) = func_declarator.child_by_field_name("parameters") else {
+            return;
+        };
+        let mut cursor = params.walk();
+        let params: Vec<Node<'a>> = params
+            .named_children(&mut cursor)
+            .filter(|p| {
+                matches!(
+                    p.kind(),
+                    "parameter_declaration" | "optional_parameter_declaration"
+                )
+            })
+            .collect();
+        for param in params {
+            self.push_type_use(owner, param);
+        }
+    }
+
+    fn finish(mut self) -> ParsedFile {
+        // A type this file declares once is the one a declaration here
+        // names: the target is pinned to this file and to that kind, never
+        // a constructor or function of the same name. A `std::` type is the
+        // standard library's. Any other type gives no relation: no target
+        // field limits a by-name match to types, so `fs::path` would
+        // resolve to a method `path` of another file.
+        for (owner, name, std, loc) in std::mem::take(&mut self.type_uses) {
+            let mut declared = self.symbols.iter().filter(|s| {
+                s.name == name
+                    && matches!(
+                        s.kind,
+                        SymbolKind::Class
+                            | SymbolKind::Struct
+                            | SymbolKind::Enum
+                            | SymbolKind::TypeAlias
+                    )
+            });
+            let pinned = match (declared.next(), declared.next()) {
+                (Some(declared), None) => Some(declared.kind),
+                _ => None,
+            };
+            if !std && pinned.is_none() {
+                continue;
+            }
+            let relation = self.relations.len();
+            self.push_relation(owner, RelationKind::References, name, loc);
+            if self.relations.len() == relation {
+                continue;
+            }
+            if std {
+                self.relation_targets.push(RelationTarget {
+                    relation,
+                    external: true,
+                    ..Default::default()
+                });
+            } else if let Some(kind) = pinned {
+                self.relation_targets.push(RelationTarget {
+                    relation,
+                    path: Some(self.path.to_string()),
+                    kind: Some(kind),
+                    ..Default::default()
+                });
+            }
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
@@ -793,11 +970,23 @@ impl<'a> Walker<'a> {
     }
 }
 
+/// A preprocessor directive's span. Its node runs through the line break
+/// that ends it, so it ends at column 0 of the next line; the directive
+/// still ends on its own last line.
+fn directive_location(node: Node) -> Location {
+    let mut loc = location(node);
+    let end = node.end_position();
+    if end.column == 0 && end.row > node.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
+}
+
 /// Descends through declarator wrappers (`int* foo()` → `pointer_declarator`
 /// around the real `function_declarator`) to find the actual function
 /// signature node, or `None` if this declarator is a plain variable/field
 /// (no function signature to unwrap).
-fn find_function_declarator(node: Node) -> Option<Node> {
+pub(crate) fn find_function_declarator(node: Node) -> Option<Node> {
     match node.kind() {
         "function_declarator" => Some(node),
         "pointer_declarator"
@@ -813,6 +1002,24 @@ fn find_function_declarator(node: Node) -> Option<Node> {
 
 /// Same unwrapping as `find_function_declarator`, but for the non-function
 /// (field/variable) case — returns the identifier actually being declared.
+/// The name and lambda of `f = [](…) { … }` (or `f{[] { … }}`), when the
+/// declarator is a plain name initialized with exactly a lambda.
+pub(crate) fn named_lambda(declarator: Node) -> Option<(Node, Node)> {
+    if declarator.kind() != "init_declarator" {
+        return None;
+    }
+    let name = declarator
+        .child_by_field_name("declarator")
+        .filter(|d| d.kind() == "identifier")?;
+    let value = declarator.child_by_field_name("value")?;
+    let lambda = if value.kind() == "initializer_list" && value.named_child_count() == 1 {
+        value.named_child(0)?
+    } else {
+        value
+    };
+    (lambda.kind() == "lambda_expression").then_some((name, lambda))
+}
+
 fn plain_declarator_identifier(node: Node) -> Option<Node> {
     match node.kind() {
         "identifier" | "field_identifier" => Some(node),
@@ -871,7 +1078,11 @@ fn type_declarator_identifier(node: Node) -> Option<Node> {
 /// segment, template arguments dropped, which is what the in-class
 /// declaration of the same member records as its parent. That is how the
 /// header and source halves of a split definition line up by name+parent.
-fn split_qualified(node: Node, source: &str, fallback: Option<String>) -> (String, Option<String>) {
+pub(crate) fn split_qualified(
+    node: Node,
+    source: &str,
+    fallback: Option<String>,
+) -> (String, Option<String>) {
     if node.kind() != "qualified_identifier" {
         return (last_segment_text(node, source).to_string(), fallback);
     }
@@ -941,6 +1152,44 @@ fn is_include_guard(node: Node, source: &str) -> bool {
         && node
             .child_by_field_name("name")
             .is_some_and(|n| text(n, source) == text(guarded, source))
+}
+
+/// The names a `template<...>` parameter list declares as types:
+/// `typename T`, `class U = int`, `typename... Ts` and `template <class>
+/// class C`.
+fn template_parameter_names<'s>(list: Node, source: &'s str) -> Vec<&'s str> {
+    let mut cursor = list.walk();
+    let params: Vec<Node> = list.named_children(&mut cursor).collect();
+    params
+        .into_iter()
+        .filter_map(|param| match param.kind() {
+            "type_parameter_declaration" | "variadic_type_parameter_declaration" => {
+                let mut inner = param.walk();
+                let name = param
+                    .named_children(&mut inner)
+                    .find(|c| c.kind() == "type_identifier");
+                name
+            }
+            "optional_type_parameter_declaration" => param.child_by_field_name("name"),
+            "template_template_parameter_declaration" => {
+                let mut inner = param.walk();
+                let name = param
+                    .named_children(&mut inner)
+                    .filter(|c| c.kind() == "type_parameter_declaration")
+                    .last()
+                    .and_then(|c| {
+                        let mut cursor = c.walk();
+                        let name = c
+                            .named_children(&mut cursor)
+                            .find(|n| n.kind() == "type_identifier");
+                        name
+                    });
+                name
+            }
+            _ => None,
+        })
+        .map(|name| text(name, source))
+        .collect()
 }
 
 fn qualified_tail(node: Node) -> Node {

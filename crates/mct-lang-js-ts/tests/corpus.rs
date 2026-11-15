@@ -52,8 +52,8 @@ fn class_members_attach_to_their_class() {
     );
     assert_eq!(parent("money.ts", "#minor", Field), Some("Money"));
     assert_eq!(parent("order.ts", "#record", Method), Some("Order"));
-    // Getters are methods.
-    assert_eq!(parent("money.ts", "isZero", Method), Some("Money"));
+    // A getter is a field, as a TS property is.
+    assert_eq!(parent("money.ts", "isZero", Field), Some("Money"));
     // Async and async-generator methods.
     assert_eq!(
         parent("client.ts", "placeOrder", Method),
@@ -64,7 +64,24 @@ fn class_members_attach_to_their_class() {
         Some("WarehouseClient")
     );
     assert_eq!(parent("inventory.ts", "#store", Method), Some("StockCache"));
-    assert_eq!(parent("order.ts", "trackingNumber", Field), Some("Order"));
+    // The class field, and the property of the `Shipped` event interface.
+    let c = corpus();
+    let mut tracking: Vec<Option<&str>> = c
+        .symbols_named("trackingNumber")
+        .into_iter()
+        .filter(|(_, s)| s.kind == Field)
+        .map(|(_, s)| s.parent.as_deref())
+        .collect();
+    tracking.sort();
+    assert_eq!(tracking, [Some("Order"), Some("Shipped")]);
+    // An interface's method signature is a method of the interface.
+    let mut compare: Vec<Option<&str>> = c
+        .symbols_named("compareTo")
+        .into_iter()
+        .map(|(_, s)| s.parent.as_deref())
+        .collect();
+    compare.sort();
+    assert_eq!(compare, [Some("Comparable"), Some("Money")]);
 }
 
 #[test]
@@ -142,11 +159,6 @@ fn documented_limits_of_the_parser() {
     let c = corpus();
     // Known limit: a namespace's functions are top-level functions.
     assert_eq!(parent("money.ts", "fromCents", Function), None);
-    // Known limit: interface members are not symbols.
-    assert!(c
-        .symbols_named("compareTo")
-        .iter()
-        .all(|(_, s)| s.parent.as_deref() == Some("Money")));
     // Known limit: JSX elements are not calls of their component (see the
     // crate docs).
     assert!(!c.has_relation("OrderTable", Calls, "StockBadge"));
@@ -194,7 +206,7 @@ fn plain_javascript_class_fields_and_jsx_use_the_js_grammar() {
 }
 
 #[test]
-fn object_literal_methods_and_nested_functions_are_parentless_functions() {
+fn object_literal_methods_are_parentless_and_nested_functions_are_owned() {
     // An object literal is not a type: its methods (getters included) are
     // functions, as in a CommonJS `module.exports = { … }`.
     assert_eq!(parent("inventory.ts", "levels", Function), None);
@@ -202,10 +214,16 @@ fn object_literal_methods_and_nested_functions_are_parentless_functions() {
     assert_eq!(parent("seed.cjs", "sent", Function), None);
     // Calls inside them stay theirs.
     corpus().relation("inventory.ts", "levels", Calls, "parseLocation");
-    // Nested functions are functions too, never members of the enclosing
-    // class or function.
-    assert_eq!(parent("order.ts", "waitedMinutes", Function), None);
-    assert_eq!(parent("OrderTable.tsx", "showSlip", Function), None);
+    // Nested functions are functions too, never methods: the enclosing
+    // function or method owns them.
+    assert_eq!(
+        parent("order.ts", "waitedMinutes", Function),
+        Some("stalePayments")
+    );
+    assert_eq!(
+        parent("OrderTable.tsx", "showSlip", Function),
+        Some("OrderTable")
+    );
     let c = corpus();
     assert!(c
         .files

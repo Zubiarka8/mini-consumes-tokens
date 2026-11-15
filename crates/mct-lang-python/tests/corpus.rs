@@ -37,7 +37,8 @@ fn classes_functions_and_modules_are_extracted_with_kinds() {
         ("errors.py", "LibraryError", SymbolKind::Class),
         ("errors.py", "RateLimiter", SymbolKind::Class),
         ("errors.py", "collect_group", SymbolKind::Function),
-        ("models.py", "Genre", SymbolKind::Class),
+        // `class Genre(enum.Enum)`: an enumeration.
+        ("models.py", "Genre", SymbolKind::Enum),
         ("models.py", "Page", SymbolKind::Class),
         ("models.py", "classify", SymbolKind::Function),
         ("models.py", "café_hours", SymbolKind::Function),
@@ -85,17 +86,21 @@ fn methods_and_nested_classes_hang_off_their_class() {
     assert!(overloads
         .iter()
         .all(|(_, s)| s.kind == Method && s.parent.as_deref() == Some("LendingService")));
-    // Property getter, setter and deleter are three methods of one name.
-    assert_eq!(corpus().symbols_named("weekday").len(), 3);
+    // A property's getter, setter and deleter are one field of the class.
+    let weekday = corpus().symbols_named("weekday");
+    assert_eq!(weekday.len(), 1);
+    assert!(weekday.iter().all(
+        |(_, s)| s.kind == SymbolKind::Field && s.parent.as_deref() == Some("ScheduledReport")
+    ));
 }
 
 #[test]
 fn nested_functions_and_closures_are_functions_not_methods() {
     use SymbolKind::Function;
     let c = corpus();
-    // Inside a method body a `def` is a plain function.
+    // Inside a method body a `def` is a plain function of that method.
     let late = c.symbol("services.py", "late", Function);
-    assert_eq!(late.parent, None);
+    assert_eq!(late.parent.as_deref(), Some("overdue"));
     for name in ["increment", "reset", "on_open", "on_close", "register"] {
         assert!(
             c.symbols_named(name)

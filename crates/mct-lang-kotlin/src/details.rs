@@ -99,6 +99,78 @@ pub(crate) fn property_detail(node: Node, symbol: SymbolId, source: &str) -> Sym
     }
 }
 
+/// A property bound to a lambda or an anonymous function: the binding up
+/// to the body (through `->` for a lambda with parameters, the bare binding
+/// for one without), and the parameters it declares. A lambda that writes
+/// none may still take `it`, so its parameters are unknown.
+pub(crate) fn lambda_detail(
+    node: Node,
+    lambda: Node,
+    symbol: SymbolId,
+    source: &str,
+) -> SymbolDetail {
+    let parts = children(lambda);
+    let (end, parameters) = if lambda.kind() == "anonymous_function" {
+        let end = parts
+            .iter()
+            .find(|c| c.kind() == "function_body")
+            .map_or(lambda.end_byte(), |c| c.start_byte());
+        let parameters = parts
+            .iter()
+            .find(|c| c.kind() == "function_value_parameters")
+            .map(|list| value_parameters(*list, source));
+        (end, parameters)
+    } else {
+        let arrow = parts.iter().find(|c| c.kind() == "->");
+        let parameters = parts
+            .iter()
+            .find(|c| c.kind() == "lambda_parameters")
+            .map(|list| lambda_parameters(*list, source));
+        match arrow {
+            Some(arrow) => (arrow.end_byte(), parameters),
+            None => {
+                let binding_end = children(node)
+                    .into_iter()
+                    .find(|c| c.kind() == "=")
+                    .map_or(node.end_byte(), |c| c.start_byte());
+                (binding_end, None)
+            }
+        }
+    };
+    SymbolDetail {
+        symbol,
+        signature: header(node, end, source),
+        parameters_known: parameters.is_some(),
+        parameters: parameters.unwrap_or_default(),
+        visibility: visibility(node, source),
+        modifiers: modifiers(node),
+        ..Default::default()
+    }
+}
+
+/// `x: Int, y` of a lambda: each name with its type when written.
+fn lambda_parameters(list: Node, source: &str) -> Vec<Parameter> {
+    children(list)
+        .into_iter()
+        .filter(|c| c.kind() == "variable_declaration")
+        .map(|declaration| {
+            let parts = children(declaration);
+            Parameter {
+                name: parts
+                    .iter()
+                    .find(|p| p.kind() == "identifier")
+                    .map(|n| slice(*n, source).to_string()),
+                type_text: parts
+                    .iter()
+                    .find(|p| TYPE_KINDS.contains(&p.kind()))
+                    .map(|t| TypeText::syntax(slice(*t, source))),
+                default: None,
+                kind: ParameterKind::Positional,
+            }
+        })
+        .collect()
+}
+
 fn children(node: Node) -> Vec<Node> {
     let mut cursor = node.walk();
     node.children(&mut cursor).collect()
