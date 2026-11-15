@@ -375,7 +375,7 @@ impl<'a> Walker<'a> {
             // visited as one: each declaring arm reads its name directly.
             "type_identifier" => {
                 let name = text(node, self.source);
-                if name != "Self" && !self.generics.contains(name) {
+                if name != "Self" && name != "_" && !self.generics.contains(name) {
                     let relation = self.push_relation(
                         owner,
                         RelationKind::References,
@@ -804,6 +804,11 @@ impl<'a> Walker<'a> {
                     // turbofish (`helper::<T>`, `it.sum::<T>`) is looked
                     // through, so a method's receiver chain is still walked.
                     let callee = if function.kind() == "generic_function" {
+                        // The types of the turbofish are used here:
+                        // `size_of::<Turbo>()`, `o.is::<Marker>()`.
+                        if let Some(arguments) = function.child_by_field_name("type_arguments") {
+                            self.visit(arguments, owner, impl_type, depth + 1);
+                        }
                         function.child_by_field_name("function").unwrap_or(function)
                     } else {
                         function

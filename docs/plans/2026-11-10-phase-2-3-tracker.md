@@ -754,6 +754,16 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Rust: a type named in the turbofish of a call (`size_of::<Turbo>()`,
+        `o.is::<Marker>()`, `"1".parse::<Item>()`) is a `references`
+        relation from the function that writes it, so a type used only that
+        way is not dead code (`Vec::<Gen>::new()` already was). The `_` of
+        `collect::<Vec<_>>()` is no type and is not recorded; that also drops
+        3 existing `references … -> _` rows. Corpus: +1 relation (`Vec`),
+        −3 (`_`), symbols unchanged. This repository (494 Rust files, 38282
+        symbols): dead code 1 → 1, symbols unchanged. Probe: `Marker` and
+        `Turbo` were listed before. Test:
+        `mct-lang-rust/tests/turbofish_types.rs`.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:

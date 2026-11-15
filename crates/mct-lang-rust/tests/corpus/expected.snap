@@ -1,4 +1,4 @@
-# language=rust files=6 symbols=771 relations=1717 name_matched_across_files=551
+# language=rust files=6 symbols=771 relations=1715 name_matched_across_files=551
 
 == errors.rs (397 lines)
 S 1-397 module errors
@@ -355,7 +355,6 @@ R 366:48 calls error_count_increases_on_report -> ProductId (name-matched: model
 R 367:17 references error_count_increases_on_report -> error_count
 R 370:5 references tests -> severity_tags
 R 372:19 references severity_tags -> Vec
-R 372:23 references severity_tags -> _
 R 380:10 calls severity_tags -> collect
 R 379:10 calls severity_tags -> map (name-matched: model.rs)
 R 378:10 calls severity_tags -> iter (name-matched: main.rs)
@@ -381,7 +380,6 @@ R 389:13 calls filtered_keeps_order -> push
 R 389:28 references filtered_keeps_order -> Warning
 R 389:18 references filtered_keeps_order -> Severity
 R 390:19 references filtered_keeps_order -> Vec
-R 390:23 references filtered_keeps_order -> _
 R 394:14 calls filtered_keeps_order -> collect
 R 393:14 calls filtered_keeps_order -> map (name-matched: model.rs)
 R 392:14 calls filtered_keeps_order -> into_iter
@@ -1608,6 +1606,7 @@ R 293:32 calls AuditSection::body -> to_string
 R 295:9 calls AuditSection::body -> Ok
 R 295:65 calls AuditSection::body -> join
 R 295:45 calls AuditSection::body -> collect
+R 295:55 references AuditSection::body -> Vec
 R 295:27 calls AuditSection::body -> map
 R 295:20 calls AuditSection::body -> iter (name-matched: main.rs)
 R 286:8 overrides AuditSection::title -> title
@@ -2342,7 +2341,6 @@ R 189:38 references StockTable::snapshot -> Vec
 R 189:42 references StockTable::snapshot -> StockLevel (name-matched: model.rs)
 R 190:25 calls StockTable::snapshot -> read_rows
 R 191:22 references StockTable::snapshot -> Vec
-R 191:26 references StockTable::snapshot -> _
 R 191:70 calls StockTable::snapshot -> collect
 R 191:45 calls StockTable::snapshot -> map (name-matched: model.rs)
 R 191:36 calls StockTable::snapshot -> values
