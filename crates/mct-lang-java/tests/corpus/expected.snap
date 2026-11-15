@@ -1,4 +1,4 @@
-# language=java files=6 symbols=432 relations=1055 name_matched_across_files=149
+# language=java files=6 symbols=436 relations=1055 name_matched_across_files=149
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -8,6 +8,7 @@ S 43-50 class OrderService::PlaceOrder
 S 43-43 method PlaceOrder::customerId
 S 43-43 method PlaceOrder::currency
 S 43-43 method PlaceOrder::quantities
+S 44-49 method PlaceOrder::PlaceOrder
 S 53-54 interface OrderService::Outcome
 S 56-57 class OrderService::Accepted
 S 56-56 method Accepted::id
@@ -117,9 +118,9 @@ R 31:1 imports OrderService -> Collectors
 R 31:1 imports OrderService -> counting
 R 40:46 calls OrderService -> getLogger
 R 40:75 calls OrderService -> getName
-R 45:21 calls OrderService -> requireNonNull
-R 46:28 calls OrderService -> isEmpty
-R 47:27 calls OrderService -> IllegalArgumentException
+R 45:21 calls PlaceOrder::PlaceOrder -> requireNonNull
+R 46:28 calls PlaceOrder::PlaceOrder -> isEmpty
+R 47:27 calls PlaceOrder::PlaceOrder -> IllegalArgumentException
 R 56:80 implements OrderService::Accepted -> Outcome
 R 59:87 implements OrderService::PendingApproval -> Outcome
 R 62:54 implements OrderService::Rejected -> Outcome
@@ -859,6 +860,7 @@ S 323-325 method Allocation::total
 S 329-345 class Money::Range
 S 329-329 method Range::min
 S 329-329 method Range::max
+S 330-336 method Range::Range
 S 338-340 method Range::contains
 S 342-344 method Range::width
 S 348-365 class Money::CurrencyMismatchException
@@ -1008,10 +1010,10 @@ R 324:27 calls Allocation::total -> stream
 R 324:44 calls Allocation::total -> summing
 R 324:66 calls Allocation::total -> currency
 R 324:59 calls Allocation::total -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
-R 331:13 calls Money -> requireNonNull
-R 332:13 calls Money -> requireNonNull
-R 333:21 calls Money -> compareTo
-R 334:27 calls Money -> IllegalArgumentException
+R 331:13 calls Range::Range -> requireNonNull
+R 332:13 calls Range::Range -> requireNonNull
+R 333:21 calls Range::Range -> compareTo
+R 334:27 calls Range::Range -> IllegalArgumentException
 R 339:26 calls Range::contains -> compareTo
 R 339:55 calls Range::contains -> compareTo
 R 343:24 calls Range::width -> minus
@@ -1025,6 +1027,7 @@ S 1-336 module Order
 S 22-336 class Order
 S 25-37 class Order::Id
 S 25-25 method Id::value
+S 26-28 method Id::Id
 S 30-32 method Id::random
 S 34-36 method Id::parse
 S 40-55 class Order::Line
@@ -1032,6 +1035,7 @@ S 40-40 method Line::number
 S 40-40 method Line::sku
 S 40-40 method Line::quantity
 S 40-40 method Line::unitPrice
+S 41-46 method Line::Line
 S 48-50 method Line::subtotal
 S 52-54 method Line::withQuantity
 S 61-124 enum Order::State
@@ -1150,13 +1154,13 @@ R 14:1 imports Order -> UUID
 R 14:1 imports Order -> UUID
 R 15:1 imports Order -> Consumer
 R 15:1 imports Order -> Consumer
-R 27:21 calls Order -> requireNonNull
+R 27:21 calls Id::Id -> requireNonNull
 R 31:24 calls Id::random -> Id
 R 31:32 calls Id::random -> randomUUID
 R 35:24 calls Id::parse -> Id
 R 35:32 calls Id::parse -> fromString
-R 43:27 calls Order -> IllegalArgumentException
-R 45:21 calls Order -> requireNonNull
+R 43:27 calls Line::Line -> IllegalArgumentException
+R 45:21 calls Line::Line -> requireNonNull
 R 49:30 calls Line::subtotal -> times (name-matched: com/example/warehouse/money/Money.java)
 R 53:24 calls Line::withQuantity -> Line
 R 63:14 references NEW::next -> Override

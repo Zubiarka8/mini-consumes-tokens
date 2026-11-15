@@ -754,6 +754,13 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] Java, record compact constructor (found by comparing the grammar's
+      declaration node kinds with the ones the parser names, 3.4): a
+      `public Point { … }` is a `method` named after its record, and the
+      calls of its body belong to it, not to the enclosing class or file
+      module. Corpus: 4 new symbols, 11 calls change owner
+      (`OrderService`, `Money`, `Order` -> the compact constructors),
+      relations unchanged.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:

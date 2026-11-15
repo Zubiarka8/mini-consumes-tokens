@@ -423,7 +423,12 @@ impl<'a> Walker<'a> {
                     self.supertypes.pop();
                 }
             }
-            "method_declaration" | "constructor_declaration" => {
+            // A record's compact constructor (`public Point { … }`) is its
+            // constructor: it has a name and a body, and no parameter list
+            // of its own.
+            "method_declaration"
+            | "constructor_declaration"
+            | "compact_constructor_declaration" => {
                 let name = node
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
