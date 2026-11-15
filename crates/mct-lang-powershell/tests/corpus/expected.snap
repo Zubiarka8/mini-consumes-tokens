@@ -1,4 +1,4 @@
-# language=powershell files=5 symbols=82 relations=261 name_matched_across_files=62
+# language=powershell files=5 symbols=103 relations=274 name_matched_across_files=62
 
 == Deploy-Warehouse.ps1 (301 lines)
 S 1-301 module Deploy-Warehouse
@@ -311,6 +311,27 @@ R 288:1 calls Warehouse.Common -> Export-ModuleMember
 
 == Warehouse.Inventory.psm1 (302 lines)
 S 1-302 module Warehouse.Inventory
+S 18-23 enum Warehouse.Inventory::StorageZone
+S 19-19 field StorageZone::Ambient
+S 20-20 field StorageZone::Chilled
+S 21-21 field StorageZone::Frozen
+S 22-22 field StorageZone::Bulky
+S 25-51 class Warehouse.Inventory::Location
+S 26-26 field Location::Zone
+S 27-27 field Location::Aisle
+S 28-28 field Location::Level
+S 30-37 method Location::Location
+S 39-46 method Location::StorageZone
+S 48-50 method Location::ToString
+S 53-75 class Warehouse.Inventory::CycleCount
+S 54-54 field CycleCount::Sku
+S 55-55 field CycleCount::Location
+S 56-56 field CycleCount::Expected
+S 57-57 field CycleCount::Counted
+S 58-58 field CycleCount::Reason
+S 60-62 method CycleCount::Difference
+S 64-67 method CycleCount::NeedsReview
+S 69-74 method CycleCount::Describe
 S 81-112 function Warehouse.Inventory::Import-CycleCount
 S 114-134 function Warehouse.Inventory::Split-CycleCount
 S 136-155 function Warehouse.Inventory::Submit-CycleCount
@@ -325,14 +346,19 @@ R 15:16 calls Warehouse.Inventory -> Join-Path
 R 16:16 calls Warehouse.Inventory -> Join-Path
 R 91:27 calls Warehouse.Inventory::Import-CycleCount -> Test-Path
 R 95:13 calls Warehouse.Inventory::Import-CycleCount -> Import-Csv
+R 100:23 calls Warehouse.Inventory::Import-CycleCount -> CycleCount
+R 102:32 calls Warehouse.Inventory::Import-CycleCount -> Location
 R 109:13 calls Warehouse.Inventory::Import-CycleCount -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 131:9 calls Warehouse.Inventory::Split-CycleCount -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 144:13 calls Warehouse.Inventory::Submit-CycleCount -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 148:13 calls Warehouse.Inventory::Submit-CycleCount -> Invoke-WarehouseApi (name-matched: Warehouse.Api.psm1)
+R 170:16 calls Warehouse.Inventory::Move-WarehouseStock -> Location
+R 171:16 calls Warehouse.Inventory::Move-WarehouseStock -> Location
 R 176:9 calls Warehouse.Inventory::Move-WarehouseStock -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 178:14 calls Warehouse.Inventory::Move-WarehouseStock -> Get-WarehouseStock (name-matched: Warehouse.Api.psm1)
 R 183:9 calls Warehouse.Inventory::Move-WarehouseStock -> Invoke-WarehouseApi (name-matched: Warehouse.Api.psm1)
 R 195:27 calls Warehouse.Inventory::Get-PickingRoute -> ForEach-Object
+R 195:45 calls Warehouse.Inventory::Get-PickingRoute -> Location
 R 196:15 calls Warehouse.Inventory::Get-PickingRoute -> Sort-Object
 R 200:9 calls Warehouse.Inventory::Get-PickingRoute -> ForEach-Object
 R 215:14 calls Warehouse.Inventory::Get-ReorderReport -> Get-WarehouseStock (name-matched: Warehouse.Api.psm1)
@@ -352,3 +378,11 @@ R 284:39 calls Warehouse.Inventory::Invoke-AnnualCount -> ForEach-Object
 R 285:13 calls Warehouse.Inventory::Invoke-AnnualCount -> Write-WarehouseLog (name-matched: Warehouse.Common.psm1)
 R 289:9 calls Warehouse.Inventory::Invoke-AnnualCount -> Set-ReservationFreeze
 R 293:1 calls Warehouse.Inventory -> Export-ModuleMember
+R 39:6 references Location::StorageZone -> StorageZone
+R 41:28 references Location::StorageZone -> StorageZone
+R 42:28 references Location::StorageZone -> StorageZone
+R 43:28 references Location::StorageZone -> StorageZone
+R 45:17 references Location::StorageZone -> StorageZone
+R 55:6 references Warehouse.Inventory::CycleCount -> Location
+R 88:18 references Warehouse.Inventory::Import-CycleCount -> CycleCount
+R 139:52 references Warehouse.Inventory::Submit-CycleCount -> CycleCount
