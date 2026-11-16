@@ -61,6 +61,10 @@ checked by running the code, never read off the index:
   `std::to_string` and `std::sort` are the standard library's, never
   `Quantity::to_string` or `util::sort`; `util::sorted_calls == 1`, so the
   qualified `util::sort(v)` is the one call that reaches `util.hpp`.
+- **Receiver types (D5), C++:** the same build. `describe(Quantity{3}, &box)
+  == "qty:3box"`: `q.to_string()` on `const Quantity& q` is
+  `Quantity::to_string`, and `b->to_string()` on `const Box* b` is
+  `Box::to_string`, each next to the other class's same-named method.
 
   With the C++ files below unpacked into `cpp/src`, the checker can be run
   from that directory with `clang++ -std=c++17 checker.cpp -o checker &&
@@ -68,6 +72,7 @@ checked by running the code, never read off the index:
 
   ```cpp
   #include <cassert>
+  #include "describe.cpp"
   #include "report.cpp"
 
   int main() {
@@ -75,6 +80,8 @@ checked by running the code, never read off the index:
       assert(label(v) == "1");
       assert((v == std::vector<int>{1, 2, 3}));
       assert(util::sorted_calls == 1);
+      Box box;
+      assert(describe(Quantity{3}, &box) == "qty:3box");
   }
   ```
 
@@ -93,6 +100,19 @@ checked by running the code, never read off the index:
 The fixture is checked in as one `.txt` bundle, which no parser indexes, and
 unpacked into a temporary directory per eval run, so its clashing names never
 become candidates outside the eval.
+==> cpp/src/describe.cpp <==
+#include <string>
+#include "quantity.hpp"
+
+struct Box {
+    std::string to_string() const { return "box"; }
+};
+
+std::string describe(const Quantity& q, const Box* b) {
+    std::string left = q.to_string();
+    std::string right = b->to_string();
+    return left + right;
+}
 ==> cpp/src/quantity.hpp <==
 #pragma once
 #include <string>
