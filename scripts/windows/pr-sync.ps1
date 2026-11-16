@@ -82,6 +82,17 @@ $gitDir = (Invoke-GitIn $worktree @('rev-parse', '--absolute-git-dir')).Out.Trim
 $mergeHead = Join-Path $gitDir 'MERGE_HEAD'
 if (-not (Test-Path -LiteralPath $mergeHead)) {
   if ((Invoke-GitIn $worktree @('status', '--porcelain')).Out.Trim()) { Stop-Usage "$worktree has uncommitted changes" }
+  # A checkout that lags behind origin/<branch> (the branch moved from another
+  # clone or worktree) is brought up to date first; one that has diverged is
+  # not touched, since the push would be rejected.
+  if ((Invoke-GitIn $worktree @('rev-parse', '--verify', '-q', "origin/$branch")).ExitCode -eq 0 -and
+      (Invoke-GitIn $worktree @('merge-base', '--is-ancestor', "origin/$branch", 'HEAD')).ExitCode -ne 0) {
+    if ((Invoke-GitIn $worktree @('merge-base', '--is-ancestor', 'HEAD', "origin/$branch")).ExitCode -ne 0) {
+      Stop-Usage "$branch has diverged from origin/$branch; reconcile it first"
+    }
+    [void](Invoke-GitIn $worktree @('merge', '--ff-only', '-q', "origin/$branch"))
+    Write-Output "fast-forwarded $branch to origin/$branch"
+  }
   if ((Invoke-GitIn $worktree @('merge-base', '--is-ancestor', "origin/$base", 'HEAD')).ExitCode -eq 0) {
     Write-Output "$branch already contains origin/$base"
   } else {
