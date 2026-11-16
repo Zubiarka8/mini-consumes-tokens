@@ -121,6 +121,11 @@ struct Walker<'a> {
     /// identifier naming one is a use of that closure, recorded like a free
     /// function's value use.
     local_fns: HashSet<String>,
+    /// Symbols of the inline `mod name { … }` items walked so far: an item
+    /// declared directly in one has that module as its parent, as a C++
+    /// namespace member does, so a path through it (`name::item`) matches
+    /// the item with the module evidence the path carries.
+    inline_module_ids: HashSet<SymbolId>,
     /// Type parameters declared by the items enclosing the current node: a
     /// type named like one of them is that parameter, not a type to record.
     generics: HashSet<String>,
@@ -154,6 +159,7 @@ impl<'a> Walker<'a> {
             scope: FileScope::default(),
             bound: HashSet::new(),
             local_fns: HashSet::new(),
+            inline_module_ids: HashSet::new(),
             generics: HashSet::new(),
             relation_targets: Vec::new(),
             self_type: None,
@@ -311,7 +317,8 @@ impl<'a> Walker<'a> {
                 };
                 let parent = impl_type
                     .map(str::to_string)
-                    .or_else(|| self.callable_owner(owner));
+                    .or_else(|| self.callable_owner(owner))
+                    .or_else(|| self.module_owner(owner));
                 let id = self.push_symbol(name, kind, location(node), parent);
                 self.record_detail(node, id);
                 // Locals are per function: a nested `fn` starts from an empty
@@ -455,12 +462,13 @@ impl<'a> Walker<'a> {
                         && self.imported.contains(name)
                         && !self.bound.contains(name)
                     {
-                        self.push_relation(
+                        let relation = self.push_relation(
                             owner,
                             RelationKind::Calls,
                             name.to_string(),
                             location(child),
                         );
+                        self.qualify(relation, self.bare_target(name, child.start_byte()));
                     }
                     if accessor.is_none() {
                         self.visit(child, owner, impl_type, depth + 1);
@@ -500,7 +508,10 @@ impl<'a> Walker<'a> {
                 if let Some(name) = node.child_by_field_name("name") {
                     self.macros.insert(text(name, self.source).to_string());
                 }
-                self.push_named(node, SymbolKind::Function, self.callable_owner(owner));
+                let parent = self
+                    .callable_owner(owner)
+                    .or_else(|| self.module_owner(owner));
+                self.push_named(node, SymbolKind::Function, parent);
             }
             "parameter" => {
                 if let Some(pattern) = node.child_by_field_name("pattern") {
@@ -578,7 +589,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Struct, location(node), None);
+                let parent = self.module_owner(owner);
+                let id = self.push_symbol(name.clone(), SymbolKind::Struct, location(node), parent);
                 self.record_detail(node, id);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit(body, id, Some(&name), depth + 1);
@@ -589,7 +601,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Enum, location(node), None);
+                let parent = self.module_owner(owner);
+                let id = self.push_symbol(name.clone(), SymbolKind::Enum, location(node), parent);
                 self.record_detail(node, id);
                 if let Some(body) = node.child_by_field_name("body") {
                     self.visit(body, id, Some(&name), depth + 1);
@@ -639,8 +652,11 @@ impl<'a> Walker<'a> {
             // Associated types/consts of an `impl`/`trait` hang off the type,
             // like its methods do.
             "type_item" | "associated_type" => {
-                let id =
-                    self.push_named(node, SymbolKind::TypeAlias, impl_type.map(str::to_string));
+                let id = self.push_named(
+                    node,
+                    SymbolKind::TypeAlias,
+                    self.item_parent(impl_type, owner),
+                );
                 self.record_detail(node, id);
                 if let Some(ty) = node.child_by_field_name("type") {
                     self.visit(ty, id, None, depth + 1);
@@ -652,7 +668,7 @@ impl<'a> Walker<'a> {
                 } else {
                     SymbolKind::Constant
                 };
-                let id = self.push_named(node, kind, impl_type.map(str::to_string));
+                let id = self.push_named(node, kind, self.item_parent(impl_type, owner));
                 self.record_detail(node, id);
                 if let Some(ty) = node.child_by_field_name("type") {
                     self.visit(ty, id, None, depth + 1);
@@ -666,7 +682,8 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Trait, location(node), None);
+                let parent = self.module_owner(owner);
+                let id = self.push_symbol(name.clone(), SymbolKind::Trait, location(node), parent);
                 self.record_detail(node, id);
                 if let Some(bounds) = node.child_by_field_name("bounds") {
                     let mut cursor = bounds.walk();
@@ -751,8 +768,10 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                let id = self.push_symbol(name.clone(), SymbolKind::Module, location(node), None);
+                let parent = self.module_owner(owner);
+                let id = self.push_symbol(name.clone(), SymbolKind::Module, location(node), parent);
                 if let Some(body) = node.child_by_field_name("body") {
+                    self.inline_module_ids.insert(id);
                     self.visit_children(body, id, None, depth + 1);
                 } else if !name.is_empty() {
                     // `mod name;` pulls in the file `name.rs`: a dependency
@@ -978,6 +997,9 @@ impl<'a> Walker<'a> {
         let (path, module) = match segments.last().map(String::as_str) {
             Some("self") => (Some(self.path.to_string()), None),
             Some("crate" | "super") | None => (None, None),
+            Some(_) if self.through_inline_modules(&segments, at) => {
+                (Some(self.path.to_string()), segments.pop())
+            }
             Some(_) => (None, segments.pop()),
         };
         RelationTarget {
@@ -1025,8 +1047,8 @@ impl<'a> Walker<'a> {
     }
 
     /// Whether `name`, written bare in this file, can only be the standard
-    /// library's: imported from `std`/`core`/`alloc` and from nowhere else,
-    /// or one of the prelude's names with nothing in the file that could
+    /// library's: imported from `std`/`core`/`alloc`, and from nowhere else,
+    /// where it is used, or one of the prelude's names with nothing in the file that could
     /// shadow it — no item, `use` or local of that name, and no glob import
     /// that could bring one in where it is used (`at`, a byte offset). The
     /// name alone is never enough.
@@ -1038,17 +1060,20 @@ impl<'a> Walker<'a> {
         if local || self.scope.declared.contains(name) {
             return false;
         }
-        let imported_here = self
-            .scope
-            .other_imports
-            .get(name)
-            .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+        let reaches = |imports: &HashMap<String, Vec<std::ops::Range<usize>>>| {
+            imports
+                .get(name)
+                .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+        };
+        let imported_here = reaches(&self.scope.other_imports)
             || self
                 .scope
                 .variant_globs
                 .iter()
                 .any(|(reach, variants)| reach.contains(&at) && variants.contains(name));
-        if self.scope.std_imports.contains(name) {
+        // An explicit import wins over any glob in its block. Where it
+        // doesn't reach, the name is judged as a prelude name instead.
+        if reaches(&self.scope.std_imports) {
             return !imported_here;
         }
         PRELUDE.contains(&name)
@@ -1058,6 +1083,30 @@ impl<'a> Walker<'a> {
                 .opaque_globs
                 .iter()
                 .any(|scope| scope.contains(&at))
+    }
+
+    /// Whether a module path (`inner`, `self::inner::deeper`) only goes
+    /// through inline modules of this file: its first module is declared in
+    /// a block reaching `at` (`at`, a byte offset) and no `use` there brings
+    /// in another item of that name, and every later one is declared inline
+    /// here too. Its items are then in this file.
+    fn through_inline_modules(&self, segments: &[String], at: usize) -> bool {
+        let modules = match segments.first().map(String::as_str) {
+            Some("self") => &segments[1..],
+            _ => segments,
+        };
+        let Some((first, rest)) = modules.split_first() else {
+            return false;
+        };
+        let reaches = |name: &str, map: &HashMap<String, Vec<std::ops::Range<usize>>>| {
+            map.get(name)
+                .is_some_and(|reaches| reaches.iter().any(|reach| reach.contains(&at)))
+        };
+        reaches(first, &self.scope.inline_modules)
+            && !reaches(first, &self.scope.other_imports)
+            && rest
+                .iter()
+                .all(|name| self.scope.inline_modules.contains_key(name))
     }
 
     /// Whether `path` is one primitive type name (`u64`, `str`) that no
@@ -1113,7 +1162,7 @@ impl<'a> Walker<'a> {
         if local
             || self.scope.declared.contains(name)
             || self.scope.aliases.contains(name)
-            || self.scope.std_imports.contains(name)
+            || self.scope.std_imports.contains_key(name)
         {
             return None;
         }
@@ -1148,7 +1197,7 @@ impl<'a> Walker<'a> {
         let root = root?;
         let local_root = self.scope.declared.contains(root)
             || self.scope.other_imports.contains_key(root)
-            || self.scope.std_imports.contains(root);
+            || self.scope.std_imports.contains_key(root);
         if local_root || may_import_own_package(self.path) {
             return None;
         }
@@ -1245,6 +1294,23 @@ impl<'a> Walker<'a> {
             self.literals
                 .push(&unescape(fragment, is_raw), fragment_line);
         }
+    }
+
+    /// The inline module `owner` is, when it is one (see
+    /// [`Walker::inline_module_ids`]).
+    fn module_owner(&self, owner: SymbolId) -> Option<String> {
+        if !self.inline_module_ids.contains(&owner) {
+            return None;
+        }
+        self.symbols.get(owner as usize).map(|s| s.name.clone())
+    }
+
+    /// The parent of an associated or module-level item: the enclosing
+    /// `impl`/`trait` type, else the inline module it is declared in.
+    fn item_parent(&self, impl_type: Option<&str>, owner: SymbolId) -> Option<String> {
+        impl_type
+            .map(str::to_string)
+            .or_else(|| self.module_owner(owner))
     }
 
     fn callable_owner(&self, owner: SymbolId) -> Option<String> {
@@ -1548,11 +1614,11 @@ struct FileScope {
     declared: HashSet<String>,
     /// Item and standard import scopes that can shadow a primitive type.
     primitive_shadows: HashMap<String, Vec<std::ops::Range<usize>>>,
-    /// Names a `use` of a `std`/`core`/`alloc` path brings in.
-    std_imports: HashSet<String>,
-    /// Names any other `use` brings in, each with the byte ranges of the
-    /// blocks, modules or file its imports are written in: like a glob, an
-    /// import reaches only its own block.
+    /// Each inline module and the ranges where its name is visible.
+    inline_modules: HashMap<String, Vec<std::ops::Range<usize>>>,
+    /// Standard imports and the ranges where their names are visible.
+    std_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
+    /// Other imports and the ranges where their names are visible.
     other_imports: HashMap<String, Vec<std::ops::Range<usize>>>,
     /// The crate each of those imports reaches its item in (`serde_json` in
     /// `use serde_json::Value`; none for a `crate::`/`self::`/`super::`
@@ -1639,9 +1705,13 @@ fn collect_scope_at(
                             .or_default()
                             .push(reach.clone());
                     }
-                    scope
-                        .std_imports
-                        .extend(names.into_iter().map(|used| used.name));
+                    for used in names {
+                        scope
+                            .std_imports
+                            .entry(used.name)
+                            .or_default()
+                            .push(reach.clone());
+                    }
                 } else {
                     for used in names {
                         if used.alias {
@@ -1690,10 +1760,17 @@ fn collect_scope_at(
                 .is_some_and(|owner| matches!(owner.kind(), "impl_item" | "trait_item"));
             if let Some(name) = node.child_by_field_name("name").filter(|_| !associated) {
                 let name = text(name, source).to_string();
+                let reach = node.parent().map_or(0..source.len(), |parent| {
+                    parent.start_byte()..parent.end_byte()
+                });
+                if node.kind() == "mod_item" && node.child_by_field_name("body").is_some() {
+                    scope
+                        .inline_modules
+                        .entry(name.clone())
+                        .or_default()
+                        .push(reach.clone());
+                }
                 if node.kind() != "enum_variant" && PRIMITIVES.contains(&name.as_str()) {
-                    let reach = node.parent().map_or(0..source.len(), |parent| {
-                        parent.start_byte()..parent.end_byte()
-                    });
                     scope
                         .primitive_shadows
                         .entry(name.clone())
@@ -1913,8 +1990,17 @@ fn collect_identifiers(node: Node, source: &str, out: &mut HashSet<String>, dept
         out.insert(text(node, source).to_string());
         return;
     }
+    // A match arm's guard (`None if text.is_some_and(is_final)`) is an
+    // expression the arm evaluates, not part of its pattern: its names are
+    // uses, never bindings.
+    let guard = (node.kind() == "match_pattern")
+        .then(|| node.child_by_field_name("condition"))
+        .flatten();
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
+        if guard.is_some_and(|g| g.id() == child.id()) {
+            continue;
+        }
         collect_identifiers(child, source, out, depth + 1);
     }
 }

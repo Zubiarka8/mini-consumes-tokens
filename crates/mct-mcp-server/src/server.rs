@@ -664,6 +664,10 @@ pub struct BuildContextPackArgs {
     /// clamped to 1..=200.
     #[serde(default)]
     pub source_lines: Option<usize>,
+    /// Lines of each definition to skip before the source starts, to page
+    /// past `source_lines`. Defaults to 0; the doc comment shows only at 0.
+    #[serde(default)]
+    pub source_offset: Option<usize>,
     /// `toon` (default; related symbols as one table) or `text` (opt-in).
     #[serde(default)]
     pub format: Option<String>,
@@ -1159,6 +1163,8 @@ pub struct PackedDefinition {
     pub snippet: String,
     /// Lines of the definition past the `source_lines` cut.
     pub hidden_lines: u32,
+    /// Lines skipped before the source starts (`source_offset`).
+    pub source_offset: u32,
     /// The definition's first line, for the `summary` detail level.
     pub signature: Option<String>,
 }
@@ -2533,6 +2539,7 @@ impl MctServer {
             depth,
             limit,
             source_lines,
+            source_offset,
             format,
             detail,
             max_tokens,
@@ -2549,6 +2556,7 @@ impl MctServer {
         let source_lines = source_lines
             .unwrap_or(CONTEXT_PACK_DEFAULT_SOURCE_LINES)
             .clamp(1, CONTEXT_PACK_MAX_SOURCE_LINES);
+        let source_offset = u32::try_from(source_offset.unwrap_or(0)).unwrap_or(u32::MAX);
         let index = self.index.lock().await;
         let _snapshot = index.read_snapshot().map_err(index_error)?;
 
@@ -2667,7 +2675,12 @@ impl MctServer {
             });
             let (snippet, hidden_lines) = match source {
                 Some(source) => {
-                    let start = format::leading_comment_start(&source, hit.line);
+                    // The doc comment belongs to the first page only.
+                    let start = if source_offset == 0 {
+                        format::leading_comment_start(&source, hit.line)
+                    } else {
+                        hit.line.saturating_add(source_offset)
+                    };
                     let doc_lines = hit.line.saturating_sub(start) as usize;
                     let snippet = format::symbol_snippet(
                         &source,
@@ -2675,7 +2688,8 @@ impl MctServer {
                         hit.end_line,
                         doc_lines + source_lines,
                     );
-                    let shown_end = hit.line as usize + source_lines - 1;
+                    let shown_end = (hit.line.saturating_add(source_offset) as usize)
+                        .saturating_add(source_lines - 1);
                     let hidden = hit
                         .end_line
                         .map_or(0, |end| (end as usize).saturating_sub(shown_end));
@@ -2687,6 +2701,7 @@ impl MctServer {
                 hit,
                 snippet,
                 hidden_lines,
+                source_offset,
                 signature,
             });
         }

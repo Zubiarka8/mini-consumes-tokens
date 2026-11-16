@@ -22,6 +22,10 @@ use mct_tree_sitter::{find_child, first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod literals;
+mod tokens;
+
+pub use tokens::CppTokenSource;
 
 pub struct CppParser;
 
@@ -77,7 +81,9 @@ impl LanguageParser for CppParser {
         let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.opens_std = opens_std(root, &file.contents, 0);
         walker.visit_children(root, Ctx::file(module_id), 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -432,8 +438,27 @@ impl<'a> Walker<'a> {
                 let declarators: Vec<Node<'a>> = node
                     .children_by_field_name("declarator", &mut cursor)
                     .collect();
+                let mut lambdas = Vec::new();
+                if node.kind() == "declaration" && !ctx.in_type() {
+                    for declarator in &declarators {
+                        if let Some((name_node, lambda)) = named_lambda(*declarator) {
+                            self.push_named_lambda(
+                                node,
+                                *declarator,
+                                name_node,
+                                lambda,
+                                ctx,
+                                depth,
+                            );
+                            lambdas.push(declarator.id());
+                        }
+                    }
+                }
                 if !ctx.local {
                     for declarator in &declarators {
+                        if lambdas.contains(&declarator.id()) {
+                            continue;
+                        }
                         if let Some(func_declarator) = find_function_declarator(*declarator) {
                             let (name, parent, kind) = self.function_identity(
                                 func_declarator.child_by_field_name("declarator"),
@@ -473,8 +498,16 @@ impl<'a> Walker<'a> {
                 }
                 // Initializers (`= make()`, `x(make())`, `{a, b}`), default
                 // member initializers and an inline type definition
-                // (`struct { ... } x;`) can all contain calls or symbols.
-                self.visit_children(node, ctx, depth + 1);
+                // (`struct { ... } x;`) can all contain calls or symbols. A
+                // named lambda's body was walked as its own.
+                let mut cursor = node.walk();
+                let rest: Vec<Node<'a>> = node
+                    .children(&mut cursor)
+                    .filter(|c| !lambdas.contains(&c.id()))
+                    .collect();
+                for child in rest {
+                    self.visit(child, ctx, depth + 1);
+                }
             }
             // A macro: object-like is a `constant`, function-like a
             // `function` (as Rust's `macro_rules!`). The preprocessor knows
@@ -490,7 +523,7 @@ impl<'a> Walker<'a> {
                     self.push_symbol(
                         text(name, self.source).to_string(),
                         kind,
-                        location(node),
+                        directive_location(node),
                         None,
                     );
                 }
@@ -809,6 +842,42 @@ impl<'a> Walker<'a> {
         (name, parent, kind)
     }
 
+    /// `auto f = [](int x) { … };`: the `Function` `f`, of the enclosing
+    /// namespace, or owned by the enclosing function in a body, whose body
+    /// holds the lambda's calls.
+    fn push_named_lambda(
+        &mut self,
+        declaration: Node<'a>,
+        declarator: Node<'a>,
+        name_node: Node<'a>,
+        lambda: Node<'a>,
+        ctx: Ctx<'a>,
+        depth: u32,
+    ) {
+        let parent = if ctx.local {
+            self.symbols
+                .iter()
+                .find(|s| s.id == ctx.owner)
+                .map(|s| s.name.clone())
+        } else {
+            ctx.parent()
+        };
+        let id = self.push_symbol(
+            text(name_node, self.source).to_string(),
+            SymbolKind::Function,
+            location(declarator),
+            parent,
+        );
+        self.details.push(details::lambda_detail(
+            declaration,
+            declarator,
+            lambda,
+            id,
+            self.source,
+        ));
+        self.visit_children(lambda, ctx.in_body_of(id), depth + 1);
+    }
+
     /// The class, struct, enum or alias a declaration's type names
     /// (`Widget` in `Widget w;`, `shop::Cart` in `shop::Cart* c`), as a
     /// `References` relation from `owner`. A built-in type (`int`), `auto`
@@ -959,11 +1028,23 @@ impl<'a> Walker<'a> {
     }
 }
 
+/// A preprocessor directive's span. Its node runs through the line break
+/// that ends it, so it ends at column 0 of the next line; the directive
+/// still ends on its own last line.
+fn directive_location(node: Node) -> Location {
+    let mut loc = location(node);
+    let end = node.end_position();
+    if end.column == 0 && end.row > node.start_position().row {
+        loc.end_line = Some(end.row as u32);
+    }
+    loc
+}
+
 /// Descends through declarator wrappers (`int* foo()` → `pointer_declarator`
 /// around the real `function_declarator`) to find the actual function
 /// signature node, or `None` if this declarator is a plain variable/field
 /// (no function signature to unwrap).
-fn find_function_declarator(node: Node) -> Option<Node> {
+pub(crate) fn find_function_declarator(node: Node) -> Option<Node> {
     match node.kind() {
         "function_declarator" => Some(node),
         "pointer_declarator"
@@ -979,6 +1060,24 @@ fn find_function_declarator(node: Node) -> Option<Node> {
 
 /// Same unwrapping as `find_function_declarator`, but for the non-function
 /// (field/variable) case — returns the identifier actually being declared.
+/// The name and lambda of `f = [](…) { … }` (or `f{[] { … }}`), when the
+/// declarator is a plain name initialized with exactly a lambda.
+pub(crate) fn named_lambda(declarator: Node) -> Option<(Node, Node)> {
+    if declarator.kind() != "init_declarator" {
+        return None;
+    }
+    let name = declarator
+        .child_by_field_name("declarator")
+        .filter(|d| d.kind() == "identifier")?;
+    let value = declarator.child_by_field_name("value")?;
+    let lambda = if value.kind() == "initializer_list" && value.named_child_count() == 1 {
+        value.named_child(0)?
+    } else {
+        value
+    };
+    (lambda.kind() == "lambda_expression").then_some((name, lambda))
+}
+
 fn plain_declarator_identifier(node: Node) -> Option<Node> {
     match node.kind() {
         "identifier" | "field_identifier" => Some(node),
@@ -1037,7 +1136,11 @@ fn type_declarator_identifier(node: Node) -> Option<Node> {
 /// segment, template arguments dropped, which is what the in-class
 /// declaration of the same member records as its parent. That is how the
 /// header and source halves of a split definition line up by name+parent.
-fn split_qualified(node: Node, source: &str, fallback: Option<String>) -> (String, Option<String>) {
+pub(crate) fn split_qualified(
+    node: Node,
+    source: &str,
+    fallback: Option<String>,
+) -> (String, Option<String>) {
     if node.kind() != "qualified_identifier" {
         return (last_segment_text(node, source).to_string(), fallback);
     }

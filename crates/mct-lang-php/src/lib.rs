@@ -107,7 +107,11 @@ use names::{namespace_alias, ImportKind, ResolvedName, Scope};
 mod builtins;
 mod details;
 mod libraries;
+mod literals;
 mod names;
+mod tokens;
+
+pub use tokens::PhpTokenSource;
 
 pub struct PhpParser;
 
@@ -162,7 +166,9 @@ impl LanguageParser for PhpParser {
         walker.module_id = module_id;
         collect_function_names(root, &file.contents, &mut walker.declared_functions, 0);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -181,7 +187,7 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 /// The bare identifier inside a `variable_name` node (its one required
 /// `name` child) — the grammar already excludes the leading `$`.
-fn variable_text<'a>(node: Node<'a>, source: &'a str) -> Option<&'a str> {
+pub(crate) fn variable_text<'a>(node: Node<'a>, source: &'a str) -> Option<&'a str> {
     if node.kind() != "variable_name" {
         return None;
     }
@@ -276,6 +282,27 @@ impl<'a> Walker<'a> {
             supertypes: Vec::new(),
             closure_depth: 0,
         }
+    }
+
+    /// `define('NAME', …)` declares a global constant, whatever encloses it.
+    /// Only the global `define` with a literal name counts.
+    fn push_define_constant(&mut self, call: Node, function: Node) {
+        let callee = text(function, self.source);
+        if !callee
+            .trim_start_matches('\\')
+            .eq_ignore_ascii_case("define")
+        {
+            return;
+        }
+        let Some(name) = call
+            .child_by_field_name("arguments")
+            .and_then(|arguments| arguments.named_child(0))
+            .and_then(|argument| argument.named_child(0))
+            .and_then(|value| plain_string_value(value, self.source))
+        else {
+            return;
+        };
+        self.push_symbol(name, SymbolKind::Constant, location(call), None);
     }
 
     fn push_symbol(
@@ -864,6 +891,7 @@ impl<'a> Walker<'a> {
             }
             "function_call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
+                    self.push_define_constant(node, function);
                     if function.kind() == "name" && text(function, self.source) == "view" {
                         if let Some(view) = node
                             .child_by_field_name("arguments")
@@ -1395,6 +1423,23 @@ fn named_children(node: Node) -> Vec<Node> {
 /// Literal text of a plain `string` node (quotes trimmed), or `None` for
 /// anything computed (concatenation, interpolation, a variable, ...) — only
 /// a literal has a static path worth recording as an `Imports` target.
+/// The value of a string literal that interpolates nothing: `'x'`, or `"x"`
+/// with no variable or expression inside.
+fn plain_string_value(node: Node, source: &str) -> Option<String> {
+    let plain = match node.kind() {
+        "string" => true,
+        "encapsed_string" => named_children(node)
+            .iter()
+            .all(|child| matches!(child.kind(), "string_content" | "string_value")),
+        _ => false,
+    };
+    if !plain {
+        return None;
+    }
+    let value = text(node, source).trim_matches(|c| c == '"' || c == '\'');
+    (!value.is_empty()).then(|| value.to_string())
+}
+
 fn literal_string_text(node: Node, source: &str) -> Option<String> {
     if node.kind() != "string" {
         return None;

@@ -36,6 +36,15 @@ pub fn build_token_sources() -> TokenSourceRegistry {
     registry.register(Arc::new(mct_lang_rust::RustTokenSource));
     registry.register(Arc::new(mct_lang_python::PythonTokenSource));
     registry.register(Arc::new(mct_lang_lua::LuaTokenSource));
+    registry.register(Arc::new(mct_lang_js_ts::JsTsTokenSource));
+    registry.register(Arc::new(mct_lang_go::GoTokenSource));
+    registry.register(Arc::new(mct_lang_java::JavaTokenSource));
+    registry.register(Arc::new(mct_lang_kotlin::KotlinTokenSource));
+    registry.register(Arc::new(mct_lang_csharp::CSharpTokenSource));
+    registry.register(Arc::new(mct_lang_cpp::CppTokenSource));
+    registry.register(Arc::new(mct_lang_php::PhpTokenSource));
+    registry.register(Arc::new(mct_lang_bash::BashTokenSource));
+    registry.register(Arc::new(mct_lang_powershell::PowerShellTokenSource));
     registry
 }
 
@@ -111,9 +120,25 @@ mod tests {
     }
 
     #[test]
-    fn token_sources_cover_rust_python_and_lua_with_their_parsers_ids() {
+    fn token_sources_cover_their_parsers_ids() {
         let sources = build_token_sources();
-        assert_eq!(sources.language_ids(), ["lua", "python", "rust"]);
+        assert_eq!(
+            sources.language_ids(),
+            [
+                "bash",
+                "cpp",
+                "csharp",
+                "go",
+                "java",
+                "javascript_typescript",
+                "kotlin",
+                "lua",
+                "php",
+                "powershell",
+                "python",
+                "rust"
+            ]
+        );
         // A token source is selected by an indexed file's `language`, which
         // is its parser's id.
         let registry = build_registry();
