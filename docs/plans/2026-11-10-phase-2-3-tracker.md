@@ -117,6 +117,17 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Kotlin: a bare call of a function the file imports
+        (`import a.render`, or `import b.render as draw` and `draw(1)`)
+        carries the package segment as module evidence, so it reaches the
+        `render` under `a/` and not another package's. An aliased call is
+        recorded under the function's own name. A name the file declares, a
+        wildcard import, a type import (uppercase last segment) and a name
+        two imports bind prove nothing. On a scratch project with two
+        packages that both declare `render`, 2 calls became resolved (1
+        candidate) from ambiguous (2) and unresolved (the alias). Test:
+        `mct-lang-kotlin/tests/function_imports.rs`; the corpus snapshot is
+        unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
