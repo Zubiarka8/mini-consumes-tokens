@@ -1005,8 +1005,8 @@ Constructs:
 - [x] nested rules: corpus resolves nested selectors and preserves their ranges
 - [x] rules inside `@media`
 - [ ] declarations and values: CSS indexing emits selectors, not declaration/value symbols
-- [ ] custom properties (`--p_brand`)
-- [ ] `@keyframes`
+- [x] custom properties (`--p_brand`): each declaration is a `variable`, and `var(--p_brand)` references it
+- [x] `@keyframes`: an `animation` symbol, referenced by each name in `animation` / `animation-name`
 - [ ] pseudo-classes as atoms
 
 **Not applicable:**
