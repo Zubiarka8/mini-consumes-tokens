@@ -153,11 +153,11 @@ R 302:5 calls backup::cmd_help -> usage
 
 == lib/config.sh (308 lines)
 S 1-308 module config
-S 12-12 variable config::__BACKUP_CONFIG_SH
+S 12-12 constant config::__BACKUP_CONFIG_SH
 S 14-14 variable config::CONFIG_DIR
 S 21-36 variable config::CONFIG
-S 38-41 variable config::CONFIG_SEARCH_PATH
-S 43-43 variable config::KNOWN_COMPRESSIONS
+S 38-41 constant config::CONFIG_SEARCH_PATH
+S 43-43 constant config::KNOWN_COMPRESSIONS
 S 46-46 variable config::INTEGER_KEYS
 S 49-49 variable config::BOOLEAN_KEYS
 S 56-63 function config::config_get
@@ -285,7 +285,7 @@ R 307:5 calls config::config_usage -> log_usage_footer (name-matched: lib/log.sh
 
 == lib/fs.sh (305 lines)
 S 1-305 module fs
-S 10-10 variable fs::__BACKUP_FS_SH
+S 10-10 constant fs::__BACKUP_FS_SH
 S 12-12 variable fs::FS_DIR
 S 16-16 variable fs::ARCHIVE_PREFIX
 S 17-17 variable fs::MANIFEST_NAME
@@ -481,7 +481,7 @@ R 304:5 calls fs::count_matching -> printf
 
 == lib/log.sh (321 lines)
 S 1-321 module log
-S 10-10 variable log::__BACKUP_LOG_SH
+S 10-10 constant log::__BACKUP_LOG_SH
 S 16-16 variable log::LOG_LEVELS
 S 17-17 variable log::LOG_LEVEL
 S 18-18 variable log::LOG_FILE
@@ -619,7 +619,7 @@ R 319:9 calls log::log_dump_settings -> log_debug
 
 == lib/remote.sh (302 lines)
 S 1-302 module remote
-S 10-10 variable remote::__BACKUP_REMOTE_SH
+S 10-10 constant remote::__BACKUP_REMOTE_SH
 S 12-12 variable remote::REMOTE_DIR
 S 17-17 variable remote::SSH_OPTS
 S 18-18 variable remote::RSYNC_OPTS
