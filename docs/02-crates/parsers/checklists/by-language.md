@@ -971,7 +971,7 @@ Constructs:
 - [x] element with an `id`
 - [ ] element with only a `class`: parser corpus confirms elements without `id` are not indexed
 - [ ] inline `<style>` content
-- [ ] event attributes such as `onclick`
+- [x] event attributes such as `onclick`: each function the handler calls by name is a `calls` relation to a JavaScript function
 - [ ] template syntax such as `{% %}`
 
 **Not applicable:**
