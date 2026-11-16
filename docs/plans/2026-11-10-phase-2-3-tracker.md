@@ -1421,7 +1421,7 @@ From `rules.md` and the two messages:
   - [ ] `m::Type::f()`: the method's parent is the type, so the module
         evidence finds no candidate. Matching it needs the view to look at
         the type's parent (a migration): #478.
-- [~] Reading long functions through the context tools.
+- [x] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
         past the cap the footer now names the hidden range (`… 60 more
