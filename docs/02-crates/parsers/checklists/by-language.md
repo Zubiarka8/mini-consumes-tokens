@@ -882,7 +882,7 @@ Done 11 · Partial 4 · Not done 12 · Not verified 0 · Not applicable 25
 
 **Functions and methods**
 
-- [~] FN01 Top-level function: multi-line works; one-line `function f { param(...) … }` is a syntax error
+- [x] FN01 Top-level function: multi-line and one-line `function f { param(...) … }` both parse
 - [x] FN02 Nested function: parent is the outer function
 - [~] FN03 Lambda or closure assigned to a name: top-level `$f = { … }` is a `variable`
 - [ ] FN04 Method: PowerShell classes are not indexed (corpus test)

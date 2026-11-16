@@ -32,7 +32,7 @@ Callable code: free functions, nested and anonymous ones, and methods with their
 - [x] PHP: `function`
 - [x] Lua: `function`
 - [x] Bash: `f() {}`
-- [~] PowerShell: multi-line works; one-line `function f { param(...) … }` is a syntax error
+- [x] PowerShell: multi-line and one-line `function f { param(...) … }` both parse
 - — HTML: HTML is markup; it has no top-level function
 - — CSS: CSS is markup; it has no top-level function
 - — XML: XML is markup; it has no top-level function
@@ -41,7 +41,7 @@ Callable code: free functions, nested and anonymous ones, and methods with their
 
 *Done when:* Free function at file or module top level, indexed as `function`.
 
-Done 9 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 7
+Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 7
 
 ### FN02 Nested function
 
