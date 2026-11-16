@@ -463,7 +463,7 @@ Done 26 · Partial 10 · Not done 9 · Not verified 0 · Not applicable 7
 - [~] RE02 Constructor call: `new Outer()` is indexed but resolves ambiguously to the class and constructor
 - [ ] RE03 Super / base constructor call: `: base()` gives no call
 - [x] RE04 Imports: `using System;` parsed as an import relation (MCT probe)
-- [~] RE05 Class extends class: heuristic; ambiguous when a constructor shares the class name
+- [x] RE05 Class extends class: `class Sq : Base` resolves to the class, never its constructor (the first entry is the base class unless named like an interface)
 - [~] RE06 Implements interface / trait: heuristic: `IP_Iface` → `implements`
 - [x] RE07 Interface extends interface / supertrait: `IP_Iface2 : IP_Ext2` → `extends`
 - [ ] RE08 Decorator / annotation / attribute: `[Obsolete]` produces no reference (MCT probe)
@@ -482,7 +482,7 @@ Done 26 · Partial 10 · Not done 9 · Not verified 0 · Not applicable 7
 
 - [~] ST01 Import graph: `using Audit` is recorded as an ambiguous import to two file modules
 - [x] ST02 File outline: `get_file_skeleton(src/Audit.cs)` returned the top-level outline
-- [ ] ST03 Declared dependencies: `.csproj` `PackageReference` not read
+- [x] ST03 Declared dependencies: `.csproj` `PackageReference` counted (attribute or `<Version>` element)
 
 **Not applicable:**
 

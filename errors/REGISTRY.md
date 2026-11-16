@@ -37,7 +37,7 @@ On `feat/mct-indexing-language-audit` at base `59231f0` with local changes, `get
 
 | ID | Status | Location / scope | Observation and impact | Next action |
 | --- | --- | --- | --- | --- |
-| ERR-023 | OPEN | `crates/mct-cli/web-ui/src/styles.css:12` | `line 12: syntax error` reported by `get_indexing_status`; the file is absent from the usable parsed index. `scripts/unix/parse-probe.sh` reproduced the rejection at `@source "./";`. Validity and cause are not yet established. | Investigate the syntax and grammar before classifying. |
+| ERR-023 | RESOLVED (2026-11-15, `fix/css-at-rule-strings`) | `crates/mct-cli/web-ui/src/styles.css:12` | `line 12: syntax error` reported by `get_indexing_status`; the file is absent from the usable parsed index. `scripts/unix/parse-probe.sh` reproduced the rejection at `@source "./";`. Validity and cause are not yet established. | Investigate the syntax and grammar before classifying. |
 
 Last observation: 2026-10-10. Checkout HEAD: `dab3059995beaaaf7cd56e0d52db124e207aae55` (`claude/library-onboarding-audit`, clean tree).
 Evidence: `mct-cli --root . reindex --force` then `mct-cli --root . status` on that checkout, with no `.mctignore`; index timestamp `1791636301` (550 files, 11,501 symbols). Same 18 diagnostics as the initial snapshot at `1791629091`.

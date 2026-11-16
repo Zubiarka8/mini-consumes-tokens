@@ -408,6 +408,25 @@ From `rules.md` and the two messages:
           This repository: PowerShell files that fail 2 of 35 -> 1 of 35
           (the malformed fixture, ERR-003); `review-check.ps1` gives 23
           symbols and 14 relations. ERR-002 is `RESOLVED`.
+    - [x] CSS statement at-rules with a string prelude: `@source "./";`
+          and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
+          rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
+          (ERR-023). On the at-rule lines an error covers, the string bytes
+          become `x` in a same-offset reparse, kept only when clean. Test:
+          `tests/at_rule_strings.rs` (real errors still rejected). This
+          repository's 23 tracked CSS files: 2 failures -> 1 (the malformed
+          fixture); `styles.css` gives 42 symbols and 6 relations. ERR-023
+          is `RESOLVED`; ERR-024 (untracked generated CSS) was not
+          re-checked.
+    - [x] C# supertypes: an `extends`/`implements` entry names a type, so
+          the first entry of a class (its base class, unless named like an
+          interface) targets a `class` and every other entry an
+          `interface`. Before, `class Sq : Base` was ambiguous between the
+          class and its constructor `Base(int x)`. Test:
+          `tests/supertype_kinds.rs`. Corpus snapshot unchanged. Measured on
+          the 17 C# files of this repository (40 supertype relations): 18
+          ambiguous -> resolved, each to the class; none newly unresolved,
+          dead code 0 -> 0. The checklist's RE05 cell is `[x]`.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
           `\define`) with a literal name, single-quoted or double-quoted
           without interpolation, declares a `constant` with no parent,
@@ -1332,11 +1351,27 @@ From `rules.md` and the two messages:
       were already clean, so its index is unchanged. Each reparse pass costs
       one parse, and a 12 KB file of 400 one-line classes takes 32 ms against
       3 ms for its multi-line spelling (release build, 20 runs).
+- [!] C++ supertypes: `struct Mid : public Base` is ambiguous between the
+      class `Base` and its constructor `Base(int)` (probe: 1 candidate pair
+      per base, e.g. `Mid -> Base` "L1, L1 in Base"). Java, Kotlin and C#
+      restrict a supertype to a type kind, but a C++ base can be a `class` or
+      a `struct`, and `RelationTarget.kind` holds one kind. A same-file base
+      could use its declared kind, which leaves every cross-file base
+      ambiguous. The full fix lists several kinds on `RelationTarget`, a
+      cross-cutting change in `mct-core` that needs an issue first. Waiting
+      for the maintainer.
 - [ ] C++: a member declared in the class and defined out of line
       (`Product::describe`) is two symbols, so a relation to it, an
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] C#: `get_indexing_status` lists the `PackageReference` items of a
+      `.csproj` (version from the attribute or a `<Version>` element; none
+      for a central-package reference; commented-out items skipped).
+      `Directory.Packages.props` and `packages.config` are not read.
+      Scores: C# features 55→65, structure 67→100. Java (`pom.xml`),
+      Kotlin (Gradle DSL) and C++ (`CMakeLists.txt`) stay out: no single
+      stable format, as `manifests.rs` already says.
 - [x] Java: a field initializer is walked like an initializer block, so
       the calls and anonymous classes in `Runnable r = new Runnable() { … };`
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
@@ -1401,8 +1436,16 @@ From `rules.md` and the two messages:
         this repository, `mct-lang-rust` `visit_node` (L291-L827) ends with
         `L491-L827`. Test: `context_pack.rs`
         `a_body_longer_than_the_source_lines_cap_names_the_lines_to_read`.
-  - [ ] Paging past the cap through the tool itself (`source_offset`):
-        an MCP signature change, so issue #371 first.
+  - [x] Paging past the cap through the tool itself: an optional
+        `source_offset` (lines of each definition to skip, default 0;
+        additive, issue #371). The page starts at that line, the doc comment
+        shows on the first page only, and a body past the cap ends with
+        `pass \`source_offset: N\` for the rest`. On this repository,
+        `mct-lang-rust` `visit_node` (L296-L849, measured with the
+        built `mct-cli`): offset 0 shows L296-L495, `source_offset: 200`
+        L496-L695, `400` L696-L849 with no footer. Test: `context_pack.rs`
+        `source_offset_pages_past_the_source_lines_cap`; the capped-footer
+        test now expects the new wording.
 - [ ] False positives in impact analysis and dead code (D7 #331 covers part
       of this).
   - [x] Python: a function or class passed by name as an argument
@@ -1452,6 +1495,10 @@ From `rules.md` and the two messages:
   - [ ] The committed Vite bundles (`crates/mct-cli/src/web/*-dist/`) give
         23 candidates. `.mctignore` is git-ignored here, so excluding them
         is the user's local choice, not a repository change.
+  - [x] Go, assertions and type switches: the type in `o.(Marker)` and in a
+        `case Row, *Cfg:` is a `references` relation with the evidence a
+        declared type gets; `nil` and predeclared types give none. Stacked on
+        #442. Corpus: 1298 -> 1305 relations.
 - [x] Consistent CLI and MCP output. The three CLI reports with an MCP
       twin read the same index and agree, now pinned by
       `crates/mct-cli/tests/cli_mcp_parity.rs`:
