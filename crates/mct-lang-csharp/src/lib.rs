@@ -839,6 +839,18 @@ impl<'a> Walker<'a> {
                     None => return None,
                 }
             }
+            // `System.Console.M()`: a fully qualified name of the framework
+            // is the BCL's, never a same-named method of the repository.
+            Some((r, "member_access_expression" | "alias_qualified_name"))
+                if is_qualified_framework_path(text(r, self.source)) =>
+            {
+                self.relation_targets.push(RelationTarget {
+                    relation: self.relations.len(),
+                    external: true,
+                    ..Default::default()
+                });
+                return None;
+            }
             // `this.f.M()`: the field's declared type.
             Some((r, "member_access_expression"))
                 if r.child_by_field_name("expression")
@@ -1100,6 +1112,21 @@ fn is_framework_name(name: &str) -> bool {
     let name = name.strip_prefix("global::").unwrap_or(name);
     let root = name.split('.').next().unwrap_or_default();
     matches!(root, "System" | "Microsoft")
+}
+
+/// A dotted name of identifiers only (`System.Console`,
+/// `global::System.Math`) whose root is `System` or `Microsoft` and that has
+/// at least two segments: a type of the framework, named in full. A call or
+/// an index in the chain, or a one-segment name, is not.
+fn is_qualified_framework_path(written: &str) -> bool {
+    let path = written.strip_prefix("global::").unwrap_or(written);
+    let mut segments = path.split('.');
+    let all_names = path.split('.').all(|segment| {
+        let mut chars = segment.chars();
+        chars.next().is_some_and(|c| c.is_alphabetic() || c == '_')
+            && chars.all(|c| c.is_alphanumeric() || c == '_')
+    });
+    all_names && path.contains('.') && is_framework_name(segments.next().unwrap_or_default())
 }
 
 /// The last segment of a dotted name without type arguments:
