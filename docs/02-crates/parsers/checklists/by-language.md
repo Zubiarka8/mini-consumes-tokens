@@ -524,16 +524,16 @@ Done 23 · Partial 8 · Not done 7 · Not verified 0 · Not applicable 14
 **Fields, constants and variables**
 
 - [x] DA01 Field / instance attribute: `p_field` and union members
-- [~] DA03 Constant (module or global): `const int P_CONST` → `variable`
+- [x] DA03 Constant (module or global): `const int P_CONST` → `constant`
 - [x] DA04 Global / module-level variable: `p_global` → `variable`
 - [ ] DA05 Local variable: `auto l` not indexed
 - [ ] DA06 Parameter: `find_symbol(input)` returns no symbol (MCT probe)
-- [ ] DA07 Macro / preprocessor define: `#define P_MACRO` has no symbol
+- [x] DA07 Macro / preprocessor define: `#define P_MACRO` → `constant`, `#define P_FN(x)` → `function`
 **Relations**
 
 - [x] RE01 Calls: `p_use` → `p_helper`
 - [~] RE02 Constructor call: `new P_Sub()` gives no relation; `X()` form not exercised
-- [ ] RE03 Super / base constructor call: `P_Sub() : P_Base()` gives no relation
+- [~] RE03 Super / base constructor call: `P_Sub() : P_Base()` gives `calls P_Base` when the class and its base are defined in the same file
 - [x] RE04 Imports: `#include` → `imports`
 - [~] RE05 Class extends class: ambiguous when the constructor shares the class name
 **Search and lookup**

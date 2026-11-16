@@ -347,8 +347,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // 15 is ADR-035's function-local variable scope (issue #320), 16 is
     // ADR-034's declaration details (issue #321), 17 is ADR-036's
     // `not_field` relation target (issue #412) and 18 is ADR-037's
-    // inherited-member candidates (issue #479).
-    assert_eq!(before, 18);
+    // inherited-member candidates (issue #479) and 19 is the inline-module
+    // type-method candidate (issue #478).
+    assert_eq!(before, 19);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
