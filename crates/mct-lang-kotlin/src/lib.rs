@@ -296,7 +296,9 @@ impl LanguageParser for KotlinParser {
         }
 
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -502,7 +504,11 @@ fn is_promoted_property(class_parameter: Node) -> bool {
 }
 
 mod details;
+mod literals;
 mod receivers;
+mod tokens;
+
+pub use tokens::KotlinTokenSource;
 
 #[derive(Default)]
 struct Walker<'a> {
@@ -867,6 +873,15 @@ impl<'a> Walker<'a> {
                 } else {
                     SymbolKind::Function
                 };
+                // A local `fun` belongs to the function or method it is
+                // declared in.
+                let parent = parent.or_else(|| {
+                    self.symbols
+                        .iter()
+                        .find(|s| s.id == owner)
+                        .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+                        .map(|s| s.name.clone())
+                });
                 let id = self.push_symbol(name, kind, location(node), parent);
                 self.details
                     .push(details::function_detail(node, id, self.source));
@@ -906,6 +921,9 @@ impl<'a> Walker<'a> {
                 let outer_this = self.this_class.take();
                 self.visit_children(node, owner, type_name, depth + 1);
                 self.this_class = outer_this;
+            }
+            "property_declaration" if type_name.is_none() && named_lambda(node).is_some() => {
+                self.visit_named_lambda(node, owner, depth);
             }
             "property_declaration" => {
                 if type_name.is_some() {
@@ -1002,6 +1020,41 @@ impl<'a> Walker<'a> {
     /// `variable`, with no parent; each name of `val (a, b) = …` is one.
     /// An extension property (`val Money.isPositive`) is a `field` of its
     /// receiver type, as an extension function is a method of it.
+    /// `val f = { x: Int -> … }` or `val f = fun(…) { … }` outside a class
+    /// body: the `Function` `f`, top-level like a top-level `fun`, or owned
+    /// by the enclosing function in a body; the lambda's calls are its own.
+    fn visit_named_lambda(&mut self, node: Node, owner: SymbolId, depth: u32) {
+        let Some((name_node, lambda)) = named_lambda(node) else {
+            return;
+        };
+        let top_level = node.parent().is_some_and(|p| p.kind() == "source_file");
+        let parent = if top_level {
+            None
+        } else {
+            self.symbols
+                .iter()
+                .find(|s| s.id == owner && s.kind != SymbolKind::Module)
+                .map(|s| s.name.clone())
+        };
+        let id = self.push_symbol(
+            text(name_node, self.source).to_string(),
+            SymbolKind::Function,
+            location(node),
+            parent,
+        );
+        self.details
+            .push(details::lambda_detail(node, lambda, id, self.source));
+        self.push_annotations(node, id);
+        let parts: Vec<Node> = node.children(&mut node.walk()).collect();
+        for part in parts {
+            if part.id() == lambda.id() {
+                self.visit(part, id, None, depth + 1);
+            } else {
+                self.visit(part, owner, None, depth + 1);
+            }
+        }
+    }
+
     fn push_file_properties(&mut self, node: Node) {
         let receiver = find_child(node, "user_type").map(|t| receiver_type_name(t, self.source));
         let is_const = find_child(node, "modifiers").is_some_and(|modifiers| {
@@ -1133,4 +1186,26 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
+}
+
+/// The name and value of `val f = { … }` / `val f = fun(…) { … }`: one
+/// plain name (no destructuring, no extension receiver, no delegate)
+/// initialized with exactly a lambda or an anonymous function.
+pub(crate) fn named_lambda(node: Node) -> Option<(Node, Node)> {
+    let children: Vec<Node> = node.children(&mut node.walk()).collect();
+    if children.iter().any(|c| {
+        matches!(
+            c.kind(),
+            "multi_variable_declaration" | "property_delegate" | "user_type"
+        )
+    }) {
+        return None;
+    }
+    let name = children
+        .iter()
+        .find(|c| c.kind() == "variable_declaration")
+        .and_then(|d| d.named_child(0))?;
+    let equals = children.iter().position(|c| c.kind() == "=")?;
+    let value = children[equals + 1..].iter().find(|c| c.is_named())?;
+    matches!(value.kind(), "lambda_literal" | "anonymous_function").then_some((name, *value))
 }

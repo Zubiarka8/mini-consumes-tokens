@@ -1,11 +1,11 @@
 //! AST traversal and symbol ownership shared by the JS, TS and TSX grammars.
 
 use mct_core::{
-    Location, ParsedFile, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord,
-    SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    EntryPointHint, Location, ParsedFile, RelationKind, RelationTarget, SymbolId, SymbolKind,
+    SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{location, Supertype};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tree_sitter::Node;
 
 mod details;
@@ -34,6 +34,9 @@ pub(super) struct Walker<'a> {
     /// `return wrapped`), as `(owner, name, location)`. [`Walker::finish`]
     /// keeps those naming a function of this file as `References`.
     value_uses: Vec<(SymbolId, String, Location)>,
+    /// Methods written in an object literal: a library may call them
+    /// through the object (issue #475).
+    object_methods: Vec<SymbolId>,
     /// Locals bound by the enclosing functions (parameters, `let`/`const`
     /// values that are not functions, patterns): a value use of one of these
     /// names reads the local, never the same-named function.
@@ -59,6 +62,9 @@ pub(super) struct Walker<'a> {
     /// The class each enclosing class body `extends`, innermost last: what
     /// an `override` method there overrides (D8). Empty without `extends`.
     supertypes: Vec<Vec<Supertype>>,
+    /// The field each class accessor declared so far stands for, by class
+    /// and name: `set x()` after `get x()` adds to the same field.
+    accessors: HashMap<(String, String), SymbolId>,
 }
 
 impl<'a> Walker<'a> {
@@ -71,6 +77,7 @@ impl<'a> Walker<'a> {
             path,
             next_id: 0,
             value_uses: Vec::new(),
+            object_methods: Vec::new(),
             bound: HashSet::new(),
             bare_calls: Vec::new(),
             generics: HashSet::new(),
@@ -80,6 +87,7 @@ impl<'a> Walker<'a> {
             this_class: None,
             details: Vec::new(),
             supertypes: Vec::new(),
+            accessors: HashMap::new(),
         }
     }
 
@@ -225,6 +233,51 @@ impl<'a> Walker<'a> {
             .find(|s| s.id == owner)
             .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
             .map(|s| s.name.clone())
+    }
+
+    /// `get x()` / `set x()` of a class: one `field` `x`, as a TS property
+    /// is, declared by the first accessor and owning every accessor's body.
+    /// A later accessor of the same name only extends the field's span.
+    fn visit_accessor(&mut self, node: Node, class: &str, depth: u32) {
+        let Some(name_node) = node.child_by_field_name("name") else {
+            return;
+        };
+        let name = text(name_node, self.source).to_string();
+        let key = (class.to_string(), name.clone());
+        let id = match self.accessors.get(&key) {
+            Some(&id) => {
+                let end = location(node).end_line;
+                if let Some(field) = self.symbols.iter_mut().find(|s| s.id == id) {
+                    field.location.end_line = field.location.end_line.max(end);
+                }
+                id
+            }
+            None => {
+                let id = self.push_symbol(
+                    name,
+                    SymbolKind::Field,
+                    location(node),
+                    Some(class.to_string()),
+                );
+                self.details
+                    .push(details::function_detail(node, node, id, self.source));
+                self.accessors.insert(key, id);
+                if is_override_in_class(node) {
+                    let supertypes = self.supertypes.last().cloned().unwrap_or_default();
+                    mct_tree_sitter::push_property_overrides(
+                        &mut self.relations,
+                        &mut self.relation_targets,
+                        id,
+                        text(name_node, self.source),
+                        location(name_node),
+                        &supertypes,
+                    );
+                }
+                id
+            }
+        };
+        self.push_decorators(node, id, depth);
+        self.visit_function_like_body(node, id, depth);
     }
 
     /// A constructor's parameter properties
@@ -632,6 +685,9 @@ impl<'a> Walker<'a> {
                 self.push_symbol(name, SymbolKind::Module, location(node), None);
                 self.visit_children(node, owner, type_name, depth + 1);
             }
+            "method_definition" if type_name.is_some() && is_class_accessor(node) => {
+                self.visit_accessor(node, type_name.unwrap_or_default(), depth);
+            }
             "method_definition" => {
                 let name = node
                     .child_by_field_name("name")
@@ -645,6 +701,9 @@ impl<'a> Walker<'a> {
                 };
                 let id =
                     self.push_symbol(name, kind, location(node), type_name.map(str::to_string));
+                if node.parent().is_some_and(|p| p.kind() == "object") {
+                    self.object_methods.push(id);
+                }
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
                 self.push_decorators(node, id, depth);
@@ -727,6 +786,10 @@ impl<'a> Walker<'a> {
                                 location(name_node),
                                 &supertypes,
                             );
+                        }
+                        // A plain value (`static x = make()`) runs as the field.
+                        if let Some(value) = node.child_by_field_name("value") {
+                            self.visit(value, id, None, depth + 1);
                         }
                         id
                     }
@@ -1144,9 +1207,10 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// Keeps the value uses that name a function declared in this file,
-    /// except a function's use of its own name (`setTimeout(tick)` inside
-    /// `tick`), which does not make it reachable. Those, and the bare calls
+    /// Keeps the value uses that name a function, class or enum declared in
+    /// this file, except a use of its own name from itself or, for a type,
+    /// from one of its members (`setTimeout(tick)` inside `tick`), which does
+    /// not make it reachable. Those, and the bare calls
     /// naming a function, class or binding the file declares outside any
     /// type, reach this file's declaration: nothing nearer binds the name. A
     /// bare call to a local reaches this file too, with no symbol, unless
@@ -1155,7 +1219,11 @@ impl<'a> Walker<'a> {
         let functions: HashSet<String> = self
             .symbols
             .iter()
-            .filter(|s| s.kind == SymbolKind::Function)
+            .filter(|s| {
+                s.kind == SymbolKind::Function
+                    || (s.parent.is_none()
+                        && matches!(s.kind, SymbolKind::Class | SymbolKind::Enum))
+            })
             .map(|s| s.name.clone())
             .collect();
         // A function's own nested functions are outside any type too: their
@@ -1210,7 +1278,7 @@ impl<'a> Walker<'a> {
             let own_name = self
                 .symbols
                 .get(owner as usize)
-                .is_some_and(|s| s.name == name);
+                .is_some_and(|s| s.name == name || s.parent.as_deref() == Some(name.as_str()));
             if functions.contains(&name) && !own_name {
                 same_file.push((self.relations.len(), false));
                 self.push_relation(owner, RelationKind::References, name, loc);
@@ -1247,6 +1315,19 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            entry_points: self
+                .object_methods
+                .into_iter()
+                .map(|symbol| EntryPointHint {
+                    symbol,
+                    framework: "javascript".to_string(),
+                    rule: "object-literal-callback".to_string(),
+                    evidence: "method of an object literal; a library may call it through \
+                               the object, never by name in this project"
+                        .to_string(),
+                    requires: None,
+                })
+                .collect(),
             ..Default::default()
         }
     }
@@ -1338,6 +1419,17 @@ fn member_name<'a>(node: Node, source: &'a str) -> Option<&'a str> {
 /// left out, since the enclosing declaration's supertype isn't theirs.
 /// Whether a method or field is declared `override` directly in the body of
 /// a class declaration.
+/// `get x()` / `set x()` in a class body: an accessor of the property `x`.
+/// An object literal's accessor stays a function, as its methods do.
+fn is_class_accessor(method: Node) -> bool {
+    let in_class = method.parent().is_some_and(|p| p.kind() == "class_body");
+    let mut cursor = method.walk();
+    let accessor = method
+        .children(&mut cursor)
+        .any(|c| matches!(c.kind(), "get" | "set"));
+    in_class && accessor
+}
+
 fn is_override_in_class(method: Node) -> bool {
     let in_declaration = method
         .parent()
