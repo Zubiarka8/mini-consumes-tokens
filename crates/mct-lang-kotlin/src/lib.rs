@@ -873,6 +873,15 @@ impl<'a> Walker<'a> {
                 } else {
                     SymbolKind::Function
                 };
+                // A local `fun` belongs to the function or method it is
+                // declared in.
+                let parent = parent.or_else(|| {
+                    self.symbols
+                        .iter()
+                        .find(|s| s.id == owner)
+                        .filter(|s| matches!(s.kind, SymbolKind::Function | SymbolKind::Method))
+                        .map(|s| s.name.clone())
+                });
                 let id = self.push_symbol(name, kind, location(node), parent);
                 self.details
                     .push(details::function_detail(node, id, self.source));

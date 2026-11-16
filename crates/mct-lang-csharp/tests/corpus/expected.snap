@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=476 relations=749 name_matched_across_files=187
+# language=csharp files=6 symbols=476 relations=756 name_matched_across_files=188
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -154,6 +154,7 @@ R 185:20 calls Result::Bind -> next
 R 185:49 calls Result::Bind -> Fail
 R 189:63 calls Result::operator Result -> Ok
 R 204:14 references Guard::NotBlank -> CallerArgumentExpressionAttribute
+R 204:46 references Guard::NotBlank -> value
 R 206:24 calls Guard::NotBlank -> IsNullOrWhiteSpace
 R 208:27 calls Guard::NotBlank -> ValidationException
 R 210:26 calls Guard::NotBlank -> Trim
@@ -182,6 +183,7 @@ R 313:26 calls ErrorCatalog::Explain -> Render
 R 318:64 calls ErrorCatalog::SeverityOf -> ContainsKey
 R 335:31 calls RateLimiter::RateLimiter -> Positive
 R 335:25 references RateLimiter::RateLimiter -> Guard
+R 335:57 references RateLimiter::RateLimiter -> capacity
 R 345:17 calls RateLimiter::TryAcquire -> Refill
 R 357:18 calls RateLimiter::Acquire -> TryAcquire
 R 359:27 calls RateLimiter::Acquire -> QuotaExceededException
@@ -376,9 +378,11 @@ R 224:28 overrides Location::ToString -> ToString
 R 228:70 extends Warehouse.Models::StockLine -> Entity
 R 242:27 calls StockLine::Receive -> Positive (name-matched: Warehouse/Errors.cs)
 R 242:21 references StockLine::Receive -> Guard (name-matched: Warehouse/Errors.cs)
+R 242:51 references StockLine::Receive -> amount
 R 243:9 calls StockLine::Receive -> Bump
 R 248:19 calls StockLine::Reserve -> Positive (name-matched: Warehouse/Errors.cs)
 R 248:13 references StockLine::Reserve -> Guard (name-matched: Warehouse/Errors.cs)
+R 248:43 references StockLine::Reserve -> amount
 R 250:23 calls StockLine::Reserve -> OutOfStockException (name-matched: Warehouse/Errors.cs)
 R 253:9 calls StockLine::Reserve -> Bump
 R 258:25 calls StockLine::Release -> Max
@@ -407,6 +411,7 @@ R 331:35 calls Order::MoveTo -> TryGetValue
 R 331:81 calls Order::MoveTo -> IndexOf
 R 331:75 references Order::MoveTo -> Array
 R 334:23 calls Order::MoveTo -> ConflictException (name-matched: Warehouse/Errors.cs)
+R 334:48 references Order::MoveTo -> Order
 R 337:9 calls Order::MoveTo -> Bump
 R 344:23 calls Order::EnsureStatus -> ValidationException (name-matched: Warehouse/Errors.cs)
 R 350:16 calls Order::~Order -> Clear
@@ -1171,6 +1176,7 @@ R 157:63 calls OrderService::PickingDeadline -> FromHours
 R 157:54 references OrderService::PickingDeadline -> TimeSpan
 R 161:43 calls OrderService::DraftAsync -> Require (name-matched: Warehouse/Errors.cs)
 R 161:26 calls OrderService::DraftAsync -> ErrorCollector (name-matched: Warehouse/Errors.cs)
+R 161:68 references OrderService::DraftAsync -> customer
 R 162:25 calls OrderService::DraftAsync -> Order (name-matched: Warehouse/Models.cs)
 R 162:36 calls OrderService::DraftAsync -> NewGuid
 R 162:31 references OrderService::DraftAsync -> Guid
@@ -1214,6 +1220,7 @@ R 238:24 references OrderService::PickLineAsync -> Math
 R 239:17 calls OrderService::PickLineAsync -> Ship (name-matched: Warehouse/Models.cs)
 R 250:35 calls OrderService::CancelAsync -> FindAsync (name-matched: Warehouse/Repository.cs)
 R 256:27 calls OrderService::CancelAsync -> ConflictException (name-matched: Warehouse/Errors.cs)
+R 256:52 references OrderService::CancelAsync -> Order (name-matched: Warehouse/Models.cs)
 R 258:23 calls OrderService::CancelAsync -> MoveTo (name-matched: Warehouse/Models.cs)
 R 261:27 calls OrderService::CancelAsync -> Notify
 R 264:23 calls OrderService::CancelAsync -> SaveAsync (name-matched: Warehouse/Repository.cs)

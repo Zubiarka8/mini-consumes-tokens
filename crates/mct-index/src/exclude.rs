@@ -235,6 +235,13 @@ impl ExcludeSet {
         Ok(true)
     }
 
+    /// The project's patterns in force, in rule order (the built-in
+    /// exclusions are not listed). Two sets with equal patterns exclude the
+    /// same paths, so a cache of results can be keyed on them.
+    pub fn extra_patterns(&self) -> Vec<String> {
+        self.read().extra.clone()
+    }
+
     /// Changes with every [`ExcludeSet::reload`] that swapped in new rules,
     /// through any clone. Whoever reloads, an index compares it with the
     /// generation its last full reindex applied to tell whether it may still

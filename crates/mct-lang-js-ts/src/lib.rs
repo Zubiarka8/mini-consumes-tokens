@@ -110,8 +110,8 @@ impl LanguageParser for JsTsParser {
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
         let mut parsed = walker.finish();
-        parsed.entry_points =
-            nextjs::hints(&file.relative_path, root, &file.contents, &parsed.symbols);
+        let nextjs = nextjs::hints(&file.relative_path, root, &file.contents, &parsed.symbols);
+        parsed.entry_points.extend(nextjs);
         parsed.literals = literals::collect(root, &file.contents);
         Ok(parsed)
     }
