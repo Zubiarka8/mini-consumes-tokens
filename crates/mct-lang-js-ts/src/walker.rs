@@ -1,8 +1,8 @@
 //! AST traversal and symbol ownership shared by the JS, TS and TSX grammars.
 
 use mct_core::{
-    Location, ParsedFile, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord,
-    SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    EntryPointHint, Location, ParsedFile, RelationKind, RelationTarget, SymbolId, SymbolKind,
+    SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{location, Supertype};
 use std::collections::{HashMap, HashSet};
@@ -34,6 +34,9 @@ pub(super) struct Walker<'a> {
     /// `return wrapped`), as `(owner, name, location)`. [`Walker::finish`]
     /// keeps those naming a function of this file as `References`.
     value_uses: Vec<(SymbolId, String, Location)>,
+    /// Methods written in an object literal: a library may call them
+    /// through the object (issue #475).
+    object_methods: Vec<SymbolId>,
     /// Locals bound by the enclosing functions (parameters, `let`/`const`
     /// values that are not functions, patterns): a value use of one of these
     /// names reads the local, never the same-named function.
@@ -74,6 +77,7 @@ impl<'a> Walker<'a> {
             path,
             next_id: 0,
             value_uses: Vec::new(),
+            object_methods: Vec::new(),
             bound: HashSet::new(),
             bare_calls: Vec::new(),
             generics: HashSet::new(),
@@ -697,6 +701,9 @@ impl<'a> Walker<'a> {
                 };
                 let id =
                     self.push_symbol(name, kind, location(node), type_name.map(str::to_string));
+                if node.parent().is_some_and(|p| p.kind() == "object") {
+                    self.object_methods.push(id);
+                }
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
                 self.push_decorators(node, id, depth);
@@ -779,6 +786,10 @@ impl<'a> Walker<'a> {
                                 location(name_node),
                                 &supertypes,
                             );
+                        }
+                        // A plain value (`static x = make()`) runs as the field.
+                        if let Some(value) = node.child_by_field_name("value") {
+                            self.visit(value, id, None, depth + 1);
                         }
                         id
                     }
@@ -1216,9 +1227,10 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// Keeps the value uses that name a function declared in this file,
-    /// except a function's use of its own name (`setTimeout(tick)` inside
-    /// `tick`), which does not make it reachable. Those, and the bare calls
+    /// Keeps the value uses that name a function, class or enum declared in
+    /// this file, except a use of its own name from itself or, for a type,
+    /// from one of its members (`setTimeout(tick)` inside `tick`), which does
+    /// not make it reachable. Those, and the bare calls
     /// naming a function, class or binding the file declares outside any
     /// type, reach this file's declaration: nothing nearer binds the name. A
     /// bare call to a local reaches this file too, with no symbol, unless
@@ -1227,7 +1239,11 @@ impl<'a> Walker<'a> {
         let functions: HashSet<String> = self
             .symbols
             .iter()
-            .filter(|s| s.kind == SymbolKind::Function)
+            .filter(|s| {
+                s.kind == SymbolKind::Function
+                    || (s.parent.is_none()
+                        && matches!(s.kind, SymbolKind::Class | SymbolKind::Enum))
+            })
             .map(|s| s.name.clone())
             .collect();
         // A function's own nested functions are outside any type too: their
@@ -1282,7 +1298,7 @@ impl<'a> Walker<'a> {
             let own_name = self
                 .symbols
                 .get(owner as usize)
-                .is_some_and(|s| s.name == name);
+                .is_some_and(|s| s.name == name || s.parent.as_deref() == Some(name.as_str()));
             if functions.contains(&name) && !own_name {
                 same_file.push((self.relations.len(), false));
                 self.push_relation(owner, RelationKind::References, name, loc);
@@ -1319,6 +1335,19 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            entry_points: self
+                .object_methods
+                .into_iter()
+                .map(|symbol| EntryPointHint {
+                    symbol,
+                    framework: "javascript".to_string(),
+                    rule: "object-literal-callback".to_string(),
+                    evidence: "method of an object literal; a library may call it through \
+                               the object, never by name in this project"
+                        .to_string(),
+                    requires: None,
+                })
+                .collect(),
             ..Default::default()
         }
     }

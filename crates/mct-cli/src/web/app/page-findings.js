@@ -45,6 +45,7 @@ import {
   drawerButton,
 } from "./components.js";
 import { openSource } from "./code.js";
+import { partialBlocksPanel } from "./partial-blocks.js";
 import { t } from "./i18n.js";
 import { duplicateBrief, deadBrief, duplicateListRow, listText, memberLabel } from "./ai.js";
 
@@ -1203,6 +1204,7 @@ export async function render({ root, page, params: initial }) {
     clear(host).hidden = true;
     layout.hidden = false;
     head.hidden = false;
+    if (blocks) blocks.el.hidden = false;
     fold(false);
   }
 
@@ -1258,6 +1260,7 @@ export async function render({ root, page, params: initial }) {
     // list back as it was.
     layout.hidden = true;
     head.hidden = true;
+    if (blocks) blocks.el.hidden = true;
     host.hidden = false;
     fold(true);
     clear(host).append(loading());
@@ -1357,7 +1360,9 @@ export async function render({ root, page, params: initial }) {
     if (cfg.stacked) moreButton.focus();
   });
   const head = pageHead(t(cfg.title), t(cfg.subtitle));
-  root.append(head, layout, host);
+  // Duplicados only: the opt-in search for repeated blocks inside functions, under the groups.
+  const blocks = cfg.type === "duplicate" ? partialBlocksPanel() : null;
+  root.append(head, layout, ...(blocks ? [blocks.el] : []), host);
   const stable = (params) => [...params].filter(([k]) => !FINDING_PARAMS.includes(k)).join("&");
   lastQuery = stable(initial);
   selected = targetOf(initial);
@@ -1383,6 +1388,7 @@ export async function render({ root, page, params: initial }) {
     cancelApi("findings");
     workspace?.unmount();
     workspace = null;
+    blocks?.destroy();
     fold(false);
     search.destroy();
   };
