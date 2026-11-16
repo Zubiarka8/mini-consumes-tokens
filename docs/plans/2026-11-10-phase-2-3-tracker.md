@@ -487,6 +487,16 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] PowerShell one-line functions: `function F { param($a) $a + 1 }`
+          (a statement after `param(...)` on the same line) was a syntax
+          error that dropped the whole file. The grammar puts the block in
+          an `ERROR` node, so the parser reparses with `;` in the blank
+          after it, at the same offsets, and keeps a clean tree only. Test:
+          `tests/one_line_param.rs` (also: two real syntax errors are still
+          rejected). Corpus unchanged. This repository: the same 2 of 35
+          PowerShell files fail before and after (`review-check.ps1:29`,
+          ERR-002, a different construct). Recorded in
+          `errors/HISTORY.md`; the checklist's FN01 cell is `[x]`.
     - [x] C++ cells re-probed with a current `mct-cli` (`a.cpp` with a macro,
           a `const`, a union, an abstract base, a derived class with a
           mem-initializer, a lambda, `new T()` and `T t;`). Stale cells
