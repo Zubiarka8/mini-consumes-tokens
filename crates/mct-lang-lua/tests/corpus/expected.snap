@@ -1,4 +1,4 @@
-# language=lua files=5 symbols=433 relations=375 name_matched_across_files=57
+# language=lua files=5 symbols=433 relations=379 name_matched_across_files=57
 
 == gateway/ratelimit.lua (302 lines)
 S 1-302 module ratelimit
@@ -305,6 +305,8 @@ R 246:15 calls build -> new
 R 247:5 calls build -> add
 R 248:5 calls build -> add
 R 248:35 calls build -> chain
+R 248:41 references build -> cors
+R 248:47 references build -> require_tenant
 R 249:12 calls build -> max_body
 R 251:5 calls build -> add
 R 252:5 calls build -> add
@@ -434,6 +436,7 @@ R 36:19 calls M::format_location -> format (name-matched: warehouse/money.lua)
 R 38:17 calls M::format_location -> format (name-matched: warehouse/money.lua)
 R 56:19 calls M::picking_route -> unpack
 R 57:9 calls M::picking_route -> sort
+R 57:21 references M::picking_route -> compare_locations
 R 67:10 calls M::new_cache -> setmetatable (name-matched: warehouse/money.lua)
 R 75:25 calls Cache::get -> get
 R 75:34 calls Cache::get -> key
@@ -461,6 +464,7 @@ R 168:15 calls M::start_refresher -> get
 R 169:19 calls M::start_refresher -> yield
 R 178:7 calls start_refresher::tick -> refresh_batch
 R 181:29 calls M::start_refresher -> every
+R 181:45 references M::start_refresher -> tick
 R 183:47 calls M::start_refresher -> tostring
 R 197:42 calls M::describe_count -> format_location
 R 198:18 calls M::describe_count -> difference

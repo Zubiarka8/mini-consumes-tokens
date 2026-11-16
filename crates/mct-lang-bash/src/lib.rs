@@ -274,9 +274,14 @@ impl<'a> Walker<'a> {
                 if owner == module_id {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let name = text(name_node, self.source).to_string();
+                        let kind = if details::is_readonly_assignment(node, self.source) {
+                            SymbolKind::Constant
+                        } else {
+                            SymbolKind::Variable
+                        };
                         let id = self.push_symbol(
                             name,
-                            SymbolKind::Variable,
+                            kind,
                             location(node),
                             Some(scope_name.to_string()),
                         );
