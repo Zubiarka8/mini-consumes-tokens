@@ -351,7 +351,7 @@ Done 27 · Partial 7 · Not done 11 · Not verified 0 · Not applicable 7
 **Functions and methods**
 
 - [x] FN01 Top-level function: `function`
-- [~] FN02 Nested function: `inner` is indexed as a function with no parent association
+- [x] FN02 Nested function: `inner` is indexed as a function whose `parent` is the enclosing function or method
 - [ ] FN03 Lambda or closure assigned to a name: `val f = { … }` has no symbol
 - [x] FN04 Method: extension `String.p_ext` → `method`
 - [ ] FN05 Constructor: secondary constructor has no symbol
