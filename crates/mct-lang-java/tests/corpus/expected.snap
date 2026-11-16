@@ -1,4 +1,4 @@
-# language=java files=6 symbols=436 relations=1055 name_matched_across_files=149
+# language=java files=6 symbols=436 relations=1077 name_matched_across_files=152
 
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
@@ -183,6 +183,7 @@ R 156:6 references OrderService::confirmPayment -> Transactional (name-matched: 
 R 160:14 calls OrderService::confirmPayment -> orElseThrow
 R 159:14 calls OrderService::confirmPayment -> map (name-matched: com/example/warehouse/persistence/Repository.java)
 R 158:30 calls OrderService::confirmPayment -> findIdByNumber (name-matched: com/example/warehouse/persistence/Repository.java)
+R 159:26 references OrderService::confirmPayment -> getById (name-matched: com/example/warehouse/persistence/Repository.java)
 R 160:47 calls OrderService::confirmPayment -> NotFoundException (name-matched: com/example/warehouse/persistence/Repository.java)
 R 161:15 calls OrderService::confirmPayment -> pay (name-matched: com/example/warehouse/order/Order.java)
 R 161:44 calls OrderService::confirmPayment -> instant
@@ -208,6 +209,7 @@ R 183:48 calls OrderService::priceLines -> getKey
 R 183:64 calls OrderService::priceLines -> getValue
 R 189:42 calls OrderService::save -> ArrayList
 R 190:15 calls OrderService::save -> drainEvents (name-matched: com/example/warehouse/order/Order.java)
+R 190:38 references OrderService::save -> add
 R 191:16 calls OrderService::save -> save
 R 193:17 calls OrderService::save -> log
 R 193:65 calls OrderService::save -> number
@@ -216,10 +218,12 @@ R 194:25 calls OrderService::save -> forEach
 R 194:40 calls OrderService::save -> accept
 R 203:46 calls OrderService::find -> flatMap
 R 203:23 calls OrderService::find -> findIdByNumber (name-matched: com/example/warehouse/persistence/Repository.java)
+R 203:62 references OrderService::find -> findById (name-matched: com/example/warehouse/persistence/Repository.java)
 R 207:50 calls OrderService::countByState -> collect
 R 207:41 calls OrderService::countByState -> stream
 R 207:23 calls OrderService::countByState -> findAll (name-matched: com/example/warehouse/persistence/Repository.java)
 R 207:58 calls OrderService::countByState -> groupingBy
+R 207:76 references OrderService::countByState -> state (name-matched: com/example/warehouse/order/Order.java)
 R 207:83 calls OrderService::countByState -> counting
 R 214:14 calls OrderService::largest -> toList
 R 213:14 calls OrderService::largest -> limit
@@ -228,6 +232,7 @@ R 211:41 calls OrderService::largest -> stream
 R 211:23 calls OrderService::largest -> findAll (name-matched: com/example/warehouse/persistence/Repository.java)
 R 212:74 calls OrderService::largest -> reversed
 R 212:32 calls OrderService::largest -> comparing
+R 212:49 references OrderService::largest -> total
 R 212:62 calls OrderService::largest -> byAmount (name-matched: com/example/warehouse/money/Money.java)
 R 218:28 calls OrderService::revenueSince -> instant
 R 219:23 calls OrderService::revenueSince -> revenue
@@ -418,6 +423,9 @@ R 49:18 calls Location::compareTo -> compare
 R 48:18 calls Location::compareTo -> thenComparingInt
 R 47:18 calls Location::compareTo -> thenComparingInt
 R 46:31 calls Location::compareTo -> comparing
+R 46:51 references Location::compareTo -> zone
+R 47:45 references Location::compareTo -> aisle
+R 48:45 references Location::compareTo -> level
 R 52:10 references Location::toString -> Override
 R 53:23 overrides Location::toString -> toString
 R 53:23 overrides Location::toString -> toString
@@ -445,12 +453,15 @@ R 195:71 calls Inventory::available -> sum
 R 195:39 calls Inventory::available -> mapToInt
 R 195:30 calls Inventory::available -> stream
 R 195:16 calls Inventory::available -> levelsOf
+R 195:60 references Inventory::available -> available
 R 201:14 calls Inventory::availableByLocation -> collect
 R 200:14 calls Inventory::availableByLocation -> filter
 R 199:30 calls Inventory::availableByLocation -> stream
 R 199:16 calls Inventory::availableByLocation -> levelsOf
 R 200:36 calls Inventory::availableByLocation -> available
 R 201:33 calls Inventory::availableByLocation -> toMap
+R 201:51 references Inventory::availableByLocation -> location
+R 201:73 references Inventory::availableByLocation -> available
 R 205:23 calls Inventory::levelsOf -> getOrDefault
 R 205:46 calls Inventory::levelsOf -> of (name-matched: com/example/warehouse/money/ExchangeRates.java)
 R 209:40 calls Inventory::levelAt -> computeIfAbsent
@@ -468,12 +479,14 @@ R 234:51 calls Inventory::reserve -> id
 R 237:22 calls Inventory::reserve -> forEach
 R 237:35 calls Inventory::reserve -> undo
 R 240:18 calls Inventory::reserve -> forEach
+R 240:36 references Inventory::reserve -> stockReserved
 R 241:18 calls Inventory::reserve -> forEach
 R 241:31 calls Inventory::reserve -> checkReorderPoint
 R 241:51 calls Inventory::reserve -> sku
 R 242:55 calls Inventory::reserve -> toList
 R 242:34 calls Inventory::reserve -> map (name-matched: com/example/warehouse/persistence/Repository.java)
 R 242:25 calls Inventory::reserve -> stream
+R 242:51 references Inventory::reserve -> id
 R 244:18 calls Inventory::reserve -> unlock
 R 249:45 calls Inventory::reserveLine -> plus (name-matched: com/example/warehouse/money/Money.java)
 R 249:35 calls Inventory::reserveLine -> instant
@@ -485,6 +498,7 @@ R 250:53 calls Inventory::reserveLine -> sku
 R 251:36 calls Inventory::reserveLine -> available
 R 251:56 calls Inventory::reserveLine -> quantity
 R 252:29 calls Inventory::reserveLine -> comparingInt
+R 252:54 references Inventory::reserveLine -> available
 R 253:20 calls Inventory::reserveLine -> isPresent
 R 253:48 calls Inventory::reserveLine -> tryReserve
 R 253:42 calls Inventory::reserveLine -> get (name-matched: com/example/warehouse/money/ExchangeRates.java)
@@ -505,6 +519,7 @@ R 262:43 calls Inventory::splitLine -> levelsOf
 R 262:57 calls Inventory::splitLine -> sku
 R 263:68 calls Inventory::splitLine -> reversed
 R 263:32 calls Inventory::splitLine -> comparingInt
+R 263:57 references Inventory::splitLine -> available
 R 265:44 calls Inventory::splitLine -> hasNext
 R 266:43 calls Inventory::splitLine -> next (name-matched: com/example/warehouse/app/OrderService.java)
 R 267:29 calls Inventory::splitLine -> min (name-matched: com/example/warehouse/money/Money.java)
@@ -764,6 +779,7 @@ R 228:31 calls CachedRates::warmUp -> now
 R 228:49 calls CachedRates::warmUp -> instant
 R 232:24 calls CachedRates::stats -> copyOf
 R 236:19 calls CachedRates::count -> merge
+R 236:40 references CachedRates::count -> sum
 R 239:10 references CachedRates::close -> Override
 R 240:21 overrides CachedRates::close -> close
 R 240:21 overrides CachedRates::close -> close
@@ -986,9 +1002,11 @@ R 259:16 calls Money::format -> setCurrency
 R 259:47 calls Money::format -> getInstance
 R 259:68 calls Money::format -> name
 R 260:23 calls Money::format -> format
+R 269:44 references Money::summing -> plus
 R 270:27 calls Money::summing -> reducing
 R 270:36 calls Money::summing -> zero
 R 274:27 calls Money::byAmount -> comparing
+R 274:44 references Money::byAmount -> amount
 R 293:31 calls Allocation::of -> IllegalArgumentException
 R 298:27 calls Allocation::of -> IllegalArgumentException
 R 300:32 calls Allocation::of -> minorUnits
@@ -1208,6 +1226,7 @@ R 201:23 calls Order::place -> IllegalArgumentException
 R 203:27 calls Order::place -> Order
 R 203:36 calls Order::place -> random
 R 204:15 calls Order::place -> forEach
+R 204:30 references Order::place -> addLine
 R 205:15 calls Order::place -> record
 R 205:26 calls Order::place -> Placed
 R 205:64 calls Order::place -> copyOf
@@ -1248,6 +1267,7 @@ R 291:25 calls Order::trackingNumber -> ofNullable
 R 295:51 calls Order::total -> collect
 R 295:31 calls Order::total -> map (name-matched: com/example/warehouse/persistence/Repository.java)
 R 295:22 calls Order::total -> stream
+R 295:41 references Order::total -> subtotal
 R 295:65 calls Order::total -> summing (name-matched: com/example/warehouse/money/Money.java)
 R 299:24 calls Order::isLarge -> compareTo (name-matched: com/example/warehouse/inventory/Inventory.java)
 R 299:16 calls Order::isLarge -> total
@@ -1385,6 +1405,7 @@ R 45:51 calls Repository::getById -> NotFoundException
 R 49:29 calls Repository::exists -> isPresent
 R 49:16 calls Repository::exists -> findById
 R 53:20 calls Repository::saveAll -> forEach
+R 53:34 references Repository::saveAll -> save
 R 56:6 references Repository::close -> Override
 R 57:18 overrides Repository::close -> close
 R 61:6 references Repository::Transactional -> Retention
@@ -1481,6 +1502,7 @@ R 260:10 references Orders::save -> Transactional
 R 261:21 overrides Orders::save -> save
 R 262:19 calls Orders::save -> save
 R 263:19 calls Orders::save -> drainEvents (name-matched: com/example/warehouse/order/Order.java)
+R 263:39 references Orders::save -> append
 R 266:10 references Orders::findIdByNumber -> Transactional
 R 268:34 calls Orders::findIdByNumber -> query
 R 270:33 calls Orders::findIdByNumber -> Id (name-matched: com/example/warehouse/order/Order.java)
