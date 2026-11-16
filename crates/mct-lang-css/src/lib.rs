@@ -88,12 +88,12 @@ mod libraries;
 
 pub struct CssParser;
 
-/// Repair only the pinned grammar's rejection of a statement at-rule with a
-/// string prelude (`@source "./";`, `@plugin 'x';`), valid CSS that Tailwind 4
-/// uses. On every line an `ERROR` node covers that begins with `@` and ends
-/// with `;`, each string literal's bytes become `x`, a same-offset
-/// substitution; extraction reads the original text. A full reparse must
-/// accept the entire file.
+/// Repair only the pinned grammar's rejection of a one-line statement at-rule
+/// whose prelude is a string, a selector list or a function (`@source "./";`,
+/// `@custom-variant dark (&:is(.d *));`), valid CSS that Tailwind 4 uses. On
+/// every line an `ERROR` node covers that begins with `@` and ends with `;`,
+/// the prelude's bytes become `x`, a same-offset substitution; extraction
+/// reads the original text. A full reparse must accept the entire file.
 fn blank_at_rule_strings(node: Node, blanked: &mut [u8], depth: u32) -> bool {
     if depth >= MAX_TRAVERSAL_DEPTH {
         return false;
@@ -123,33 +123,28 @@ fn blank_at_rule_strings(node: Node, blanked: &mut [u8], depth: u32) -> bool {
     changed
 }
 
-/// Turns the string literals of `line` into `x`s when it is a statement
-/// at-rule; whether it changed anything.
+/// Turns the prelude of `line` (everything between the at-keyword and the
+/// closing `;`) into one run of `x`s when it is a one-line statement at-rule;
+/// whether it changed anything.
 fn blank_strings_of_statement_at_rule(line: &mut [u8]) -> bool {
-    let is_statement_at_rule =
-        line.trim_ascii().first() == Some(&b'@') && line.trim_ascii_end().last() == Some(&b';');
-    if !is_statement_at_rule {
+    let Some(from) = line.iter().position(|b| !b.is_ascii_whitespace()) else {
+        return false;
+    };
+    let Some(to) = line.iter().rposition(|b| !b.is_ascii_whitespace()) else {
+        return false;
+    };
+    if line[from] != b'@' || line[to] != b';' {
         return false;
     }
+    let name_end = line[from..to]
+        .iter()
+        .position(|b| b.is_ascii_whitespace())
+        .map_or(to, |n| from + n);
+    let prelude = &mut line[name_end..to];
     let mut changed = false;
-    let mut quote = None;
-    let mut escaped = false;
-    for byte in line.iter_mut() {
-        match (quote, *byte) {
-            (None, q @ (b'"' | b'\'')) => {
-                quote = Some(q);
-                *byte = b'x';
-                changed = true;
-            }
-            (Some(q), b) => {
-                if b == q && !escaped {
-                    quote = None;
-                }
-                escaped = b == b'\\' && !escaped;
-                *byte = b'x';
-            }
-            _ => {}
-        }
+    for byte in prelude.iter_mut().filter(|b| **b != b'x') {
+        *byte = b'x';
+        changed = true;
     }
     changed
 }
