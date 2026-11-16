@@ -1,8 +1,8 @@
 //! AST traversal and symbol ownership shared by the JS, TS and TSX grammars.
 
 use mct_core::{
-    Location, ParsedFile, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord,
-    SymbolRelation, MAX_TRAVERSAL_DEPTH,
+    EntryPointHint, Location, ParsedFile, RelationKind, RelationTarget, SymbolId, SymbolKind,
+    SymbolRecord, SymbolRelation, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{location, Supertype};
 use std::collections::{HashMap, HashSet};
@@ -34,6 +34,9 @@ pub(super) struct Walker<'a> {
     /// `return wrapped`), as `(owner, name, location)`. [`Walker::finish`]
     /// keeps those naming a function of this file as `References`.
     value_uses: Vec<(SymbolId, String, Location)>,
+    /// Methods written in an object literal: a library may call them
+    /// through the object (issue #475).
+    object_methods: Vec<SymbolId>,
     /// Locals bound by the enclosing functions (parameters, `let`/`const`
     /// values that are not functions, patterns): a value use of one of these
     /// names reads the local, never the same-named function.
@@ -74,6 +77,7 @@ impl<'a> Walker<'a> {
             path,
             next_id: 0,
             value_uses: Vec::new(),
+            object_methods: Vec::new(),
             bound: HashSet::new(),
             bare_calls: Vec::new(),
             generics: HashSet::new(),
@@ -697,6 +701,9 @@ impl<'a> Walker<'a> {
                 };
                 let id =
                     self.push_symbol(name, kind, location(node), type_name.map(str::to_string));
+                if node.parent().is_some_and(|p| p.kind() == "object") {
+                    self.object_methods.push(id);
+                }
                 self.details
                     .push(details::function_detail(node, node, id, self.source));
                 self.push_decorators(node, id, depth);
@@ -1308,6 +1315,19 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            entry_points: self
+                .object_methods
+                .into_iter()
+                .map(|symbol| EntryPointHint {
+                    symbol,
+                    framework: "javascript".to_string(),
+                    rule: "object-literal-callback".to_string(),
+                    evidence: "method of an object literal; a library may call it through \
+                               the object, never by name in this project"
+                        .to_string(),
+                    requires: None,
+                })
+                .collect(),
             ..Default::default()
         }
     }
