@@ -381,6 +381,36 @@ const es = {
   "code.unsupported":
     "No disponibles para este índice: visibilidad, fecha de indexación y estado de indexación por símbolo.",
   // findings
+  // bloques parciales repetidos (partial-blocks.js)
+  "pblocks.title": "Bloques repetidos dentro de funciones",
+  "pblocks.subtitle":
+    "Tramos de líneas que comparten dos o más funciones distintas, aunque el resto de cada función sea diferente. La búsqueda es la de mct-cli duplicates --partial-blocks y solo se ejecuta cuando la pides; mientras tanto puedes seguir usando el panel.",
+  "pblocks.run": "Buscar bloques repetidos",
+  "pblocks.again": "Buscar de nuevo",
+  "pblocks.running": "Buscando bloques repetidos… Puedes seguir usando el panel.",
+  "pblocks.found": "Bloques: {n} · funciones analizadas: {functions} · {time}",
+  "pblocks.foundPartial":
+    "Bloques por ahora: {n} (análisis parcial) · funciones analizadas: {functions} · {time}",
+  "pblocks.none": "No hay bloques repetidos",
+  "pblocks.noneSoFar": "No hay bloques repetidos en lo analizado",
+  "pblocks.noneText":
+    "Un bloque necesita al menos {lines} líneas y {tokens} tokens en dos funciones distintas. Las líneas que solo comparten los grupos de funciones duplicadas enteras se listan con esos grupos, no aquí.",
+  "pblocks.warning":
+    "Un bloque repetido no es una propuesta de extracción: no se evalúa si se puede extraer (variables de entrada y salida, flujo de control, efectos secundarios).",
+  "pblocks.budget":
+    "Análisis parcial: la búsqueda se detuvo al agotar su presupuesto {budget}, así que puede haber más bloques de los listados.",
+  "pblocks.indexPartial":
+    "Índice incompleto: archivos con errores de sintaxis: {syntax}; archivos ilegibles: {read}. Sus funciones pueden faltar en la búsqueda.",
+  "pblocks.indexUnknown":
+    "El índice no registra ninguna indexación, así que no se sabe si cubre todo el proyecto.",
+  "pblocks.skipped": "Funciones que no se pudieron leer o analizar, y no entraron en la búsqueda: {n}.",
+  "pblocks.outdated":
+    "El índice cambió durante la búsqueda. Búscalos de nuevo para ver los bloques del código actual.",
+  "pblocks.failed": "La búsqueda falló.",
+  "pblocks.block": "Bloque {n}",
+  "pblocks.blockMeta": "{language} · {lines} líneas · {tokens} tokens · {n} funciones",
+  "pblocks.places": "Ubicaciones del bloque {n}",
+  "pblocks.openContext": "Abrir el archivo en estas líneas",
   "dup.title": "Grupos de código duplicado",
   "dup.subtitle": "Detecta y compara fragmentos de código idénticos o casi idénticos.",
   "dup.found": "{n} grupos de duplicados",

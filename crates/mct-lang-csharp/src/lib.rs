@@ -419,8 +419,23 @@ impl<'a> Walker<'a> {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some(name_node) = callee_identifier(function) {
                         let name = text(name_node, self.source);
-                        // `nameof(x)` is an operator, not a call.
-                        if !(name == "nameof" && function.kind() == "identifier") {
+                        // `nameof(x)` is an operator, not a call: the compiler
+                        // resolves `x`, so it is a use of what it names.
+                        if name == "nameof" && function.kind() == "identifier" {
+                            let named = node
+                                .child_by_field_name("arguments")
+                                .and_then(|a| a.named_child(0))
+                                .and_then(|a| a.named_child(0))
+                                .and_then(callee_identifier);
+                            if let Some(named) = named {
+                                self.push_relation(
+                                    owner,
+                                    RelationKind::References,
+                                    text(named, self.source).to_string(),
+                                    location(named),
+                                );
+                            }
+                        } else {
                             let type_qualifier = self.push_receiver(function, name);
                             // location(name_node), not location(node): a
                             // chained call (`a.F(x).F(y)`) has its outer and
