@@ -1407,7 +1407,7 @@ From `rules.md` and the two messages:
       `find_references`/`find_calls`/`find_callers`, `list_symbols`,
       `get_project_overview` and `find_dead_code`; `find_duplicate_code`
       only trimmed the trailing slash.
-- [~] Inline module resolution.
+- [x] Inline module resolution.
   - [x] Rust: an item declared in an inline `mod m { … }` (function,
         struct, enum, trait, type, const, static, macro, nested `mod`) has
         `m` as its parent, as a C++ namespace member does, so `m::f()`,
@@ -1427,9 +1427,14 @@ From `rules.md` and the two messages:
         file as its target, so another file's same-named `mod` (or an
         `impl From<Id> for u64` under a local `mod u64`) is not a
         candidate (`primitive_conversions.rs`).
-  - [ ] `m::Type::f()`: the method's parent is the type, so the module
-        evidence finds no candidate. Matching it needs the view to look at
-        the type's parent (a migration): #478.
+  - [x] `m::Type::f()`: the method's parent is the type, so the module
+        evidence found no candidate. The `relation_candidates` view now also
+        accepts a method whose parent type is declared in that module
+        (migration, issue #478); `target_path` still pins the file, so
+        another file's same-named `inner::Thing::make` is no candidate.
+        Test: `mct-lang-rust/tests/inline_modules.rs`
+        `a_method_reached_through_an_inline_module_and_its_type_resolves`
+        (unresolved with 0 candidates before, resolved with 1 after).
 - [x] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
