@@ -137,6 +137,22 @@ From `rules.md` and the two messages:
         namespaced `render`, the aliased call went from unresolved to
         resolved (1). Test: `mct-lang-php/tests/function_aliases.rs`; the
         corpus snapshot is unchanged.
+  - [x] C#: a bare call in a file with exactly one `using static NS.Type;`
+        is that type's method under that namespace, or the framework's
+        (external) for `System`/`Microsoft`. Several `using static` (which
+        type?), a method of the name the file declares, a name the code
+        binds itself (a parameter, a local, a field, a local function), a
+        class with a base list or a `partial` class (the member may live
+        elsewhere) and a qualified call prove nothing. The namespace is
+        matched by its full name, so a nested `namespace A { namespace B {`
+        is not found under `A.B`. On a scratch project with `A.Fmt.Render`
+        and `B.Fmt.Render`, 1 ambiguous call (2 candidates) became resolved
+        (1). This repository's C# (513 calls): 3 calls became external
+        (`Round`, `Max`, `Min` under `using static System.Math;`). A first
+        version also marked the delegate parameters `map(…)` and `next(…)`
+        external; the measurement showed it, and a bound name is now
+        excluded, with a test. Test: `mct-lang-csharp/tests/using_static.rs`;
+        the corpus snapshot is unchanged.
   - [x] Go: an import of a dotless module path (`module shop`, `import
         "shop/store"`) names a repository package like a domain-rooted one,
         for a plain and an aliased import. The path needs two or more
@@ -147,6 +163,19 @@ From `rules.md` and the two messages:
         declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
         (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
         snapshot is unchanged.
+  - [x] Rust: `use bbb_lib::render as draw;` makes `draw()` a call to
+        `render` with `bbb_lib` as crate evidence, so it reaches that
+        crate's item and never another crate's `render`. A `crate::`,
+        `self::` or `super::` alias names the original item with no crate
+        evidence, a single-segment `use rand as r` names a crate and is
+        left alone, and a local binding or declaration of the alias keeps
+        its own name. Only a bare call is renamed; type references through
+        an alias are unchanged. On this repository's Rust (56243 calls) 99
+        calls change, all aliases of `use … as`: 59 from several candidates
+        to one, 13 from none to the right candidates, 12 narrowed, 9
+        keep one, 6 from none to one. Test:
+        `mct-lang-rust/tests/aliased_use.rs`; the corpus snapshot is
+        unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
@@ -318,6 +347,16 @@ From `rules.md` and the two messages:
         and `Log.Max` next to the framework calls, 2 ambiguous calls became
         external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
         corpus snapshot is unchanged.
+  - [x] Bash: a call of a shell builtin (`echo`, `printf`, `cd`, `exit`,
+        `shift`, `return`, `true`…, 58 names) the file does not define as a
+        function is external, so it never reaches another script's function
+        of that name. A function the file defines under the builtin's name
+        (`echo() { … }`) leaves it unproven, and `source`/`.` stay imports.
+        External programs (`git`, `grep`, `sed`) are not marked: a script may
+        wrap them. This repository: 784 of 1892 Bash calls become external;
+        none of them had a candidate, so no target changes, they only stop
+        counting as unresolved. Test: `mct-lang-bash/tests/builtin_calls.rs`;
+        the corpus snapshot is unchanged.
   - [x] PowerShell: a call of a built-in cmdlet (`Write-Host`, `Join-Path`,
         `ForEach-Object`, `Test-Path`…, 105 names of the Management, Utility
         and Core modules, any case) the file does not define as a function
@@ -507,6 +546,16 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] CSS custom properties and `@keyframes`: each custom property
+          declaration (`--brand: red`) is a `variable` symbol and each
+          `@keyframes spin` an `animation` symbol (also inside Tailwind's
+          `@theme`). `var(--brand)`, fallbacks included, references the
+          variable, and each name in an `animation` / `animation-name` value
+          references the animation, scoped by `kind` so a same-named rule
+          (`.fade`) never matches. Animation keywords (`infinite`, `ease`)
+          reference nothing. Tests: `tests/custom_properties.rs`; the corpus
+          snapshot gains 283 symbols and 521 references (keyframe names
+          only, no keyword).
     - [x] Go fields, constants and variables: each named struct field is a
           `field` of the struct (an embedded one is none), each package-level
           `const` / `var` name, grouped or not, a `constant` / `variable` of
