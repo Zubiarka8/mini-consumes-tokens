@@ -1675,6 +1675,12 @@ From `rules.md` and the two messages:
         same false positives for Kotlin (`::parse`), PHP (`'shout'` string
         callable), C++ (`std::transform(…, dbl)`) and Bash (`trap cleanup
         EXIT`); Java method references and C# method groups were fine.
+- [x] Lua, function returned or assigned by name: `return handler`,
+      `alias = handler`, `local alias = handler` and `M.slot = handler` are
+      `references` relations, with the same scope rule as an argument (a
+      parameter that shadows the function records nothing). Probe: a
+      function returned from another function was dead code, now it is not.
+      Corpus: 4 new relations. Stacked on #502.
   - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
         expression, not part of the arm's pattern, so its names are uses.
         Before, `is_final` was taken for a local of the whole function and
