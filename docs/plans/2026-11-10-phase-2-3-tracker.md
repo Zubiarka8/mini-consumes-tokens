@@ -278,7 +278,18 @@ From `rules.md` and the two messages:
         were all wrong (`u64::from(l.on_hand)`, `u64::from(*byte)`) and are
         now ambiguous; the other 84 had no candidate. Dead code unchanged
         (124). Test: `mct-lang-rust/tests/primitive_conversions.rs`.
+  - [x] C#: a call whose receiver is a fully qualified name of the framework
+        (`System.Console.WriteLine(…)`, `global::System.Math.Max(…)`) is
+        external. The name must be identifiers only, rooted at `System` or
+        `Microsoft`, with at least two segments; a call or an index in the
+        chain, an alias and a simple name (`Console.WriteLine` after
+        `using System;`) keep their resolution, because a repository can
+        declare its own `Console`. On a scratch project with `Log.WriteLine`
+        and `Log.Max` next to the framework calls, 2 ambiguous calls became
+        external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
+        corpus snapshot is unchanged.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
+
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
       same-named method in an unrelated class), all correct. D9 has 2 for
