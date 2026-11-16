@@ -139,6 +139,17 @@ From `rules.md` and the two messages:
         declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
         (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
         snapshot is unchanged.
+  - [x] JS/TS: `import { render as draw } from "./b.js"` makes `draw(2)` a
+        call to `render` with module `b` as evidence, so it reaches `b.js`
+        and never another module's `render`. A default import keeps its
+        local name, and a name no single import binds keeps its own. On a
+        scratch project with two modules that both declare `render`, the
+        aliased call went from unresolved to resolved (1). This
+        repository's JS/TS (24744 relations): one relation changes,
+        `describeEvent(…)` in the corpus (`import { describe as
+        describeEvent } from "../order"`), from no candidate to one, the
+        `describe` of `src/order.ts`. The corpus snapshot changes by that
+        one relation. Test: `mct-lang-js-ts/tests/aliased_imports.rs`.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
