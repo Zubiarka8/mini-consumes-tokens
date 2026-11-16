@@ -1,11 +1,18 @@
-# language=css files=12 symbols=933 relations=32 name_matched_across_files=15
+# language=css files=12 symbols=1216 relations=553 name_matched_across_files=422
 
 == app.css (361 lines)
 S 1-361 module app
 S 18-25 rule :root
+S 19-19 variable --dashboard-accent
+S 20-20 variable --chart-1
+S 21-21 variable --chart-2
+S 22-22 variable --chart-3
+S 23-23 variable --chart-4
+S 24-24 variable --kpi-min
 S 27-29 rule [data-theme="dark"] .dashboard
 S 27-27 rule [data-theme="dark"]
 S 27-27 rule .dashboard
+S 28-28 variable --dashboard-accent
 S 33-35 rule .dashboard
 S 37-39 rule .dashboard .app-header
 S 37-37 rule .dashboard
@@ -36,6 +43,8 @@ S 75-78 rule .dashboard__toolbar .btn-group .btn[aria-pressed="true"]
 S 75-75 rule .dashboard__toolbar
 S 75-75 rule .btn-group
 S 75-75 rule .btn
+S 76-76 variable --btn-bg
+S 77-77 variable --btn-fg
 S 82-86 rule .kpi-grid
 S 88-90 rule .kpi
 S 92-94 rule .kpi.card
@@ -72,10 +81,13 @@ S 162-170 rule .chart__legend-item::before
 S 162-162 rule .chart__legend-item
 S 172-174 rule .chart__legend-item:nth-child(2)
 S 172-172 rule .chart__legend-item
+S 173-173 variable --swatch
 S 176-178 rule .chart__legend-item:nth-child(3)
 S 176-176 rule .chart__legend-item
+S 177-177 variable --swatch
 S 180-182 rule .chart__legend-item:nth-child(4)
 S 180-180 rule .chart__legend-item
+S 181-181 variable --swatch
 S 184-186 rule .chart .series-1
 S 184-184 rule .chart
 S 184-184 rule .series-1
@@ -151,6 +163,7 @@ S 307-307 rule .card
 S 311-313 rule .onboarding .progress
 S 311-311 rule .onboarding
 S 311-311 rule .progress
+S 312-312 variable --harbor-progress
 S 315-318 rule .onboarding__step.is-done .check
 S 315-315 rule .onboarding__step
 S 315-315 rule .is-done
@@ -189,13 +202,96 @@ R 11:1 imports app -> styles/components/controls.css
 R 11:1 imports app -> controls (name-matched: styles/components/controls.css)
 R 12:1 imports app -> styles/components/surfaces.css
 R 12:1 imports app -> surfaces (name-matched: styles/components/surfaces.css)
+R 19:27 references app -> --color-blue-600 (name-matched: styles/tokens.css)
+R 20:18 references app -> --color-blue-500 (name-matched: styles/tokens.css)
+R 21:18 references app -> --color-green-500 (name-matched: styles/tokens.css)
+R 22:18 references app -> --color-amber-500 (name-matched: styles/tokens.css)
+R 23:18 references app -> --color-red-500 (name-matched: styles/tokens.css)
+R 28:27 references app -> --color-blue-300 (name-matched: styles/tokens.css)
+R 34:25 references app -> --surface-page (name-matched: styles/tokens.css)
+R 38:19 references app -> --shadow-1 (name-matched: styles/tokens.css)
+R 42:18 references app -> --text-sm (name-matched: styles/tokens.css)
+R 46:25 references app -> --surface-raised (name-matched: styles/tokens.css)
+R 51:12 references app -> --space-8 (name-matched: styles/tokens.css)
+R 57:12 references app -> --space-3 (name-matched: styles/tokens.css)
+R 61:18 references app -> --text-xs (name-matched: styles/tokens.css)
+R 67:12 references app -> --space-2 (name-matched: styles/tokens.css)
+R 76:17 references app -> --accent-soft (name-matched: styles/tokens.css)
+R 77:17 references app -> --accent (name-matched: styles/tokens.css)
+R 84:12 references app -> --space-4 (name-matched: styles/tokens.css)
+R 85:54 references app -> --kpi-min
+R 89:16 references app -> --space-5 (name-matched: styles/tokens.css)
+R 93:29 references app -> --dashboard-accent
+R 97:18 references app -> --text-xs (name-matched: styles/tokens.css)
+R 100:14 references app -> --text-muted (name-matched: styles/tokens.css)
+R 104:18 references app -> --text-3xl (name-matched: styles/tokens.css)
+R 105:20 references app -> --weight-bold (name-matched: styles/tokens.css)
+R 107:14 references app -> --text-strong (name-matched: styles/tokens.css)
+R 111:18 references app -> --text-sm (name-matched: styles/tokens.css)
+R 115:14 references app -> --status-success (name-matched: styles/tokens.css)
+R 119:14 references app -> --status-danger (name-matched: styles/tokens.css)
+R 138:22 references app -> --radius-sm (name-matched: styles/tokens.css)
+R 139:25 references app -> --surface-sunken (name-matched: styles/tokens.css)
+R 140:14 references app -> harbor-shimmer (name-matched: styles/tokens.css)
+R 151:13 references app -> --text-muted (name-matched: styles/tokens.css)
+R 158:12 references app -> --space-3 (name-matched: styles/tokens.css)
+R 159:18 references app -> --text-xs (name-matched: styles/tokens.css)
+R 167:21 references app -> --space-1 (name-matched: styles/tokens.css)
+R 169:25 references app -> --swatch
+R 169:39 references app -> --chart-1
+R 173:17 references app -> --chart-2
+R 177:17 references app -> --chart-3
+R 181:17 references app -> --chart-4
+R 185:15 references app -> --chart-1
+R 189:15 references app -> --chart-2
+R 193:15 references app -> --chart-3
+R 197:15 references app -> --border-subtle (name-matched: styles/tokens.css)
+R 203:16 references app -> --z-dropdown (name-matched: styles/tokens.css)
+R 204:16 references app -> --space-2 (name-matched: styles/tokens.css)
+R 205:25 references app -> --text-strong (name-matched: styles/tokens.css)
+R 206:14 references app -> --text-inverse (name-matched: styles/tokens.css)
+R 207:22 references app -> --radius-sm (name-matched: styles/tokens.css)
+R 215:18 references app -> --text-sm (name-matched: styles/tokens.css)
+R 238:25 references app -> --accent-soft (name-matched: styles/tokens.css)
+R 242:20 references app -> --space-1 (name-matched: styles/tokens.css)
+R 246:16 references app -> --space-12 (name-matched: styles/tokens.css)
+R 248:14 references app -> --text-muted (name-matched: styles/tokens.css)
+R 258:19 references app -> --space-8 (name-matched: styles/tokens.css)
+R 259:20 references app -> --space-8 (name-matched: styles/tokens.css)
+R 260:29 references app -> --border-subtle (name-matched: styles/tokens.css)
+R 264:20 references app -> --space-2 (name-matched: styles/tokens.css)
+R 272:21 references app -> --status-danger (name-matched: styles/tokens.css)
+R 279:12 references app -> --space-4 (name-matched: styles/tokens.css)
+R 285:12 references app -> --space-3 (name-matched: styles/tokens.css)
+R 295:18 references app -> --text-xs (name-matched: styles/tokens.css)
+R 296:14 references app -> --text-muted (name-matched: styles/tokens.css)
+R 301:23 references app -> --space-4 (name-matched: styles/tokens.css)
+R 302:32 references app -> --border-subtle (name-matched: styles/tokens.css)
+R 308:21 references app -> --accent (name-matched: styles/tokens.css)
+R 317:14 references app -> --text-muted (name-matched: styles/tokens.css)
+R 321:25 references app -> --accent-soft (name-matched: styles/tokens.css)
+R 337:19 references app -> --header-height (name-matched: styles/tokens.css)
+R 337:42 references app -> --space-6 (name-matched: styles/tokens.css)
 
 == bootstrap-shop/catalog.css (206 lines)
 S 1-206 module catalog
 S 11-23 rule .btn-brand
+S 12-12 variable --bs-btn-color
+S 13-13 variable --bs-btn-bg
+S 14-14 variable --bs-btn-border-color
+S 15-15 variable --bs-btn-hover-color
+S 16-16 variable --bs-btn-hover-bg
+S 17-17 variable --bs-btn-hover-border-color
+S 18-18 variable --bs-btn-focus-shadow-rgb
+S 19-19 variable --bs-btn-active-bg
+S 20-20 variable --bs-btn-active-border-color
+S 21-21 variable --bs-btn-disabled-bg
+S 22-22 variable --bs-btn-disabled-border-color
 S 25-28 rule .btn-brand.btn-lg
 S 25-25 rule .btn-brand
 S 25-25 rule .btn-lg
+S 26-26 variable --bs-btn-padding-x
+S 27-27 variable --bs-btn-font-weight
 S 30-35 rule .btn-check:checked + .btn-outline-brand
 S 30-30 rule .btn-check
 S 30-30 rule .btn-check:checked
@@ -204,10 +300,19 @@ S 31-35 rule .btn-outline-brand.active
 S 31-31 rule .btn-outline-brand
 S 31-31 rule .active
 S 37-42 rule .btn-outline-brand
+S 38-38 variable --bs-btn-color
+S 39-39 variable --bs-btn-border-color
+S 40-40 variable --bs-btn-hover-bg
+S 41-41 variable --bs-btn-hover-color
 S 48-52 rule .catalog-filters
 S 54-60 rule .catalog-filters .accordion
 S 54-54 rule .catalog-filters
 S 54-54 rule .accordion
+S 55-55 variable --bs-accordion-border-width
+S 56-56 variable --bs-accordion-btn-padding-x
+S 57-57 variable --bs-accordion-body-padding-x
+S 58-58 variable --bs-accordion-active-bg
+S 59-59 variable --bs-accordion-btn-focus-box-shadow
 S 62-64 rule .catalog-filters .accordion-button:not(.collapsed)
 S 62-62 rule .catalog-filters
 S 62-62 rule .accordion-button
@@ -220,6 +325,8 @@ S 71-71 rule output
 S 75-79 rule .filter-chips .badge
 S 75-75 rule .filter-chips
 S 75-75 rule .badge
+S 76-76 variable --bs-badge-padding-x
+S 77-77 variable --bs-badge-font-weight
 S 81-83 rule .filter-chips .badge:hover .bi-x
 S 81-81 rule .filter-chips
 S 81-81 rule .badge
@@ -230,9 +337,16 @@ S 91-93 rule #filters-offcanvas .offcanvas-body
 S 91-91 rule #filters-offcanvas
 S 91-91 rule .offcanvas-body
 S 100-102 rule .product-grid
+S 101-101 variable --bs-gutter-y
 S 104-112 rule .product-card.card
 S 104-104 rule .product-card
 S 104-104 rule .card
+S 105-105 variable --bs-card-border-width
+S 106-106 variable --bs-card-border-radius
+S 107-107 variable --bs-card-inner-border-radius
+S 108-108 variable --bs-card-spacer-y
+S 109-109 variable --bs-card-spacer-x
+S 110-110 variable --bs-card-bg
 S 114-119 rule .product-card .card-img-top
 S 114-114 rule .product-card
 S 114-114 rule .card-img-top
@@ -265,6 +379,7 @@ S 153-153 rule del
 S 159-161 rule .price[data-on-sale="true"]
 S 159-159 rule .price
 S 163-168 rule .rating
+S 164-164 variable --star-size
 S 170-172 rule .rating .bi-star
 S 170-170 rule .rating
 S 170-170 rule .bi-star
@@ -277,6 +392,7 @@ S 179-179 rule .btn-brand
 S 187-190 rule #quick-view .modal-content
 S 187-187 rule #quick-view
 S 187-187 rule .modal-content
+S 188-188 variable --bs-modal-border-radius
 S 192-196 rule #quick-view .carousel-indicators [data-bs-target]
 S 192-192 rule #quick-view
 S 192-192 rule .carousel-indicators
@@ -290,10 +406,36 @@ S 198-198 rule .btn
 S 203-205 rule #quick-view .modal-dialog
 S 203-203 rule #quick-view
 S 203-203 rule .modal-dialog
+S 204-204 variable --bs-modal-width
+R 13:20 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 14:30 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 18:34 references catalog -> --shop-brand-rgb (name-matched: bootstrap-shop/theme.css)
+R 21:29 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 22:39 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 33:25 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 34:21 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 38:23 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 39:30 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 40:26 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 63:14 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 67:25 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 68:21 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 106:32 references catalog -> --shop-radius-card (name-matched: bootstrap-shop/theme.css)
+R 107:38 references catalog -> --shop-radius-card (name-matched: bootstrap-shop/theme.css)
+R 117:25 references catalog -> --bs-tertiary-bg (name-matched: bootstrap-shop/theme.css)
+R 127:20 references catalog -> --shop-font-display (name-matched: bootstrap-shop/theme.css)
+R 137:26 references catalog -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 139:22 references catalog -> --shop-radius-card (name-matched: bootstrap-shop/theme.css)
+R 154:14 references catalog -> --bs-secondary-color
+R 160:14 references catalog -> --shop-sale (name-matched: bootstrap-shop/theme.css)
+R 167:14 references catalog -> --shop-accent (name-matched: bootstrap-shop/theme.css)
+R 171:14 references catalog -> --bs-border-color (name-matched: bootstrap-shop/theme.css)
+R 188:33 references catalog -> --shop-radius-card (name-matched: bootstrap-shop/theme.css)
 
 == bootstrap-shop/checkout.css (183 lines)
 S 1-183 module checkout
 S 10-12 rule #cart-offcanvas
+S 11-11 variable --bs-offcanvas-width
 S 14-19 rule #cart-offcanvas .list-group-item
 S 14-14 rule #cart-offcanvas
 S 14-14 rule .list-group-item
@@ -343,6 +485,7 @@ S 93-96 rule .checkout-form .form-control.is-valid
 S 93-93 rule .checkout-form
 S 93-93 rule .form-control
 S 93-93 rule .is-valid
+S 94-94 variable --bs-form-valid-border-color
 S 98-100 rule .checkout-form .form-control.is-invalid ~ .invalid-feedback
 S 98-98 rule .checkout-form
 S 98-98 rule .form-control
@@ -376,6 +519,7 @@ S 158-158 rule .order-summary
 S 158-158 rule .promo-code
 S 158-158 rule .input-group
 S 158-158 rule .btn
+S 159-159 variable --bs-btn-padding-x
 S 163-166 rule .order-summary
 S 168-170 rule .checkout-steps li
 S 168-168 rule .checkout-steps
@@ -383,6 +527,27 @@ S 168-168 rule li
 S 174-177 rule #cart-offcanvas
 S 175-177 rule .payment-methods
 S 179-182 rule .order-summary
+R 25:22 references checkout -> --bs-border-radius (name-matched: bootstrap-shop/theme.css)
+R 46:14 references checkout -> --bs-secondary-color
+R 65:29 references checkout -> --bs-border-color (name-matched: bootstrap-shop/theme.css)
+R 66:14 references checkout -> --bs-secondary-color
+R 74:21 references checkout -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 75:14 references checkout -> --bs-emphasis-color
+R 80:26 references checkout -> --shop-brand-rgb (name-matched: bootstrap-shop/theme.css)
+R 89:14 references checkout -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 94:37 references checkout -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 111:21 references checkout -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 112:35 references checkout -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 117:15 references checkout -> --bs-border-width
+R 117:44 references checkout -> --bs-border-color (name-matched: bootstrap-shop/theme.css)
+R 118:22 references checkout -> --bs-border-radius (name-matched: bootstrap-shop/theme.css)
+R 122:21 references checkout -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 123:25 references checkout -> --bs-focus-ring-width
+R 123:52 references checkout -> --bs-focus-ring-color (name-matched: bootstrap-shop/theme.css)
+R 134:25 references checkout -> --bs-tertiary-bg (name-matched: bootstrap-shop/theme.css)
+R 135:22 references checkout -> --shop-radius-card (name-matched: bootstrap-shop/theme.css)
+R 154:19 references checkout -> --bs-border-width
+R 154:48 references checkout -> --bs-border-color (name-matched: bootstrap-shop/theme.css)
 
 == bootstrap-shop/shop.css (141 lines)
 S 1-141 module shop
@@ -395,10 +560,21 @@ S 46-46 rule a
 S 52-59 rule .promo-bar.alert
 S 52-52 rule .promo-bar
 S 52-52 rule .alert
+S 53-53 variable --bs-alert-padding-y
+S 54-54 variable --bs-alert-margin-bottom
+S 55-55 variable --bs-alert-border-radius
+S 56-56 variable --bs-alert-bg
+S 57-57 variable --bs-alert-color
 S 61-64 rule .promo-bar .btn-close
 S 61-61 rule .promo-bar
 S 61-61 rule .btn-close
+S 62-62 variable --bs-btn-close-opacity
 S 70-78 rule .navbar-shop
+S 71-71 variable --bs-navbar-padding-y
+S 72-72 variable --bs-navbar-brand-font-size
+S 73-73 variable --bs-navbar-color
+S 74-74 variable --bs-navbar-hover-color
+S 75-75 variable --bs-navbar-active-color
 S 80-83 rule .navbar-shop .navbar-brand
 S 80-80 rule .navbar-shop
 S 80-80 rule .navbar-brand
@@ -413,6 +589,7 @@ S 95-100 rule .navbar-shop .cart-toggle .badge
 S 95-95 rule .navbar-shop
 S 95-95 rule .cart-toggle
 S 95-95 rule .badge
+S 99-99 variable --bs-badge-font-size
 S 102-105 rule #site-search:focus-within .form-control
 S 102-102 rule #site-search
 S 102-102 rule #site-search:focus-within
@@ -435,17 +612,64 @@ R 21:1 imports shop -> catalog.css
 R 21:1 imports shop -> catalog (name-matched: bootstrap-shop/catalog.css)
 R 22:1 imports shop -> checkout.css
 R 22:1 imports shop -> checkout (name-matched: bootstrap-shop/checkout.css)
+R 32:25 references shop -> --bs-body-bg (name-matched: bootstrap-shop/theme.css)
+R 42:14 references shop -> --bs-secondary-color
+R 43:19 references shop -> --bs-border-width
+R 43:48 references shop -> --bs-border-color (name-matched: bootstrap-shop/theme.css)
+R 48:30 references shop -> --bs-border-color (name-matched: bootstrap-shop/theme.css)
+R 56:22 references shop -> --shop-accent (name-matched: bootstrap-shop/theme.css)
+R 57:25 references shop -> --shop-on-accent (name-matched: bootstrap-shop/theme.css)
+R 73:26 references shop -> --bs-emphasis-color
+R 74:32 references shop -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 75:33 references shop -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 77:30 references shop -> --bs-body-bg-rgb (name-matched: bootstrap-shop/theme.css)
+R 81:20 references shop -> --shop-font-display (name-matched: bootstrap-shop/theme.css)
+R 103:21 references shop -> --shop-brand (name-matched: bootstrap-shop/theme.css)
+R 104:25 references shop -> --bs-focus-ring-width
+R 104:52 references shop -> --bs-focus-ring-color (name-matched: bootstrap-shop/theme.css)
 
 == bootstrap-shop/theme.css (82 lines)
 S 1-82 module theme
 S 10-29 rule :root
 S 11-29 rule [data-bs-theme="light"]
+S 12-12 variable --shop-brand
+S 13-13 variable --shop-brand-rgb
+S 14-14 variable --shop-accent
+S 15-15 variable --shop-on-accent
+S 16-16 variable --shop-sale
+S 17-17 variable --shop-font-display
+S 18-18 variable --shop-radius-card
+S 20-20 variable --bs-primary
+S 21-21 variable --bs-primary-rgb
+S 22-22 variable --bs-link-color
+S 23-23 variable --bs-link-color-rgb
+S 24-24 variable --bs-link-hover-color
+S 25-25 variable --bs-border-radius
+S 26-26 variable --bs-border-radius-lg
+S 27-27 variable --bs-body-font-family
+S 28-28 variable --bs-focus-ring-color
 S 31-36 rule [data-bs-theme="dark"]
+S 32-32 variable --shop-brand
+S 33-33 variable --shop-brand-rgb
+S 34-34 variable --shop-on-accent
+S 35-35 variable --bs-link-hover-color
 S 40-60 rule [data-bs-theme="harbor-night"]
+S 42-42 variable --shop-brand
+S 43-43 variable --shop-brand-rgb
+S 44-44 variable --bs-body-color
+S 45-45 variable --bs-body-color-rgb
+S 46-46 variable --bs-body-bg
+S 47-47 variable --bs-body-bg-rgb
+S 48-48 variable --bs-tertiary-bg
+S 49-49 variable --bs-border-color
 S 51-54 rule [data-bs-theme="harbor-night"] .dropdown-menu
 S 51-54 rule .dropdown-menu
+S 52-52 variable --bs-dropdown-bg
+S 53-53 variable --bs-dropdown-link-active-bg
 S 56-59 rule [data-bs-theme="harbor-night"] .btn-brand
 S 56-59 rule .btn-brand
+S 57-57 variable --bs-btn-color
+S 58-58 variable --bs-btn-hover-color
 S 64-67 rule .text-bg-sale
 S 69-72 rule .link-brand
 S 74-77 rule .link-brand:hover
@@ -453,6 +677,16 @@ S 74-74 rule .link-brand
 S 75-77 rule .link-brand:focus-visible
 S 75-75 rule .link-brand
 S 79-82 rule .font-display
+R 20:21 references theme -> --shop-brand
+R 21:25 references theme -> --shop-brand-rgb
+R 22:24 references theme -> --shop-brand
+R 23:28 references theme -> --shop-brand-rgb
+R 28:35 references theme -> --shop-brand-rgb
+R 53:39 references theme -> --shop-brand
+R 66:25 references theme -> --shop-sale
+R 70:14 references theme -> --shop-brand
+R 71:35 references theme -> --shop-brand-rgb
+R 80:20 references theme -> --shop-font-display
 
 == styles/base.css (373 lines)
 S 1-373 module base
@@ -580,12 +814,73 @@ S 369-372 rule .skip-link
 S 370-372 rule .no-print
 R 7:1 imports base -> tokens.css
 R 7:1 imports base -> tokens (name-matched: styles/tokens.css)
+R 84:22 references base -> --font-sans (name-matched: styles/tokens.css)
+R 86:22 references base -> --leading-normal (name-matched: styles/tokens.css)
+R 87:16 references base -> --text-default (name-matched: styles/tokens.css)
+R 88:27 references base -> --surface-page (name-matched: styles/tokens.css)
+R 100:27 references base -> --accent-soft (name-matched: styles/tokens.css)
+R 101:16 references base -> --text-strong (name-matched: styles/tokens.css)
+R 105:28 references base -> --accent (name-matched: styles/tokens.css)
+R 119:16 references base -> --text-strong (name-matched: styles/tokens.css)
+R 120:22 references base -> --leading-tight (name-matched: styles/tokens.css)
+R 121:22 references base -> --weight-semibold (name-matched: styles/tokens.css)
+R 126:20 references base -> --text-4xl (name-matched: styles/tokens.css)
+R 127:22 references base -> --weight-bold (name-matched: styles/tokens.css)
+R 131:20 references base -> --text-3xl (name-matched: styles/tokens.css)
+R 135:20 references base -> --text-2xl (name-matched: styles/tokens.css)
+R 139:20 references base -> --text-xl (name-matched: styles/tokens.css)
+R 144:21 references base -> --space-3 (name-matched: styles/tokens.css)
+R 155:21 references base -> --space-4 (name-matched: styles/tokens.css)
+R 159:16 references base -> --text-link (name-matched: styles/tokens.css)
+R 181:22 references base -> --weight-semibold (name-matched: styles/tokens.css)
+R 185:20 references base -> --text-sm (name-matched: styles/tokens.css)
+R 194:23 references base -> --space-4 (name-matched: styles/tokens.css)
+R 195:32 references base -> --border-default (name-matched: styles/tokens.css)
+R 196:16 references base -> --text-muted (name-matched: styles/tokens.css)
+R 201:31 references base -> --border-subtle (name-matched: styles/tokens.css)
+R 202:23 references base -> --space-8 (name-matched: styles/tokens.css)
+R 211:22 references base -> --font-mono (name-matched: styles/tokens.css)
+R 217:24 references base -> --radius-sm (name-matched: styles/tokens.css)
+R 218:27 references base -> --surface-sunken (name-matched: styles/tokens.css)
+R 223:18 references base -> --space-4 (name-matched: styles/tokens.css)
+R 224:24 references base -> --radius-md (name-matched: styles/tokens.css)
+R 225:27 references base -> --surface-sunken (name-matched: styles/tokens.css)
+R 235:27 references base -> --border-default (name-matched: styles/tokens.css)
+R 237:24 references base -> --radius-sm (name-matched: styles/tokens.css)
+R 248:21 references base -> --space-1 (name-matched: styles/tokens.css)
+R 252:22 references base -> --weight-semibold (name-matched: styles/tokens.css)
+R 256:21 references base -> --space-3 (name-matched: styles/tokens.css)
+R 261:18 references base -> --space-2 (name-matched: styles/tokens.css)
+R 261:33 references base -> --space-3 (name-matched: styles/tokens.css)
+R 263:34 references base -> --border-subtle (name-matched: styles/tokens.css)
+R 267:22 references base -> --weight-semibold (name-matched: styles/tokens.css)
+R 268:16 references base -> --text-strong (name-matched: styles/tokens.css)
+R 272:27 references base -> --surface-sunken (name-matched: styles/tokens.css)
+R 276:27 references base -> --accent-soft (name-matched: styles/tokens.css)
+R 297:14 references base -> --space-2 (name-matched: styles/tokens.css)
+R 298:15 references base -> --space-2 (name-matched: styles/tokens.css)
+R 299:18 references base -> --z-toast (name-matched: styles/tokens.css)
+R 308:16 references base -> --text-muted (name-matched: styles/tokens.css)
+R 312:16 references base -> --text-strong (name-matched: styles/tokens.css)
+R 326:21 references base -> --stack-gap
+R 326:38 references base -> --space-4 (name-matched: styles/tokens.css)
+R 332:14 references base -> --cluster-gap
+R 332:33 references base -> --space-3 (name-matched: styles/tokens.css)
+R 345:16 references base -> harbor-pulse (name-matched: styles/tokens.css)
+R 345:38 references base -> --ease-in-out (name-matched: styles/tokens.css)
+R 349:16 references base -> harbor-fade-in (name-matched: styles/tokens.css)
+R 349:35 references base -> --duration-normal (name-matched: styles/tokens.css)
+R 349:58 references base -> --ease-out (name-matched: styles/tokens.css)
 
 == styles/components/controls.css (359 lines)
 S 1-359 module controls
 S 12-36 rule .btn
+S 13-13 variable --btn-bg
+S 14-14 variable --btn-fg
+S 15-15 variable --btn-border
 S 38-40 rule .btn:hover
 S 38-38 rule .btn
+S 39-39 variable --btn-bg
 S 42-44 rule .btn:active
 S 42-42 rule .btn
 S 46-49 rule .btn:focus-visible
@@ -595,12 +890,22 @@ S 51-51 rule .btn
 S 52-56 rule .btn[aria-disabled="true"]
 S 52-52 rule .btn
 S 58-62 rule .btn--primary
+S 59-59 variable --btn-bg
+S 60-60 variable --btn-fg
+S 61-61 variable --btn-border
 S 64-66 rule .btn--primary:hover
 S 64-64 rule .btn--primary
+S 65-65 variable --btn-bg
 S 68-72 rule .btn--danger
+S 69-69 variable --btn-bg
+S 70-70 variable --btn-fg
+S 71-71 variable --btn-border
 S 74-77 rule .btn--ghost
+S 75-75 variable --btn-bg
+S 76-76 variable --btn-border
 S 79-81 rule .btn--ghost:hover
 S 79-79 rule .btn--ghost
+S 80-80 variable --btn-bg
 S 83-87 rule .btn--sm
 S 89-93 rule .btn--lg
 S 95-98 rule .btn--icon
@@ -716,6 +1021,87 @@ R 7:1 imports controls -> ../tokens.css
 R 7:1 imports controls -> tokens (name-matched: styles/tokens.css)
 R 8:1 imports controls -> ../base.css
 R 8:1 imports controls -> base (name-matched: styles/base.css)
+R 13:17 references controls -> --surface-raised (name-matched: styles/tokens.css)
+R 14:17 references controls -> --text-strong (name-matched: styles/tokens.css)
+R 15:21 references controls -> --border-default (name-matched: styles/tokens.css)
+R 20:12 references controls -> --space-2 (name-matched: styles/tokens.css)
+R 22:18 references controls -> --space-4 (name-matched: styles/tokens.css)
+R 23:18 references controls -> --text-sm (name-matched: styles/tokens.css)
+R 24:20 references controls -> --weight-medium (name-matched: styles/tokens.css)
+R 26:14 references controls -> --btn-fg
+R 27:25 references controls -> --btn-bg
+R 28:25 references controls -> --btn-border
+R 29:22 references controls -> --radius-md (name-matched: styles/tokens.css)
+R 33:26 references controls -> --duration-fast (name-matched: styles/tokens.css)
+R 33:47 references controls -> --ease-out (name-matched: styles/tokens.css)
+R 34:22 references controls -> --duration-fast (name-matched: styles/tokens.css)
+R 34:43 references controls -> --ease-out (name-matched: styles/tokens.css)
+R 35:20 references controls -> --duration-fast (name-matched: styles/tokens.css)
+R 35:41 references controls -> --ease-out (name-matched: styles/tokens.css)
+R 39:17 references controls -> --surface-sunken (name-matched: styles/tokens.css)
+R 48:19 references controls -> --focus-ring (name-matched: styles/tokens.css)
+R 59:17 references controls -> --accent (name-matched: styles/tokens.css)
+R 60:17 references controls -> --text-inverse (name-matched: styles/tokens.css)
+R 65:17 references controls -> --accent-hover (name-matched: styles/tokens.css)
+R 69:17 references controls -> --status-danger (name-matched: styles/tokens.css)
+R 70:17 references controls -> --text-inverse (name-matched: styles/tokens.css)
+R 80:17 references controls -> --accent-soft (name-matched: styles/tokens.css)
+R 85:18 references controls -> --space-3 (name-matched: styles/tokens.css)
+R 86:18 references controls -> --text-xs (name-matched: styles/tokens.css)
+R 91:18 references controls -> --space-6 (name-matched: styles/tokens.css)
+R 92:18 references controls -> --text-md (name-matched: styles/tokens.css)
+R 121:25 references controls -> --btn-fg
+R 124:14 references controls -> harbor-spin (name-matched: styles/tokens.css)
+R 146:12 references controls -> --space-1 (name-matched: styles/tokens.css)
+R 150:19 references controls -> --space-4 (name-matched: styles/tokens.css)
+R 154:18 references controls -> --text-sm (name-matched: styles/tokens.css)
+R 155:20 references controls -> --weight-medium (name-matched: styles/tokens.css)
+R 156:14 references controls -> --text-strong (name-matched: styles/tokens.css)
+R 161:14 references controls -> --status-danger (name-matched: styles/tokens.css)
+R 165:18 references controls -> --text-xs (name-matched: styles/tokens.css)
+R 166:14 references controls -> --text-muted (name-matched: styles/tokens.css)
+R 170:18 references controls -> --text-xs (name-matched: styles/tokens.css)
+R 171:14 references controls -> --status-danger (name-matched: styles/tokens.css)
+R 179:16 references controls -> --space-2 (name-matched: styles/tokens.css)
+R 179:31 references controls -> --space-3 (name-matched: styles/tokens.css)
+R 180:18 references controls -> --text-sm (name-matched: styles/tokens.css)
+R 181:14 references controls -> --text-strong (name-matched: styles/tokens.css)
+R 182:25 references controls -> --surface-raised (name-matched: styles/tokens.css)
+R 183:25 references controls -> --border-default (name-matched: styles/tokens.css)
+R 184:22 references controls -> --radius-md (name-matched: styles/tokens.css)
+R 185:32 references controls -> --duration-fast (name-matched: styles/tokens.css)
+R 185:53 references controls -> --ease-out (name-matched: styles/tokens.css)
+R 190:14 references controls -> --text-muted (name-matched: styles/tokens.css)
+R 197:21 references controls -> --border-strong (name-matched: styles/tokens.css)
+R 204:21 references controls -> --accent (name-matched: styles/tokens.css)
+R 205:19 references controls -> --focus-ring (name-matched: styles/tokens.css)
+R 210:21 references controls -> --status-danger (name-matched: styles/tokens.css)
+R 214:25 references controls -> --surface-sunken (name-matched: styles/tokens.css)
+R 218:21 references controls -> --space-8 (name-matched: styles/tokens.css)
+R 221:28 references controls -> --space-2 (name-matched: styles/tokens.css)
+R 235:22 references controls -> --space-8 (name-matched: styles/tokens.css)
+R 238:34 references controls -> --space-2 (name-matched: styles/tokens.css)
+R 242:22 references controls -> --space-3 (name-matched: styles/tokens.css)
+R 251:12 references controls -> --space-2 (name-matched: styles/tokens.css)
+R 259:21 references controls -> --accent (name-matched: styles/tokens.css)
+R 283:25 references controls -> --border-default (name-matched: styles/tokens.css)
+R 284:22 references controls -> --radius-pill (name-matched: styles/tokens.css)
+R 285:36 references controls -> --duration-fast (name-matched: styles/tokens.css)
+R 285:57 references controls -> --ease-out (name-matched: styles/tokens.css)
+R 295:25 references controls -> --surface-raised (name-matched: styles/tokens.css)
+R 297:19 references controls -> --shadow-1 (name-matched: styles/tokens.css)
+R 298:29 references controls -> --duration-fast (name-matched: styles/tokens.css)
+R 298:50 references controls -> --ease-out (name-matched: styles/tokens.css)
+R 302:25 references controls -> --accent (name-matched: styles/tokens.css)
+R 310:19 references controls -> --focus-ring (name-matched: styles/tokens.css)
+R 317:12 references controls -> --space-6 (name-matched: styles/tokens.css)
+R 322:12 references controls -> --space-4 (name-matched: styles/tokens.css)
+R 328:12 references controls -> --space-2 (name-matched: styles/tokens.css)
+R 329:20 references controls -> --space-4 (name-matched: styles/tokens.css)
+R 330:29 references controls -> --border-subtle (name-matched: styles/tokens.css)
+R 340:20 references controls -> --weight-semibold (name-matched: styles/tokens.css)
+R 341:22 references controls -> --space-3 (name-matched: styles/tokens.css)
+R 357:16 references controls -> --accent (name-matched: styles/tokens.css)
 
 == styles/components/surfaces.css (377 lines)
 S 1-377 module surfaces
@@ -801,6 +1187,127 @@ R 7:1 imports surfaces -> ../tokens.css
 R 7:1 imports surfaces -> tokens (name-matched: styles/tokens.css)
 R 8:1 imports surfaces -> ./controls.css
 R 8:1 imports surfaces -> controls (name-matched: styles/components/controls.css)
+R 15:25 references surfaces -> --surface-raised (name-matched: styles/tokens.css)
+R 16:25 references surfaces -> --border-subtle (name-matched: styles/tokens.css)
+R 17:22 references surfaces -> --radius-lg (name-matched: styles/tokens.css)
+R 18:19 references surfaces -> --shadow-1 (name-matched: styles/tokens.css)
+R 30:12 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 31:16 references surfaces -> --space-5 (name-matched: styles/tokens.css)
+R 35:18 references surfaces -> --text-lg (name-matched: styles/tokens.css)
+R 36:20 references surfaces -> --weight-semibold (name-matched: styles/tokens.css)
+R 37:14 references surfaces -> --text-strong (name-matched: styles/tokens.css)
+R 41:18 references surfaces -> --text-xs (name-matched: styles/tokens.css)
+R 42:14 references surfaces -> --text-muted (name-matched: styles/tokens.css)
+R 50:16 references surfaces -> --space-3 (name-matched: styles/tokens.css)
+R 50:31 references surfaces -> --space-5 (name-matched: styles/tokens.css)
+R 51:29 references surfaces -> --border-subtle (name-matched: styles/tokens.css)
+R 60:20 references surfaces -> --duration-normal (name-matched: styles/tokens.css)
+R 60:43 references surfaces -> --ease-out (name-matched: styles/tokens.css)
+R 61:19 references surfaces -> --duration-normal (name-matched: styles/tokens.css)
+R 61:42 references surfaces -> --ease-out (name-matched: styles/tokens.css)
+R 65:19 references surfaces -> --shadow-3 (name-matched: styles/tokens.css)
+R 70:19 references surfaces -> --focus-ring (name-matched: styles/tokens.css)
+R 75:25 references surfaces -> --surface-sunken (name-matched: styles/tokens.css)
+R 83:12 references surfaces -> --space-1 (name-matched: styles/tokens.css)
+R 84:25 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 85:18 references surfaces -> --text-xs (name-matched: styles/tokens.css)
+R 86:20 references surfaces -> --weight-medium (name-matched: styles/tokens.css)
+R 88:22 references surfaces -> --radius-pill (name-matched: styles/tokens.css)
+R 89:25 references surfaces -> --surface-sunken (name-matched: styles/tokens.css)
+R 90:14 references surfaces -> --text-default (name-matched: styles/tokens.css)
+R 94:25 references surfaces -> --status-success-soft (name-matched: styles/tokens.css)
+R 95:14 references surfaces -> --status-success (name-matched: styles/tokens.css)
+R 99:25 references surfaces -> --status-warning-soft (name-matched: styles/tokens.css)
+R 100:14 references surfaces -> --status-warning (name-matched: styles/tokens.css)
+R 104:25 references surfaces -> --status-danger-soft (name-matched: styles/tokens.css)
+R 105:14 references surfaces -> --status-danger (name-matched: styles/tokens.css)
+R 120:12 references surfaces -> --space-3 (name-matched: styles/tokens.css)
+R 121:16 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 123:22 references surfaces -> --radius-md (name-matched: styles/tokens.css)
+R 127:14 references surfaces -> harbor-slide-up (name-matched: styles/tokens.css)
+R 127:34 references surfaces -> --duration-normal (name-matched: styles/tokens.css)
+R 127:57 references surfaces -> --ease-out (name-matched: styles/tokens.css)
+R 131:25 references surfaces -> --accent-soft (name-matched: styles/tokens.css)
+R 132:21 references surfaces -> --accent (name-matched: styles/tokens.css)
+R 136:25 references surfaces -> --status-success-soft (name-matched: styles/tokens.css)
+R 137:21 references surfaces -> --status-success (name-matched: styles/tokens.css)
+R 141:25 references surfaces -> --status-danger-soft (name-matched: styles/tokens.css)
+R 142:21 references surfaces -> --status-danger (name-matched: styles/tokens.css)
+R 146:20 references surfaces -> --weight-semibold (name-matched: styles/tokens.css)
+R 158:12 references surfaces -> --space-1 (name-matched: styles/tokens.css)
+R 164:12 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 165:16 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 165:31 references surfaces -> --space-3 (name-matched: styles/tokens.css)
+R 166:22 references surfaces -> --radius-md (name-matched: styles/tokens.css)
+R 167:14 references surfaces -> --text-default (name-matched: styles/tokens.css)
+R 172:25 references surfaces -> --surface-sunken (name-matched: styles/tokens.css)
+R 173:14 references surfaces -> --text-strong (name-matched: styles/tokens.css)
+R 177:25 references surfaces -> --accent-soft (name-matched: styles/tokens.css)
+R 178:14 references surfaces -> --accent (name-matched: styles/tokens.css)
+R 179:20 references surfaces -> --weight-medium (name-matched: styles/tokens.css)
+R 183:19 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 184:23 references surfaces -> --space-3 (name-matched: styles/tokens.css)
+R 185:18 references surfaces -> --text-xs (name-matched: styles/tokens.css)
+R 188:14 references surfaces -> --text-muted (name-matched: styles/tokens.css)
+R 194:12 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 195:18 references surfaces -> --text-sm (name-matched: styles/tokens.css)
+R 200:21 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 201:14 references surfaces -> --text-muted (name-matched: styles/tokens.css)
+R 208:12 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 209:32 references surfaces -> --border-subtle (name-matched: styles/tokens.css)
+R 213:16 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 215:14 references surfaces -> --text-muted (name-matched: styles/tokens.css)
+R 219:28 references surfaces -> --accent (name-matched: styles/tokens.css)
+R 220:14 references surfaces -> --text-strong (name-matched: styles/tokens.css)
+R 224:20 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 232:16 references surfaces -> --z-modal (name-matched: styles/tokens.css)
+R 235:16 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 240:32 references surfaces -> --space-8 (name-matched: styles/tokens.css)
+R 242:25 references surfaces -> --surface-raised (name-matched: styles/tokens.css)
+R 243:22 references surfaces -> --radius-lg (name-matched: styles/tokens.css)
+R 244:19 references surfaces -> --shadow-3 (name-matched: styles/tokens.css)
+R 245:14 references surfaces -> harbor-slide-up (name-matched: styles/tokens.css)
+R 245:34 references surfaces -> --duration-slow (name-matched: styles/tokens.css)
+R 245:55 references surfaces -> --ease-out (name-matched: styles/tokens.css)
+R 250:16 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 250:31 references surfaces -> --space-5 (name-matched: styles/tokens.css)
+R 256:12 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 257:29 references surfaces -> --border-subtle (name-matched: styles/tokens.css)
+R 265:25 references surfaces -> --surface-overlay (name-matched: styles/tokens.css)
+R 272:14 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 273:15 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 274:16 references surfaces -> --z-toast (name-matched: styles/tokens.css)
+R 276:12 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 281:16 references surfaces -> --space-3 (name-matched: styles/tokens.css)
+R 281:31 references surfaces -> --space-4 (name-matched: styles/tokens.css)
+R 282:25 references surfaces -> --text-strong (name-matched: styles/tokens.css)
+R 283:14 references surfaces -> --text-inverse (name-matched: styles/tokens.css)
+R 284:22 references surfaces -> --radius-md (name-matched: styles/tokens.css)
+R 285:19 references surfaces -> --shadow-2 (name-matched: styles/tokens.css)
+R 286:14 references surfaces -> harbor-slide-up (name-matched: styles/tokens.css)
+R 286:34 references surfaces -> --duration-normal (name-matched: styles/tokens.css)
+R 286:57 references surfaces -> --ease-out (name-matched: styles/tokens.css)
+R 290:14 references surfaces -> harbor-fade-in (name-matched: styles/tokens.css)
+R 290:33 references surfaces -> --duration-fast (name-matched: styles/tokens.css)
+R 297:22 references surfaces -> --radius-pill (name-matched: styles/tokens.css)
+R 300:9 references surfaces -> --accent (name-matched: styles/tokens.css)
+R 300:23 references surfaces -> --harbor-progress (name-matched: app.css)
+R 301:9 references surfaces -> --surface-sunken (name-matched: styles/tokens.css)
+R 303:14 references surfaces -> harbor-progress (name-matched: styles/tokens.css)
+R 303:37 references surfaces -> --ease-in-out (name-matched: styles/tokens.css)
+R 307:22 references surfaces -> --radius-sm (name-matched: styles/tokens.css)
+R 310:9 references surfaces -> --surface-sunken (name-matched: styles/tokens.css)
+R 311:9 references surfaces -> --border-subtle (name-matched: styles/tokens.css)
+R 312:9 references surfaces -> --surface-sunken (name-matched: styles/tokens.css)
+R 315:14 references surfaces -> harbor-shimmer (name-matched: styles/tokens.css)
+R 332:25 references surfaces -> --border-default (name-matched: styles/tokens.css)
+R 333:25 references surfaces -> --accent (name-matched: styles/tokens.css)
+R 335:14 references surfaces -> harbor-spin (name-matched: styles/tokens.css)
+R 346:25 references surfaces -> --accent-soft (name-matched: styles/tokens.css)
+R 347:14 references surfaces -> --accent (name-matched: styles/tokens.css)
+R 348:20 references surfaces -> --weight-semibold (name-matched: styles/tokens.css)
+R 363:25 references surfaces -> --space-2 (name-matched: styles/tokens.css)
+R 364:29 references surfaces -> --surface-raised (name-matched: styles/tokens.css)
 
 == styles/layout.css (371 lines)
 S 1-371 module layout
@@ -849,10 +1356,14 @@ S 167-169 rule .section__subtitle
 S 171-173 rule .section--muted
 S 177-181 rule .grid
 S 183-185 rule .grid--2
+S 184-184 variable --grid-cols
 S 187-189 rule .grid--3
+S 188-188 variable --grid-cols
 S 191-193 rule .grid--4
+S 192-192 variable --grid-cols
 S 195-197 rule .grid--auto
 S 199-202 rule .grid--dense
+S 200-200 variable --grid-gap
 S 204-206 rule .grid > .span-2
 S 204-204 rule .grid
 S 204-204 rule .span-2
@@ -861,8 +1372,11 @@ S 208-208 rule .grid
 S 208-208 rule .span-full
 S 213-216 rule .grid--2
 S 214-216 rule .grid--3
+S 215-215 variable --grid-cols
 S 220-222 rule .grid--3
+S 221-221 variable --grid-cols
 S 224-226 rule .grid--4
+S 225-225 variable --grid-cols
 S 230-233 rule .grid
 S 235-238 rule .grid > *
 S 235-235 rule .grid
@@ -899,23 +1413,265 @@ R 10:1 imports layout -> tokens.css
 R 10:1 imports layout -> tokens (name-matched: styles/tokens.css)
 R 11:1 imports layout -> base.css
 R 11:1 imports layout -> base (name-matched: styles/base.css)
+R 18:27 references layout -> --header-height (name-matched: styles/tokens.css)
+R 46:16 references layout -> --z-sticky (name-matched: styles/tokens.css)
+R 49:12 references layout -> --space-4 (name-matched: styles/tokens.css)
+R 50:23 references layout -> --layout-gutter (name-matched: styles/tokens.css)
+R 51:25 references layout -> --surface-raised (name-matched: styles/tokens.css)
+R 52:32 references layout -> --border-subtle (name-matched: styles/tokens.css)
+R 58:12 references layout -> --space-2 (name-matched: styles/tokens.css)
+R 59:20 references layout -> --weight-semibold (name-matched: styles/tokens.css)
+R 60:14 references layout -> --text-strong (name-matched: styles/tokens.css)
+R 72:12 references layout -> --space-2 (name-matched: styles/tokens.css)
+R 76:16 references layout -> --space-4 (name-matched: styles/tokens.css)
+R 77:25 references layout -> --surface-raised (name-matched: styles/tokens.css)
+R 78:31 references layout -> --border-subtle (name-matched: styles/tokens.css)
+R 87:22 references layout -> --space-8 (name-matched: styles/tokens.css)
+R 91:16 references layout -> --space-6 (name-matched: styles/tokens.css)
+R 91:31 references layout -> --layout-gutter (name-matched: styles/tokens.css)
+R 92:14 references layout -> --text-muted (name-matched: styles/tokens.css)
+R 93:18 references layout -> --text-sm (name-matched: styles/tokens.css)
+R 94:29 references layout -> --border-subtle (name-matched: styles/tokens.css)
+R 103:32 references layout -> --sidebar-width (name-matched: styles/tokens.css)
+R 114:14 references layout -> --header-height (name-matched: styles/tokens.css)
+R 115:30 references layout -> --header-height (name-matched: styles/tokens.css)
+R 127:18 references layout -> --layout-max (name-matched: styles/tokens.css)
+R 129:23 references layout -> --layout-gutter (name-matched: styles/tokens.css)
+R 147:22 references layout -> --space-12 (name-matched: styles/tokens.css)
+R 151:29 references layout -> --border-subtle (name-matched: styles/tokens.css)
+R 159:12 references layout -> --space-3 (name-matched: styles/tokens.css)
+R 160:22 references layout -> --space-6 (name-matched: styles/tokens.css)
+R 164:18 references layout -> --text-2xl (name-matched: styles/tokens.css)
+R 168:14 references layout -> --text-muted (name-matched: styles/tokens.css)
+R 172:25 references layout -> --surface-sunken (name-matched: styles/tokens.css)
+R 179:12 references layout -> --grid-gap
+R 179:28 references layout -> --space-6 (name-matched: styles/tokens.css)
+R 180:37 references layout -> --grid-cols
+R 200:19 references layout -> --space-3 (name-matched: styles/tokens.css)
+R 237:22 references layout -> --space-6 (name-matched: styles/tokens.css)
+R 246:12 references layout -> --space-8 (name-matched: styles/tokens.css)
+R 284:14 references layout -> --space-4 (name-matched: styles/tokens.css)
+R 302:17 references layout -> --header-height (name-matched: styles/tokens.css)
+R 302:40 references layout -> --space-4 (name-matched: styles/tokens.css)
+R 308:16 references layout -> --z-overlay (name-matched: styles/tokens.css)
+R 309:25 references layout -> --surface-overlay (name-matched: styles/tokens.css)
+R 310:14 references layout -> harbor-fade-in (name-matched: styles/tokens.css)
+R 310:33 references layout -> --duration-fast (name-matched: styles/tokens.css)
+R 310:54 references layout -> --ease-out (name-matched: styles/tokens.css)
+R 330:25 references layout -> --border-default (name-matched: styles/tokens.css)
+R 331:22 references layout -> --radius-pill (name-matched: styles/tokens.css)
 
 == styles/tokens.css (353 lines)
 S 1-353 module tokens
 S 67-126 rule :root
+S 70-70 variable --color-gray-0
+S 71-71 variable --color-gray-50
+S 72-72 variable --color-gray-100
+S 73-73 variable --color-gray-200
+S 74-74 variable --color-gray-300
+S 75-75 variable --color-gray-400
+S 76-76 variable --color-gray-500
+S 77-77 variable --color-gray-600
+S 78-78 variable --color-gray-700
+S 79-79 variable --color-gray-800
+S 80-80 variable --color-gray-900
+S 82-82 variable --color-blue-100
+S 83-83 variable --color-blue-300
+S 84-84 variable --color-blue-500
+S 85-85 variable --color-blue-600
+S 86-86 variable --color-blue-700
+S 88-88 variable --color-green-100
+S 89-89 variable --color-green-500
+S 90-90 variable --color-green-700
+S 92-92 variable --color-amber-100
+S 93-93 variable --color-amber-500
+S 94-94 variable --color-amber-700
+S 96-96 variable --color-red-100
+S 97-97 variable --color-red-500
+S 98-98 variable --color-red-700
+S 100-100 variable --surface-page
+S 101-101 variable --surface-raised
+S 102-102 variable --surface-sunken
+S 103-103 variable --surface-overlay
+S 105-105 variable --text-strong
+S 106-106 variable --text-default
+S 107-107 variable --text-muted
+S 108-108 variable --text-inverse
+S 109-109 variable --text-link
+S 111-111 variable --border-subtle
+S 112-112 variable --border-default
+S 113-113 variable --border-strong
+S 115-115 variable --accent
+S 116-116 variable --accent-hover
+S 117-117 variable --accent-soft
+S 118-118 variable --focus-ring
+S 120-120 variable --status-success
+S 121-121 variable --status-success-soft
+S 122-122 variable --status-warning
+S 123-123 variable --status-warning-soft
+S 124-124 variable --status-danger
+S 125-125 variable --status-danger-soft
 S 131-150 rule :root:not([data-theme="light"])
 S 131-131 rule :root
+S 132-132 variable --surface-page
+S 133-133 variable --surface-raised
+S 134-134 variable --surface-sunken
+S 135-135 variable --surface-overlay
+S 137-137 variable --text-strong
+S 138-138 variable --text-default
+S 139-139 variable --text-muted
+S 140-140 variable --text-inverse
+S 141-141 variable --text-link
+S 143-143 variable --border-subtle
+S 144-144 variable --border-default
+S 145-145 variable --border-strong
+S 147-147 variable --accent
+S 148-148 variable --accent-hover
+S 149-149 variable --accent-soft
 S 153-172 rule :root[data-theme="dark"]
 S 153-153 rule :root
+S 154-154 variable --surface-page
+S 155-155 variable --surface-raised
+S 156-156 variable --surface-sunken
+S 157-157 variable --surface-overlay
+S 159-159 variable --text-strong
+S 160-160 variable --text-default
+S 161-161 variable --text-muted
+S 162-162 variable --text-inverse
+S 163-163 variable --text-link
+S 165-165 variable --border-subtle
+S 166-166 variable --border-default
+S 167-167 variable --border-strong
+S 169-169 variable --accent
+S 170-170 variable --accent-hover
+S 171-171 variable --accent-soft
 S 177-182 rule :root
+S 178-178 variable --border-subtle
+S 179-179 variable --border-default
+S 180-180 variable --text-muted
+S 181-181 variable --focus-ring
 S 186-190 rule :root
+S 187-187 variable --accent
+S 188-188 variable --text-link
+S 189-189 variable --focus-ring
 S 195-232 rule :root
+S 196-196 variable --space-0
+S 197-197 variable --space-1
+S 198-198 variable --space-2
+S 199-199 variable --space-3
+S 200-200 variable --space-4
+S 201-201 variable --space-5
+S 202-202 variable --space-6
+S 203-203 variable --space-8
+S 204-204 variable --space-10
+S 205-205 variable --space-12
+S 206-206 variable --space-16
+S 208-208 variable --radius-sm
+S 209-209 variable --radius-md
+S 210-210 variable --radius-lg
+S 211-211 variable --radius-pill
+S 213-213 variable --shadow-1
+S 214-214 variable --shadow-2
+S 217-217 variable --shadow-3
+S 221-221 variable --z-base
+S 222-222 variable --z-sticky
+S 223-223 variable --z-dropdown
+S 224-224 variable --z-overlay
+S 225-225 variable --z-modal
+S 226-226 variable --z-toast
+S 228-228 variable --layout-max
+S 229-229 variable --layout-gutter
+S 230-230 variable --sidebar-width
+S 231-231 variable --header-height
 S 236-257 rule :root
+S 237-237 variable --font-sans
+S 238-238 variable --font-mono
+S 240-240 variable --text-xs
+S 241-241 variable --text-sm
+S 242-242 variable --text-md
+S 243-243 variable --text-lg
+S 244-244 variable --text-xl
+S 245-245 variable --text-2xl
+S 246-246 variable --text-3xl
+S 247-247 variable --text-4xl
+S 249-249 variable --leading-tight
+S 250-250 variable --leading-normal
+S 251-251 variable --leading-loose
+S 253-253 variable --weight-regular
+S 254-254 variable --weight-medium
+S 255-255 variable --weight-semibold
+S 256-256 variable --weight-bold
 S 260-263 rule :root
+S 261-261 variable --text-3xl
+S 262-262 variable --text-4xl
 S 268-274 rule :root
+S 269-269 variable --ease-out
+S 270-270 variable --ease-in-out
+S 271-271 variable --duration-fast
+S 272-272 variable --duration-normal
+S 273-273 variable --duration-slow
 S 277-281 rule :root
+S 278-278 variable --duration-fast
+S 279-279 variable --duration-normal
+S 280-280 variable --duration-slow
+S 286-286 animation harbor-spin
+S 295-295 animation harbor-fade-in
+S 304-304 animation harbor-slide-up
+S 317-317 animation harbor-pulse
+S 327-327 animation harbor-progress
+S 329-329 variable --harbor-progress
+S 332-332 variable --harbor-progress
+S 336-336 animation harbor-shimmer
 S 347-349 rule .theme-dark
 S 351-353 rule .theme-light
+R 100:23 references tokens -> --color-gray-50
+R 101:25 references tokens -> --color-gray-0
+R 102:25 references tokens -> --color-gray-100
+R 105:22 references tokens -> --color-gray-900
+R 106:23 references tokens -> --color-gray-700
+R 107:21 references tokens -> --color-gray-500
+R 108:23 references tokens -> --color-gray-0
+R 109:20 references tokens -> --color-blue-600
+R 111:24 references tokens -> --color-gray-200
+R 112:25 references tokens -> --color-gray-300
+R 113:24 references tokens -> --color-gray-500
+R 115:17 references tokens -> --color-blue-600
+R 116:23 references tokens -> --color-blue-700
+R 117:22 references tokens -> --color-blue-100
+R 120:25 references tokens -> --color-green-700
+R 121:30 references tokens -> --color-green-100
+R 122:25 references tokens -> --color-amber-700
+R 123:30 references tokens -> --color-amber-100
+R 124:24 references tokens -> --color-red-700
+R 125:29 references tokens -> --color-red-100
+R 132:25 references tokens -> --color-gray-900
+R 133:27 references tokens -> --color-gray-800
+R 137:24 references tokens -> --color-gray-50
+R 138:25 references tokens -> --color-gray-200
+R 139:23 references tokens -> --color-gray-400
+R 140:25 references tokens -> --color-gray-900
+R 141:22 references tokens -> --color-blue-300
+R 143:26 references tokens -> --color-gray-800
+R 144:27 references tokens -> --color-gray-700
+R 145:26 references tokens -> --color-gray-400
+R 147:19 references tokens -> --color-blue-500
+R 148:25 references tokens -> --color-blue-300
+R 154:23 references tokens -> --color-gray-900
+R 155:25 references tokens -> --color-gray-800
+R 159:22 references tokens -> --color-gray-50
+R 160:23 references tokens -> --color-gray-200
+R 161:21 references tokens -> --color-gray-400
+R 162:23 references tokens -> --color-gray-900
+R 163:20 references tokens -> --color-blue-300
+R 165:24 references tokens -> --color-gray-800
+R 166:25 references tokens -> --color-gray-700
+R 167:24 references tokens -> --color-gray-400
+R 169:17 references tokens -> --color-blue-500
+R 170:23 references tokens -> --color-blue-300
+R 178:26 references tokens -> --color-gray-500
+R 179:27 references tokens -> --color-gray-700
+R 180:23 references tokens -> --color-gray-700
+R 181:33 references tokens -> --color-gray-900
 
 == tailwind-v3-app/src/input.css (147 lines)
 S 1-147 module input
@@ -956,6 +1712,26 @@ S 144-146 rule .btn-ghost
 
 == tailwind-v4-app/src/main.css (287 lines)
 S 1-287 module main
+S 34-34 variable --font-display
+S 35-35 variable --font-body
+S 37-37 variable --breakpoint-3xl
+S 38-38 variable --breakpoint-xs
+S 40-40 variable --color-harbor-50
+S 41-41 variable --color-harbor-100
+S 42-42 variable --color-harbor-500
+S 43-43 variable --color-harbor-700
+S 44-44 variable --color-harbor-900
+S 45-45 variable --color-avocado-100
+S 46-46 variable --color-avocado-500
+S 48-48 variable --radius-pill
+S 50-50 variable --ease-fluid
+S 51-51 variable --ease-snappy
+S 53-53 variable --animate-wiggle
+S 54-54 variable --animate-fade-in
+S 56-56 animation wiggle
+S 66-66 animation fade-in
+S 78-78 variable --font-sans
+S 79-79 variable --color-surface
 S 87-89 rule &:where([data-theme="midnight"] *)
 S 100-102 rule &:hover
 S 121-123 rule &::-webkit-scrollbar
@@ -983,8 +1759,36 @@ S 228-230 rule :is(.hb-nav a):hover
 S 243-254 rule .prose-harbor
 S 256-268 rule .hero
 S 265-267 rule .hero:hover
+S 266-266 variable --hero-angle
 S 270-273 rule .hero__title
 S 275-287 rule .pricing-table
 S 283-286 rule .pricing-table .pricing-table__plan[data-featured]
 S 283-283 rule .pricing-table__plan
 R 25:1 imports main -> tailwindcss
+R 54:40 references main -> --ease-fluid
+R 78:20 references main -> --font-body
+R 79:24 references main -> --harbor-surface
+R 127:22 references main -> --radius-pill
+R 133:38 references main -> --color-harbor-900
+R 149:22 references main -> --font-body
+R 150:16 references main -> --color-harbor-900
+R 155:22 references main -> --font-display
+R 168:35 references main -> --color-harbor-500
+R 175:24 references main -> --font-display
+R 180:29 references main -> --color-harbor-900
+R 181:18 references main -> --color-harbor-50
+R 187:27 references main -> --color-harbor-500
+R 188:44 references main -> --ease-snappy
+R 191:29 references main -> --color-harbor-700
+R 195:30 references main -> --color-harbor-500
+R 200:29 references main -> --color-avocado-500
+R 213:26 references main -> --color-harbor-900
+R 217:25 references main -> --color-red-600
+R 248:16 references main -> --color-harbor-100
+R 252:32 references main -> --color-harbor-500
+R 259:9 references main -> --hero-angle
+R 260:9 references main -> --color-harbor-50
+R 261:17 references main -> --color-harbor-100
+R 263:38 references main -> --ease-fluid
+R 272:18 references main -> --animate-fade-in
+R 284:28 references main -> --color-avocado-500
