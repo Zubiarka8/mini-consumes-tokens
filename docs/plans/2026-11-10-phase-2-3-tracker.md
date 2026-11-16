@@ -1465,11 +1465,15 @@ From `rules.md` and the two messages:
         (ADR-027). This repository's snapshot: 10 of the 12 `website/`
         candidates get the note; the count is unchanged by design. Tests:
         `mct-lang-js-ts/tests/nextjs.rs`, `dead_code.rs`.
-  - [ ] Object-literal methods called by a library (`tokenizer(src) {…}` in
-        `web-ui/src/notes/obsidian.ts`, a `MarkedExtension`) are parentless
-        functions with no in-repo caller: 5 candidates, plus the same shape
-        in the bundles. Telling them apart needs a stored fact about the
-        declaration (schema or symbol details): issue #475.
+  - [x] Object-literal methods called by a library (`tokenizer(src) {…}`, a
+        `MarkedExtension`): a `method_definition` inside an object literal
+        carries a "possible entry point" hint (`javascript`,
+        `object-literal-callback`; option 2 of issue #475, no schema
+        change, no rule by name). It stays a candidate, so the count is
+        unchanged. This repository: 121 candidates before and after, 2 of
+        them with the note (`tokenizer` in `notes-dist/notes.js` and one
+        `[Symbol.iterator]` of `graph-dist/graph.js`). Test:
+        `mct-lang-js-ts/tests/object_literal_callbacks.rs`.
   - [ ] A renamed default import (`import SearchDialog from
         '@/components/search'`) does not reach the default-exported
         `DefaultSearchDialog`: needs default-export resolution across files.
