@@ -206,7 +206,7 @@ fn module_of(path: &str, depth: usize) -> String {
     let parts: Vec<&str> = path.split('/').collect();
     let take = depth.min(parts.len().saturating_sub(1));
     if take == 0 {
-        "(raíz)".to_string()
+        "(root)".to_string()
     } else {
         parts[..take].join("/")
     }
