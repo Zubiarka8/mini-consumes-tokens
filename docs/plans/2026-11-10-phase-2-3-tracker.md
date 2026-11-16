@@ -512,6 +512,20 @@ From `rules.md` and the two messages:
           gives no reference and `P_St` is reported as dead code, #441) and
           RE02 (`new P_Sub()` is ambiguous the same way). TY02/TY04 stay
           `[~]` by design. Go cells are still to re-probe.
+    - [x] Go cells re-probed with a current `mct-cli` (`a.go` with a
+          `const`, a `var`, an embedded struct, an embedded interface, a
+          composite literal and a function-local closure). The scored list of
+          `symbol-coverage.md` already had them as done; the older
+          `checklists/*.md` views are brought in line: DA01 (struct fields),
+          DA03, DA04, RE02 (`T{}` gives `references T`), RE07 and RE09
+          (embedding gives `extends`). SE03 and QU01 stay `[~]`, as in the
+          scored list: a composite literal references its type, but a type
+          named only in a declaration (`var w Widget`) gets none and is
+          reported as dead code. Still open in the probe: FN03 (`f := func()` in a
+          function has no symbol) and `var i P_Iface = s` gives no reference
+          to `P_Iface` (#442); RE06 (structural implements) is by design.
+||||||||| d65c494e
+=========
     - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
           `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
           is a `constant`; `export`, `declare -i` and a bare assignment stay
