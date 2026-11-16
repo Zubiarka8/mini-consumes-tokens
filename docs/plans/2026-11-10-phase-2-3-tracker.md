@@ -1556,7 +1556,14 @@ The criteria from the plan:
 - [x] The enriched model is implemented and verified.
 - [x] The SQLite migrations work.
 - [ ] Every supported parser has reviewed, documented coverage.
-- [ ] Searches and the MCP context use the new metadata.
+- [x] Searches and the MCP context use the new metadata. On a scratch Rust
+      project (`util::helper()` called from `run`), `find_callers`,
+      `find_references` and `impact_analysis` return `resolution`,
+      `evidence`, `candidates` and `targets` per relation
+      (`resolved,declared,1,L2 in util`), and `build_context_pack` lists the
+      callees with the signature of the definition each resolves to. Pinned
+      by `mct-index/tests/relation_resolution.rs` and
+      `mct-cli/tests/cli_mcp_parity.rs`.
 - [ ] The relevant tests pass.
 - [ ] No unjustified performance or token regression.
 - [x] The changes are organized in reviewable PRs.
