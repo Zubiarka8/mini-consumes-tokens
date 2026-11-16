@@ -1420,6 +1420,28 @@ From `rules.md` and the two messages:
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
       `Logger.getLogger(…)`), symbols unchanged; this repository: the same
       16 Java calls, dead code unchanged.
+- [x] Relations: inheritance, implementations and overrides (3.3, depends on
+      D8). Audited with one sample per language (a base class or trait, an
+      interface, and a subclass overriding a method), indexed with
+      `init --force`, listing the `extends`, `implements` and `overrides`
+      relations. What each parser emits, by design (D8: explicit evidence
+      only, never a shared name):
+  - `extends` and `implements`: Java, Kotlin, C#, PHP, C++ (both bases as
+    `extends`), TS (class and `implements`), Python (`extends`), Lua
+    (`extends` from `setmetatable(… { __index = Base })`), Go (`extends`
+    from an embedded struct), Rust (`implements` from `impl Trait for T`).
+  - `overrides`: Java `@Override`, Kotlin and C# `override`, C++
+    `override`, Rust trait impl methods. Python `@override`, PHP
+    `#[\Override]` and a TS `override` modifier give it only when written,
+    so the samples without those markers have none.
+  - Not emitted, on purpose: an implicit interface implementation (C#
+    `public int Area()`, Java without `@Override`, a Go struct satisfying an
+    interface) and an overriding method with no marker. Naming it would be a
+    shared-name match, which D8 rules out.
+  - Result: no language is missing a relation its syntax states.
+- [ ] Language-specific features (3.4), each checked against the real
+      grammar.
+- [ ] Positive and negative fixtures for each language (3.5).
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
       D8).
 - [x] Language-specific features (3.4), each checked against the real
@@ -1646,7 +1668,14 @@ The criteria from the plan:
 - [x] The enriched model is implemented and verified.
 - [x] The SQLite migrations work.
 - [ ] Every supported parser has reviewed, documented coverage.
-- [ ] Searches and the MCP context use the new metadata.
+- [x] Searches and the MCP context use the new metadata. On a scratch Rust
+      project (`util::helper()` called from `run`), `find_callers`,
+      `find_references` and `impact_analysis` return `resolution`,
+      `evidence`, `candidates` and `targets` per relation
+      (`resolved,declared,1,L2 in util`), and `build_context_pack` lists the
+      callees with the signature of the definition each resolves to. Pinned
+      by `mct-index/tests/relation_resolution.rs` and
+      `mct-cli/tests/cli_mcp_parity.rs`.
 - [ ] The relevant tests pass.
 - [ ] No unjustified performance or token regression.
 - [x] The changes are organized in reviewable PRs.
