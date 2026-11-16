@@ -117,6 +117,22 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] C#: a bare call in a file with exactly one `using static NS.Type;`
+        is that type's method under that namespace, or the framework's
+        (external) for `System`/`Microsoft`. Several `using static` (which
+        type?), a method of the name the file declares, a name the code
+        binds itself (a parameter, a local, a field, a local function), a
+        class with a base list or a `partial` class (the member may live
+        elsewhere) and a qualified call prove nothing. The namespace is
+        matched by its full name, so a nested `namespace A { namespace B {`
+        is not found under `A.B`. On a scratch project with `A.Fmt.Render`
+        and `B.Fmt.Render`, 1 ambiguous call (2 candidates) became resolved
+        (1). This repository's C# (513 calls): 3 calls became external
+        (`Round`, `Max`, `Min` under `using static System.Math;`). A first
+        version also marked the delegate parameters `map(…)` and `next(…)`
+        external; the measurement showed it, and a bound name is now
+        excluded, with a test. Test: `mct-lang-csharp/tests/using_static.rs`;
+        the corpus snapshot is unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
