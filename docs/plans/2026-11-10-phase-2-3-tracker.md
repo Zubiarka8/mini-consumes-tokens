@@ -96,6 +96,18 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] PHP, proven receivers only: `$x->m()` is qualified by the class a
+        parameter is typed with (`A $x`, `?A $x`, resolved through `use`
+        aliases and the namespace) when the body never assigns `$x`, by the
+        class of a local assigned exactly once `new A(…)`, and by
+        `(new A())->m()`. A union or builtin type, an untyped parameter, a
+        second assignment, `foreach`, `global`, `static`, `catch`, a
+        by-reference use and any closure scope prove nothing, so the call
+        stays a member call. On a scratch project with two classes that both
+        declare `m`, 3 ambiguous calls (2 candidates) became resolved (1).
+        Test: `mct-lang-php/tests/receivers.rs`; the Laravel fixture's
+        `Payer $payer` (an alias of `Customer`) now resolves, and its test
+        was updated on purpose.
   - [x] C++, declared receivers only: `x.m()` and `p->m()` on a variable the
         enclosing function declares with one class (a parameter, a local, a
         pointer or reference, `const` or not) are qualified by that class as
@@ -539,6 +551,20 @@ From `rules.md` and the two messages:
           the 17 C# files of this repository (40 supertype relations): 18
           ambiguous -> resolved, each to the class; none newly unresolved,
           dead code 0 -> 0. The checklist's RE05 cell is `[x]`.
+    - [x] Java and Kotlin `main`: a Java type declaring the launcher's
+          `void main(String[] a)`, `void main(String... a)` or (Java 25,
+          JEP 512) `void main()` carries an entry-point hint (`java`,
+          `main-method`); so does a Kotlin `object` with `@JvmStatic fun
+          main(args: Array<String>)` (or `vararg args: String`, or no
+          parameter), or a class whose companion object has one (`jvm`,
+          `jvm-static-main`). The type stays a dead-code candidate and
+          `find_dead_code` shows `possible_entry_point` next to it. Another
+          return type, other parameters, `Main`, or a Kotlin `main` without
+          `@JvmStatic` carry no hint. Tests: `tests/main_entry_point.rs` in
+          both crates; the Java cases were run with the JDK 25 `java`
+          launcher (no `kotlinc` here). Probe: `Tool` and `K` were listed
+          with no note, now each carries one. This repository's 31 Java
+          and Kotlin files: dead code 0 -> 0.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
           `\define`) with a literal name, single-quoted or double-quoted
           without interpolation, declares a `constant` with no parent,
@@ -1652,6 +1678,14 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] Python, `__all__`: each string of a module-level `__all__ = [...]`
+      (or `+=`, list or tuple) that names a `def` or `class` of the file is
+      a `references` relation from the module, pinned to the file, so a
+      function that is only re-exported is not dead code. A name defined
+      elsewhere, a list built by a call and an `__all__` inside a function
+      record nothing. Probe: an exported-only function was dead code, now it
+      is not; this repository has no `__all__`, so no measurement on real
+      code.
   - [x] Go: a function of this file used by name as a call argument
         (`http.HandleFunc("/", handler)`, `apply(helper)`) or as an element
         of a composite literal (`map[string]func(int) int{"h": helper}`) is a
@@ -1679,6 +1713,12 @@ From `rules.md` and the two messages:
         same false positives for Kotlin (`::parse`), PHP (`'shout'` string
         callable), C++ (`std::transform(…, dbl)`) and Bash (`trap cleanup
         EXIT`); Java method references and C# method groups were fine.
+- [x] Lua, function returned or assigned by name: `return handler`,
+      `alias = handler`, `local alias = handler` and `M.slot = handler` are
+      `references` relations, with the same scope rule as an argument (a
+      parameter that shadows the function records nothing). Probe: a
+      function returned from another function was dead code, now it is not.
+      Corpus: 4 new relations. Stacked on #502.
   - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
         expression, not part of the arm's pattern, so its names are uses.
         Before, `is_final` was taken for a local of the whole function and
