@@ -398,6 +398,22 @@ From `rules.md` and the two messages:
           behavior, and now expects a constant. Corpus: 6 variables become
           constants, symbol count unchanged. Repository snapshot (52 shell
           files): 601 symbols before and after, dead code 0 -> 0.
+    - [x] Python aliased imports: `from m import f as g` binds `g` to the
+          `f` that `m` defines, so a call `g()`, a decorator `@g`, a base
+          class `g` and a value use of `g` name `f`, with `m` as module
+          evidence; the `Imports` relation names `f` too. A package
+          `__init__.py` re-exporting `from .core import f as g` keeps `f`
+          alive. A name bound again after the import keeps its own name.
+          A call through the re-exported alias (`from pkg import g; g()`)
+          stays unresolved: following it needs the other file. Test:
+          `tests/aliased_imports.rs` (truth checked with `python3`);
+          `corpus.rs` and `parse.rs` pinned the alias as the imported name
+          (`m`, `svc`, `SqlRepo`, `dd`) and now expect the original.
+          Corpus: symbols and relations unchanged (643, 1504), 5 more
+          relations name a definition of another file; the Django
+          `ValidationError as DjangoValidationError` stays unresolved in
+          the index (module evidence `exceptions`). Repository snapshot (86
+          Python files): 1544 symbols, dead code 45 -> 45.
     - [x] CSS statement at-rules with a string prelude: `@source "./";`
           and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
           rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`

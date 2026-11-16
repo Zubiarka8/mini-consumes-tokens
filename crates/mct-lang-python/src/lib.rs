@@ -271,6 +271,7 @@ impl<'a> Walker<'a> {
                                 } else {
                                     expr
                                 };
+                                let name = self.imported_name(named, name);
                                 self.push_use_evidence(named);
                                 if !self.reaches_own_attribute(named) {
                                     self.rule_out_field();
@@ -333,7 +334,13 @@ impl<'a> Walker<'a> {
                     let module = node
                         .child_by_field_name("module_name")
                         .and_then(|m| from_module(m, self.source));
-                    for (name, loc) in import_names(child, self.source) {
+                    // `from m import x as y` imports `x`; `y` is only the
+                    // local name.
+                    let imported = match child.kind() {
+                        "aliased_import" => child.child_by_field_name("name").unwrap_or(child),
+                        _ => child,
+                    };
+                    for (name, loc) in import_names(imported, self.source) {
                         // `from m import x` names an `x` of module `m`,
                         // whatever else binds `x` later.
                         if let Some(module) = module {
@@ -355,6 +362,7 @@ impl<'a> Walker<'a> {
                                 self.rule_out_field();
                             }
                         }
+                        let name = self.imported_name(function, name);
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
                     self.visit(function, owner, class_name, depth + 1);
@@ -672,6 +680,7 @@ impl<'a> Walker<'a> {
                     let mut cursor = superclasses.walk();
                     for base in superclasses.named_children(&mut cursor) {
                         if let Some(base_name) = expr_name(base, self.source) {
+                            let base_name = self.imported_name(base, base_name);
                             self.push_use_evidence(base);
                             self.push_relation(
                                 id,
@@ -871,6 +880,18 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// The name a bare `expr` reaches: for a name only a `from m import f
+    /// as g` binds, `f`, the definition `m` declares; otherwise `name`.
+    fn imported_name(&self, expr: Node, name: String) -> String {
+        if expr.kind() != "identifier" || self.is_class_attribute_use(expr, &name) {
+            return name;
+        }
+        match self.scope.original_name(&name) {
+            Some(original) => original.to_string(),
+            None => name,
+        }
+    }
+
     fn push_bare_evidence(&mut self, expr: Node) -> bool {
         if expr.kind() == "attribute" {
             if !self.push_module_attribute_evidence(expr) {
@@ -925,7 +946,7 @@ impl<'a> Walker<'a> {
         match value.kind() {
             "identifier" => {
                 if self.push_bare_evidence(value) {
-                    let name = text(value, self.source).to_string();
+                    let name = self.imported_name(value, text(value, self.source).to_string());
                     self.push_relation(owner, RelationKind::References, name, location(value));
                 }
             }
