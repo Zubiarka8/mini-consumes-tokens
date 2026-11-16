@@ -73,6 +73,29 @@ fn composer_json_dependencies_appear_in_status_under_php() {
 }
 
 #[test]
+fn csproj_package_references_appear_in_status_under_csharp() {
+    let dir = tempdir();
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::write(
+        dir.join("src/App.csproj"),
+        r#"<Project><ItemGroup><PackageReference Include="Serilog" Version="3.1.1" /></ItemGroup></Project>"#,
+    )
+    .unwrap();
+
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&empty_registry(), false).unwrap();
+
+    let status = index.status().unwrap();
+    let [manifest] = status.dependencies.as_slice() else {
+        panic!("one manifest expected: {:?}", status.dependencies);
+    };
+    assert_eq!(manifest.manifest_path, "src/App.csproj");
+    assert_eq!(manifest.language, "csharp");
+    assert_eq!(manifest.dependencies[0].name, "Serilog");
+    assert_eq!(manifest.dependencies[0].version.as_deref(), Some("3.1.1"));
+}
+
+#[test]
 fn a_crate_in_both_dependencies_and_dev_dependencies_does_not_fail_the_reindex() {
     // A very common Cargo.toml shape (e.g. `tokio` with extra test features
     // under `[dev-dependencies]`). It used to hit the `dependencies` table's
