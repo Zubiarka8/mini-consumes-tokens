@@ -1,4 +1,4 @@
-// 08 · Estadísticas y rendimiento: only what this server really measures
+// 08 · Statistics and performance: only what this server really measures
 import { h, clear, api, fmt, bytes, duration, toast } from "./core.js";
 import { icon, pageHead, metricCard, note, loading, errorBox, emptyState } from "./components.js";
 import { donut, hbars } from "./charts.js";
