@@ -42,7 +42,7 @@ import { t } from "./i18n.js";
 const VIEWS = ["notas", "grafo", "etiquetas", "backlinks", "codigo"];
 const REL = ["with-code", "no-code", "with-backlinks", "no-backlinks", "duplicates", "dead-code"];
 const DAYS = ["0", "7", "30"];
-// The "Código relacionado" and "Backlinks" views are the note list with one relation filter preset.
+// The "Related code" and "Backlinks" views are the note list with one relation filter preset.
 const REL_BY_VIEW = new Map([
   ["codigo", ["with-code"]],
   ["backlinks", ["with-backlinks"]],
