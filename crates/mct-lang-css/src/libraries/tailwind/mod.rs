@@ -1,6 +1,6 @@
 //! Tailwind application CSS coverage through the shared CSS parser.
 
-use mct_core::RelationKind;
+use mct_core::{RelationKind, SymbolKind};
 
 use crate::libraries::{corpus, rules};
 
@@ -59,21 +59,24 @@ fn tailwind_v4_theme_utilities_variants_and_nesting() {
     let path = "tailwind-v4-app/src/main.css";
     let r = corpus().relation(path, "main", RelationKind::Imports, "tailwindcss");
     assert_eq!(r.line, 25);
-    // `@theme` (tokens and the keyframes inside it), `@layer` lists and
-    // `@custom-variant` names produce no rules.
-    assert_no_symbols(
-        path,
-        &[
-            "theme",
-            "inline",
-            "wiggle",
-            "fade-in",
-            "--font-display",
-            "0%",
-            "theme-midnight",
-            "--hero-angle",
-        ],
-    );
+    // `@theme`, `@layer` lists, keyframe selectors, `@property` and
+    // `@custom-variant` names produce no symbols.
+    assert_no_symbols(path, &["theme", "inline", "0%", "theme-midnight"]);
+    // A `@theme` token is a custom property, and the keyframes inside
+    // `@theme` are animations: never rules.
+    for (name, kind) in [
+        ("--font-display", SymbolKind::Variable),
+        ("wiggle", SymbolKind::Animation),
+        ("fade-in", SymbolKind::Animation),
+    ] {
+        let kinds: Vec<_> = corpus()
+            .symbols_named(name)
+            .into_iter()
+            .filter(|(p, _)| p.ends_with(path))
+            .map(|(_, s)| s.kind)
+            .collect();
+        assert_eq!(kinds, [kind], "{name}");
+    }
     // Known limit: `@utility name { … }` declares a class the HTML can
     // use, but the name is not indexed; only its nested rule is.
     assert_no_symbols(
