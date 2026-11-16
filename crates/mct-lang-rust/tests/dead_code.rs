@@ -17,6 +17,14 @@ use mct_index::{find_dead_code_candidates, ExcludeSet, Index};
 use mct_lang_rust::RustParser;
 
 fn candidates() -> Vec<String> {
+    candidate_entries()
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect()
+}
+
+/// `(name, line)` of every candidate, for names declared more than once.
+fn candidate_entries() -> Vec<(String, u32)> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dead-code-app");
     let mut registry = LanguageRegistry::new();
     registry.register(Arc::new(RustParser));
@@ -26,7 +34,7 @@ fn candidates() -> Vec<String> {
     find_dead_code_candidates(&index, None, None)
         .unwrap()
         .into_iter()
-        .map(|e| e.name)
+        .map(|e| (e.name, e.line))
         .collect()
 }
 
@@ -85,11 +93,17 @@ fn a_recursive_function_with_another_caller_is_not_a_candidate() {
 }
 
 #[test]
-fn a_call_to_a_same_named_symbol_is_still_a_reference() {
-    // `delegate` calls `inner::delegate`: two symbols share the name, so the
-    // call cannot be told apart from recursion by name and is kept.
-    let names = candidates();
-    assert!(!names.contains(&"delegate".to_string()), "{names:?}");
+fn a_call_through_an_inline_module_reaches_that_module_s_item() {
+    // `delegate` calls `inner::delegate`: the path's module evidence
+    // (`inner`) picks the inline module's function, so it is referenced and
+    // the outer `delegate`, which nothing calls, is a candidate.
+    let entries = candidate_entries();
+    let delegates: Vec<u32> = entries
+        .iter()
+        .filter(|(name, _)| name == "delegate")
+        .map(|(_, line)| *line)
+        .collect();
+    assert_eq!(delegates, [33], "{entries:?}");
 }
 
 #[test]
