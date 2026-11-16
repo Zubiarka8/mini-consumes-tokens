@@ -48,7 +48,7 @@ pub enum SymbolKind {
     ModelNode,
     /// A glTF material.
     Material,
-    /// A glTF animation clip.
+    /// A glTF animation clip, or a CSS `@keyframes` animation.
     Animation,
     /// One hit of a static heuristic (e.g. an accessibility check), named
     /// after the heuristic.
