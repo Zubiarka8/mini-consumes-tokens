@@ -464,8 +464,8 @@ S 276-280 method Inventory::checkReorderPoint
 S 283-287 method Inventory::applyCount
 S 290-295 method Inventory::transfer
 S 298-308 method Inventory::recomputeReorderPoint
-S 299-299 function mean
-S 300-303 function stdDev
+S 299-299 function recomputeReorderPoint::mean
+S 300-303 function recomputeReorderPoint::stdDev
 R 3:1 imports Inventory -> Line (name-matched: order/Order.kt)
 R 3:1 imports Inventory -> Line (name-matched: order/Order.kt)
 R 4:1 imports Inventory -> Order (name-matched: order/Order.kt)
@@ -681,12 +681,12 @@ R 293:16 calls Inventory::transfer -> consume
 R 294:30 calls Inventory::transfer -> receive
 R 294:9 calls Inventory::transfer -> levelAt
 R 298:57 references Inventory::recomputeReorderPoint -> List
-R 299:22 references mean -> List
-R 299:38 calls mean -> average (name-matched: money/Money.kt)
-R 300:24 references stdDev -> List
-R 301:21 calls stdDev -> mean
-R 302:32 calls stdDev -> sqrt
-R 302:40 calls stdDev -> sumOf
+R 299:22 references recomputeReorderPoint::mean -> List
+R 299:38 calls recomputeReorderPoint::mean -> average (name-matched: money/Money.kt)
+R 300:24 references recomputeReorderPoint::stdDev -> List
+R 301:21 calls recomputeReorderPoint::stdDev -> mean
+R 302:32 calls recomputeReorderPoint::stdDev -> sqrt
+R 302:40 calls recomputeReorderPoint::stdDev -> sumOf
 R 304:26 calls Inventory::recomputeReorderPoint -> stdDev
 R 304:60 calls Inventory::recomputeReorderPoint -> sqrt
 R 304:78 calls Inventory::recomputeReorderPoint -> toDouble
@@ -1158,7 +1158,7 @@ S 189-197 function describe
 S 200-200 method Collection::countByState
 S 203-203 method Collection::largest
 S 206-212 method Collection::stalePayments
-S 207-210 function isStale
+S 207-210 function stalePayments::isStale
 S 219-219 class Violation
 S 219-219 field Violation::field
 S 219-219 field Violation::message
@@ -1179,8 +1179,8 @@ S 273-273 method OrderHistory::lastState
 S 275-275 method OrderHistory::lines
 S 277-285 method OrderHistory::stateAfter
 S 289-306 function packingSlip
-S 292-292 function rule
-S 294-294 function row
+S 292-292 function packingSlip::rule
+S 294-294 function packingSlip::row
 R 3:1 imports Order -> Currency (name-matched: money/Money.kt)
 R 3:1 imports Order -> Currency (name-matched: money/Money.kt)
 R 4:1 imports Order -> CurrencyMismatchException (name-matched: money/Money.kt)
@@ -1376,10 +1376,10 @@ R 206:112 references Collection::stalePayments -> Order
 R 206:42 references Collection::stalePayments -> Instant
 R 206:62 references Collection::stalePayments -> Order
 R 206:72 references Collection::stalePayments -> Instant
-R 207:24 references isStale -> Order
-R 208:71 calls isStale -> toMinutes
-R 208:41 calls isStale -> between
-R 208:49 calls isStale -> placedAt
+R 207:24 references stalePayments::isStale -> Order
+R 208:71 calls stalePayments::isStale -> toMinutes
+R 208:41 calls stalePayments::isStale -> between
+R 208:49 calls stalePayments::isStale -> placedAt
 R 211:12 calls Collection::stalePayments -> filter
 R 225:33 references OrderValidator -> Set
 R 225:47 calls OrderValidator -> emptySet
@@ -1448,8 +1448,8 @@ R 282:23 references OrderHistory::stateAfter -> Shipped
 R 283:23 references OrderHistory::stateAfter -> Invoiced
 R 284:23 references OrderHistory::stateAfter -> Cancelled
 R 289:24 references packingSlip -> Order
-R 292:22 calls rule -> repeat
-R 294:57 calls row -> padEnd
+R 292:22 calls packingSlip::rule -> repeat
+R 294:57 calls packingSlip::row -> padEnd
 R 296:12 calls packingSlip -> buildString
 R 297:9 calls packingSlip -> appendLine
 R 297:20 calls packingSlip -> rule
