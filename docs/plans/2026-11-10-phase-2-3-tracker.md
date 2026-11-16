@@ -310,6 +310,17 @@ From `rules.md` and the two messages:
         and `Log.Max` next to the framework calls, 2 ambiguous calls became
         external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
         corpus snapshot is unchanged.
+  - [x] PowerShell: a call of a built-in cmdlet (`Write-Host`, `Join-Path`,
+        `ForEach-Object`, `Test-Path`…, 105 names of the Management, Utility
+        and Core modules, any case) the file does not define as a function
+        is external, so it never reaches another script's function of that
+        name. A function the file defines under the cmdlet's name leaves it
+        unproven. Repository functions (`Get-Lines`) and external programs
+        (`git`, `gh`) are not marked. This repository: 435 of 911 PowerShell
+        calls become external; none had a candidate, so no target changes,
+        they only stop counting as unresolved. Test:
+        `mct-lang-powershell/tests/cmdlet_calls.rs`; the corpus snapshot is
+        unchanged.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
