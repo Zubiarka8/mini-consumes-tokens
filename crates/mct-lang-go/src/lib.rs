@@ -917,14 +917,19 @@ impl<'a> Walker<'a> {
     }
 
     /// The directory name an import path ends in, skipping a `/vN` major-version
-    /// suffix. `None` for cgo (`C`), `unsafe`, empty paths and paths whose first
-    /// element has no dot (see `push_package_import`).
+    /// suffix. `None` for cgo (`C`), `unsafe`, empty paths, a one-element
+    /// dotless path, and a dotless path rooted at a standard directory (see
+    /// `push_package_import`).
     fn package_dir_name(import_path: &str) -> Option<String> {
-        if !import_path
-            .split('/')
-            .next()
-            .is_some_and(|root| root.contains('.'))
-        {
+        // A domain-rooted path (`example.com/app/store`), or a dotless
+        // module path (`shop/store`) whose root is no GOROOT directory and
+        // that names a package under it.
+        let mut elements = import_path.split('/');
+        let root = elements.next().unwrap_or_default();
+        let dotless_module = !root.is_empty()
+            && elements.next().is_some_and(|rest| !rest.is_empty())
+            && !stdlib::is_standard_root(root);
+        if !root.contains('.') && !dotless_module {
             return None;
         }
         let mut segments = import_path.rsplit('/').filter(|s| !s.is_empty());
@@ -949,10 +954,11 @@ impl<'a> Walker<'a> {
     /// several candidates and stays ambiguous; the module path prefix is
     /// unknown without `go.mod`, so only the last element is stated.
     ///
-    /// Only domain-rooted paths (`example.com/...`) are recorded: a dotless
-    /// path is the standard library or a dotless local module, and a stdlib
-    /// name (`errors`, `encoding/json`) is also a common file stem, which
-    /// would resolve to the wrong local file.
+    /// Only domain-rooted paths (`example.com/...`) and dotless module paths
+    /// of two or more elements whose root is no standard directory
+    /// (`shop/store`) are recorded: a standard path (`errors`,
+    /// `encoding/json`) is also a common file stem, which would resolve to
+    /// the wrong local file.
     fn push_package_import(&mut self, owner: SymbolId, import_path: &str, loc: Location) {
         let Some(name) = Self::package_dir_name(import_path) else {
             return;
