@@ -23,6 +23,7 @@ use tree_sitter::{Node, Parser};
 
 mod details;
 mod literals;
+mod receivers;
 mod tokens;
 
 pub use tokens::CppTokenSource;
@@ -206,6 +207,9 @@ struct Walker<'a> {
     /// The type parameters of each enclosing `template<...>`, innermost
     /// last: `T` in `template <typename T>` names no declared type.
     template_params: Vec<Vec<&'a str>>,
+    /// Declared types of a function's variables, by the function node, for
+    /// the receivers of its calls (see `receivers`).
+    receiver_types: HashMap<usize, receivers::Types>,
 }
 
 impl<'a> Walker<'a> {
@@ -224,6 +228,7 @@ impl<'a> Walker<'a> {
             opens_std: false,
             type_uses: Vec::new(),
             template_params: Vec::new(),
+            receiver_types: HashMap::new(),
         }
     }
 
@@ -555,7 +560,9 @@ impl<'a> Walker<'a> {
                         // call_expression both start at `a`, which would make
                         // two same-named chained calls collide into one
                         // indistinguishable row.
+                        let relation = self.relations.len();
                         self.push_call(ctx.owner, name_node, function);
+                        self.push_receiver_target(relation, node, function);
                     }
                     self.visit(function, ctx, depth + 1);
                 }
@@ -607,6 +614,61 @@ impl<'a> Walker<'a> {
                 external: true,
                 ..Default::default()
             });
+        }
+    }
+
+    /// `x.m()` / `p->m()` on a variable the enclosing function declares with
+    /// one class: the call is that class's (a `std::` type's is external).
+    /// A receiver that is not a plain variable, an undeclared name, `auto`,
+    /// a template parameter or a name declared with two types adds nothing.
+    fn push_receiver_target(&mut self, relation: usize, call: Node<'a>, function: Node<'a>) {
+        if self.relations.len() == relation
+            || self
+                .relation_targets
+                .last()
+                .is_some_and(|t| t.relation == relation)
+            || function.kind() != "field_expression"
+        {
+            return;
+        }
+        let Some(receiver) = function
+            .child_by_field_name("argument")
+            .filter(|a| a.kind() == "identifier")
+        else {
+            return;
+        };
+        let mut scope = call.parent();
+        while let Some(node) = scope {
+            if node.kind() == "function_definition" {
+                break;
+            }
+            scope = node.parent();
+        }
+        let Some(function_node) = scope else { return };
+        let source = self.source;
+        let declared = self
+            .receiver_types
+            .entry(function_node.id())
+            .or_insert_with(|| receivers::declared_types(function_node, source))
+            .get(text(receiver, source))
+            .cloned();
+        match declared {
+            Some(receivers::Declared::Std) => self.relation_targets.push(RelationTarget {
+                relation,
+                external: true,
+                ..Default::default()
+            }),
+            Some(receivers::Declared::Class(class))
+                if !self.template_params.iter().flatten().any(|p| *p == class) =>
+            {
+                self.relation_targets.push(RelationTarget {
+                    relation,
+                    qualifier: Some(class),
+                    kind: Some(SymbolKind::Method),
+                    ..Default::default()
+                });
+            }
+            _ => {}
         }
     }
 
