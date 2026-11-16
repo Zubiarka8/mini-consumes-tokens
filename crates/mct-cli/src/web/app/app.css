@@ -2543,7 +2543,7 @@ dialog .dlg footer {
   color: var(--text-2);
 }
 
-/* ---------- Duplicados and Código sin uso: a filter bar over stacked blocks ---------- */
+/* ---------- Duplicate code and Unused code: a filter bar over stacked blocks ---------- */
 .stack-list {
   padding: var(--space-3);
 }

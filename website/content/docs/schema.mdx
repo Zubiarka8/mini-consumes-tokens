@@ -114,7 +114,7 @@ These are filled by triggers when `symbols` or `literals` change. You never writ
 | `symbol_words_fts` | `search_symbols_like` | Each name split into lowercase words: `HTTPServer` → `http server httpserver`. The splitting is a Rust function (`mct_split_words`) registered by mini-consumes-tokens, so other tools can't insert into `symbols`. |
 | `symbol_embeddings` | `hybrid_search_like` | One vector per symbol (`symbol_id`, `model`, `vector` as little-endian f32). Filled lazily the first time it is needed. Deleted when a symbol is renamed. |
 | `literals` | `hybrid_search_like` with a `"quoted"` query | Rust string literals and Markdown paragraphs/table rows: `file_id`, `symbol_id` (the enclosing symbol, when available), `line`, `text`. |
-| `literals_fts` | same | Full-text index over `literals.text`. Accent-insensitive: `conexión` matches `conexion`. |
+| `literals_fts` | same | Full-text index over `literals.text`. Accent-insensitive: `café` matches `cafe`. |
 
 ## Other tables
 
