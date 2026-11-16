@@ -706,7 +706,7 @@ Done 31 · Partial 3 · Not done 6 · Not verified 0 · Not applicable 12
 
 - [~] ST01 Import graph: resolved `require_once` path also listed as external
 - [x] ST02 File outline: `get_file_skeleton(src/audit.php)` returned declarations and collapsed bodies
-- [ ] ST03 Declared dependencies: `composer.json` not read
+- [x] ST03 Declared dependencies: `composer.json` `require` counted; the `php` platform entry is skipped
 
 **Not applicable:**
 
@@ -765,7 +765,7 @@ Done 14 · Partial 5 · Not done 5 · Not verified 0 · Not applicable 28
 
 - [x] ST01 Import graph: edge `main → lib`, no external
 - [~] ST02 File outline: declaration line and placeholder; one-line function shown whole
-- [ ] ST03 Declared dependencies: `.rockspec` not counted
+- [x] ST03 Declared dependencies: `.rockspec` `dependencies` counted; the `lua` interpreter entry is skipped
 
 **Not applicable:**
 
