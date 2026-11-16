@@ -28,6 +28,17 @@ fi
 new_log "$LOG"
 gh run view "$run" --log-failed >>"$LOG" 2>&1 || true
 
+# `--log-failed` has nothing while the run is still going (other jobs are
+# queued or running) even when some job already failed: read those jobs' logs
+# through the API instead.
+if [ "$(wc -l <"$LOG")" -le 1 ]; then
+  for job in $(gh run view "$run" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | .databaseId'); do
+    { gh api --allow-escape-sequences "repos/{owner}/{repo}/actions/jobs/$job/logs" 2>/dev/null ||
+      gh api "repos/{owner}/{repo}/actions/jobs/$job/logs" 2>/dev/null || true; } |
+      sed -E 's/\x1b\[[0-9;]*m//g; s/^/job '"$job"'\t/' >>"$LOG"
+  done
+fi
+
 echo "CI run $run failed in:"
 gh run view "$run" --json jobs --jq '.jobs[] | select(.conclusion == "failure") | "  - " + .name' |
   tee -a "$LOG" | cut -c1-160
