@@ -612,12 +612,12 @@ Done 18 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 23
 - [x] SE01 Find a definition: `list_symbols`
 - [x] SE02 Callers and callees: `main.go` calls `P_Helper`
 - [~] SE03 Every use: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
-- [~] SE04 Blast radius and context: `impact_analysis`, `build_context_pack`: same gaps as references
+- [x] SE04 Blast radius and context: `build_context_pack(P_Helper)` returned the cross-file caller
 - [ ] SE05 Exact text in strings: literal not collected
 **Code quality**
 
 - [~] QU01 Dead code: unused struct and function reported; a struct used only as a declared type is reported
-- [ ] QU02 Repeated code: listed under `unsupported_languages`
+- [x] QU02 Repeated code: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
 - [~] ST01 Import graph: `get_dependency_graph`: edges correct; the module import path is also listed as external
@@ -710,7 +710,7 @@ Done 30 · Partial 4 · Not done 6 · Not verified 0 · Not applicable 12
 
 - [~] ST01 Import graph: resolved `require_once` path also listed as external
 - [x] ST02 File outline: `get_file_skeleton(src/audit.php)` returned declarations and collapsed bodies
-- [ ] ST03 Declared dependencies: `composer.json` not read
+- [x] ST03 Declared dependencies: `composer.json` `require` counted; the `php` platform entry is skipped
 
 **Not applicable:**
 
@@ -769,7 +769,7 @@ Done 15 · Partial 6 · Not done 3 · Not verified 0 · Not applicable 28
 
 - [x] ST01 Import graph: edge `main → lib`, no external
 - [~] ST02 File outline: declaration line and placeholder; one-line function shown whole
-- [ ] ST03 Declared dependencies: `.rockspec` not counted
+- [x] ST03 Declared dependencies: `.rockspec` `dependencies` counted; the `lua` interpreter entry is skipped
 
 **Not applicable:**
 
@@ -886,7 +886,7 @@ Done 11 · Partial 3 · Not done 13 · Not verified 0 · Not applicable 25
 
 **Functions and methods**
 
-- [x] FN01 Top-level function: `function`
+- [x] FN01 Top-level function: multi-line and one-line `function f { param(...) … }` both parse
 - [x] FN02 Nested function: parent is the outer function
 - [~] FN03 Lambda or closure assigned to a name: top-level `$f = { … }` is a `variable`
 - [ ] FN04 Method: PowerShell classes are not indexed (corpus test)
@@ -1009,8 +1009,8 @@ Constructs:
 - [x] nested rules: corpus resolves nested selectors and preserves their ranges
 - [x] rules inside `@media`
 - [ ] declarations and values: CSS indexing emits selectors, not declaration/value symbols
-- [ ] custom properties (`--p_brand`)
-- [ ] `@keyframes`
+- [x] custom properties (`--p_brand`): each declaration is a `variable`, and `var(--p_brand)` references it
+- [x] `@keyframes`: an `animation` symbol, referenced by each name in `animation` / `animation-name`
 - [ ] pseudo-classes as atoms
 
 **Not applicable:**

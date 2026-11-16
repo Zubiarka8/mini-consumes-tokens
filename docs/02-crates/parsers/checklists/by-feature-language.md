@@ -39,7 +39,7 @@ Marks:
 - [x] PHP: `function`
 - [x] Lua: `function`
 - [x] Bash: `f() {}`
-- [x] PowerShell: `function`
+- [x] PowerShell: multi-line and one-line `function f { param(...) … }` both parse
 - — HTML: HTML is markup; it has no top-level function
 - — CSS: CSS is markup; it has no top-level function
 - — XML: XML is markup; it has no top-level function
