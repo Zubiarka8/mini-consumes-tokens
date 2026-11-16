@@ -194,7 +194,7 @@ export const PAGES = [
 ];
 export const isPage = (id) => PAGES.some((page) => page.id === id);
 
-/** The params that name the open finding on Duplicados, Código muerto and Revisiones. */
+/** The params that name the open finding on Duplicate code, Unused code and Reviews. */
 export const FINDING_PARAMS = ["key", "n", "view", "file", "left", "right", "context"];
 const FINDING_PAGES = ["duplicados", "codigo-muerto", "revisiones"];
 // An open finding is not remembered with the filters: the menu link opens the list again.

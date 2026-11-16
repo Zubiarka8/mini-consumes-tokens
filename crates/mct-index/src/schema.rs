@@ -192,7 +192,7 @@ pub fn migrations() -> Migrations<'static> {
         // text is stored once, in `literals`), kept in sync by the triggers,
         // which also fire for the `files` FK cascade. `detail=full` keeps
         // token positions, which phrase queries need; `remove_diacritics`
-        // makes `conexión` match `conexion`. No embeddings for literals.
+        // makes `café` match `cafe`. No embeddings for literals.
         //
         // Emptying every `content_hash` makes the next reindex re-parse every
         // file: the incremental skip compares git blob hashes, so an

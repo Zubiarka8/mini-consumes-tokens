@@ -135,8 +135,8 @@ mod tests {
     #[test]
     fn keeps_messages_and_normalises_whitespace() {
         assert_eq!(
-            prose_literal("  Error de conexión\n   con la BD: "),
-            Some("Error de conexión con la BD:".to_string())
+            prose_literal("  Connection failed\n   to the DB: "),
+            Some("Connection failed to the DB:".to_string())
         );
         assert_eq!(
             prose_literal("failed to open index"),
