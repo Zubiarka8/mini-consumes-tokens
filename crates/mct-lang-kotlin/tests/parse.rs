@@ -152,11 +152,17 @@ fn top_level_and_local_functions_are_functions() {
     let parsed = parse(
         "fun vat(amount: Int): Int {\n    fun rule(x: Int) = x * 2\n    return rule(amount)\n}\n\nclass Pricing {\n    fun quote(): Int {\n        val subtotal = vat(1)\n        fun round(x: Int) = x\n        return round(subtotal)\n    }\n}\n",
     );
-    for name in ["vat", "rule", "round"] {
+    // A local function is a function of the function it is declared in,
+    // not a method of the enclosing type.
+    for (name, parent) in [
+        ("vat", None),
+        ("rule", Some("vat")),
+        ("round", Some("quote")),
+    ] {
         let f = symbol(&parsed, name);
         assert_eq!(
             (f.kind, f.parent.as_deref()),
-            (SymbolKind::Function, None),
+            (SymbolKind::Function, parent),
             "{name}"
         );
     }
