@@ -310,6 +310,16 @@ From `rules.md` and the two messages:
         and `Log.Max` next to the framework calls, 2 ambiguous calls became
         external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
         corpus snapshot is unchanged.
+  - [x] Bash: a call of a shell builtin (`echo`, `printf`, `cd`, `exit`,
+        `shift`, `return`, `true`…, 58 names) the file does not define as a
+        function is external, so it never reaches another script's function
+        of that name. A function the file defines under the builtin's name
+        (`echo() { … }`) leaves it unproven, and `source`/`.` stay imports.
+        External programs (`git`, `grep`, `sed`) are not marked: a script may
+        wrap them. This repository: 784 of 1892 Bash calls become external;
+        none of them had a candidate, so no target changes, they only stop
+        counting as unresolved. Test: `mct-lang-bash/tests/builtin_calls.rs`;
+        the corpus snapshot is unchanged.
   - [x] PowerShell: a call of a built-in cmdlet (`Write-Host`, `Join-Path`,
         `ForEach-Object`, `Test-Path`…, 105 names of the Management, Utility
         and Core modules, any case) the file does not define as a function
@@ -508,6 +518,16 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] CSS custom properties and `@keyframes`: each custom property
+          declaration (`--brand: red`) is a `variable` symbol and each
+          `@keyframes spin` an `animation` symbol (also inside Tailwind's
+          `@theme`). `var(--brand)`, fallbacks included, references the
+          variable, and each name in an `animation` / `animation-name` value
+          references the animation, scoped by `kind` so a same-named rule
+          (`.fade`) never matches. Animation keywords (`infinite`, `ease`)
+          reference nothing. Tests: `tests/custom_properties.rs`; the corpus
+          snapshot gains 283 symbols and 521 references (keyframe names
+          only, no keyword).
     - [x] Go fields, constants and variables: each named struct field is a
           `field` of the struct (an embedded one is none), each package-level
           `const` / `var` name, grouped or not, a `constant` / `variable` of
