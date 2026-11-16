@@ -370,10 +370,15 @@ impl<'a> Walker<'a> {
                 }
                 self.visit_children(node, owner, class_name, depth + 1);
             }
+            "augmented_assignment" => {
+                self.push_dunder_all(node, owner);
+                self.visit_children(node, owner, class_name, depth + 1);
+            }
             "assignment" => {
                 if let Some(ty) = node.child_by_field_name("type") {
                     self.push_annotation_references(ty, owner, depth + 1);
                 }
+                self.push_dunder_all(node, owner);
                 // `f = lambda …` declares `f`, and the lambda's body is its.
                 let owner = self.push_lambda_binding(node).unwrap_or_else(|| {
                     self.push_bindings(node, depth);
@@ -921,6 +926,45 @@ impl<'a> Walker<'a> {
             ..target
         });
         true
+    }
+
+    /// `__all__ = ["a", "B"]` (or `+=`) at module level lists the names the
+    /// module exports on purpose: each one that this file defines is a
+    /// `References` relation from the module, so a function or class that is
+    /// only re-exported is not dead code. A name defined elsewhere, a list
+    /// built by a call and an `__all__` inside a function record nothing.
+    fn push_dunder_all(&mut self, node: Node, owner: SymbolId) {
+        let at_module_level = node
+            .parent()
+            .filter(|p| p.kind() == "expression_statement")
+            .and_then(|p| p.parent())
+            .is_some_and(|p| p.kind() == "module");
+        let named = node
+            .child_by_field_name("left")
+            .is_some_and(|left| text(left, self.source) == "__all__");
+        let Some(list) = node
+            .child_by_field_name("right")
+            .filter(|list| at_module_level && named && matches!(list.kind(), "list" | "tuple"))
+        else {
+            return;
+        };
+        let mut cursor = list.walk();
+        let strings: Vec<Node> = list
+            .named_children(&mut cursor)
+            .filter(|n| n.kind() == "string")
+            .collect();
+        for string in strings {
+            let name = text(string, self.source)
+                .trim_matches(['"', '\''])
+                .to_string();
+            if self.scope.is_local_function(&name) {
+                self.push_target(RelationTarget {
+                    path: Some(self.path.to_string()),
+                    ..Default::default()
+                });
+                self.push_relation(owner, RelationKind::References, name, location(string));
+            }
+        }
     }
 
     /// A function or class used by name as a value — an argument
