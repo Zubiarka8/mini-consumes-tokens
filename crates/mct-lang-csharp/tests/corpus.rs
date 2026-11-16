@@ -246,8 +246,11 @@ fn cross_file_usings_and_calls_are_extracted() {
     c.relation("Models.cs", "Models", Imports, "Errors");
     c.relation("Services.cs", "Services", Imports, "Specialized");
     c.relation("Repository.cs", "Repository", Imports, "Tasks");
-    // An alias `using` imports the alias.
-    c.relation("Reports.cs", "Reports", Imports, "Table");
+    // An alias `using` names its target, so it imports no symbol called
+    // like the alias, and `new Table()` constructs the target `List`.
+    assert!(!c.has_relation("Reports", Imports, "Table"));
+    assert!(!c.has_relation("Models", Imports, "Money"));
+    c.relation("Reports.cs", "RenderWith", Calls, "List");
     c.relation("Services.cs", "ReceiveAsync", Calls, "Parse");
     c.relation("Services.cs", "DraftAsync", Calls, "ThrowIfAny");
     c.relation("Reports.cs", "InventoryAsync", Calls, "CountAsync");

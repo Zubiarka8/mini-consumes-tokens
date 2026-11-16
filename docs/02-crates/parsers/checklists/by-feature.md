@@ -711,7 +711,7 @@ Done 2 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 13
 - [ ] Go: `const` has no symbol
 - [x] PHP: `const` top-level and in classes
 - — Lua: no `const` keyword
-- [~] Bash: `readonly X=…` → `variable`
+- [x] Bash: `readonly X=…` and `declare -r X=…` → `constant`
 - — PowerShell: PowerShell has no constant (module or global)
 - — HTML: HTML is markup; it has no constant (module or global)
 - — CSS: CSS is markup; it has no constant (module or global)
@@ -721,7 +721,7 @@ Done 2 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 13
 
 *Done when:* Constant indexed as `constant`.
 
-Done 2 · Partial 4 · Not done 4 · Not verified 0 · Not applicable 7
+Done 3 · Partial 3 · Not done 4 · Not verified 0 · Not applicable 7
 
 ### DA04 Global / module-level variable
 
@@ -926,7 +926,7 @@ Done 11 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 5
 - [x] JS/TS: `P_Sub` extends `P_Base`
 - [x] Java: `extends P_Base` (ambiguous: same-name file module)
 - [x] Kotlin: `P_Sub` extends `P_Base`
-- [~] C#: heuristic; ambiguous when a constructor shares the class name
+- [x] C#: `class Sq : Base` resolves to the class, never its constructor (the first entry is the base class unless named like an interface)
 - [~] C++: ambiguous when the constructor shares the class name
 - — Go: Go has no class extends class
 - [x] PHP: `P_Sub` extends `P_Base`
@@ -1195,16 +1195,16 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 - [x] Rust: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
 - [x] Python: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
-- [ ] JS/TS: duplicate report lists `javascript_typescript` under `unsupported_languages`
-- [ ] Java: listed under `unsupported_languages`
-- [ ] Kotlin: listed under `unsupported_languages`
-- [ ] C#: listed under `unsupported_languages`
-- [ ] C++: listed under `unsupported_languages`
-- [ ] Go: listed under `unsupported_languages`
-- [ ] PHP: listed under `unsupported_languages`
+- [x] JS/TS: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] Java: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] Kotlin: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] C#: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] C++: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] Go: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
+- [x] PHP: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 - [x] Lua: listed as supported by `duplicates` (group not exercised)
-- [ ] Bash: listed under `unsupported_languages`
-- [ ] PowerShell: listed under `unsupported_languages`
+- [x] Bash: `cart_total` and `order_total` form a candidate group; listed as supported by `duplicates`
+- [x] PowerShell: `Get-CartTotal` and `Get-OrderTotal` form a candidate group; listed as supported by `duplicates`
 - — HTML: HTML is markup; it has no repeated code
 - — CSS: CSS is markup; it has no repeated code
 - — XML: XML is markup; it has no repeated code
@@ -1213,7 +1213,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `mct-cli duplicates` covers the language (it has a token source).
 
-Done 3 · Partial 0 · Not done 9 · Not verified 0 · Not applicable 5
+Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 ## Structure
 

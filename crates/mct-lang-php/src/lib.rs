@@ -107,7 +107,11 @@ use names::{namespace_alias, ImportKind, ResolvedName, Scope};
 mod builtins;
 mod details;
 mod libraries;
+mod literals;
 mod names;
+mod tokens;
+
+pub use tokens::PhpTokenSource;
 
 pub struct PhpParser;
 
@@ -162,7 +166,9 @@ impl LanguageParser for PhpParser {
         walker.module_id = module_id;
         collect_function_names(root, &file.contents, &mut walker.declared_functions, 0);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -181,7 +187,7 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 /// The bare identifier inside a `variable_name` node (its one required
 /// `name` child) — the grammar already excludes the leading `$`.
-fn variable_text<'a>(node: Node<'a>, source: &'a str) -> Option<&'a str> {
+pub(crate) fn variable_text<'a>(node: Node<'a>, source: &'a str) -> Option<&'a str> {
     if node.kind() != "variable_name" {
         return None;
     }
@@ -236,6 +242,13 @@ struct Walker<'a> {
     /// The supertypes a method of each enclosing class-like declaration can
     /// override (D8), innermost last.
     supertypes: Vec<Vec<Supertype>>,
+    /// Closures (`function () {}`, `fn () =>`) enclosing the node being
+    /// visited that are not bound to a variable. Their body keeps the outer
+    /// `owner`, but has its own variable scope.
+    closure_depth: u32,
+    /// The scope (`owner`) each variable-bound closure was assigned in, so a
+    /// later read of the variable in that scope is a use of the closure.
+    closure_scopes: Vec<(String, SymbolId)>,
 }
 
 /// What `self::`, `static::`, `parent::` and `$this->` mean at a call site.
@@ -270,6 +283,8 @@ impl<'a> Walker<'a> {
             route_controllers: Vec::new(),
             entry_points: Vec::new(),
             supertypes: Vec::new(),
+            closure_depth: 0,
+            closure_scopes: Vec::new(),
         }
     }
 
@@ -583,13 +598,15 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// Evidence for `f()`: the function's namespace, when the name is
-    /// imported or qualified. A bare name in a namespace may be the
-    /// namespaced function or the global one, which only a run can tell.
+    /// Evidence for `f()`: a function (a variable is called as `$f()`), and
+    /// its namespace when the name is imported or qualified. A bare name in
+    /// a namespace may be the namespaced function or the global one, which
+    /// only a run can tell.
+    ///
     /// A call that can only reach the global function of one of PHP's core
     /// functions (`\strlen()`, or `strlen()` in a file with no namespace) is
     /// external, unless this file declares that name itself (a polyfill).
-    fn function_target(&self, function: Node) -> Option<RelationTarget> {
+    fn function_target(&self, function: Node) -> RelationTarget {
         let written = text(function, self.source);
         let resolved = self.scope.resolve_function(written);
         let global_name = match &resolved {
@@ -602,17 +619,16 @@ impl<'a> Walker<'a> {
             builtins::is_core_function(name)
                 && !self.declared_functions.contains(&name.to_ascii_lowercase())
         }) {
-            return Some(RelationTarget {
+            return RelationTarget {
                 external: true,
                 ..Default::default()
-            });
+            };
         }
-        let resolved = resolved?;
-        Some(RelationTarget {
+        RelationTarget {
             kind: Some(SymbolKind::Function),
-            target_module: Some(namespace_alias(&resolved.namespace)),
+            target_module: resolved.map(|r| namespace_alias(&r.namespace)),
             ..Default::default()
-        })
+        }
     }
 
     /// The variable in `$cb()` when this file already bound `$cb` to a
@@ -915,7 +931,7 @@ impl<'a> Walker<'a> {
                         }
                     }
                     if let Some(seg) = last_segment(function) {
-                        let target = self.function_target(function);
+                        let target = Some(self.function_target(function));
                         self.push_targeted(
                             owner,
                             RelationKind::Calls,
@@ -1134,6 +1150,7 @@ impl<'a> Walker<'a> {
                                 location(r),
                                 None,
                             );
+                            self.closure_scopes.push((var.to_string(), owner));
                             if let Some(params) = r.child_by_field_name("parameters") {
                                 self.visit_children(params, id, type_name, depth + 1);
                             }
@@ -1144,10 +1161,68 @@ impl<'a> Walker<'a> {
                             self.visit(r, owner, type_name, depth + 1);
                         }
                     }
+                    (Some(l), _) => {
+                        self.declare_global(l, owner);
+                        self.visit_children(node, owner, type_name, depth + 1);
+                    }
                     _ => self.visit_children(node, owner, type_name, depth + 1),
                 }
             }
+            // `array_map($f, …)`, `return $f`: a variable read in the scope
+            // that bound a closure to it uses that closure. Its call and its
+            // assignment are handled by their own arms.
+            "variable_name" => {
+                let var = text(node, self.source);
+                let is_target = node.parent().is_some_and(|p| {
+                    (p.kind() == "assignment_expression"
+                        && p.child_by_field_name("left") == Some(node))
+                        || (p.kind() == "function_call_expression"
+                            && p.child_by_field_name("function") == Some(node))
+                });
+                let bound = self
+                    .closure_scopes
+                    .iter()
+                    .any(|(name, scope)| name == var.trim_start_matches('$') && *scope == owner);
+                if bound && !is_target {
+                    self.push_targeted(
+                        owner,
+                        RelationKind::References,
+                        var.trim_start_matches('$').to_string(),
+                        location(node),
+                        None,
+                    );
+                }
+            }
+            "anonymous_function" | "arrow_function" => {
+                self.closure_depth += 1;
+                self.visit_children(node, owner, type_name, depth + 1);
+                self.closure_depth -= 1;
+            }
             _ => self.visit_children(node, owner, type_name, depth + 1),
+        }
+    }
+
+    /// `$x = …` at file scope (`owner` is the file's module): the first one
+    /// in the file declares `x` a `variable`, named without `$` as a
+    /// PowerShell variable is. A class or an unbound closure around it has
+    /// its own scope; a superglobal, `$$x`, a property, an element or a
+    /// destructuring pattern declares nothing.
+    fn declare_global(&mut self, left: Node, owner: SymbolId) {
+        if owner != self.module_id || !self.classes.is_empty() || self.closure_depth > 0 {
+            return;
+        }
+        let Some(name) = variable_text(left, self.source) else {
+            return;
+        };
+        if name == "this" || builtins::is_superglobal(name) {
+            return;
+        }
+        let declared = self
+            .symbols
+            .iter()
+            .any(|s| s.kind == SymbolKind::Variable && s.name == name);
+        if !declared {
+            self.push_symbol(name.to_string(), SymbolKind::Variable, location(left), None);
         }
     }
 
