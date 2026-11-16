@@ -1227,12 +1227,12 @@ How the project fits together: the import graph, the outline of a file and the d
 - [~] Java: local import has resolved and ambiguous duplicate rows; JDK import has external and unresolved duplicate rows
 - [~] Kotlin: alias import adds a false external entry
 - [~] C#: `using Audit` produces ambiguous imports to two file modules
-- [~] C++: `#include "lib.h"` also listed as external
+- [x] C++: edge `main.cpp → lib.h`, no external
 - [x] Go: edge only, no external (2026-11 check)
-- [~] PHP: resolved `require_once` path also listed as external
+- [x] PHP: edge `main.php → lib.php` for `'lib.php'`, `"lib.php"` and `("lib.php")`, no external
 - [x] Lua: edge `main → lib`, no external
-- [~] Bash: resolved `source` path also listed as external
-- [~] PowerShell: dot-sourced path also listed as external
+- [x] Bash: edge `main.sh → lib.sh`, no external
+- [x] PowerShell: edge `main.ps1 → lib.ps1`, no external
 - — HTML: HTML is markup; it has no import graph
 - — CSS: CSS is markup; it has no import graph
 - — XML: XML is markup; it has no import graph
@@ -1241,7 +1241,7 @@ How the project fits together: the import graph, the outline of a file and the d
 
 *Done when:* `get_dependency_graph` shows local import edges without false external entries.
 
-Done 5 · Partial 7 · Not done 0 · Not verified 0 · Not applicable 5
+Done 9 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### ST02 File outline
 
@@ -1405,15 +1405,15 @@ Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 12
 - — Lua: code language; markup feature does not apply
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
-- [~] HTML: `<link>` edge to CSS; script source not resolved
-- [~] CSS: local `@import` edge, also listed as external
+- [x] HTML: `<link>` and `<script src>` edges, no external
+- [x] CSS: local `@import` edge, no external
 - [ ] XML: parser emits no imports (confirmed by parse tests)
 - [~] XAML: relative source resolves; absolute `pack:` source emits no import relation
 - [~] Markdown: only `![[embeds]]` are edges
 
 *Done when:* `get_dependency_graph` shows local file edges.
 
-Done 0 · Partial 4 · Not done 1 · Not verified 0 · Not applicable 12
+Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
 
 ### MK06 File outline
 

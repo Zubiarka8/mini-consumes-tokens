@@ -26,14 +26,14 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Java | 23 | 6 | 8 | 0 | 15 |
 | Kotlin | 27 | 7 | 11 | 0 | 7 |
 | C# | 26 | 10 | 9 | 0 | 7 |
-| C++ | 23 | 8 | 7 | 0 | 14 |
+| C++ | 24 | 7 | 7 | 0 | 14 |
 | Go | 15 | 3 | 11 | 0 | 23 |
-| PHP | 31 | 3 | 6 | 0 | 12 |
+| PHP | 32 | 2 | 6 | 0 | 12 |
 | Lua | 14 | 5 | 5 | 0 | 28 |
-| Bash | 13 | 2 | 2 | 0 | 35 |
-| PowerShell | 11 | 4 | 12 | 0 | 25 |
-| HTML | 3 | 1 | 3 | 0 | 0 |
-| CSS | 3 | 1 | 3 | 0 | 0 |
+| Bash | 14 | 1 | 2 | 0 | 35 |
+| PowerShell | 12 | 3 | 12 | 0 | 25 |
+| HTML | 4 | 0 | 3 | 0 | 0 |
+| CSS | 4 | 0 | 3 | 0 | 0 |
 | XML | 2 | 0 | 5 | 0 | 0 |
 | XAML | 3 | 1 | 3 | 0 | 0 |
 | Markdown | 3 | 1 | 3 | 0 | 0 |
@@ -498,7 +498,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C++ (`cpp`)
 
-Done 23 · Partial 8 · Not done 7 · Not verified 0 · Not applicable 14
+Done 24 · Partial 7 · Not done 7 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -549,7 +549,7 @@ Done 23 · Partial 8 · Not done 7 · Not verified 0 · Not applicable 14
 - [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
-- [~] ST01 Import graph: `#include "lib.h"` also listed as external
+- [x] ST01 Import graph: edge `main.cpp → lib.h`, no external
 - [x] ST02 File outline: `get_file_skeleton(src/audit.cpp)` returned top-level declarations
 - [ ] ST03 Declared dependencies: `CMakeLists.txt` is not reported by status
 
@@ -650,7 +650,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PHP (`php`)
 
-Done 31 · Partial 3 · Not done 6 · Not verified 0 · Not applicable 12
+Done 32 · Partial 2 · Not done 6 · Not verified 0 · Not applicable 12
 
 **Functions and methods**
 
@@ -704,7 +704,7 @@ Done 31 · Partial 3 · Not done 6 · Not verified 0 · Not applicable 12
 - [x] QU02 Repeated code: `cartTotal` and `orderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
-- [~] ST01 Import graph: resolved `require_once` path also listed as external
+- [x] ST01 Import graph: edge `main.php → lib.php` for `'lib.php'`, `"lib.php"` and `("lib.php")`, no external
 - [x] ST02 File outline: `get_file_skeleton(src/audit.php)` returned declarations and collapsed bodies
 - [ ] ST03 Declared dependencies: `composer.json` not read
 
@@ -802,7 +802,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Bash (`bash`)
 
-Done 13 · Partial 2 · Not done 2 · Not verified 0 · Not applicable 35
+Done 14 · Partial 1 · Not done 2 · Not verified 0 · Not applicable 35
 
 **Functions and methods**
 
@@ -833,7 +833,7 @@ Done 13 · Partial 2 · Not done 2 · Not verified 0 · Not applicable 35
 - [x] QU02 Repeated code: `cart_total` and `order_total` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
-- [~] ST01 Import graph: resolved `source` path also listed as external
+- [x] ST01 Import graph: edge `main.sh → lib.sh`, no external
 - [x] ST02 File outline: `get_file_skeleton(src/audit.sh)` returned assignments and functions
 - — ST03 Declared dependencies: Bash scripts have no package manifest
 
@@ -878,7 +878,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PowerShell (`powershell`)
 
-Done 11 · Partial 4 · Not done 12 · Not verified 0 · Not applicable 25
+Done 12 · Partial 3 · Not done 12 · Not verified 0 · Not applicable 25
 
 **Functions and methods**
 
@@ -918,7 +918,7 @@ Done 11 · Partial 4 · Not done 12 · Not verified 0 · Not applicable 25
 - [x] QU02 Repeated code: `Get-CartTotal` and `Get-OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
-- [~] ST01 Import graph: dot-sourced path also listed as external
+- [x] ST01 Import graph: edge `main.ps1 → lib.ps1`, no external
 - [~] ST02 File outline: declaration line and placeholder
 - [ ] ST03 Declared dependencies: `.psd1` module manifest is not reported by status
 
@@ -956,13 +956,13 @@ Markup features (MK) do not apply to code languages.
 
 ### HTML (`html`)
 
-Done 3 · Partial 1 · Not done 3 · Not verified 0 · Not applicable 0
+Done 4 · Partial 0 · Not done 3 · Not verified 0 · Not applicable 0
 
 - [x] MK01 Find a definition: by `id`
 - [x] MK02 Find references: `#id` and `.class` of an identified element
 - [ ] MK03 Dead code: markup-only fixture returns no candidates
 - [ ] MK04 Repeated code: markup-only duplicate report returns no candidates
-- [~] MK05 Import graph: `<link>` edge to CSS; script source not resolved
+- [x] MK05 Import graph: `<link>` and `<script src>` edges, no external
 - [x] MK06 File outline: `get_file_skeleton` returned the HTML outline
 - [ ] MK07 Exact text in strings: exact-phrase search found no HTML text
 
@@ -989,13 +989,13 @@ Search, quality and structure features that apply to markup are the MK features 
 
 ### CSS (`css`)
 
-Done 3 · Partial 1 · Not done 3 · Not verified 0 · Not applicable 0
+Done 4 · Partial 0 · Not done 3 · Not verified 0 · Not applicable 0
 
 - [x] MK01 Find a definition: by selector
 - [x] MK02 Find references: HTML class and ID selectors resolve to their CSS elements (HTML integration tests)
 - [ ] MK03 Dead code: markup-only fixture returns no candidates
 - [ ] MK04 Repeated code: markup-only duplicate report returns no candidates
-- [~] MK05 Import graph: local `@import` edge, also listed as external
+- [x] MK05 Import graph: local `@import` edge, no external
 - [x] MK06 File outline: `get_file_skeleton` returned the CSS outline
 - [ ] MK07 Exact text in strings: exact-phrase search found no CSS source text
 

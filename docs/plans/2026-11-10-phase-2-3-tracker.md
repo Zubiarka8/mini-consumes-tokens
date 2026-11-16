@@ -473,6 +473,19 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] A local import is not also an external one: a parser records a
+          local import twice, the path as written and the file it names,
+          at the same spot, and `get_dependency_graph` listed the unmatched
+          written path (`lib.h`, `./lib.sh`, `app.js`) as external beside
+          the edge. The index now drops a written path whose sibling import
+          at the same spot has candidates; a proven external and a path
+          that resolves to nothing stay external. PHP `require_once
+          "lib.php"` and `require_once("lib.php")` record the import too,
+          not only `'lib.php'`. Tests: `mct-index`
+          `tests/dependency_graph.rs`, `mct-lang-php` `tests/includes.rs`
+          (each red without its half). Probe: C++, PHP, Bash, PowerShell,
+          CSS, HTML and JS `require` show the edge and no external; ST01 is
+          `[x]` for C++, PHP, Bash, PowerShell and MK05 for CSS and HTML.
     - [x] Go fields, constants and variables: each named struct field is a
           `field` of the struct (an embedded one is none), each package-level
           `const` / `var` name, grouped or not, a `constant` / `variable` of

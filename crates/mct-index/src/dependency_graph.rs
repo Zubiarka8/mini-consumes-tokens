@@ -37,6 +37,10 @@ enum ImportTarget {
     External(String),
     /// Several candidates remain: no edge, no external entry.
     Ambiguous,
+    /// The path as written of a local import whose other relation, at the
+    /// same spot, names the file (`./app.js` beside the `app` module): not
+    /// external, and its edge comes from that relation.
+    Restated,
 }
 
 impl Index {
@@ -174,7 +178,7 @@ impl Index {
                             ImportTarget::External(name) => {
                                 external.entry(name).or_default().insert(file.clone());
                             }
-                            ImportTarget::Ambiguous => {}
+                            ImportTarget::Ambiguous | ImportTarget::Restated => {}
                         }
                     }
                 }
@@ -251,7 +255,15 @@ impl Index {
                        JOIN symbols s ON s.id = c.symbol_id
                        JOIN files sf ON sf.id = s.file_id
                       WHERE c.relation_id = r.id
-                      ORDER BY sf.relative_path LIMIT 1)
+                      ORDER BY sf.relative_path LIMIT 1),
+                    EXISTS (SELECT 1 FROM relations other
+                             WHERE other.from_symbol_id = r.from_symbol_id
+                               AND other.id <> r.id
+                               AND other.kind = 'imports'
+                               AND other.line = r.line
+                               AND other.column = r.column
+                               AND EXISTS (SELECT 1 FROM relation_candidates c
+                                            WHERE c.relation_id = other.id))
              FROM relations r
              JOIN symbols caller ON caller.id = r.from_symbol_id
              JOIN files f ON f.id = caller.file_id
@@ -266,9 +278,11 @@ impl Index {
                 let files: i64 = row.get(3)?;
                 let count: i64 = row.get(4)?;
                 let path: Option<String> = row.get(5)?;
+                let restated: bool = row.get(6)?;
                 // Several candidates inside one file (a class and its module
                 // symbol, a Go package of one file) still denote that file.
                 Ok(match (external, count, path) {
+                    (false, 0, _) if restated => ImportTarget::Restated,
                     (true, _, _) | (false, 0, _) => ImportTarget::External(name),
                     (false, _, Some(path)) if !member && files == 1 => ImportTarget::File(path),
                     _ => ImportTarget::Ambiguous,
