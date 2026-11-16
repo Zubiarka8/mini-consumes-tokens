@@ -651,15 +651,8 @@ impl<'a> Walker<'a> {
                     id,
                     self.source,
                 ));
-                let class = class_name.and_then(|_| self.class_scopes.last());
-                let frame =
-                    receivers::Frame::of(node, self.source, class, &self.scope, &self.classes);
-                self.frames.push(frame);
                 if let Some(ty) = node.child_by_field_name("return_type") {
                     self.push_annotation_references(ty, id, depth + 1);
-                }
-                if let Some(params) = node.child_by_field_name("parameters") {
-                    self.visit_children(params, id, None, depth + 1);
                 }
                 if let (true, Some(class)) = (getter, class_name) {
                     self.properties.insert((class.to_string(), name), id);
