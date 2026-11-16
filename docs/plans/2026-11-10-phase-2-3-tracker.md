@@ -1360,8 +1360,21 @@ From `rules.md` and the two messages:
       16 Java calls, dead code unchanged.
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
       D8).
-- [ ] Language-specific features (3.4), each checked against the real
-      grammar.
+- [x] Language-specific features (3.4), each checked against the real
+      grammar. For every code language the grammar crate's
+      `node-types.json` was compared with the node kinds the parser
+      handles, then each unhandled kind that can declare a symbol or name
+      a use was probed in a scratch project with `init --force` and
+      `find_dead_code`. Java, Kotlin, C#, Go, PHP, Lua, Python, Rust, C++,
+      TS/JS, Bash, PowerShell and CSS are done. Findings, each with its
+      own PR: Java record compact constructor (#518), `module-info.java`
+      (#519), Rust `macro_rules!` bodies (#520), Java method references
+      and enum constant arguments (#526), PHP closure variables (#527),
+      C# `nameof` (#528), JS/TS classes and enums used as values (#525).
+      Bash, PowerShell and CSS had none: Bash and PowerShell handle every
+      declaring kind; CSS indexes rules only, by design (the table above
+      puts CSS out of scope for declarations). HTML, Markdown, XML and
+      XAML have no declarations.
 - [ ] Positive and negative fixtures for each language (3.5).
 
 ## Block 4: quality, fixtures and performance
