@@ -310,7 +310,10 @@ From `rules.md` and the two messages:
       `opts.get` on a `dict` next to `View.get`, run with CPython), both
       correct; before the fix, 1 wrong and 1 ambiguous. Rust's D5 label
       (`stack.len()` on `stack: &Stack`, next to a free `fn len`) is now
-      correct; before, ambiguous.
+      correct; before, ambiguous. D5 has 2 for C++ (`q.to_string()` on
+      `const Quantity& q` and `b->to_string()` on `const Box* b`, each next
+      to the other class's `to_string`, checked with `clang++`), both
+      correct; before the fix, both ambiguous.
 
 ## Block 2: phase 2, SQLite and enriched model
 
