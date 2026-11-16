@@ -22,6 +22,9 @@ pub(crate) struct ClassScope {
     pub(crate) name: String,
     pub(crate) methods: HashSet<String>,
     pub(crate) fields: Types,
+    /// The class may get members this file does not declare: it has a base
+    /// list, or it is `partial`.
+    pub(crate) opaque: bool,
 }
 
 fn record(out: &mut Types, name: &str, ty: Option<String>) {
@@ -145,6 +148,11 @@ pub(crate) fn class_scope(name: &str, class: Node, source: &str) -> ClassScope {
     };
     let mut cursor = class.walk();
     for part in class.named_children(&mut cursor) {
+        if part.kind() == "base_list"
+            || (part.kind() == "modifier" && text(part, source) == "partial")
+        {
+            scope.opaque = true;
+        }
         if part.kind() == "parameter_list" {
             let mut params = part.walk();
             for param in part.named_children(&mut params) {
