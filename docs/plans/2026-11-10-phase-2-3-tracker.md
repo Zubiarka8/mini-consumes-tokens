@@ -139,6 +139,19 @@ From `rules.md` and the two messages:
         declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
         (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
         snapshot is unchanged.
+  - [x] Rust: `use bbb_lib::render as draw;` makes `draw()` a call to
+        `render` with `bbb_lib` as crate evidence, so it reaches that
+        crate's item and never another crate's `render`. A `crate::`,
+        `self::` or `super::` alias names the original item with no crate
+        evidence, a single-segment `use rand as r` names a crate and is
+        left alone, and a local binding or declaration of the alias keeps
+        its own name. Only a bare call is renamed; type references through
+        an alias are unchanged. On this repository's Rust (56243 calls) 99
+        calls change, all aliases of `use … as`: 59 from several candidates
+        to one, 13 from none to the right candidates, 12 narrowed, 9
+        keep one, 6 from none to one. Test:
+        `mct-lang-rust/tests/aliased_use.rs`; the corpus snapshot is
+        unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
