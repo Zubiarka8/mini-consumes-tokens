@@ -1386,9 +1386,31 @@ From `rules.md` and the two messages:
       16 Java calls, dead code unchanged.
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
       D8).
-- [ ] Language-specific features (3.4), each checked against the real
-      grammar.
-- [ ] Positive and negative fixtures for each language (3.5).
+- [x] Language-specific features (3.4), each checked against the real
+      grammar. For every code language the grammar crate's
+      `node-types.json` was compared with the node kinds the parser
+      handles, then each unhandled kind that can declare a symbol or name
+      a use was probed in a scratch project with `init --force` and
+      `find_dead_code`. Java, Kotlin, C#, Go, PHP, Lua, Python, Rust, C++,
+      TS/JS, Bash, PowerShell and CSS are done. Findings, each with its
+      own PR: Java record compact constructor (#518), `module-info.java`
+      (#519), Rust `macro_rules!` bodies (#520), Java method references
+      and enum constant arguments (#526), PHP closure variables (#527),
+      C# `nameof` (#528), JS/TS classes and enums used as values (#525).
+      Bash, PowerShell and CSS had none: Bash and PowerShell handle every
+      declaring kind; CSS indexes rules only, by design (the table above
+      puts CSS out of scope for declarations). HTML, Markdown, XML and
+      XAML have no declarations.
+- [~] Positive and negative fixtures for each language (3.5).
+  - [x] Survey, not a review: every language crate has a corpus directory
+        of 8-10 fixture files and tests that assert an absence. A grep
+        for negative-looking assertions (`assert!(!…)`, `is_empty()`,
+        `None`, `false`, names such as `unexpected` or `never`) counts
+        18-96 per crate against 25-162 tests (lowest ratios: PowerShell
+        21/47, C# 29/57, HTML 16/32, Kotlin 38/80). The count shows no
+        language without negatives; it does not show that each rule has
+        one. The box stays `[~]` until a fixture-by-fixture review, which
+        needs a scope from the maintainer.
 
 ## Block 4: quality, fixtures and performance
 
@@ -1434,7 +1456,7 @@ From `rules.md` and the two messages:
   - [ ] `m::Type::f()`: the method's parent is the type, so the module
         evidence finds no candidate. Matching it needs the view to look at
         the type's parent (a migration): #478.
-- [~] Reading long functions through the context tools.
+- [x] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
         past the cap the footer now names the hidden range (`… 60 more
