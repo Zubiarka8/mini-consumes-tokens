@@ -399,6 +399,15 @@ From `rules.md` and the two messages:
           PowerShell files fail before and after (`review-check.ps1:29`,
           ERR-002, a different construct). Recorded in
           `errors/HISTORY.md`; the checklist's FN01 cell is `[x]`.
+    - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
+          `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
+          is a `constant`; `export`, `declare -i` and a bare assignment stay
+          `variable`s. The `readonly` modifier detail is unchanged. Test:
+          `tests/readonly_constants.rs`; `corpus.rs` pinned
+          `KNOWN_COMPRESSIONS` (a `readonly -a`) as a variable, the old
+          behavior, and now expects a constant. Corpus: 6 variables become
+          constants, symbol count unchanged. Repository snapshot (52 shell
+          files): 601 symbols before and after, dead code 0 -> 0.
     - [x] CSS statement at-rules with a string prelude: `@source "./";`
           and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
           rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
@@ -1356,6 +1365,13 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] C#: `get_indexing_status` lists the `PackageReference` items of a
+      `.csproj` (version from the attribute or a `<Version>` element; none
+      for a central-package reference; commented-out items skipped).
+      `Directory.Packages.props` and `packages.config` are not read.
+      Scores: C# features 55→65, structure 67→100. Java (`pom.xml`),
+      Kotlin (Gradle DSL) and C++ (`CMakeLists.txt`) stay out: no single
+      stable format, as `manifests.rs` already says.
 - [x] Java: a field initializer is walked like an initializer block, so
       the calls and anonymous classes in `Runnable r = new Runnable() { … };`
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
