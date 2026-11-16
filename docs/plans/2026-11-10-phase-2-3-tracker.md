@@ -96,6 +96,18 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] C++, declared receivers only: `x.m()` and `p->m()` on a variable the
+        enclosing function declares with one class (a parameter, a local, a
+        pointer or reference, `const` or not) are qualified by that class as
+        a method; a `std::` type is external. `auto`, a builtin or a
+        qualified project type, a template parameter and a name declared
+        with two types in the function (a shadowing block, a lambda
+        parameter) prove nothing, so the call is left as it was. A type
+        alias is not followed: a receiver declared with an alias name gets
+        no candidate. On a scratch project with two classes that both
+        declare `m`, 4 ambiguous calls (2 candidates) became resolved (1).
+        Test: `mct-lang-cpp/tests/receivers.rs`; the corpus snapshot is
+        unchanged.
   - [!] Whether Kotlin (#327) and C# (#328) adopt Go's rule for a receiver
         with no stated type. Today that loses 12 (Kotlin) and 25 (C#) right
         resolutions. Waiting for the maintainer.
@@ -130,6 +142,16 @@ From `rules.md` and the two messages:
         `import static java.util.Objects.requireNonNull` as not external,
         which was the gap. Test: `mct-lang-java/tests/static_imports.rs`;
         the corpus snapshot is unchanged.
+  - [x] Go: an import of a dotless module path (`module shop`, `import
+        "shop/store"`) names a repository package like a domain-rooted one,
+        for a plain and an aliased import. The path needs two or more
+        elements and a root that is no directory of GOROOT's `src/`
+        (`net/http`, `log`, `internal` stay the standard library's), so a
+        single-element path and a module named like a standard directory
+        are left unproven. On a scratch project with two packages that both
+        declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
+        (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
+        snapshot is unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
@@ -291,7 +313,18 @@ From `rules.md` and the two messages:
         were all wrong (`u64::from(l.on_hand)`, `u64::from(*byte)`) and are
         now ambiguous; the other 84 had no candidate. Dead code unchanged
         (124). Test: `mct-lang-rust/tests/primitive_conversions.rs`.
+  - [x] C#: a call whose receiver is a fully qualified name of the framework
+        (`System.Console.WriteLine(…)`, `global::System.Math.Max(…)`) is
+        external. The name must be identifiers only, rooted at `System` or
+        `Microsoft`, with at least two segments; a call or an index in the
+        chain, an alias and a simple name (`Console.WriteLine` after
+        `using System;`) keep their resolution, because a repository can
+        declare its own `Console`. On a scratch project with `Log.WriteLine`
+        and `Log.Max` next to the framework calls, 2 ambiguous calls became
+        external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
+        corpus snapshot is unchanged.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
+
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
       same-named method in an unrelated class), all correct. D9 has 2 for
@@ -311,7 +344,10 @@ From `rules.md` and the two messages:
       `opts.get` on a `dict` next to `View.get`, run with CPython), both
       correct; before the fix, 1 wrong and 1 ambiguous. Rust's D5 label
       (`stack.len()` on `stack: &Stack`, next to a free `fn len`) is now
-      correct; before, ambiguous.
+      correct; before, ambiguous. D5 has 2 for C++ (`q.to_string()` on
+      `const Quantity& q` and `b->to_string()` on `const Box* b`, each next
+      to the other class's `to_string`, checked with `clang++`), both
+      correct; before the fix, both ambiguous.
 
 ## Block 2: phase 2, SQLite and enriched model
 
@@ -1399,9 +1435,31 @@ From `rules.md` and the two messages:
       16 Java calls, dead code unchanged.
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
       D8).
-- [ ] Language-specific features (3.4), each checked against the real
-      grammar.
-- [ ] Positive and negative fixtures for each language (3.5).
+- [x] Language-specific features (3.4), each checked against the real
+      grammar. For every code language the grammar crate's
+      `node-types.json` was compared with the node kinds the parser
+      handles, then each unhandled kind that can declare a symbol or name
+      a use was probed in a scratch project with `init --force` and
+      `find_dead_code`. Java, Kotlin, C#, Go, PHP, Lua, Python, Rust, C++,
+      TS/JS, Bash, PowerShell and CSS are done. Findings, each with its
+      own PR: Java record compact constructor (#518), `module-info.java`
+      (#519), Rust `macro_rules!` bodies (#520), Java method references
+      and enum constant arguments (#526), PHP closure variables (#527),
+      C# `nameof` (#528), JS/TS classes and enums used as values (#525).
+      Bash, PowerShell and CSS had none: Bash and PowerShell handle every
+      declaring kind; CSS indexes rules only, by design (the table above
+      puts CSS out of scope for declarations). HTML, Markdown, XML and
+      XAML have no declarations.
+- [~] Positive and negative fixtures for each language (3.5).
+  - [x] Survey, not a review: every language crate has a corpus directory
+        of 8-10 fixture files and tests that assert an absence. A grep
+        for negative-looking assertions (`assert!(!…)`, `is_empty()`,
+        `None`, `false`, names such as `unexpected` or `never`) counts
+        18-96 per crate against 25-162 tests (lowest ratios: PowerShell
+        21/47, C# 29/57, HTML 16/32, Kotlin 38/80). The count shows no
+        language without negatives; it does not show that each rule has
+        one. The box stays `[~]` until a fixture-by-fixture review, which
+        needs a scope from the maintainer.
 
 ## Block 4: quality, fixtures and performance
 
@@ -1447,7 +1505,7 @@ From `rules.md` and the two messages:
   - [ ] `m::Type::f()`: the method's parent is the type, so the module
         evidence finds no candidate. Matching it needs the view to look at
         the type's parent (a migration): #478.
-- [~] Reading long functions through the context tools.
+- [x] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
         past the cap the footer now names the hidden range (`… 60 more
@@ -1515,11 +1573,15 @@ From `rules.md` and the two messages:
         (ADR-027). This repository's snapshot: 10 of the 12 `website/`
         candidates get the note; the count is unchanged by design. Tests:
         `mct-lang-js-ts/tests/nextjs.rs`, `dead_code.rs`.
-  - [ ] Object-literal methods called by a library (`tokenizer(src) {…}` in
-        `web-ui/src/notes/obsidian.ts`, a `MarkedExtension`) are parentless
-        functions with no in-repo caller: 5 candidates, plus the same shape
-        in the bundles. Telling them apart needs a stored fact about the
-        declaration (schema or symbol details): issue #475.
+  - [x] Object-literal methods called by a library (`tokenizer(src) {…}`, a
+        `MarkedExtension`): a `method_definition` inside an object literal
+        carries a "possible entry point" hint (`javascript`,
+        `object-literal-callback`; option 2 of issue #475, no schema
+        change, no rule by name). It stays a candidate, so the count is
+        unchanged. This repository: 121 candidates before and after, 2 of
+        them with the note (`tokenizer` in `notes-dist/notes.js` and one
+        `[Symbol.iterator]` of `graph-dist/graph.js`). Test:
+        `mct-lang-js-ts/tests/object_literal_callbacks.rs`.
   - [ ] A renamed default import (`import SearchDialog from
         '@/components/search'`) does not reach the default-exported
         `DefaultSearchDialog`: needs default-export resolution across files.

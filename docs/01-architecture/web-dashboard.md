@@ -68,6 +68,18 @@ and a strict CSP. Its localhost URL does not contain a private key.
   the next save removes the temporary files the killed save left
   (`docs/01-architecture/adrs/019-shared-review-decisions.md`).
 - `POST api/ignore` updates project ignore rules with same-origin and CSRF checks.
+- `POST api/partial-blocks` (JSON `csrf`, same-origin) starts the repeated
+  partial-block search of [ADR-012](adrs/012-repeated-partial-blocks.md) for the
+  snapshot on screen, unless one is running; `GET api/partial-blocks` answers
+  its state (`idle`, `running`, `done`, `outdated`, `failed`) and, once done,
+  one page (`page`, `size`) of the kept report. `web/partial_blocks.rs` runs
+  `mct_index::find_duplicate_groups` with `partial_blocks` set to the default
+  budget on a thread with its own read-only index handle, so the site thread
+  keeps answering. The result belongs to one snapshot: a reload starts without
+  it, and a search that finishes on another index generation is `outdated`.
+  The answer carries what the CLI header carries (`budget.exhausted`,
+  `indexCoverage`, syntax and read failures, skipped candidates), so the page
+  can tell no blocks from an incomplete index or a partial analysis.
 - `web/app/*` is an ES-module front end embedded with `include_str!`: hash
   routing (`#/page?query`, filters live in the URL), a DOM builder that never
   uses `innerHTML`, inline SVG charts, a bounded force-directed graph, an LCS

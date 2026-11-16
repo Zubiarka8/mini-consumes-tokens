@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Dashboard: the Duplicates page can search for repeated blocks inside functions, the search of `mct-cli duplicates --partial-blocks`. It runs when you ask for it, in the background, and lists each block with its file, line range and function; a location opens the file at those lines. The panel says when the list is partial because a budget ran out or because the index is incomplete.
+
+### Fixed
+
+- `mct-cli duplicates` now applies the rules of nested `.gitignore` files that `.mctignore` imports, as the dashboard and the other commands do. A path excluded by such a rule after indexing is no longer reported, and its cached report is not reused.
+
 ## [0.3.2] - 2026-11-13
 
 This release is mostly about the dashboard and about large Obsidian vaults. Notes now render the way Obsidian renders them, the notes graph shows every note at once and stays readable, and the dashboard can close itself when you stop using it. A few fixes also make the dead-code and duplicate reports more accurate, and releases now come in more formats.
