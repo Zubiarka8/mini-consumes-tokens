@@ -539,6 +539,20 @@ From `rules.md` and the two messages:
           the 17 C# files of this repository (40 supertype relations): 18
           ambiguous -> resolved, each to the class; none newly unresolved,
           dead code 0 -> 0. The checklist's RE05 cell is `[x]`.
+    - [x] Java and Kotlin `main`: a Java type declaring the launcher's
+          `void main(String[] a)`, `void main(String... a)` or (Java 25,
+          JEP 512) `void main()` carries an entry-point hint (`java`,
+          `main-method`); so does a Kotlin `object` with `@JvmStatic fun
+          main(args: Array<String>)` (or `vararg args: String`, or no
+          parameter), or a class whose companion object has one (`jvm`,
+          `jvm-static-main`). The type stays a dead-code candidate and
+          `find_dead_code` shows `possible_entry_point` next to it. Another
+          return type, other parameters, `Main`, or a Kotlin `main` without
+          `@JvmStatic` carry no hint. Tests: `tests/main_entry_point.rs` in
+          both crates; the Java cases were run with the JDK 25 `java`
+          launcher (no `kotlinc` here). Probe: `Tool` and `K` were listed
+          with no note, now each carries one. This repository's 31 Java
+          and Kotlin files: dead code 0 -> 0.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
           `\define`) with a literal name, single-quoted or double-quoted
           without interpolation, declares a `constant` with no parent,
