@@ -10,6 +10,7 @@ mod idle;
 mod ignore_file;
 mod numbers;
 mod obsidian;
+mod partial_blocks;
 mod port;
 mod response;
 mod reviews;
@@ -108,6 +109,9 @@ struct Site {
     timings: Timings,
     /// Measured server-side latency of every API route, in microseconds.
     latency: RefCell<BTreeMap<&'static str, Vec<u64>>>,
+    /// The on-demand partial-block search of this snapshot; a reloaded
+    /// snapshot starts without one.
+    partial_blocks: RefCell<partial_blocks::Search>,
     project: String,
     generated: u64,
     warning: Option<String>,
@@ -276,6 +280,7 @@ impl Site {
             dead_by_symbol,
             timings,
             latency: RefCell::default(),
+            partial_blocks: RefCell::default(),
             project,
             generated: now_unix(),
             warning,

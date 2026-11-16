@@ -88,6 +88,67 @@ mod libraries;
 
 pub struct CssParser;
 
+/// Repair only the pinned grammar's rejection of a one-line statement at-rule
+/// whose prelude is a string, a selector list or a function (`@source "./";`,
+/// `@custom-variant dark (&:is(.d *));`), valid CSS that Tailwind 4 uses. On
+/// every line an `ERROR` node covers that begins with `@` and ends with `;`,
+/// the prelude's bytes become `x`, a same-offset substitution; extraction
+/// reads the original text. A full reparse must accept the entire file.
+fn blank_at_rule_strings(node: Node, blanked: &mut [u8], depth: u32) -> bool {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return false;
+    }
+    let mut changed = false;
+    if node.kind() == "ERROR" {
+        let end = node.end_byte().min(blanked.len());
+        let start = node.start_byte().min(end);
+        let first = blanked[..start]
+            .iter()
+            .rposition(|&b| b == b'\n')
+            .map_or(0, |n| n + 1);
+        let mut line_start = first;
+        while line_start < end.max(first + 1).min(blanked.len()) {
+            let line_end = blanked[line_start..]
+                .iter()
+                .position(|&b| b == b'\n')
+                .map_or(blanked.len(), |n| line_start + n);
+            changed |= blank_strings_of_statement_at_rule(&mut blanked[line_start..line_end]);
+            line_start = line_end + 1;
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        changed |= blank_at_rule_strings(child, blanked, depth + 1);
+    }
+    changed
+}
+
+/// Turns the prelude of `line` (everything between the at-keyword and the
+/// closing `;`) into one run of `x`s when it is a one-line statement at-rule;
+/// whether it changed anything.
+fn blank_strings_of_statement_at_rule(line: &mut [u8]) -> bool {
+    let Some(from) = line.iter().position(|b| !b.is_ascii_whitespace()) else {
+        return false;
+    };
+    let Some(to) = line.iter().rposition(|b| !b.is_ascii_whitespace()) else {
+        return false;
+    };
+    if line[from] != b'@' || line[to] != b';' {
+        return false;
+    }
+    let name_end = line[from..to]
+        .iter()
+        .position(|b| b.is_ascii_whitespace())
+        .map_or(to, |n| from + n);
+    let prelude = &mut line[name_end..to];
+    let mut changed = false;
+    for byte in prelude.iter_mut().filter(|b| **b != b'x') {
+        *byte = b'x';
+        changed = true;
+    }
+    changed
+}
+
 impl LanguageParser for CssParser {
     fn language_id(&self) -> &'static str {
         "css"
@@ -109,13 +170,24 @@ impl LanguageParser for CssParser {
             .set_language(&tree_sitter_css::LANGUAGE.into())
             .expect("tree-sitter-css grammar is statically valid");
 
-        let tree = parser
+        let mut tree = parser
             .parse(&file.contents, None)
             .ok_or_else(|| ParseError::Syntax {
                 path: file.relative_path.clone(),
                 line: 1,
                 message: "tree-sitter produced no parse tree".to_string(),
             })?;
+
+        if tree.root_node().has_error() {
+            let mut blanked = file.contents.as_bytes().to_vec();
+            if blank_at_rule_strings(tree.root_node(), &mut blanked, 0) {
+                if let Some(reparsed) = parser.parse(&blanked, None) {
+                    if !reparsed.root_node().has_error() {
+                        tree = reparsed;
+                    }
+                }
+            }
+        }
 
         let root = tree.root_node();
         if root.has_error() {
