@@ -109,6 +109,7 @@ mod details;
 mod libraries;
 mod literals;
 mod names;
+mod receivers;
 mod tokens;
 
 pub use tokens::PhpTokenSource;
@@ -246,6 +247,9 @@ struct Walker<'a> {
     /// visited that are not bound to a variable. Their body keeps the outer
     /// `owner`, but has its own variable scope.
     closure_depth: u32,
+    /// The classes the enclosing function proves its variables hold (see
+    /// `receivers`). Empty outside a function and inside a closure.
+    locals: receivers::Types,
 }
 
 /// What `self::`, `static::`, `parent::` and `$this->` mean at a call site.
@@ -281,6 +285,7 @@ impl<'a> Walker<'a> {
             entry_points: Vec::new(),
             supertypes: Vec::new(),
             closure_depth: 0,
+            locals: receivers::Types::new(),
         }
     }
 
@@ -556,17 +561,46 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// Evidence for `$receiver->method()`: only `$this` has a known class.
+    /// Evidence for `$receiver->method()`: `$this` is the current class, a
+    /// variable the function proves holds one class (`receivers`) and
+    /// `(new Class())` are that class, and any other receiver is unproven.
     fn member_call_target(&self, receiver: Option<Node>) -> RelationTarget {
-        match receiver {
-            Some(r) if r.kind() == "variable_name" && text(r, self.source) == "$this" => {
-                self.current_class_target()
+        let unknown = RelationTarget {
+            member: true,
+            ..Default::default()
+        };
+        let Some(r) = receiver else { return unknown };
+        if r.kind() == "variable_name" {
+            let name = text(r, self.source);
+            if name == "$this" {
+                return self.current_class_target();
             }
-            _ => RelationTarget {
-                member: true,
-                ..Default::default()
-            },
+            return match self.locals.get(name) {
+                Some(class) => self.class_receiver_target(class).unwrap_or(unknown),
+                None => unknown,
+            };
         }
+        match receivers::constructed(r, self.source) {
+            Some(class) => self.class_receiver_target(&class).unwrap_or(unknown),
+            None => unknown,
+        }
+    }
+
+    /// The target of a call on a receiver of the class written `class`:
+    /// the class the name resolves to here, `self` the current class.
+    /// `None` for `static`, `parent` and a name no namespace rule resolves.
+    fn class_receiver_target(&self, class: &str) -> Option<RelationTarget> {
+        match class.to_ascii_lowercase().as_str() {
+            "self" => return Some(self.current_class_target()),
+            "static" | "parent" => return None,
+            _ => {}
+        }
+        let resolved = self.scope.resolve_class(class)?;
+        Some(RelationTarget {
+            qualifier: Some(resolved.name),
+            target_module: Some(namespace_alias(&resolved.namespace)),
+            ..Default::default()
+        })
     }
 
     /// Evidence for `f()`: a function (a variable is called as `$f()`), and
@@ -790,6 +824,8 @@ impl<'a> Walker<'a> {
                     }
                 }
                 self.visit_attributes(node, id, depth);
+                let locals = receivers::locals(node, self.source);
+                let outer_locals = std::mem::replace(&mut self.locals, locals);
                 for field in ["parameters", "return_type", "body"] {
                     if let Some(part) = node.child_by_field_name(field) {
                         if field == "return_type" {
@@ -799,6 +835,7 @@ impl<'a> Walker<'a> {
                         }
                     }
                 }
+                self.locals = outer_locals;
             }
             // Constructor property promotion: a parameter with a visibility
             // modifier is also, implicitly, a property declaration on the
@@ -1118,12 +1155,14 @@ impl<'a> Walker<'a> {
                                 location(r),
                                 None,
                             );
+                            let outer_locals = std::mem::take(&mut self.locals);
                             if let Some(params) = r.child_by_field_name("parameters") {
                                 self.visit_children(params, id, type_name, depth + 1);
                             }
                             if let Some(body) = r.child_by_field_name("body") {
                                 self.visit(body, id, type_name, depth + 1);
                             }
+                            self.locals = outer_locals;
                         } else {
                             self.visit(r, owner, type_name, depth + 1);
                         }
@@ -1137,7 +1176,9 @@ impl<'a> Walker<'a> {
             }
             "anonymous_function" | "arrow_function" => {
                 self.closure_depth += 1;
+                let outer_locals = std::mem::take(&mut self.locals);
                 self.visit_children(node, owner, type_name, depth + 1);
+                self.locals = outer_locals;
                 self.closure_depth -= 1;
             }
             _ => self.visit_children(node, owner, type_name, depth + 1),
@@ -1189,11 +1230,13 @@ impl<'a> Walker<'a> {
             match member.kind() {
                 "method_declaration" => {
                     self.visit_attributes(member, owner, depth);
+                    let outer_locals = std::mem::take(&mut self.locals);
                     for field in ["parameters", "return_type", "body"] {
                         if let Some(part) = member.child_by_field_name(field) {
                             self.visit_anonymous_member_part(part, owner, depth + 1);
                         }
                     }
+                    self.locals = outer_locals;
                 }
                 "property_declaration" | "const_declaration" => {
                     self.visit_anonymous_member_part(member, owner, depth + 1);
