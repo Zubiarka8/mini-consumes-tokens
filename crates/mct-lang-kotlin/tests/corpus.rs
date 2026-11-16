@@ -188,9 +188,13 @@ fn top_level_and_local_functions_are_functions() {
         .symbols_named("auditLine")
         .iter()
         .all(|(_, s)| s.kind == Function && s.parent.is_none()));
-    // Local functions too, not methods of the enclosing type.
-    assert_eq!(function("Order.kt", "rule"), None);
-    assert_eq!(function("Inventory.kt", "stdDev"), None);
+    // Local functions too: functions of the enclosing function, not
+    // methods of the enclosing type.
+    assert_eq!(function("Order.kt", "rule"), Some("packingSlip"));
+    assert_eq!(
+        function("Inventory.kt", "stdDev"),
+        Some("recomputeReorderPoint")
+    );
     // A local `val` is no field of the class (`Line.subtotal` in Order.kt
     // is a real property).
     assert!(c

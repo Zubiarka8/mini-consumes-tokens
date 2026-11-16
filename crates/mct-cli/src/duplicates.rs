@@ -122,11 +122,13 @@ impl From<Args> for DuplicateOptions {
 }
 
 /// Header scope and warning of the partial-block section.
-const PARTIAL_BLOCKS_SCOPE: &str = "repeated token sequences shared by two or more different \
+pub(crate) const PARTIAL_BLOCKS_SCOPE: &str =
+    "repeated token sequences shared by two or more different \
 functions under the selected normalization, trimmed to whole lines with balanced delimiters; \
 maximal blocks only; blocks lying only inside members of one reported group are left out; \
 repetition inside a single function is not reported";
-const PARTIAL_BLOCKS_WARNING: &str = "a repeated token sequence is not a proposal to extract it: \
+pub(crate) const PARTIAL_BLOCKS_WARNING: &str =
+    "a repeated token sequence is not a proposal to extract it: \
 extraction feasibility (variables in/out, control flow, side effects) is not evaluated";
 
 /// Every skip reason, in the stable order the report lists them.
@@ -160,8 +162,11 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
             display_path(root)
         );
     }
-    let exclude = ExcludeSet::new(&mct_index::read_ignore_file(root));
-    let index = Index::open_existing_read_only(root, &db_path, exclude)
+    // The project's rules as every other command reads them, nested
+    // `.gitignore` files included: a path they exclude is not reported even
+    // while its rows wait for the next reindex.
+    let exclude = ExcludeSet::for_project(root);
+    let index = Index::open_existing_read_only(root, &db_path, exclude.clone())
         .with_context(|| format!("cannot open the index at {}", display_path(&db_path)))?;
     let snapshot = index.read_snapshot()?;
     let output_path = args.output.clone();
@@ -176,7 +181,7 @@ pub(crate) fn run(root: &Path, args: Args) -> anyhow::Result<()> {
     let key = if no_cache {
         None
     } else {
-        match cache_key(root, &db_path, &index, &options) {
+        match cache_key(root, &db_path, &index, &exclude, &options) {
             Ok(key) => key,
             Err(error) => {
                 eprintln!("warning: cannot fingerprint duplicate-report inputs: {error}");
@@ -356,6 +361,7 @@ fn cache_key(
     root: &Path,
     db_path: &Path,
     index: &Index,
+    exclude: &ExcludeSet,
     options: &DuplicateOptions,
 ) -> anyhow::Result<Option<String>> {
     use git2::{ObjectType, Oid};
@@ -386,14 +392,14 @@ fn cache_key(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let ignore =
-        [".mctignore", ".gitignore"].map(|name| fs::read(root.join(name)).unwrap_or_default());
+    // The rules in force, nested `.gitignore` files included.
+    let ignore = exclude.extra_patterns();
     // Only hashed, never stored: `Debug` quotes strings and brackets lists, so
     // distinct inputs cannot run together.
     let payload = format!(
         "{:?}",
         (
-            "duplicates-report-cache-v4",
+            "duplicates-report-cache-v5",
             env!("CARGO_PKG_VERSION"),
             format!("{options:?}"),
             index.published_generation()?,
@@ -428,6 +434,20 @@ fn write_cached_report(path: &Path, key: &str, report: &str) -> anyhow::Result<(
     // Releases before this one kept the cache as JSON; nothing reads it now.
     let _ = fs::remove_file(path.with_extension("json"));
     Ok(())
+}
+
+/// Whether the index the report was analyzed from is known to be whole:
+/// `partial` (files with syntax errors or read failures), `no-recorded-errors`,
+/// or `unknown` when the index records no indexing run. The TOON report and
+/// the dashboard both state it with these words.
+pub(crate) fn index_coverage(report: &DuplicateReport) -> &'static str {
+    if report.index_syntax_errors > 0 || report.index_read_failures > 0 {
+        "partial"
+    } else if report.has_indexing_record {
+        "no-recorded-errors"
+    } else {
+        "unknown"
+    }
 }
 
 /// Renders the report as TOON: scalar header fields, then a `groups` list of
@@ -490,14 +510,7 @@ pub(crate) fn render_toon(report: &DuplicateReport) -> String {
         "trivial_calls",
         report.options.trivial_calls.as_str(),
     );
-    let coverage = if report.index_syntax_errors > 0 || report.index_read_failures > 0 {
-        "partial"
-    } else if report.has_indexing_record {
-        "no-recorded-errors"
-    } else {
-        "unknown"
-    };
-    field(&mut out, 0, "index_coverage", coverage);
+    field(&mut out, 0, "index_coverage", index_coverage(report));
     field(
         &mut out,
         0,

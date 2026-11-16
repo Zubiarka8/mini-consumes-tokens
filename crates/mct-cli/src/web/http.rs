@@ -1,4 +1,5 @@
-//! Bounded HTTP/1.1: GET/HEAD views and same-origin POST review decisions and `.mctignore` edits.
+//! Bounded HTTP/1.1: GET/HEAD views and same-origin POST review decisions, `.mctignore` edits
+//! and partial-block search starts.
 //! No request path is translated to a filesystem path.
 
 use std::collections::BTreeMap;
@@ -89,7 +90,7 @@ pub(super) struct Complete {
 impl Complete {
     /// A decision or `.mctignore` edit, which may change saved state.
     pub(super) fn is_post(&self) -> bool {
-        self.post && self.target != "api/settings"
+        self.post && !matches!(self.target.as_str(), "api/settings" | "api/partial-blocks")
     }
 
     /// The page's live-update check: it does not count as use of the dashboard.
@@ -104,6 +105,7 @@ impl Complete {
                     super::settings::save(&site.root, body, &site.csrf, activity)
                 }
                 Ok(body) if self.target == "api/ignore" => site.ignore(body),
+                Ok(body) if self.target == "api/partial-blocks" => site.start_partial_blocks(body),
                 Ok(body) => site.review(body),
                 Err(_) => Response::error(400),
             }
@@ -247,7 +249,10 @@ fn validate(headers: &str, port: u16) -> Result<Request, u16> {
     let target = target.strip_prefix('/').ok_or(404_u16)?;
     let post = method == "POST";
     let length = if post {
-        if !matches!(target, "api/review" | "api/ignore" | "api/settings") {
+        if !matches!(
+            target,
+            "api/review" | "api/ignore" | "api/settings" | "api/partial-blocks"
+        ) {
             return Err(405);
         }
         if fields.get("origin").copied() != Some(format!("http://{host}").as_str()) {

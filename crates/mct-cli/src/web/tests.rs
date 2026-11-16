@@ -148,6 +148,7 @@ fn dashboard_serves_static_app_and_a_read_only_json_api() {
         "markdown",
         "palette",
         "ignore-card",
+        "partial-blocks",
         "page-dashboard",
         "ai",
         "i18n-en",
@@ -1901,6 +1902,7 @@ mod duplicate_groups;
 
 #[path = "tests/group_invariants.rs"]
 mod group_invariants;
+mod partial_blocks;
 
 /// Starts the real accept loop on an ephemeral port in a background thread.
 fn serve_in_background(root: &Path) -> u16 {
