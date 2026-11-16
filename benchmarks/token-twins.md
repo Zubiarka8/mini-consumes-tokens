@@ -934,3 +934,63 @@ independent holdout, because ADR-011 records tuning after the corpus was seen.
 The scorer now reads budget_exhausted from partial_blocks_budget as ADR-012
 specifies; two focused Python tests cover present and absent budget output.
 No performance benchmark was rerun in this integration.
+
+## Partial-block search from the dashboard
+
+Design: [ADR-012](../docs/01-architecture/adrs/012-repeated-partial-blocks.md),
+dashboard paragraph. The change adds an on-demand search to `mct-cli web` and
+makes `mct-cli duplicates` read nested `.gitignore` rules; it is not meant to
+make anything faster, so the numbers below only show that nothing got slower.
+
+Protocol: corpus is `git archive origin/main crates` at `45ae5ad4` (980 indexed
+files, 11,947 candidates, 17 files with syntax errors from the malformed
+fixtures), indexed once with `mct-cli init --no-obsidian` and shared by both
+binaries. "Before" is `origin/main` at `45ae5ad4`, "after" is that commit plus
+this change, both `cargo build --release -p mct-cli` with Rust 1.96.0 on an
+Apple M4 (macOS). Two rounds in the order before, after, before, after; five
+runs per number and round; other processes were running (load average about 9
+at the start). Each cell is the median of five runs, with the sample standard
+deviation in parentheses, in milliseconds. The operating system's file cache
+was warm in every run and was not flushed, so "no cache" means only that
+`--no-cache` skipped the duplicate-report cache.
+
+| Measurement | Before, round 1 | After, round 1 | Before, round 2 | After, round 2 |
+|---|---|---|---|---|
+| `duplicates --no-cache --limit 0` | 1,029.5 (20.8) | 1,058.3 (38.0) | 1,039.7 (31.6) | 1,071.6 (21.5) |
+| The same with `--partial-blocks` | 1,175.5 (19.0) | 1,193.8 (49.3) | 1,223.1 (234.1) | 1,204.0 (22.1) |
+| `duplicates --limit 0`, report cache hit | 48.7 (0.6) | 47.7 (0.4) | 48.2 (0.7) | 49.4 (1.5) |
+| `web` start until "Dashboard ready" | 1,642.9 (19.0) | 1,605.8 (10.8) | 1,627.4 (35.8) | 1,596.6 (33.8) |
+
+Reading: the differences between before and after are of the size of the
+differences between the two rounds of one binary (the uncached runs differ by
+1 to 3 percent, within one to two standard deviations), so no change in either
+direction is claimed. Both binaries wrote byte-identical reports on this corpus,
+with and without `--partial-blocks`.
+
+Dashboard search, after only (the route does not exist before), same corpus,
+five server starts per round:
+
+| Measurement | Round 1 | Round 2 |
+|---|---|---|
+| Search, POST until `done` seen by the client | 1,220.5 (7.8) | 1,218.8 (15.9) |
+| Search, `elapsedMs` reported by the server | 1,218.0 (7.8) | 1,217.0 (15.5) |
+| One page of blocks after the search (n=80) | 0.6 (0.1), max 0.7 | 0.6 (0.1), max 1.2 |
+| `api/findings?type=duplicate`, no search running (n=50) | 1.2 (2.5), max 19.1 | 1.2 (1.8), max 14.1 |
+| The same while the search runs (n=3,791 and 3,784) | 1.1 (0.2), max 8.0 | 1.1 (0.2), max 7.2 |
+
+Reading: the search costs what `duplicates --partial-blocks` costs (it is the
+same analysis), it is paid once per snapshot, a page of its result is read in
+under a millisecond, and the list of groups answers as fast during the search
+as without it. The search found 200 blocks with `budget_exhausted:
+max-blocks`, and the 200 blocks and their 625 occurrences were equal, in order,
+to the CLI's `partial_blocks` list on the same index.
+
+Limits: one machine, one corpus, one operating system, a warm file cache, a
+loaded machine, five runs per cell. The dashboard numbers are client-side
+loopback timings from a Python script, so they include its HTTP overhead.
+Precision and recall of the blocks were not measured here; the labelled cases
+are the fixtures of `crates/mct-cli/tests/fixtures/duplicates/blocks.{py,rs}`
+(one shared run per language that must be found, one whole-function pair that
+must not) and the four-line shared run of
+`crates/mct-cli/src/web/tests/partial_blocks.rs` that must not be found. The
+manual review above remains the only usefulness estimate.
