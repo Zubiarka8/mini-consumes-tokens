@@ -189,7 +189,14 @@ jobs:
           EOF
           cargo audit
 
+  # The fuzz smoke tests run for a push to `main` only, on Linux and on
+  # macOS (see `fuzz-smoke-macos`). Each pull request used to queue 18
+  # Ubuntu fuzz jobs next to its 4 required checks, and with ~45 open pull
+  # requests that was ~800 jobs on a free pool of 20: every pull request
+  # waited hours for checks that are not required to merge. The required
+  # build + test + clippy jobs still run on every pull request.
   fuzz-smoke:
+    if: github.event_name == 'push'
     name: fuzz smoke test (${{ matrix.crate }}, ${{ matrix.os }})
     # Linux/macOS only — deliberately, not an oversight. cargo-fuzz's
     # default AddressSanitizer needs a runtime DLL
