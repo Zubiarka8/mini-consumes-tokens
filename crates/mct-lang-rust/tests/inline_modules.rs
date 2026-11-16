@@ -102,3 +102,44 @@ fn a_path_through_an_inline_module_resolves_to_its_item() {
         ]
     );
 }
+
+const TYPED: &str = r#"mod inner {
+    pub struct Thing;
+    impl Thing {
+        pub fn make() -> Thing { Thing }
+    }
+}
+
+pub fn entry() -> Thing {
+    inner::Thing::make()
+}
+"#;
+
+/// Another file's `inner::Thing::make`: the path in `lib.rs` goes through
+/// its own `inner`, so this one is no candidate.
+const TYPED_ELSEWHERE: &str = r#"mod inner {
+    pub struct Thing;
+    impl Thing {
+        pub fn make() -> Thing { Thing }
+    }
+}
+"#;
+
+#[test]
+fn a_method_reached_through_an_inline_module_and_its_type_resolves() {
+    let root = std::env::temp_dir().join(format!("mct-rs-inline-typed-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(root.join("src/lib.rs"), TYPED).unwrap();
+    std::fs::write(root.join("src/elsewhere.rs"), TYPED_ELSEWHERE).unwrap();
+    let index = mct_corpus::open_fixture_indexed(&root, Arc::new(RustParser));
+    let hits: Vec<String> = index
+        .find_calls("entry")
+        .unwrap()
+        .into_iter()
+        .map(|h| format!("{} {:?} {}", h.to_name, h.resolution, h.candidates.len()))
+        .collect();
+    std::fs::remove_dir_all(root).unwrap();
+    // One candidate, `lib.rs`'s own; before, none (the method's parent is
+    // the type, not the module) so the call stayed unresolved.
+    assert_eq!(hits, ["make Resolved 1"]);
+}
