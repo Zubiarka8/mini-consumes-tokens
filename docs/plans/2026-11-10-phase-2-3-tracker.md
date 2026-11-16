@@ -318,6 +318,17 @@ From `rules.md` and the two messages:
         and `Log.Max` next to the framework calls, 2 ambiguous calls became
         external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
         corpus snapshot is unchanged.
+  - [x] PowerShell: a call of a built-in cmdlet (`Write-Host`, `Join-Path`,
+        `ForEach-Object`, `Test-Path`…, 105 names of the Management, Utility
+        and Core modules, any case) the file does not define as a function
+        is external, so it never reaches another script's function of that
+        name. A function the file defines under the cmdlet's name leaves it
+        unproven. Repository functions (`Get-Lines`) and external programs
+        (`git`, `gh`) are not marked. This repository: 435 of 911 PowerShell
+        calls become external; none had a candidate, so no target changes,
+        they only stop counting as unresolved. Test:
+        `mct-lang-powershell/tests/cmdlet_calls.rs`; the corpus snapshot is
+        unchanged.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
@@ -433,6 +444,21 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] C++ cells re-probed with a current `mct-cli` (`a.cpp` with a macro,
+          a `const`, a union, an abstract base, a derived class with a
+          mem-initializer, a lambda, `new T()` and `T t;`). Stale cells
+          corrected: DA03 (`const int` is a `constant`) and DA07 (`#define`
+          is a `constant` or `function`) to `[x]`, and RE03
+          (`P_Sub() : P_Base()` gives `calls P_Base`) to `[~]`, as in the
+          scored list of `symbol-coverage.md` (a base defined in another file
+          gives none). The `checklists/*.md` views were older than that
+          list; the scored one already had these. Still open, each
+          shown by the probe: FN03 (a lambda bound to a name has no symbol,
+          #443), RE05 (`P_Sub : P_Base` is ambiguous between the class and
+          its constructor, see the C++ supertype note below), SE03 (`P_St st;`
+          gives no reference and `P_St` is reported as dead code, #441) and
+          RE02 (`new P_Sub()` is ambiguous the same way). TY02/TY04 stay
+          `[~]` by design. Go cells are still to re-probe.
     - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
           `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
           is a `constant`; `export`, `declare -i` and a bare assignment stay
@@ -1428,6 +1454,28 @@ From `rules.md` and the two messages:
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
       `Logger.getLogger(…)`), symbols unchanged; this repository: the same
       16 Java calls, dead code unchanged.
+- [x] Relations: inheritance, implementations and overrides (3.3, depends on
+      D8). Audited with one sample per language (a base class or trait, an
+      interface, and a subclass overriding a method), indexed with
+      `init --force`, listing the `extends`, `implements` and `overrides`
+      relations. What each parser emits, by design (D8: explicit evidence
+      only, never a shared name):
+  - `extends` and `implements`: Java, Kotlin, C#, PHP, C++ (both bases as
+    `extends`), TS (class and `implements`), Python (`extends`), Lua
+    (`extends` from `setmetatable(… { __index = Base })`), Go (`extends`
+    from an embedded struct), Rust (`implements` from `impl Trait for T`).
+  - `overrides`: Java `@Override`, Kotlin and C# `override`, C++
+    `override`, Rust trait impl methods. Python `@override`, PHP
+    `#[\Override]` and a TS `override` modifier give it only when written,
+    so the samples without those markers have none.
+  - Not emitted, on purpose: an implicit interface implementation (C#
+    `public int Area()`, Java without `@Override`, a Go struct satisfying an
+    interface) and an overriding method with no marker. Naming it would be a
+    shared-name match, which D8 rules out.
+  - Result: no language is missing a relation its syntax states.
+- [ ] Language-specific features (3.4), each checked against the real
+      grammar.
+- [ ] Positive and negative fixtures for each language (3.5).
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
       D8).
 - [x] Language-specific features (3.4), each checked against the real
@@ -1477,7 +1525,7 @@ From `rules.md` and the two messages:
       `find_references`/`find_calls`/`find_callers`, `list_symbols`,
       `get_project_overview` and `find_dead_code`; `find_duplicate_code`
       only trimmed the trailing slash.
-- [~] Inline module resolution.
+- [x] Inline module resolution.
   - [x] Rust: an item declared in an inline `mod m { … }` (function,
         struct, enum, trait, type, const, static, macro, nested `mod`) has
         `m` as its parent, as a C++ namespace member does, so `m::f()`,
@@ -1497,6 +1545,14 @@ From `rules.md` and the two messages:
         file as its target, so another file's same-named `mod` (or an
         `impl From<Id> for u64` under a local `mod u64`) is not a
         candidate (`primitive_conversions.rs`).
+  - [x] `m::Type::f()`: the method's parent is the type, so the module
+        evidence found no candidate. The `relation_candidates` view now also
+        accepts a method whose parent type is declared in that module
+        (migration, issue #478); `target_path` still pins the file, so
+        another file's same-named `inner::Thing::make` is no candidate.
+        Test: `mct-lang-rust/tests/inline_modules.rs`
+        `a_method_reached_through_an_inline_module_and_its_type_resolves`
+        (unresolved with 0 candidates before, resolved with 1 after).
   - [ ] `m::Type::f()`: the method's parent is the type, so the module
         evidence finds no candidate. Matching it needs the view to look at
         the type's parent (a migration): #478.
@@ -1543,6 +1599,22 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Go: a function of this file used by name as a call argument
+        (`http.HandleFunc("/", handler)`, `apply(helper)`) or as an element
+        of a composite literal (`map[string]func(int) int{"h": helper}`) is a
+        `references` relation, so the callback is not dead code. A parameter
+        or a local (`:=`, `var`, `range`) of an enclosing function with the
+        same name shadows it; a variable and an unknown name record nothing.
+        Only functions of the same file count: a function declared in
+        another file of the package is not referenced from here. Corpus: no
+        change. Probe on a tiny tree: dead code listed `handler` and
+        `helper` before. `go` is not installed here, so the Go semantics
+        are not run. Test: `mct-lang-go/tests/function_arguments.rs`.
+  - [x] Probed and already fine: Java (`this::inst`, `A::parse`, `A::new`),
+        C# (`d.Changed += OnChanged`, `Func<int,int> f = Twice`,
+        `new Func<int,int>(Twice)`) and Rust (`.map(parse)`,
+        `.map(Self::helper)`, `let f: fn(i32) -> i32 = double`): none is
+        listed as dead code.
   - [x] Lua: a function of this file used by name as a call argument
         (`table.sort(t, cmp)`) or a table field value (`{ on = handler }`)
         is a `references` relation, so the callback is not dead code; a
@@ -1646,7 +1718,14 @@ The criteria from the plan:
 - [x] The enriched model is implemented and verified.
 - [x] The SQLite migrations work.
 - [ ] Every supported parser has reviewed, documented coverage.
-- [ ] Searches and the MCP context use the new metadata.
+- [x] Searches and the MCP context use the new metadata. On a scratch Rust
+      project (`util::helper()` called from `run`), `find_callers`,
+      `find_references` and `impact_analysis` return `resolution`,
+      `evidence`, `candidates` and `targets` per relation
+      (`resolved,declared,1,L2 in util`), and `build_context_pack` lists the
+      callees with the signature of the definition each resolves to. Pinned
+      by `mct-index/tests/relation_resolution.rs` and
+      `mct-cli/tests/cli_mcp_parity.rs`.
 - [ ] The relevant tests pass.
 - [ ] No unjustified performance or token regression.
 - [x] The changes are organized in reviewable PRs.
