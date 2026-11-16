@@ -33,6 +33,10 @@ use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod literals;
+mod tokens;
+
+pub use tokens::BashTokenSource;
 
 pub struct BashParser;
 
@@ -104,7 +108,9 @@ impl LanguageParser for BashParser {
             None,
         );
         walker.visit_children(root, module_id, &module_name, module_id, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -268,9 +274,14 @@ impl<'a> Walker<'a> {
                 if owner == module_id {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let name = text(name_node, self.source).to_string();
+                        let kind = if details::is_readonly_assignment(node, self.source) {
+                            SymbolKind::Constant
+                        } else {
+                            SymbolKind::Variable
+                        };
                         let id = self.push_symbol(
                             name,
-                            SymbolKind::Variable,
+                            kind,
                             location(node),
                             Some(scope_name.to_string()),
                         );

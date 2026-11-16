@@ -459,6 +459,18 @@ shared machine prefer an explicit `--port` while the dashboard is needed, then s
 - **Duplicates / Dead code / Reviews:** filterable lists with a side-by-side
   compare view (aligned diff, synced panes, whitespace/comment/identifier
   normalization), a review panel (state and note) and per-finding history.
+- **Repeated blocks inside functions (Duplicates page):** a panel under the
+  groups runs the search of `duplicates --partial-blocks` when you press its
+  button, never at startup. It uses the default thresholds and budgets of the
+  flag (40 tokens, 6 lines, 2,000,000 windows, 20,000,000 comparisons, 200
+  blocks) and lists each block with its language, size and, per function, the
+  file, line range and function name; a location opens the file at those lines.
+  The search runs on its own thread, so the dashboard stays usable, and its
+  result is kept with the snapshot: changing page reads it and searches nothing
+  again. The panel tells apart no blocks, an incomplete index (files with
+  syntax errors or read failures) and a partial analysis (the budget that
+  stopped it is named). A published reindex drops the result; search again for
+  the current code. Blocks are leads only: they have no review state.
 - **Search:** keyword search over code, symbols, files, duplicates, dead code,
   Obsidian notes and dependencies; saved and recent searches stay in the
   browser. Semantic search is not offered.
@@ -475,7 +487,8 @@ An existing index is required. The command opens SQLite read-only and never
 reindexes, migrates, changes exclusions or installs MCP hooks. Metadata comes
 from the public bulk navigation API; duplicate analysis uses the same typed API,
 source validation and default thresholds/policy as `duplicates` (6 lines,
-40 tokens, broad normalization, trivial calls demoted, no partial-block search).
+40 tokens, broad normalization, trivial calls demoted). The partial-block search
+is left out of that startup analysis and runs on demand from the Duplicates page.
 It computes the typed report at startup rather than parsing the CLI's TOON cache.
 Unsupported languages, skipped candidates and index failures are visible.
 
@@ -751,6 +764,9 @@ evaluated, and `alignment_not_evaluated` says so in place of
   `max-comparisons`, `max-blocks`). An exhausted budget makes the block list
   partial; groups stay complete. Each `--block-*` flag requires
   `--partial-blocks`.
+- The dashboard's Duplicates page runs the same search with the default
+  `--block-*` values and lists the same blocks at the same locations (see
+  [`web`](#web--web---port-port---no-obsidian---idle-timeout-minutes)).
 - Output: `partial_block_count`, then a `partial_blocks` list after `groups`,
   each with `id`, `language`, `tokens`, `lines` and
   `occurrences{path,start_line,end_line,function}`, ordered by tokens, then
@@ -1125,7 +1141,7 @@ These aren't run by hand; they're the tools an MCP client (Claude Code, Cursor, 
 
 **`impact_analysis`** — the full blast radius of changing or removing a symbol in one call: combines `find_callers` + `find_references` + a heuristic check for affected tests, instead of three separate calls.
 
-**`build_context_pack`** — the composite for working on one symbol: its definition with doc comment and capped source (`source_lines`, default 40, 1–200), plus every caller, callee, dependency and related test listed once with its signature — one call in place of `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files. Takes the exact `symbol` name; `path`/`language` pick the definition when the name is ambiguous, `depth` (default 1) sets the call-graph hops in both directions, `limit` (default 30) caps the related symbols listed. Optional `detail` (`overview`: locations only; `summary`: signatures; `detailed`: the default output) and `max_tokens` (an *estimated* budget for the whole response; not a model limit): over budget the least relevant rows lose detail and then are dropped, and a `Budget:` footer says what was lowered, what exists (`avail:`), the cost of the levels above and, when a row was cut, what showing everything would cost (`full=`).
+**`build_context_pack`** — the composite for working on one symbol: its definition with doc comment and capped source (`source_lines`, default 40, 1–200; `source_offset` pages past the cap), plus every caller, callee, dependency and related test listed once with its signature — one call in place of `find_symbol` + `find_calls` + `find_callers` + `impact_analysis` + reading the files. Takes the exact `symbol` name; `path`/`language` pick the definition when the name is ambiguous, `depth` (default 1) sets the call-graph hops in both directions, `limit` (default 30) caps the related symbols listed. Optional `detail` (`overview`: locations only; `summary`: signatures; `detailed`: the default output) and `max_tokens` (an *estimated* budget for the whole response; not a model limit): over budget the least relevant rows lose detail and then are dropped, and a `Budget:` footer says what was lowered, what exists (`avail:`), the cost of the levels above and, when a row was cut, what showing everything would cost (`full=`).
 
 `find_callers`, `find_calls`, `find_references` and `impact_analysis` accept `depth` (how many relation-graph hops to walk beyond the direct hit; default 1 is today's direct-hit behavior, raising it also includes hits-of-hits, each tagged with its hop number, clamped to a hard maximum) — reach for `depth` before manually chaining calls to walk the graph further out.
 

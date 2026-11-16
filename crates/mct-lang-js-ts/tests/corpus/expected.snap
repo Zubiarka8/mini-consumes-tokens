@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=307 relations=1005 name_matched_across_files=203
+# language=javascript_typescript files=7 symbols=402 relations=1053 name_matched_across_files=206
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -7,7 +7,7 @@ S 70-76 constant DEFAULTS
 S 82-116 function parseArgs
 S 118-129 function printHelp
 S 135-174 function createApi
-S 138-165 function request
+S 138-165 function createApi::request
 S 170-172 function sent
 S 180-188 function seedStock
 S 190-197 function seedCustomers
@@ -31,18 +31,18 @@ R 112:15 calls parseArgs -> isInteger
 R 113:15 calls parseArgs -> Error
 R 119:11 calls printHelp -> log
 R 127:7 calls printHelp -> join
-R 141:15 calls request -> log
-R 141:60 calls request -> stringify
-R 146:28 calls request -> fetch
-R 151:28 calls request -> randomUUID
-R 153:25 calls request -> stringify
-R 156:26 calls request -> Number
-R 156:50 calls request -> get (name-matched: src/api/client.ts)
-R 157:13 calls request -> delay
-R 158:14 calls request -> request
-R 161:35 calls request -> text
-R 162:17 calls request -> Error
-R 164:54 calls request -> json
+R 141:15 calls createApi::request -> log
+R 141:60 calls createApi::request -> stringify
+R 146:28 calls createApi::request -> fetch (name-matched: src/api/client.ts)
+R 151:28 calls createApi::request -> randomUUID
+R 153:25 calls createApi::request -> stringify
+R 156:26 calls createApi::request -> Number
+R 156:50 calls createApi::request -> get (name-matched: src/api/client.ts)
+R 157:13 calls createApi::request -> delay
+R 158:14 calls createApi::request -> request
+R 161:35 calls createApi::request -> text
+R 162:17 calls createApi::request -> Error
+R 164:54 calls createApi::request -> json
 R 168:23 calls createApi -> request
 R 169:30 calls createApi -> request
 R 182:15 calls seedStock -> post (name-matched: src/api/client.ts)
@@ -95,25 +95,45 @@ R 289:80 references seed -> main
 R 290:27 references seed -> DEFAULTS
 R 291:25 references seed -> TARGET_STATES
 R 294:11 calls seed -> on
-R 295:13 calls seed -> error
+R 295:13 calls seed -> error (name-matched: src/ui/OrderTable.tsx)
 R 298:10 calls seed -> catch
 R 298:3 calls seed -> main
-R 299:13 calls seed -> error
+R 299:13 calls seed -> error (name-matched: src/ui/OrderTable.tsx)
 
 == src/api/client.ts (300 lines)
 S 1-300 module client
 S 12-19 interface Problem
+S 13-13 field Problem::type
+S 14-14 field Problem::title
+S 15-15 field Problem::status
+S 16-16 field Problem::detail
+S 17-17 field Problem::instance
+S 18-18 field Problem::errors
 S 21-37 class ApiError
 S 22-28 method ApiError::constructor
 S 23-23 field ApiError::problem
 S 24-24 field ApiError::requestId
-S 30-32 method ApiError::isRetryable
-S 34-36 method ApiError::isConflict
+S 30-32 field ApiError::isRetryable
+S 34-36 field ApiError::isConflict
 S 39-42 interface Page
+S 40-40 field Page::items
+S 41-41 field Page::nextCursor
 S 44-50 interface ClientOptions
+S 45-45 field ClientOptions::baseUrl
+S 46-46 field ClientOptions::token
+S 47-47 field ClientOptions::fetch
+S 48-48 field ClientOptions::retries
+S 49-49 field ClientOptions::onRequest
 S 52-56 interface PlaceOrderRequest
+S 53-53 field PlaceOrderRequest::customerId
+S 54-54 field PlaceOrderRequest::lines
+S 55-55 field PlaceOrderRequest::shipping
 S 58-61 type_alias PlaceOrderResponse
 S 63-68 interface StockJson
+S 64-64 field StockJson::sku
+S 65-65 field StockJson::onHand
+S 66-66 field StockJson::reserved
+S 67-67 field StockJson::available
 S 71-79 function sleep
 S 85-112 class RateLimiter
 S 86-86 field RateLimiter::#tokens
@@ -301,23 +321,32 @@ R 291:36 calls validatePlaceOrder -> push
 R 296:63 references createClient -> WarehouseClient
 R 297:14 calls createClient -> WarehouseClient
 R 300:10 references client -> asOrderId (name-matched: src/order.ts)
+R 184:24 references WarehouseClient::placeOrder -> ApiError
 
 == src/inventory.ts (300 lines)
 S 1-300 module inventory
 S 10-14 interface Location
+S 11-11 field Location::zone
+S 12-12 field Location::aisle
+S 13-13 field Location::level
 S 16-23 function parseLocation
 S 25-27 function formatLocation
 S 29-30 function compareLocations
 S 33-39 function pickingRoute
 S 41-46 interface StockLevel
+S 42-42 field StockLevel::sku
+S 43-43 field StockLevel::location
+S 44-44 field StockLevel::onHand
+S 45-45 field StockLevel::reserved
 S 48-48 function available
 S 50-62 class OutOfStockError
 S 51-57 method OutOfStockError::constructor
 S 52-52 field OutOfStockError::sku
 S 53-53 field OutOfStockError::requested
 S 54-54 field OutOfStockError::available
-S 59-61 method OutOfStockError::shortfall
+S 59-61 field OutOfStockError::shortfall
 S 68-70 interface StockSource
+S 69-69 method StockSource::levels
 S 73-91 class Observable
 S 74-74 field Observable::#subscribers
 S 76-84 method Observable::subscribe
@@ -340,13 +369,28 @@ S 149-153 method StockCache::#store
 S 157-166 function httpStockSource
 S 159-164 function levels
 S 172-178 interface CycleCount
+S 173-173 field CycleCount::sku
+S 174-174 field CycleCount::location
+S 175-175 field CycleCount::expected
+S 176-176 field CycleCount::counted
+S 177-177 field CycleCount::reason
 S 180-180 function difference
 S 182-188 function describeCount
 S 191-199 function partitionForReview
 S 202-222 function postCounts
 S 228-235 interface Reservation
+S 229-229 field Reservation::id
+S 230-230 field Reservation::orderId
+S 231-231 field Reservation::sku
+S 232-232 field Reservation::location
+S 233-233 field Reservation::quantity
+S 234-234 field Reservation::expiresAt
 S 237-239 function expiringSoon
 S 245-250 interface PickTask
+S 246-246 field PickTask::orderNumber
+S 247-247 field PickTask::sku
+S 248-248 field PickTask::location
+S 249-249 field PickTask::quantity
 S 256-292 class PickListBuilder
 S 257-257 field PickListBuilder::#tasks
 S 258-258 field PickListBuilder::#missing
@@ -385,6 +429,8 @@ R 50:38 extends OutOfStockError -> Error
 R 56:5 calls OutOfStockError::constructor -> Error
 R 69:24 references inventory -> Promise
 R 69:32 references inventory -> StockLevel
+R 74:22 calls Observable::#subscribers -> Map
+R 74:29 references Observable::#subscribers -> Set
 R 77:33 calls Observable::subscribe -> get
 R 79:17 calls Observable::subscribe -> Set
 R 80:25 calls Observable::subscribe -> set
@@ -394,6 +440,12 @@ R 87:33 calls Observable::notify -> forEach
 R 87:23 calls Observable::notify -> get
 R 87:55 calls Observable::notify -> callback
 R 93:33 extends StockCache -> Observable
+R 94:26 calls StockCache::#levels -> Map
+R 94:38 references StockCache::#levels -> StockLevel
+R 95:28 calls StockCache::#loadedAt -> Map
+R 96:19 calls StockCache::#inflight -> Map
+R 96:31 references StockCache::#inflight -> Promise
+R 96:39 references StockCache::#inflight -> StockLevel
 R 99:30 references StockCache::constructor -> StockSource
 R 103:5 calls StockCache::constructor -> Observable
 R 106:21 references StockCache::get -> StockLevel
@@ -467,6 +519,8 @@ R 238:23 calls expiringSoon -> filter
 R 238:49 calls expiringSoon -> getTime
 R 238:65 calls expiringSoon -> getTime
 R 248:13 references inventory -> Location
+R 257:25 calls PickListBuilder::#tasks -> Map
+R 257:37 references PickListBuilder::#tasks -> PickTask
 R 258:22 references inventory -> OutOfStockError
 R 260:40 references PickListBuilder::constructor -> Map
 R 260:52 references PickListBuilder::constructor -> StockLevel
@@ -512,10 +566,16 @@ R 297:66 references splitLines -> available
 == src/money.ts (333 lines)
 S 1-333 module money
 S 7-12 enum Currency
+S 8-8 field Currency::EUR
+S 9-9 field Currency::USD
+S 10-10 field Currency::GBP
+S 11-11 field Currency::JPY
 S 15-20 constant SCALE
 S 22-22 type_alias MoneyJson
 S 24-24 type_alias RoundingMode
 S 26-29 interface Comparable
+S 27-27 method Comparable::compareTo
+S 28-28 method Comparable::equals
 S 32-42 class CurrencyMismatchError
 S 33-33 field CurrencyMismatchError::expected
 S 34-34 field CurrencyMismatchError::actual
@@ -535,10 +595,10 @@ S 104-110 method Money::of
 S 112-114 method Money::zero
 S 117-128 method Money::parse
 S 130-132 method Money::fromJSON
-S 138-140 method Money::minor
-S 142-144 method Money::amount
-S 146-148 method Money::isZero
-S 150-152 method Money::isNegative
+S 138-140 field Money::minor
+S 142-144 field Money::amount
+S 146-148 field Money::isZero
+S 150-152 field Money::isNegative
 S 158-161 method Money::plus
 S 163-166 method Money::minus
 S 168-170 method Money::times
@@ -564,9 +624,10 @@ S 274-281 method MoneyRange::constructor
 S 275-275 field MoneyRange::min
 S 276-276 field MoneyRange::max
 S 283-285 method MoneyRange::contains
-S 287-289 method MoneyRange::width
+S 287-289 field MoneyRange::width
 S 291-294 method MoneyRange::parse
 S 298-300 interface ExchangeRates
+S 299-299 method ExchangeRates::rate
 S 302-309 constant identityRates
 S 303-308 function rate
 S 311-314 function convert
@@ -732,24 +793,66 @@ R 323:45 references fromCents -> Money
 R 324:18 calls fromCents -> ofMinor
 R 327:34 references toCents -> Money
 R 329:17 calls toCents -> CurrencyMismatchError
+R 16:4 references money -> Currency
+R 17:4 references money -> Currency
+R 18:4 references money -> Currency
+R 19:4 references money -> Currency
+R 248:25 references isCurrency -> Currency
+R 253:43 references sum -> Money
+R 292:55 references MoneyRange::parse -> Money
+R 313:10 references convert -> Money
+R 324:12 references fromCents -> Money
+R 324:33 references fromCents -> Currency
+R 328:28 references toCents -> Currency
+R 329:39 references toCents -> Currency
 
 == src/order.ts (311 lines)
 S 1-311 module order
 S 11-11 type_alias OrderId
 S 13-13 function asOrderId
 S 15-23 enum State
+S 16-16 field State::New
+S 17-17 field State::Reserved
+S 18-18 field State::Paid
+S 19-19 field State::Picked
+S 20-20 field State::Shipped
+S 21-21 field State::Invoiced
+S 22-22 field State::Cancelled
 S 25-33 constant NEXT
 S 35-37 function canMoveTo
 S 39-41 function isTerminal
 S 43-48 interface Line
+S 44-44 field Line::number
+S 45-45 field Line::sku
+S 46-46 field Line::quantity
+S 47-47 field Line::unitPrice
 S 50-55 interface LineJson
+S 51-51 field LineJson::number
+S 52-52 field LineJson::sku
+S 53-53 field LineJson::quantity
+S 54-54 field LineJson::unitPrice
 S 57-57 function subtotal
 S 63-66 interface EventBase
+S 64-64 field EventBase::orderId
+S 65-65 field EventBase::at
 S 68-72 interface Placed
+S 69-69 field Placed::type
+S 70-70 field Placed::customerId
+S 71-71 field Placed::lines
 S 74-77 interface Reserved
+S 75-75 field Reserved::type
+S 76-76 field Reserved::reservationIds
 S 79-83 interface Paid
+S 80-80 field Paid::type
+S 81-81 field Paid::paymentId
+S 82-82 field Paid::amount
 S 85-89 interface Shipped
+S 86-86 field Shipped::type
+S 87-87 field Shipped::carrier
+S 88-88 field Shipped::trackingNumber
 S 91-94 interface Cancelled
+S 92-92 field Cancelled::type
+S 93-93 field Cancelled::reason
 S 96-96 type_alias OrderEvent
 S 98-98 type_alias EventOfType
 S 100-102 function isEvent
@@ -772,9 +875,9 @@ S 148-148 field Order::customerId
 S 149-149 field Order::currency
 S 152-160 method Order::place
 S 162-169 method Order::fromJSON
-S 171-173 method Order::state
-S 175-177 method Order::lines
-S 179-181 method Order::total
+S 171-173 field Order::state
+S 175-177 field Order::lines
+S 179-181 field Order::total
 S 183-185 method Order::isLarge
 S 191-194 method Order::reserve
 S 196-202 method Order::pay
@@ -787,14 +890,20 @@ S 233-237 method Order::#record
 S 239-244 method Order::#addLine
 S 246-255 method Order::toJSON
 S 258-265 interface OrderJson
+S 259-259 field OrderJson::id
+S 260-260 field OrderJson::number
+S 261-261 field OrderJson::customerId
+S 262-262 field OrderJson::currency
+S 263-263 field OrderJson::state
+S 264-264 field OrderJson::lines
 S 271-277 function countByState
 S 279-281 function largest
 S 284-290 function stalePayments
-S 286-288 function waitedMinutes
+S 286-288 function stalePayments::waitedMinutes
 S 293-297 function pages
 S 300-309 function packingSlip
-S 301-301 function rule
-S 302-302 function row
+S 301-301 function packingSlip::rule
+S 302-302 function packingSlip::row
 R 1:1 imports order -> money (name-matched: src/money.ts)
 R 1:10 imports order -> Currency (name-matched: src/money.ts)
 R 1:20 imports order -> Money (name-matched: src/money.ts)
@@ -932,16 +1041,16 @@ R 284:81 references stalePayments -> Date
 R 284:107 references stalePayments -> Order
 R 285:27 calls stalePayments -> getTime
 R 285:21 calls stalePayments -> now (name-matched: src/api/client.ts)
-R 286:33 references waitedMinutes -> Order
-R 287:35 calls waitedMinutes -> getTime
-R 287:19 calls waitedMinutes -> placedAt
+R 286:33 references stalePayments::waitedMinutes -> Order
+R 287:35 calls stalePayments::waitedMinutes -> getTime
+R 287:19 calls stalePayments::waitedMinutes -> placedAt
 R 289:17 calls stalePayments -> filter
 R 289:61 calls stalePayments -> waitedMinutes
 R 293:63 references pages -> Generator
 R 295:17 calls pages -> slice
 R 300:36 references packingSlip -> Order
-R 301:26 calls rule -> repeat
-R 302:53 calls row -> padEnd
+R 301:26 calls packingSlip::rule -> repeat
+R 302:53 calls packingSlip::row -> padEnd
 R 303:16 calls packingSlip -> rule
 R 303:24 calls packingSlip -> row
 R 303:55 calls packingSlip -> rule
@@ -955,14 +1064,45 @@ R 307:20 calls packingSlip -> row
 R 307:45 calls packingSlip -> format (name-matched: src/money.ts)
 R 308:14 calls packingSlip -> join
 R 311:16 references order -> Order
+R 26:4 references order -> State
+R 26:17 references order -> State
+R 26:33 references order -> State
+R 27:4 references order -> State
+R 27:22 references order -> State
+R 27:34 references order -> State
+R 28:4 references order -> State
+R 28:18 references order -> State
+R 28:32 references order -> State
+R 29:4 references order -> State
+R 29:20 references order -> State
+R 29:35 references order -> State
+R 30:4 references order -> State
+R 30:21 references order -> State
+R 31:4 references order -> State
+R 32:4 references order -> State
+R 139:19 references Order::#state -> State
 R 180:32 references Order::total -> subtotal
+R 192:18 references Order::reserve -> State
+R 200:18 references Order::pay -> State
+R 205:18 references Order::ship -> State
+R 211:18 references Order::cancel -> State
+R 289:43 references stalePayments -> State
 
 == src/ui/OrderTable.tsx (308 lines)
 S 1-308 module OrderTable
 S 14-14 type_alias SortKey
 S 16-20 interface Filters
+S 17-17 field Filters::state
+S 18-18 field Filters::query
+S 19-19 field Filters::onlyLarge
 S 22-27 type_alias Action
 S 29-36 interface TableState
+S 30-30 field TableState::orders
+S 31-31 field TableState::error
+S 32-32 field TableState::loading
+S 33-33 field TableState::selected
+S 34-34 field TableState::sortKey
+S 35-35 field TableState::ascending
 S 38-44 constant initialState
 S 46-70 function reducer
 S 72-72 constant LARGE_ORDER
@@ -976,8 +1116,8 @@ S 156-160 function StockBadge
 S 162-186 function Toolbar
 S 189-214 function OrderDetail
 S 216-299 function OrderTable
-S 234-240 function cancelSelected
-S 242-246 function showSlip
+S 234-240 function OrderTable::cancelSelected
+S 242-246 function OrderTable::showSlip
 S 302-306 function createOrderTable
 R 1:8 imports OrderTable -> React
 R 1:17 imports OrderTable -> useCallback
@@ -1045,7 +1185,7 @@ R 99:35 references useOrders -> WarehouseClient (name-matched: src/api/client.ts
 R 100:29 calls useOrders -> useReducer
 R 102:18 calls useOrders -> useCallback
 R 104:21 references useOrders -> Order (name-matched: src/order.ts)
-R 105:40 calls useOrders -> orders (name-matched: src/api/client.ts)
+R 105:40 calls useOrders -> orders
 R 106:16 calls useOrders -> push
 R 108:7 calls useOrders -> dispatch
 R 110:7 calls useOrders -> dispatch
@@ -1056,11 +1196,11 @@ R 121:33 references useStock -> StockCache (name-matched: src/inventory.ts)
 R 122:27 calls useStock -> useState
 R 123:3 calls useStock -> useEffect
 R 125:26 calls useStock -> then
-R 125:11 calls useStock -> available (name-matched: src/inventory.ts)
+R 125:11 calls useStock -> available (name-matched: src/api/client.ts)
 R 126:23 calls useStock -> setFree
 R 128:31 calls useStock -> subscribe (name-matched: src/inventory.ts)
 R 129:28 calls useStock -> then
-R 129:13 calls useStock -> available (name-matched: src/inventory.ts)
+R 129:13 calls useStock -> available (name-matched: src/api/client.ts)
 R 133:7 calls useStock -> unsubscribe
 R 140:37 calls useDebounced -> useState
 R 141:3 calls useDebounced -> useEffect
@@ -1112,11 +1252,11 @@ R 230:11 calls OrderTable -> sum (name-matched: src/money.ts)
 R 230:67 calls OrderTable -> map
 R 230:23 calls OrderTable -> filter
 R 230:52 calls OrderTable -> has
-R 236:20 calls cancelSelected -> cancel (name-matched: src/api/client.ts)
-R 238:5 calls cancelSelected -> dispatch
-R 239:11 calls cancelSelected -> reload
-R 242:28 references showSlip -> Order (name-matched: src/order.ts)
-R 244:37 calls showSlip -> packingSlip (name-matched: src/order.ts)
+R 236:20 calls OrderTable::cancelSelected -> cancel (name-matched: src/api/client.ts)
+R 238:5 calls OrderTable::cancelSelected -> dispatch
+R 239:11 calls OrderTable::cancelSelected -> reload
+R 242:28 references OrderTable::showSlip -> Order (name-matched: src/order.ts)
+R 244:37 calls OrderTable::showSlip -> packingSlip (name-matched: src/order.ts)
 R 253:8 references OrderTable -> Toolbar
 R 255:54 calls OrderTable -> join
 R 255:24 calls OrderTable -> map
@@ -1161,9 +1301,9 @@ S 41-41 field PickSession::#position
 S 42-42 field PickSession::#listeners
 S 44-50 method PickSession::constructor
 S 52-59 method PickSession::forZone
-S 61-63 method PickSession::current
-S 65-67 method PickSession::done
-S 69-71 method PickSession::progress
+S 61-63 field PickSession::current
+S 65-67 field PickSession::done
+S 69-71 field PickSession::progress
 S 74-90 method PickSession::handleScan
 S 92-98 method PickSession::skip
 S 100-103 method PickSession::onChange
@@ -1177,12 +1317,12 @@ S 128-130 method ScanErrorBoundary::componentDidCatch
 S 132-134 method ScanErrorBoundary::retry
 S 136-147 method ScanErrorBoundary::render
 S 151-184 function createScanner
-S 155-171 function onKeyDown
+S 155-171 function createScanner::onKeyDown
 S 174-176 function start
 S 177-179 function stop
 S 180-182 function pending
 S 186-202 function useIdleLogout
-S 189-192 function reset
+S 189-192 function useIdleLogout::reset
 S 204-213 function usePickSession
 S 215-226 function TaskCard
 S 228-241 function Feedback
@@ -1190,7 +1330,7 @@ S 243-253 function ProgressBar
 S 255-294 function Board
 S 297-316 function openSession
 S 318-339 function PickBoard
-S 328-332 function finish
+S 328-332 function PickBoard::finish
 R 1:8 imports PickBoard -> React
 R 1:17 imports PickBoard -> Component
 R 1:28 imports PickBoard -> useEffect
@@ -1218,6 +1358,8 @@ R 23:12 calls classifyScan -> startsWith
 R 24:71 calls classifyScan -> split (name-matched: src/money.ts)
 R 24:40 calls classifyScan -> slice
 R 25:50 calls classifyScan -> parseInt
+R 36:25 calls PickSession::sessions -> Map
+R 42:20 calls PickSession::#listeners -> Set
 R 46:68 calls PickSession::constructor -> map
 R 46:19 calls PickSession::constructor -> pickingRoute (name-matched: src/inventory.ts)
 R 46:38 calls PickSession::constructor -> map
@@ -1247,14 +1389,14 @@ R 116:21 calls PickSession::close -> clear
 R 121:40 extends ScanErrorBoundary -> Component
 R 129:16 calls ScanErrorBoundary::componentDidCatch -> onError
 R 133:10 calls ScanErrorBoundary::retry -> setState
-R 156:22 calls onKeyDown -> now (name-matched: src/api/client.ts)
-R 163:9 calls onKeyDown -> onScan
+R 156:22 calls createScanner::onKeyDown -> now (name-matched: src/api/client.ts)
+R 163:9 calls createScanner::onKeyDown -> onScan
 R 175:14 calls start -> addEventListener
 R 178:14 calls stop -> removeEventListener
 R 187:17 calls useIdleLogout -> useRef
 R 188:3 calls useIdleLogout -> useEffect
-R 190:7 calls reset -> clearTimeout
-R 191:23 calls reset -> setTimeout
+R 190:7 calls useIdleLogout::reset -> clearTimeout
+R 191:23 calls useIdleLogout::reset -> setTimeout
 R 193:5 calls useIdleLogout -> reset
 R 194:12 calls useIdleLogout -> addEventListener
 R 195:12 calls useIdleLogout -> addEventListener
@@ -1310,13 +1452,13 @@ R 322:3 calls PickBoard -> useIdleLogout
 R 324:3 calls PickBoard -> useEffect
 R 325:38 calls PickBoard -> then
 R 325:5 calls PickBoard -> openSession
-R 329:12 calls finish -> forEach
-R 329:36 calls finish -> invalidate (name-matched: src/inventory.ts)
-R 330:13 calls finish -> close
-R 331:5 calls finish -> setSession
-R 331:22 calls finish -> openSession
+R 329:12 calls PickBoard::finish -> forEach
+R 329:36 calls PickBoard::finish -> invalidate (name-matched: src/inventory.ts)
+R 330:13 calls PickBoard::finish -> close
+R 331:5 calls PickBoard::finish -> setSession
+R 331:22 calls PickBoard::finish -> openSession
 R 335:6 references PickBoard -> ScanErrorBoundary
-R 335:52 calls PickBoard -> error
+R 335:52 calls PickBoard -> error (name-matched: src/ui/OrderTable.tsx)
 R 336:19 references PickBoard -> Board
 R 175:42 references start -> onKeyDown
 R 178:45 references stop -> onKeyDown
@@ -1324,4 +1466,5 @@ R 194:44 references useIdleLogout -> reset
 R 195:40 references useIdleLogout -> reset
 R 198:49 references useIdleLogout -> reset
 R 199:45 references useIdleLogout -> reset
+R 298:20 references openSession -> PickSession
 R 336:67 references PickBoard -> finish
