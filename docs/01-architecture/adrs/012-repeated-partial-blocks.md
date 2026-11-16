@@ -52,6 +52,13 @@ repeat what whole-function groups already say.
   descending), then the first occurrence's path and line; `id` follows that
   order.
 
+- Dashboard (added later): `mct-cli web` offers the same search from its
+  Duplicates page, also opt-in. It starts on request, never with the startup
+  analysis, runs with the default thresholds and budgets on its own thread, and
+  keeps the report with the snapshot so paging searches nothing again. Blocks
+  and locations equal the CLI's for the same index
+  (`crates/mct-cli/tests/partial_blocks_parity.rs`).
+
 ### Token streams
 
 - Reuse the candidates' token streams and the selected policy. One stream per

@@ -84,9 +84,10 @@ fn long_bodies_keep_exact_line_ranges() {
 fn top_level_assignments_are_variables_and_locals_are_not() {
     use SymbolKind::Variable;
     let c = corpus();
-    // Plain, `declare -A`, `declare -g`, `declare -i`, `readonly -a` forms.
+    // Plain, `declare -A`, `declare -g`, `declare -i` forms; a `readonly`
+    // one is a constant (see `readonly_constants.rs`).
     assert_eq!(lines("lib/config.sh", "CONFIG", Variable), (21, Some(36)));
-    lines("lib/config.sh", "KNOWN_COMPRESSIONS", Variable);
+    lines("lib/config.sh", "KNOWN_COMPRESSIONS", SymbolKind::Constant);
     lines("lib/remote.sh", "REMOTE_KIND", Variable);
     lines("lib/fs.sh", "FILES_SEEN", Variable);
     lines("lib/log.sh", "__TIMERS", Variable);
