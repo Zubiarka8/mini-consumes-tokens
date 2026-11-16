@@ -196,6 +196,16 @@ const PACKAGES: &[&str] = &[
     "weak",
 ];
 
+/// Whether `root`, the first element of an import path, is a directory of
+/// GOROOT's `src/`: a path under it is the standard library's (or a
+/// toolchain-internal one), never a module of the repository.
+pub(crate) fn is_standard_root(root: &str) -> bool {
+    matches!(root, "internal" | "vendor" | "cmd" | "C" | "unsafe")
+        || PACKAGES
+            .iter()
+            .any(|package| package.split('/').next() == Some(root))
+}
+
 /// The package name a standard import path binds: its last element, or the
 /// one before a `/vN` suffix (`math/rand/v2` binds `rand`).
 fn package_name(path: &str) -> Option<&str> {
