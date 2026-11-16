@@ -5,6 +5,14 @@ on:
     branches: [main, master]
   pull_request:
 
+# A new push to a pull request supersedes its earlier run: cancel that one
+# so the queue holds one run per pull request, not one per push. The free
+# runner pool (20 jobs, 5 on macOS) otherwise falls hours behind. A push to
+# `main` is never cancelled: every merge keeps its own record.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # Pinned to an exact stable release, never `stable` floating — a CI run
   # from six months ago and one from today must build with the same
@@ -203,7 +211,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # A pull request fuzzes on Linux only; a push to `main` also fuzzes
+        # on macOS. The free pool runs 5 macOS jobs at a time, and 18 macOS
+        # fuzz jobs per pull request run queued macOS work for a day. The
+        # required macOS build + test job above still runs on every PR.
+        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
         crate:
           - mct-lang-rust
           - mct-lang-python
