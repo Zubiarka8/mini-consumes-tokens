@@ -375,6 +375,35 @@ export const en = {
   "code.unsupported":
     "Not available for this index: visibility, indexing date and per-symbol indexing state.",
   // findings
+  // repeated partial blocks (partial-blocks.js)
+  "pblocks.title": "Repeated blocks inside functions",
+  "pblocks.subtitle":
+    "Runs of lines that two or more different functions share, even when the functions differ elsewhere. The search is the one of mct-cli duplicates --partial-blocks and runs only when you ask for it; you can keep using the dashboard meanwhile.",
+  "pblocks.run": "Search for repeated blocks",
+  "pblocks.again": "Search again",
+  "pblocks.running": "Searching for repeated blocks… You can keep using the dashboard.",
+  "pblocks.found": "Blocks: {n} · functions searched: {functions} · {time}",
+  "pblocks.foundPartial": "Blocks so far: {n} (partial analysis) · functions searched: {functions} · {time}",
+  "pblocks.none": "No repeated blocks",
+  "pblocks.noneSoFar": "No repeated blocks in what was analyzed",
+  "pblocks.noneText":
+    "A block needs at least {lines} lines and {tokens} tokens in two different functions. Lines that only whole-function duplicate groups share are listed with those groups, not here.",
+  "pblocks.warning":
+    "A repeated block is not a proposal to extract it: whether it can be extracted (variables in and out, control flow, side effects) is not evaluated.",
+  "pblocks.budget":
+    "Partial analysis: the search stopped at its {budget} budget, so more blocks may exist than are listed.",
+  "pblocks.indexPartial":
+    "Incomplete index: files with syntax errors: {syntax}; unreadable files: {read}. Functions in them may be missing from the search.",
+  "pblocks.indexUnknown":
+    "The index records no indexing run, so it is not known whether it covers the whole project.",
+  "pblocks.skipped": "Functions that could not be read or parsed, and were not searched: {n}.",
+  "pblocks.outdated":
+    "The index changed while the search ran. Search again to see the blocks of the current code.",
+  "pblocks.failed": "The search failed.",
+  "pblocks.block": "Block {n}",
+  "pblocks.blockMeta": "{language} · {lines} lines · {tokens} tokens · {n} functions",
+  "pblocks.places": "Locations of block {n}",
+  "pblocks.openContext": "Open the file at these lines",
   "dup.title": "Duplicate code groups",
   "dup.subtitle": "Finds and compares identical or nearly identical code fragments.",
   "dup.found": "{n} duplicate groups",
