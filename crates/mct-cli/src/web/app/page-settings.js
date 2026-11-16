@@ -1,4 +1,4 @@
-// 10 · Configuración: theme, local server facts, backend capability matrix, local data
+// 10 · Settings: theme, local server facts, backend capability matrix, local data
 import { h, store, applyTheme, toast, confirmDialog, dateTime, saveSettings } from "./core.js";
 import { power, MINUTES, MAX_MINUTES } from "./power.js";
 import { persist } from "./server-settings.js";

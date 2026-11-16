@@ -1,4 +1,4 @@
-// The .mctignore and .gitignore editors, shared by Configuración and the Archivos workspace.
+// The .mctignore and .gitignore editors, shared by Settings and the Files workspace.
 import { h, clear, toast, api, saveIgnore, ApiError } from "./core.js";
 import { icon, badge, note } from "./components.js";
 import { t } from "./i18n.js";
