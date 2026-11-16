@@ -96,6 +96,18 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] C++, declared receivers only: `x.m()` and `p->m()` on a variable the
+        enclosing function declares with one class (a parameter, a local, a
+        pointer or reference, `const` or not) are qualified by that class as
+        a method; a `std::` type is external. `auto`, a builtin or a
+        qualified project type, a template parameter and a name declared
+        with two types in the function (a shadowing block, a lambda
+        parameter) prove nothing, so the call is left as it was. A type
+        alias is not followed: a receiver declared with an alias name gets
+        no candidate. On a scratch project with two classes that both
+        declare `m`, 4 ambiguous calls (2 candidates) became resolved (1).
+        Test: `mct-lang-cpp/tests/receivers.rs`; the corpus snapshot is
+        unchanged.
   - [!] Whether Kotlin (#327) and C# (#328) adopt Go's rule for a receiver
         with no stated type. Today that loses 12 (Kotlin) and 25 (C#) right
         resolutions. Waiting for the maintainer.
@@ -117,6 +129,16 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Go: an import of a dotless module path (`module shop`, `import
+        "shop/store"`) names a repository package like a domain-rooted one,
+        for a plain and an aliased import. The path needs two or more
+        elements and a root that is no directory of GOROOT's `src/`
+        (`net/http`, `log`, `internal` stay the standard library's), so a
+        single-element path and a module named like a standard directory
+        are left unproven. On a scratch project with two packages that both
+        declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
+        (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
+        snapshot is unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
@@ -278,7 +300,18 @@ From `rules.md` and the two messages:
         were all wrong (`u64::from(l.on_hand)`, `u64::from(*byte)`) and are
         now ambiguous; the other 84 had no candidate. Dead code unchanged
         (124). Test: `mct-lang-rust/tests/primitive_conversions.rs`.
+  - [x] C#: a call whose receiver is a fully qualified name of the framework
+        (`System.Console.WriteLine(…)`, `global::System.Math.Max(…)`) is
+        external. The name must be identifiers only, rooted at `System` or
+        `Microsoft`, with at least two segments; a call or an index in the
+        chain, an alias and a simple name (`Console.WriteLine` after
+        `using System;`) keep their resolution, because a repository can
+        declare its own `Console`. On a scratch project with `Log.WriteLine`
+        and `Log.Max` next to the framework calls, 2 ambiguous calls became
+        external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
+        corpus snapshot is unchanged.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
+
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
       same-named method in an unrelated class), all correct. D9 has 2 for
@@ -298,7 +331,10 @@ From `rules.md` and the two messages:
       `opts.get` on a `dict` next to `View.get`, run with CPython), both
       correct; before the fix, 1 wrong and 1 ambiguous. Rust's D5 label
       (`stack.len()` on `stack: &Stack`, next to a free `fn len`) is now
-      correct; before, ambiguous.
+      correct; before, ambiguous. D5 has 2 for C++ (`q.to_string()` on
+      `const Quantity& q` and `b->to_string()` on `const Box* b`, each next
+      to the other class's `to_string`, checked with `clang++`), both
+      correct; before the fix, both ambiguous.
 
 ## Block 2: phase 2, SQLite and enriched model
 
@@ -399,6 +435,21 @@ From `rules.md` and the two messages:
           PowerShell files fail before and after (`review-check.ps1:29`,
           ERR-002, a different construct). Recorded in
           `errors/HISTORY.md`; the checklist's FN01 cell is `[x]`.
+    - [x] C++ cells re-probed with a current `mct-cli` (`a.cpp` with a macro,
+          a `const`, a union, an abstract base, a derived class with a
+          mem-initializer, a lambda, `new T()` and `T t;`). Stale cells
+          corrected: DA03 (`const int` is a `constant`) and DA07 (`#define`
+          is a `constant` or `function`) to `[x]`, and RE03
+          (`P_Sub() : P_Base()` gives `calls P_Base`) to `[~]`, as in the
+          scored list of `symbol-coverage.md` (a base defined in another file
+          gives none). The `checklists/*.md` views were older than that
+          list; the scored one already had these. Still open, each
+          shown by the probe: FN03 (a lambda bound to a name has no symbol,
+          #443), RE05 (`P_Sub : P_Base` is ambiguous between the class and
+          its constructor, see the C++ supertype note below), SE03 (`P_St st;`
+          gives no reference and `P_St` is reported as dead code, #441) and
+          RE02 (`new P_Sub()` is ambiguous the same way). TY02/TY04 stay
+          `[~]` by design. Go cells are still to re-probe.
     - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
           `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
           is a `constant`; `export`, `declare -i` and a bare assignment stay
@@ -418,6 +469,15 @@ From `rules.md` and the two messages:
           fixture); `styles.css` gives 42 symbols and 6 relations. ERR-023
           is `RESOLVED`; ERR-024 (untracked generated CSS) was not
           re-checked.
+    - [x] CSS statement at-rules, any one-line prelude: the pinned grammar
+          also rejects `@custom-variant dark (&:where(.dark, .dark *));`,
+          `@source inline("underline");` and `@foo bar baz;` (probe: even
+          `@foo (&);` and `@foo a(b);` fail). The repair of the entry above
+          now blanks the whole prelude, not only its strings, on one-line
+          at-rules (`@name ...;`) the grammar reports. Test:
+          `tests/at_rule_strings.rs`, extended (real errors still
+          rejected). Corpus and this repository's CSS unchanged (all tracked
+          files already parse; the malformed fixture still fails).
     - [x] C# supertypes: an `extends`/`implements` entry names a type, so
           the first entry of a class (its base class, unless named like an
           interface) targets a `class` and every other entry an
@@ -1365,6 +1425,14 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] Kotlin: a local `fun` has the function or method it is declared in
+      as `parent` (it stays a `function`; a member keeps its type). Corpus:
+      5 symbols renamed (`packingSlip::rule`, `recomputeReorderPoint::stdDev`…),
+      none added or removed. Tests updated on purpose: `corpus.rs` and
+      `parse.rs` pinned "no parent", `overrides.rs` rendered the anonymous
+      `object : Runnable`'s `run` with an empty parent (now `start`).
+      Kotlin constructors, companion objects and anonymous classes stay as
+      decided (see the `[!]` items).
 - [x] C#: `get_indexing_status` lists the `PackageReference` items of a
       `.csproj` (version from the attribute or a `<Version>` element; none
       for a central-package reference; commented-out items skipped).
@@ -1377,11 +1445,55 @@ From `rules.md` and the two messages:
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
       `Logger.getLogger(…)`), symbols unchanged; this repository: the same
       16 Java calls, dead code unchanged.
-- [ ] Relations: inheritance, implementations and overrides (3.3, depends on
-      D8).
+- [x] Relations: inheritance, implementations and overrides (3.3, depends on
+      D8). Audited with one sample per language (a base class or trait, an
+      interface, and a subclass overriding a method), indexed with
+      `init --force`, listing the `extends`, `implements` and `overrides`
+      relations. What each parser emits, by design (D8: explicit evidence
+      only, never a shared name):
+  - `extends` and `implements`: Java, Kotlin, C#, PHP, C++ (both bases as
+    `extends`), TS (class and `implements`), Python (`extends`), Lua
+    (`extends` from `setmetatable(… { __index = Base })`), Go (`extends`
+    from an embedded struct), Rust (`implements` from `impl Trait for T`).
+  - `overrides`: Java `@Override`, Kotlin and C# `override`, C++
+    `override`, Rust trait impl methods. Python `@override`, PHP
+    `#[\Override]` and a TS `override` modifier give it only when written,
+    so the samples without those markers have none.
+  - Not emitted, on purpose: an implicit interface implementation (C#
+    `public int Area()`, Java without `@Override`, a Go struct satisfying an
+    interface) and an overriding method with no marker. Naming it would be a
+    shared-name match, which D8 rules out.
+  - Result: no language is missing a relation its syntax states.
 - [ ] Language-specific features (3.4), each checked against the real
       grammar.
 - [ ] Positive and negative fixtures for each language (3.5).
+- [ ] Relations: inheritance, implementations and overrides (3.3, depends on
+      D8).
+- [x] Language-specific features (3.4), each checked against the real
+      grammar. For every code language the grammar crate's
+      `node-types.json` was compared with the node kinds the parser
+      handles, then each unhandled kind that can declare a symbol or name
+      a use was probed in a scratch project with `init --force` and
+      `find_dead_code`. Java, Kotlin, C#, Go, PHP, Lua, Python, Rust, C++,
+      TS/JS, Bash, PowerShell and CSS are done. Findings, each with its
+      own PR: Java record compact constructor (#518), `module-info.java`
+      (#519), Rust `macro_rules!` bodies (#520), Java method references
+      and enum constant arguments (#526), PHP closure variables (#527),
+      C# `nameof` (#528), JS/TS classes and enums used as values (#525).
+      Bash, PowerShell and CSS had none: Bash and PowerShell handle every
+      declaring kind; CSS indexes rules only, by design (the table above
+      puts CSS out of scope for declarations). HTML, Markdown, XML and
+      XAML have no declarations.
+- [~] Positive and negative fixtures for each language (3.5).
+  - [x] Survey, not a review: every language crate has a corpus directory
+        of 8-10 fixture files and tests that assert an absence. A grep
+        for negative-looking assertions (`assert!(!…)`, `is_empty()`,
+        `None`, `false`, names such as `unexpected` or `never`) counts
+        18-96 per crate against 25-162 tests (lowest ratios: PowerShell
+        21/47, C# 29/57, HTML 16/32, Kotlin 38/80). The count shows no
+        language without negatives; it does not show that each rule has
+        one. The box stays `[~]` until a fixture-by-fixture review, which
+        needs a scope from the maintainer.
 
 ## Block 4: quality, fixtures and performance
 
@@ -1404,7 +1516,7 @@ From `rules.md` and the two messages:
       `find_references`/`find_calls`/`find_callers`, `list_symbols`,
       `get_project_overview` and `find_dead_code`; `find_duplicate_code`
       only trimmed the trailing slash.
-- [~] Inline module resolution.
+- [x] Inline module resolution.
   - [x] Rust: an item declared in an inline `mod m { … }` (function,
         struct, enum, trait, type, const, static, macro, nested `mod`) has
         `m` as its parent, as a C++ namespace member does, so `m::f()`,
@@ -1424,10 +1536,18 @@ From `rules.md` and the two messages:
         file as its target, so another file's same-named `mod` (or an
         `impl From<Id> for u64` under a local `mod u64`) is not a
         candidate (`primitive_conversions.rs`).
+  - [x] `m::Type::f()`: the method's parent is the type, so the module
+        evidence found no candidate. The `relation_candidates` view now also
+        accepts a method whose parent type is declared in that module
+        (migration, issue #478); `target_path` still pins the file, so
+        another file's same-named `inner::Thing::make` is no candidate.
+        Test: `mct-lang-rust/tests/inline_modules.rs`
+        `a_method_reached_through_an_inline_module_and_its_type_resolves`
+        (unresolved with 0 candidates before, resolved with 1 after).
   - [ ] `m::Type::f()`: the method's parent is the type, so the module
         evidence finds no candidate. Matching it needs the view to look at
         the type's parent (a migration): #478.
-- [~] Reading long functions through the context tools.
+- [x] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
         past the cap the footer now names the hidden range (`… 60 more
@@ -1470,6 +1590,33 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Go: a function of this file used by name as a call argument
+        (`http.HandleFunc("/", handler)`, `apply(helper)`) or as an element
+        of a composite literal (`map[string]func(int) int{"h": helper}`) is a
+        `references` relation, so the callback is not dead code. A parameter
+        or a local (`:=`, `var`, `range`) of an enclosing function with the
+        same name shadows it; a variable and an unknown name record nothing.
+        Only functions of the same file count: a function declared in
+        another file of the package is not referenced from here. Corpus: no
+        change. Probe on a tiny tree: dead code listed `handler` and
+        `helper` before. `go` is not installed here, so the Go semantics
+        are not run. Test: `mct-lang-go/tests/function_arguments.rs`.
+  - [x] Probed and already fine: Java (`this::inst`, `A::parse`, `A::new`),
+        C# (`d.Changed += OnChanged`, `Func<int,int> f = Twice`,
+        `new Func<int,int>(Twice)`) and Rust (`.map(parse)`,
+        `.map(Self::helper)`, `let f: fn(i32) -> i32 = double`): none is
+        listed as dead code.
+  - [x] Lua: a function of this file used by name as a call argument
+        (`table.sort(t, cmp)`) or a table field value (`{ on = handler }`)
+        is a `references` relation, so the callback is not dead code; a
+        parameter that shadows it, a variable or an unknown name records
+        nothing. Corpus: +4 relations (`compare_locations`, `tick`, `cors`,
+        `require_tenant`, all callbacks); symbols unchanged. Probe on a tiny
+        tree: dead code listed `cmp` and `handler` before. Test:
+        `mct-lang-lua/tests/function_values.rs`. The same probe shows the
+        same false positives for Kotlin (`::parse`), PHP (`'shout'` string
+        callable), C++ (`std::transform(…, dbl)`) and Bash (`trap cleanup
+        EXIT`); Java method references and C# method groups were fine.
   - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
         expression, not part of the arm's pattern, so its names are uses.
         Before, `is_final` was taken for a local of the whole function and
@@ -1484,11 +1631,15 @@ From `rules.md` and the two messages:
         (ADR-027). This repository's snapshot: 10 of the 12 `website/`
         candidates get the note; the count is unchanged by design. Tests:
         `mct-lang-js-ts/tests/nextjs.rs`, `dead_code.rs`.
-  - [ ] Object-literal methods called by a library (`tokenizer(src) {…}` in
-        `web-ui/src/notes/obsidian.ts`, a `MarkedExtension`) are parentless
-        functions with no in-repo caller: 5 candidates, plus the same shape
-        in the bundles. Telling them apart needs a stored fact about the
-        declaration (schema or symbol details): issue #475.
+  - [x] Object-literal methods called by a library (`tokenizer(src) {…}`, a
+        `MarkedExtension`): a `method_definition` inside an object literal
+        carries a "possible entry point" hint (`javascript`,
+        `object-literal-callback`; option 2 of issue #475, no schema
+        change, no rule by name). It stays a candidate, so the count is
+        unchanged. This repository: 121 candidates before and after, 2 of
+        them with the note (`tokenizer` in `notes-dist/notes.js` and one
+        `[Symbol.iterator]` of `graph-dist/graph.js`). Test:
+        `mct-lang-js-ts/tests/object_literal_callbacks.rs`.
   - [ ] A renamed default import (`import SearchDialog from
         '@/components/search'`) does not reach the default-exported
         `DefaultSearchDialog`: needs default-export resolution across files.
@@ -1558,7 +1709,14 @@ The criteria from the plan:
 - [x] The enriched model is implemented and verified.
 - [x] The SQLite migrations work.
 - [ ] Every supported parser has reviewed, documented coverage.
-- [ ] Searches and the MCP context use the new metadata.
+- [x] Searches and the MCP context use the new metadata. On a scratch Rust
+      project (`util::helper()` called from `run`), `find_callers`,
+      `find_references` and `impact_analysis` return `resolution`,
+      `evidence`, `candidates` and `targets` per relation
+      (`resolved,declared,1,L2 in util`), and `build_context_pack` lists the
+      callees with the signature of the definition each resolves to. Pinned
+      by `mct-index/tests/relation_resolution.rs` and
+      `mct-cli/tests/cli_mcp_parity.rs`.
 - [ ] The relevant tests pass.
 - [ ] No unjustified performance or token regression.
 - [x] The changes are organized in reviewable PRs.
