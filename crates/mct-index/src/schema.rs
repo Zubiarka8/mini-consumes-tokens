@@ -779,6 +779,111 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
+        // A method reached through an inline module and its type
+        // (`inner::Thing::make()`, issue #478): the method's parent is the
+        // type, so the module also matches when the type is declared in
+        // that module. The parser's `target_path` still pins the file, so
+        // another file's same-named module is no candidate. Stored rows are
+        // unchanged, so nothing is reparsed.
+        M::up(concat!(
+            r#"
+            DROP VIEW relation_candidates;
+            "#,
+            r#"CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                    UNION ALL
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                )
+                CROSS JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<'
+                       OR (EXISTS (SELECT 1 FROM relations sr
+                                       WHERE sr.to_name = s.parent
+                                         AND sr.kind IN ('extends', 'implements'))
+                           AND NOT EXISTS (SELECT 1 FROM symbols own
+                                           JOIN files ownf ON ownf.id = own.file_id
+                                           WHERE own.name = r.to_name
+                                             AND own.parent = r.qualifier
+                                             AND ownf.language = sf.language)
+                           AND s.parent IN (
+                           WITH RECURSIVE ancestors(name, depth) AS (
+                               SELECT r.qualifier, 0
+                               UNION
+                               SELECT ir.to_name, a.depth + 1
+                               FROM ancestors a
+                               JOIN symbols t ON t.name = a.name
+                               JOIN files tf ON tf.id = t.file_id
+                                            AND tf.language = sf.language
+                               JOIN relations ir ON ir.from_symbol_id = t.id
+                                                AND ir.kind IN ('extends', 'implements')
+                               WHERE a.depth < 8
+                           )
+                           SELECT a.name FROM ancestors a
+                           WHERE a.depth > 0
+                             AND NOT EXISTS (SELECT 1 FROM ancestors b
+                                             JOIN symbols own ON own.parent = b.name
+                                                             AND own.name = r.to_name
+                                             JOIN files ownf ON ownf.id = own.file_id
+                                                            AND ownf.language = sf.language
+                                             WHERE b.depth < a.depth))))
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR EXISTS (SELECT 1 FROM symbols pt
+                                  WHERE pt.file_id = s.file_id AND pt.name = s.parent
+                                    AND pt.parent = r.module)
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.not_field = 0 OR s.kind <> 'field')
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module)))
+                       OR (s.parent IS NOT r.qualifier
+                           AND EXISTS (SELECT 1 FROM symbols qt
+                                       JOIN symbols m ON m.file_id = qt.file_id
+                                                     AND m.kind = 'module'
+                                       WHERE qt.name = r.qualifier
+                                         AND qt.parent IS NULL
+                                         AND (m.name = r.target_module
+                                              OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                         WHERE a.symbol_id = m.id
+                                                           AND a.alias = r.target_module)))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module')
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'variable'
+                       OR s.parent IS NULL
+                       OR NOT EXISTS (SELECT 1 FROM symbols p
+                                      WHERE p.file_id = s.file_id AND p.name = s.parent
+                                        AND p.kind IN ('function', 'method'))
+                       OR EXISTS (SELECT 1 FROM symbols p
+                                  WHERE p.file_id = s.file_id AND p.name = s.parent
+                                    AND p.kind NOT IN ('function', 'method', 'variable',
+                                                       'constant', 'field')))
+                  "#,
+            shadowed_module_predicate!(),
+            ";",
+        )),
     ])
 }
 
