@@ -3618,3 +3618,74 @@ pre.md-code {
 .grid.top {
   align-items: start;
 }
+
+/* ---------- Duplicados: repeated blocks inside functions (partial-blocks.js) ---------- */
+.pblocks {
+  margin-top: var(--space-3);
+}
+.pblocks > p {
+  max-width: 80ch;
+  margin-bottom: var(--space-3);
+}
+.pblocks-body {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.pblocks-body > * {
+  margin: 0;
+}
+.pblocks-body > .banner,
+.pblocks-body > .pblock-list,
+.pblocks-body > .pager,
+.pblocks-body > .empty,
+.pblocks-body > .pblocks-summary {
+  justify-self: stretch;
+}
+.pblocks-summary {
+  justify-content: space-between;
+}
+.pblock-list,
+.pblock-places {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.pblock {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.pblock-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+}
+.pblock-places {
+  gap: 2px;
+}
+.pblock-open {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pblock-open:hover {
+  background: var(--elevated);
+}
+.pblock-open .mono {
+  overflow-wrap: anywhere;
+}

@@ -351,7 +351,7 @@ Done 27 · Partial 7 · Not done 11 · Not verified 0 · Not applicable 7
 **Functions and methods**
 
 - [x] FN01 Top-level function: `function`
-- [~] FN02 Nested function: `inner` is indexed as a function with no parent association
+- [x] FN02 Nested function: `inner` is indexed as a function whose `parent` is the enclosing function or method
 - [ ] FN03 Lambda or closure assigned to a name: `val f = { … }` has no symbol
 - [x] FN04 Method: extension `String.p_ext` → `method`
 - [ ] FN05 Constructor: secondary constructor has no symbol
@@ -813,7 +813,7 @@ Done 13 · Partial 2 · Not done 2 · Not verified 0 · Not applicable 35
 - [x] TY16 Module / namespace / package: file `module`
 **Fields, constants and variables**
 
-- [~] DA03 Constant (module or global): `readonly X=…` → `variable`
+- [x] DA03 Constant (module or global): `readonly X=…` and `declare -r X=…` → `constant`
 - [x] DA04 Global / module-level variable: `P_GLOBAL` → `variable`
 - [ ] DA05 Local variable: `local` is not indexed (by design)
 **Relations**
