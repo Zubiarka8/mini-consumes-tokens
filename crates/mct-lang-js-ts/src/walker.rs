@@ -1299,7 +1299,14 @@ impl<'a> Walker<'a> {
                 .symbols
                 .get(owner as usize)
                 .is_some_and(|s| s.name == name || s.parent.as_deref() == Some(name.as_str()));
-            if functions.contains(&name) && !own_name {
+            // `x instanceof Marker` already recorded this use at its own arm.
+            let recorded = self.relations.iter().any(|r| {
+                r.from == owner
+                    && r.kind == RelationKind::References
+                    && r.to_name == name
+                    && r.location == loc
+            });
+            if functions.contains(&name) && !own_name && !recorded {
                 same_file.push((self.relations.len(), false));
                 self.push_relation(owner, RelationKind::References, name, loc);
             }

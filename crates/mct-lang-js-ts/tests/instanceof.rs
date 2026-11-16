@@ -30,5 +30,10 @@ fn the_class_on_the_right_of_instanceof_is_referenced() {
         .filter(|r| r.kind == RelationKind::References)
         .map(|r| (r.to_name.as_str(), r.location.line))
         .collect();
-    assert_eq!(refs, [("Marker", 4), ("Other", 5), ("Third", 10)]);
+    // `Other === o` (line 7) is a class used as a value, which is its own
+    // reference; each `instanceof` use is recorded once, not twice.
+    assert_eq!(
+        refs,
+        [("Marker", 4), ("Other", 5), ("Third", 10), ("Other", 7)]
+    );
 }

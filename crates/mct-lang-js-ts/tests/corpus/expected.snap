@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=402 relations=1057 name_matched_across_files=209
+# language=javascript_typescript files=7 symbols=402 relations=1056 name_matched_across_files=209
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -322,7 +322,6 @@ R 291:36 calls validatePlaceOrder -> push
 R 296:63 references createClient -> WarehouseClient
 R 297:14 calls createClient -> WarehouseClient
 R 300:10 references client -> asOrderId (name-matched: src/order.ts)
-R 184:24 references WarehouseClient::placeOrder -> ApiError
 
 == src/inventory.ts (300 lines)
 S 1-300 module inventory
