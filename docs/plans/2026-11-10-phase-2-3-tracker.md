@@ -320,6 +320,17 @@ From `rules.md` and the two messages:
         none of them had a candidate, so no target changes, they only stop
         counting as unresolved. Test: `mct-lang-bash/tests/builtin_calls.rs`;
         the corpus snapshot is unchanged.
+  - [x] PowerShell: a call of a built-in cmdlet (`Write-Host`, `Join-Path`,
+        `ForEach-Object`, `Test-Path`…, 105 names of the Management, Utility
+        and Core modules, any case) the file does not define as a function
+        is external, so it never reaches another script's function of that
+        name. A function the file defines under the cmdlet's name leaves it
+        unproven. Repository functions (`Get-Lines`) and external programs
+        (`git`, `gh`) are not marked. This repository: 435 of 911 PowerShell
+        calls become external; none had a candidate, so no target changes,
+        they only stop counting as unresolved. Test:
+        `mct-lang-powershell/tests/cmdlet_calls.rs`; the corpus snapshot is
+        unchanged.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
 
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
@@ -435,6 +446,21 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] C++ cells re-probed with a current `mct-cli` (`a.cpp` with a macro,
+          a `const`, a union, an abstract base, a derived class with a
+          mem-initializer, a lambda, `new T()` and `T t;`). Stale cells
+          corrected: DA03 (`const int` is a `constant`) and DA07 (`#define`
+          is a `constant` or `function`) to `[x]`, and RE03
+          (`P_Sub() : P_Base()` gives `calls P_Base`) to `[~]`, as in the
+          scored list of `symbol-coverage.md` (a base defined in another file
+          gives none). The `checklists/*.md` views were older than that
+          list; the scored one already had these. Still open, each
+          shown by the probe: FN03 (a lambda bound to a name has no symbol,
+          #443), RE05 (`P_Sub : P_Base` is ambiguous between the class and
+          its constructor, see the C++ supertype note below), SE03 (`P_St st;`
+          gives no reference and `P_St` is reported as dead code, #441) and
+          RE02 (`new P_Sub()` is ambiguous the same way). TY02/TY04 stay
+          `[~]` by design. Go cells are still to re-probe.
     - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
           `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
           is a `constant`; `export`, `declare -i` and a bare assignment stay
@@ -1575,6 +1601,22 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Go: a function of this file used by name as a call argument
+        (`http.HandleFunc("/", handler)`, `apply(helper)`) or as an element
+        of a composite literal (`map[string]func(int) int{"h": helper}`) is a
+        `references` relation, so the callback is not dead code. A parameter
+        or a local (`:=`, `var`, `range`) of an enclosing function with the
+        same name shadows it; a variable and an unknown name record nothing.
+        Only functions of the same file count: a function declared in
+        another file of the package is not referenced from here. Corpus: no
+        change. Probe on a tiny tree: dead code listed `handler` and
+        `helper` before. `go` is not installed here, so the Go semantics
+        are not run. Test: `mct-lang-go/tests/function_arguments.rs`.
+  - [x] Probed and already fine: Java (`this::inst`, `A::parse`, `A::new`),
+        C# (`d.Changed += OnChanged`, `Func<int,int> f = Twice`,
+        `new Func<int,int>(Twice)`) and Rust (`.map(parse)`,
+        `.map(Self::helper)`, `let f: fn(i32) -> i32 = double`): none is
+        listed as dead code.
   - [x] Lua: a function of this file used by name as a call argument
         (`table.sort(t, cmp)`) or a table field value (`{ on = handler }`)
         is a `references` relation, so the callback is not dead code; a
