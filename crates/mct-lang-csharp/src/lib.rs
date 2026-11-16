@@ -108,6 +108,12 @@ struct Walker<'a> {
     locals: receivers::Types,
     /// The enclosing types, innermost last: what `this` declares.
     classes: Vec<receivers::ClassScope>,
+    /// The `using static NS.Type;` of this file: `(namespace, type)`.
+    static_usings: Vec<(String, String)>,
+    /// Bare calls of a name a `using static` may bring in: `(relation, name)`,
+    /// decided in `finish` once every declaration and every `using static` of
+    /// the file is known.
+    static_calls: Vec<(usize, String)>,
     /// What an `override` member of each enclosing type can override,
     /// innermost last (D8).
     supertypes: Vec<Vec<Supertype>>,
@@ -126,6 +132,8 @@ impl<'a> Walker<'a> {
             next_id: 0,
             locals: receivers::Types::new(),
             classes: Vec::new(),
+            static_usings: Vec::new(),
+            static_calls: Vec::new(),
             supertypes: Vec::new(),
         }
     }
@@ -378,6 +386,7 @@ impl<'a> Walker<'a> {
                 }
             }
             "using_directive" => {
+                self.record_static_using(node);
                 self.record_using_alias(node);
                 self.push_namespace_import(owner, node);
                 // `using Alias = A.B;` names no imported `Alias`: only the
@@ -436,6 +445,20 @@ impl<'a> Walker<'a> {
                                 );
                             }
                         } else {
+                            if function.kind() == "identifier"
+                                && !self.static_usings.is_empty()
+                                && !self.classes.is_empty()
+                                && self.classes.iter().all(|c| {
+                                    !c.opaque
+                                        && !c.methods.contains(name)
+                                        && !c.fields.contains_key(name)
+                                })
+                                && !self.locals.contains_key(name)
+                                && !declares_local_function(node, name, self.source)
+                            {
+                                self.static_calls
+                                    .push((self.relations.len(), name.to_string()));
+                            }
                             let type_qualifier = self.push_receiver(function, name);
                             // location(name_node), not location(node): a
                             // chained call (`a.F(x).F(y)`) has its outer and
@@ -908,7 +931,62 @@ impl<'a> Walker<'a> {
         });
     }
 
-    fn finish(self) -> ParsedFile {
+    /// `using static NS.Type;` (not an alias): the type and its namespace.
+    fn record_static_using(&mut self, node: Node) {
+        let mut cursor = node.walk();
+        if !node.children(&mut cursor).any(|c| c.kind() == "static") {
+            return;
+        }
+        let mut cursor = node.walk();
+        let Some(path) = node
+            .named_children(&mut cursor)
+            .last()
+            .filter(|path| aliases::is_name(*path))
+        else {
+            return;
+        };
+        let name: String = text(path, self.source).split_whitespace().collect();
+        if name.contains('<') {
+            return;
+        }
+        if let Some((namespace, ty)) = name.rsplit_once('.') {
+            self.static_usings
+                .push((namespace.to_string(), ty.to_string()));
+        }
+    }
+
+    fn finish(mut self) -> ParsedFile {
+        // A bare call reaches the one type a lone `using static` names (or
+        // the framework), unless the file declares a method of that name:
+        // with several `using static` the type is unknown, and a class with
+        // a base list or a `partial` one was left out when the call was seen.
+        if let [(namespace, ty)] = self.static_usings.as_slice() {
+            let (namespace, ty) = (namespace.clone(), ty.clone());
+            for (relation, name) in std::mem::take(&mut self.static_calls) {
+                let declared = self.symbols.iter().any(|s| {
+                    s.name == name && matches!(s.kind, SymbolKind::Method | SymbolKind::Function)
+                });
+                if declared || self.relation_targets.iter().any(|t| t.relation == relation) {
+                    continue;
+                }
+                self.relation_targets
+                    .push(if is_framework_name(&namespace) {
+                        RelationTarget {
+                            relation,
+                            external: true,
+                            ..Default::default()
+                        }
+                    } else {
+                        RelationTarget {
+                            relation,
+                            qualifier: Some(ty.clone()),
+                            target_module: Some(namespace.clone()),
+                            kind: Some(SymbolKind::Method),
+                            ..Default::default()
+                        }
+                    });
+            }
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
@@ -953,6 +1031,37 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
+}
+
+/// Whether a local function called `name` is declared in the member that
+/// contains `node` (a bare call of it is the local function, never a
+/// `using static` member).
+fn declares_local_function(node: Node, name: &str, source: &str) -> bool {
+    let mut member = node;
+    while let Some(parent) = member.parent() {
+        if parent.kind() == "declaration_list" {
+            break;
+        }
+        member = parent;
+    }
+    fn found(node: Node, name: &str, source: &str, depth: u32) -> bool {
+        if depth >= mct_core::MAX_TRAVERSAL_DEPTH {
+            return false;
+        }
+        if node.kind() == "local_function_statement"
+            && node
+                .child_by_field_name("name")
+                .is_some_and(|n| text(n, source) == name)
+        {
+            return true;
+        }
+        let mut cursor = node.walk();
+        let any = node
+            .named_children(&mut cursor)
+            .any(|child| found(child, name, source, depth + 1));
+        any
+    }
+    found(member, name, source, 0)
 }
 
 /// The method/member name being invoked: a bare `identifier`, a generic
