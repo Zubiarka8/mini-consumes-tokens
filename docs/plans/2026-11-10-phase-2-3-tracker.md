@@ -139,6 +139,22 @@ From `rules.md` and the two messages:
         declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
         (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
         snapshot is unchanged.
+  - [x] Python: `from b import render as draw` makes `draw(2)` a call to
+        `render` with module `b` as evidence, so it reaches `b.py` and
+        never another module's `render`; a value use (`handler = draw`)
+        gets the same name. Before, the call was recorded under the alias
+        and matched nothing. A name no single import binds, or two imports
+        bind differently, keeps its name. On a scratch project with two
+        modules that both declare `render`, the aliased call went from
+        unresolved to resolved (1). This repository's Python (7406
+        relations): one relation changes, the Django corpus's
+        `DjangoValidationError(…)` (`from django.core.exceptions import
+        ValidationError as DjangoValidationError`), now recorded as
+        `ValidationError` and still without candidates, because the module
+        evidence `exceptions` rules out the repository's own
+        `ValidationError`. The corpus snapshot changes by that one
+        relation (the corpus matcher pairs by name only, so it lists it as
+        name-matched). Test: `mct-lang-python/tests/aliased_imports.rs`.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an

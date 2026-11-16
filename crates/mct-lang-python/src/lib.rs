@@ -355,6 +355,7 @@ impl<'a> Walker<'a> {
                                 self.rule_out_field();
                             }
                         }
+                        let name = self.imported_alias_target(function, name);
                         self.push_relation(owner, RelationKind::Calls, name, location(name_node));
                     }
                     self.visit(function, owner, class_name, depth + 1);
@@ -871,6 +872,18 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// `from b import render as draw`: a bare `draw` names the function by
+    /// its own name, `render`, which is what the module declares. Any other
+    /// name, and a name no single import binds, is kept as written.
+    fn imported_alias_target(&self, expr: Node, written: String) -> String {
+        if expr.kind() != "identifier" {
+            return written;
+        }
+        self.scope
+            .imported_name(&written)
+            .map_or(written.clone(), str::to_string)
+    }
+
     fn push_bare_evidence(&mut self, expr: Node) -> bool {
         if expr.kind() == "attribute" {
             if !self.push_module_attribute_evidence(expr) {
@@ -926,6 +939,7 @@ impl<'a> Walker<'a> {
             "identifier" => {
                 if self.push_bare_evidence(value) {
                     let name = text(value, self.source).to_string();
+                    let name = self.imported_alias_target(value, name);
                     self.push_relation(owner, RelationKind::References, name, location(value));
                 }
             }

@@ -1,4 +1,4 @@
-# language=python files=15 symbols=643 relations=1504 name_matched_across_files=395
+# language=python files=15 symbols=643 relations=1504 name_matched_across_files=396
 
 == library/cli.py (307 lines)
 S 1-307 module cli
@@ -1649,7 +1649,7 @@ R 67:27 calls BookRecord::Meta -> Q
 R 67:52 calls BookRecord::Meta -> Q
 R 76:21 calls BookRecord::clean -> normalize_isbn (name-matched: library/models.py)
 R 77:16 calls BookRecord::clean -> is_valid_isbn (name-matched: library/models.py)
-R 78:19 calls BookRecord::clean -> DjangoValidationError
+R 78:19 calls BookRecord::clean -> ValidationError (name-matched: library/errors.py)
 R 81:16 calls BookRecord::get_absolute_url -> reverse
 R 84:18 extends CopyRecord -> Model
 R 85:18 extends CopyRecord::Status -> TextChoices
