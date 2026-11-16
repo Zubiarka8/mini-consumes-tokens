@@ -5,6 +5,14 @@ on:
     branches: [main, master]
   pull_request:
 
+# A new push to a pull request supersedes its earlier run: cancel that one
+# so the queue holds one run per pull request, not one per push. The free
+# runner pool (20 jobs, 5 on macOS) otherwise falls hours behind. A push to
+# `main` is never cancelled: every merge keeps its own record.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # Pinned to an exact stable release, never `stable` floating — a CI run
   # from six months ago and one from today must build with the same
@@ -203,8 +211,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        crate:
+        os: [ubuntu-latest]
+        crate: &fuzz-smoke-crates
           - mct-lang-rust
           - mct-lang-python
           - mct-lang-lua
@@ -223,7 +231,7 @@ jobs:
           - mct-lang-xaml
           - mct-lang-xml
           - mct-index
-    steps:
+    steps: &fuzz-smoke-steps
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
@@ -281,3 +289,20 @@ jobs:
             crates/${{ matrix.crate }}/fuzz/logs/
           if-no-files-found: warn
           retention-days: 7
+
+  # The same fuzz smoke tests on macOS, for a push to `main` only. The free
+  # pool runs 5 macOS jobs at a time, and 18 macOS fuzz jobs per pull
+  # request queued macOS work for a day. The required macOS build + test
+  # job above still runs on every pull request. A job-level `if:` is used
+  # because a matrix built with `fromJSON(...)` from the event name still
+  # expanded to both systems on pull requests.
+  fuzz-smoke-macos:
+    if: github.event_name == 'push'
+    name: fuzz smoke test (${{ matrix.crate }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest]
+        crate: *fuzz-smoke-crates
+    steps: *fuzz-smoke-steps
