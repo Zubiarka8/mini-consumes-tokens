@@ -96,6 +96,18 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] PHP, proven receivers only: `$x->m()` is qualified by the class a
+        parameter is typed with (`A $x`, `?A $x`, resolved through `use`
+        aliases and the namespace) when the body never assigns `$x`, by the
+        class of a local assigned exactly once `new A(…)`, and by
+        `(new A())->m()`. A union or builtin type, an untyped parameter, a
+        second assignment, `foreach`, `global`, `static`, `catch`, a
+        by-reference use and any closure scope prove nothing, so the call
+        stays a member call. On a scratch project with two classes that both
+        declare `m`, 3 ambiguous calls (2 candidates) became resolved (1).
+        Test: `mct-lang-php/tests/receivers.rs`; the Laravel fixture's
+        `Payer $payer` (an alias of `Customer`) now resolves, and its test
+        was updated on purpose.
   - [x] C++, declared receivers only: `x.m()` and `p->m()` on a variable the
         enclosing function declares with one class (a parameter, a local, a
         pointer or reference, `const` or not) are qualified by that class as
