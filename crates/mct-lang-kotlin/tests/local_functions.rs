@@ -55,6 +55,11 @@ fn a_local_function_has_the_enclosing_function_as_parent() {
     );
     assert_eq!(
         symbol(&file, "inLambda"),
+        (SymbolKind::Function, Some("callback".into()))
+    );
+    // A property bound to a lambda is a function of its own.
+    assert_eq!(
+        symbol(&file, "callback"),
         (SymbolKind::Function, Some("outer".into()))
     );
 }
