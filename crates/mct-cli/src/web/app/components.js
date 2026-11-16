@@ -119,7 +119,7 @@ export const STATE_ORDER = [
 ];
 /**
  * Without `type` the generic label ("Confirmado"); with "duplicate" or "dead-code" the label says
- * what was decided ("Duplicado confirmado", "Falso positivo: sí se usa").
+ * what was decided ("Confirmed duplicate", "False positive: it is used").
  */
 export const stateLabel = (state, type) => {
   const generic = STATES[state]?.label || state;
