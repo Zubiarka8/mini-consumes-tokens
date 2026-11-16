@@ -139,6 +139,19 @@ export async function review(key, state, note = "", revision = "none") {
   return body;
 }
 
+/** Starts the repeated partial-block search of the snapshot on screen, unless one is running;
+ *  answers with the search's state, as `api("partial-blocks")` does. */
+export async function startPartialBlocks() {
+  const response = await fetch("api/partial-blocks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csrf }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(response.status, body.error || response.statusText, body);
+  return body;
+}
+
 /** Replaces .mctignore, or .gitignore with `file: "gitignore"`. `base` is the text the page loaded; a 409 error carries the current state in `body`. */
 export async function saveIgnore(content, base, file = "mctignore") {
   const response = await fetch("api/ignore", {
