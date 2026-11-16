@@ -96,6 +96,18 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] PHP, proven receivers only: `$x->m()` is qualified by the class a
+        parameter is typed with (`A $x`, `?A $x`, resolved through `use`
+        aliases and the namespace) when the body never assigns `$x`, by the
+        class of a local assigned exactly once `new A(…)`, and by
+        `(new A())->m()`. A union or builtin type, an untyped parameter, a
+        second assignment, `foreach`, `global`, `static`, `catch`, a
+        by-reference use and any closure scope prove nothing, so the call
+        stays a member call. On a scratch project with two classes that both
+        declare `m`, 3 ambiguous calls (2 candidates) became resolved (1).
+        Test: `mct-lang-php/tests/receivers.rs`; the Laravel fixture's
+        `Payer $payer` (an alias of `Customer`) now resolves, and its test
+        was updated on purpose.
   - [x] C++, declared receivers only: `x.m()` and `p->m()` on a variable the
         enclosing function declares with one class (a parameter, a local, a
         pointer or reference, `const` or not) are qualified by that class as
@@ -129,6 +141,22 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] C#: a bare call in a file with exactly one `using static NS.Type;`
+        is that type's method under that namespace, or the framework's
+        (external) for `System`/`Microsoft`. Several `using static` (which
+        type?), a method of the name the file declares, a name the code
+        binds itself (a parameter, a local, a field, a local function), a
+        class with a base list or a `partial` class (the member may live
+        elsewhere) and a qualified call prove nothing. The namespace is
+        matched by its full name, so a nested `namespace A { namespace B {`
+        is not found under `A.B`. On a scratch project with `A.Fmt.Render`
+        and `B.Fmt.Render`, 1 ambiguous call (2 candidates) became resolved
+        (1). This repository's C# (513 calls): 3 calls became external
+        (`Round`, `Max`, `Min` under `using static System.Math;`). A first
+        version also marked the delegate parameters `map(…)` and `next(…)`
+        external; the measurement showed it, and a bound name is now
+        excluded, with a test. Test: `mct-lang-csharp/tests/using_static.rs`;
+        the corpus snapshot is unchanged.
   - [x] Go: an import of a dotless module path (`module shop`, `import
         "shop/store"`) names a repository package like a domain-rooted one,
         for a plain and an aliased import. The path needs two or more
@@ -139,6 +167,19 @@ From `rules.md` and the two messages:
         declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
         (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
         snapshot is unchanged.
+  - [x] Rust: `use bbb_lib::render as draw;` makes `draw()` a call to
+        `render` with `bbb_lib` as crate evidence, so it reaches that
+        crate's item and never another crate's `render`. A `crate::`,
+        `self::` or `super::` alias names the original item with no crate
+        evidence, a single-segment `use rand as r` names a crate and is
+        left alone, and a local binding or declaration of the alias keeps
+        its own name. Only a bare call is renamed; type references through
+        an alias are unchanged. On this repository's Rust (56243 calls) 99
+        calls change, all aliases of `use … as`: 59 from several candidates
+        to one, 13 from none to the right candidates, 12 narrowed, 9
+        keep one, 6 from none to one. Test:
+        `mct-lang-rust/tests/aliased_use.rs`; the corpus snapshot is
+        unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
@@ -310,6 +351,16 @@ From `rules.md` and the two messages:
         and `Log.Max` next to the framework calls, 2 ambiguous calls became
         external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
         corpus snapshot is unchanged.
+  - [x] Bash: a call of a shell builtin (`echo`, `printf`, `cd`, `exit`,
+        `shift`, `return`, `true`…, 58 names) the file does not define as a
+        function is external, so it never reaches another script's function
+        of that name. A function the file defines under the builtin's name
+        (`echo() { … }`) leaves it unproven, and `source`/`.` stay imports.
+        External programs (`git`, `grep`, `sed`) are not marked: a script may
+        wrap them. This repository: 784 of 1892 Bash calls become external;
+        none of them had a candidate, so no target changes, they only stop
+        counting as unresolved. Test: `mct-lang-bash/tests/builtin_calls.rs`;
+        the corpus snapshot is unchanged.
   - [x] PowerShell: a call of a built-in cmdlet (`Write-Host`, `Join-Path`,
         `ForEach-Object`, `Test-Path`…, 105 names of the Management, Utility
         and Core modules, any case) the file does not define as a function
@@ -488,6 +539,20 @@ From `rules.md` and the two messages:
           the 17 C# files of this repository (40 supertype relations): 18
           ambiguous -> resolved, each to the class; none newly unresolved,
           dead code 0 -> 0. The checklist's RE05 cell is `[x]`.
+    - [x] Java and Kotlin `main`: a Java type declaring the launcher's
+          `void main(String[] a)`, `void main(String... a)` or (Java 25,
+          JEP 512) `void main()` carries an entry-point hint (`java`,
+          `main-method`); so does a Kotlin `object` with `@JvmStatic fun
+          main(args: Array<String>)` (or `vararg args: String`, or no
+          parameter), or a class whose companion object has one (`jvm`,
+          `jvm-static-main`). The type stays a dead-code candidate and
+          `find_dead_code` shows `possible_entry_point` next to it. Another
+          return type, other parameters, `Main`, or a Kotlin `main` without
+          `@JvmStatic` carry no hint. Tests: `tests/main_entry_point.rs` in
+          both crates; the Java cases were run with the JDK 25 `java`
+          launcher (no `kotlinc` here). Probe: `Tool` and `K` were listed
+          with no note, now each carries one. This repository's 31 Java
+          and Kotlin files: dead code 0 -> 0.
     - [x] PHP `define('NAME', …)`: a call to the global `define` (also
           `\define`) with a literal name, single-quoted or double-quoted
           without interpolation, declares a `constant` with no parent,
@@ -499,6 +564,16 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] CSS custom properties and `@keyframes`: each custom property
+          declaration (`--brand: red`) is a `variable` symbol and each
+          `@keyframes spin` an `animation` symbol (also inside Tailwind's
+          `@theme`). `var(--brand)`, fallbacks included, references the
+          variable, and each name in an `animation` / `animation-name` value
+          references the animation, scoped by `kind` so a same-named rule
+          (`.fade`) never matches. Animation keywords (`infinite`, `ease`)
+          reference nothing. Tests: `tests/custom_properties.rs`; the corpus
+          snapshot gains 283 symbols and 521 references (keyframe names
+          only, no keyword).
     - [x] Go fields, constants and variables: each named struct field is a
           `field` of the struct (an embedded one is none), each package-level
           `const` / `var` name, grouped or not, a `constant` / `variable` of
@@ -1606,6 +1681,14 @@ From `rules.md` and the two messages:
         `Unit`, `OrderStatus`, `StockChanged`, `Projection`, `Palette`,
         `ChangeKind`, `ServiceHost` were false positives). Probe: 8
         candidates → 0. Test: `mct-lang-csharp/tests/type_references.rs`.
+- [x] Python, `__all__`: each string of a module-level `__all__ = [...]`
+      (or `+=`, list or tuple) that names a `def` or `class` of the file is
+      a `references` relation from the module, pinned to the file, so a
+      function that is only re-exported is not dead code. A name defined
+      elsewhere, a list built by a call and an `__all__` inside a function
+      record nothing. Probe: an exported-only function was dead code, now it
+      is not; this repository has no `__all__`, so no measurement on real
+      code.
   - [x] Go: a function of this file used by name as a call argument
         (`http.HandleFunc("/", handler)`, `apply(helper)`) or as an element
         of a composite literal (`map[string]func(int) int{"h": helper}`) is a
@@ -1633,6 +1716,12 @@ From `rules.md` and the two messages:
         same false positives for Kotlin (`::parse`), PHP (`'shout'` string
         callable), C++ (`std::transform(…, dbl)`) and Bash (`trap cleanup
         EXIT`); Java method references and C# method groups were fine.
+- [x] Lua, function returned or assigned by name: `return handler`,
+      `alias = handler`, `local alias = handler` and `M.slot = handler` are
+      `references` relations, with the same scope rule as an argument (a
+      parameter that shadows the function records nothing). Probe: a
+      function returned from another function was dead code, now it is not.
+      Corpus: 4 new relations. Stacked on #502.
   - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
         expression, not part of the arm's pattern, so its names are uses.
         Before, `is_final` was taken for a local of the whole function and
