@@ -96,6 +96,18 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] C++, declared receivers only: `x.m()` and `p->m()` on a variable the
+        enclosing function declares with one class (a parameter, a local, a
+        pointer or reference, `const` or not) are qualified by that class as
+        a method; a `std::` type is external. `auto`, a builtin or a
+        qualified project type, a template parameter and a name declared
+        with two types in the function (a shadowing block, a lambda
+        parameter) prove nothing, so the call is left as it was. A type
+        alias is not followed: a receiver declared with an alias name gets
+        no candidate. On a scratch project with two classes that both
+        declare `m`, 4 ambiguous calls (2 candidates) became resolved (1).
+        Test: `mct-lang-cpp/tests/receivers.rs`; the corpus snapshot is
+        unchanged.
   - [!] Whether Kotlin (#327) and C# (#328) adopt Go's rule for a receiver
         with no stated type. Today that loses 12 (Kotlin) and 25 (C#) right
         resolutions. Waiting for the maintainer.
@@ -117,6 +129,16 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Go: an import of a dotless module path (`module shop`, `import
+        "shop/store"`) names a repository package like a domain-rooted one,
+        for a plain and an aliased import. The path needs two or more
+        elements and a root that is no directory of GOROOT's `src/`
+        (`net/http`, `log`, `internal` stay the standard library's), so a
+        single-element path and a module named like a standard directory
+        are left unproven. On a scratch project with two packages that both
+        declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
+        (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
+        snapshot is unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
@@ -278,7 +300,18 @@ From `rules.md` and the two messages:
         were all wrong (`u64::from(l.on_hand)`, `u64::from(*byte)`) and are
         now ambiguous; the other 84 had no candidate. Dead code unchanged
         (124). Test: `mct-lang-rust/tests/primitive_conversions.rs`.
+  - [x] C#: a call whose receiver is a fully qualified name of the framework
+        (`System.Console.WriteLine(…)`, `global::System.Math.Max(…)`) is
+        external. The name must be identifiers only, rooted at `System` or
+        `Microsoft`, with at least two segments; a call or an index in the
+        chain, an alias and a simple name (`Console.WriteLine` after
+        `using System;`) keep their resolution, because a repository can
+        declare its own `Console`. On a scratch project with `Log.WriteLine`
+        and `Log.Max` next to the framework calls, 2 ambiguous calls became
+        external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
+        corpus snapshot is unchanged.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
+
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
       same-named method in an unrelated class), all correct. D9 has 2 for
@@ -298,7 +331,10 @@ From `rules.md` and the two messages:
       `opts.get` on a `dict` next to `View.get`, run with CPython), both
       correct; before the fix, 1 wrong and 1 ambiguous. Rust's D5 label
       (`stack.len()` on `stack: &Stack`, next to a free `fn len`) is now
-      correct; before, ambiguous.
+      correct; before, ambiguous. D5 has 2 for C++ (`q.to_string()` on
+      `const Quantity& q` and `b->to_string()` on `const Box* b`, each next
+      to the other class's `to_string`, checked with `clang++`), both
+      correct; before the fix, both ambiguous.
 
 ## Block 2: phase 2, SQLite and enriched model
 
@@ -1384,6 +1420,28 @@ From `rules.md` and the two messages:
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
       `Logger.getLogger(…)`), symbols unchanged; this repository: the same
       16 Java calls, dead code unchanged.
+- [x] Relations: inheritance, implementations and overrides (3.3, depends on
+      D8). Audited with one sample per language (a base class or trait, an
+      interface, and a subclass overriding a method), indexed with
+      `init --force`, listing the `extends`, `implements` and `overrides`
+      relations. What each parser emits, by design (D8: explicit evidence
+      only, never a shared name):
+  - `extends` and `implements`: Java, Kotlin, C#, PHP, C++ (both bases as
+    `extends`), TS (class and `implements`), Python (`extends`), Lua
+    (`extends` from `setmetatable(… { __index = Base })`), Go (`extends`
+    from an embedded struct), Rust (`implements` from `impl Trait for T`).
+  - `overrides`: Java `@Override`, Kotlin and C# `override`, C++
+    `override`, Rust trait impl methods. Python `@override`, PHP
+    `#[\Override]` and a TS `override` modifier give it only when written,
+    so the samples without those markers have none.
+  - Not emitted, on purpose: an implicit interface implementation (C#
+    `public int Area()`, Java without `@Override`, a Go struct satisfying an
+    interface) and an overriding method with no marker. Naming it would be a
+    shared-name match, which D8 rules out.
+  - Result: no language is missing a relation its syntax states.
+- [ ] Language-specific features (3.4), each checked against the real
+      grammar.
+- [ ] Positive and negative fixtures for each language (3.5).
 - [ ] Relations: inheritance, implementations and overrides (3.3, depends on
       D8).
 - [x] Language-specific features (3.4), each checked against the real
@@ -1433,7 +1491,7 @@ From `rules.md` and the two messages:
       `find_references`/`find_calls`/`find_callers`, `list_symbols`,
       `get_project_overview` and `find_dead_code`; `find_duplicate_code`
       only trimmed the trailing slash.
-- [~] Inline module resolution.
+- [x] Inline module resolution.
   - [x] Rust: an item declared in an inline `mod m { … }` (function,
         struct, enum, trait, type, const, static, macro, nested `mod`) has
         `m` as its parent, as a C++ namespace member does, so `m::f()`,
@@ -1453,6 +1511,14 @@ From `rules.md` and the two messages:
         file as its target, so another file's same-named `mod` (or an
         `impl From<Id> for u64` under a local `mod u64`) is not a
         candidate (`primitive_conversions.rs`).
+  - [x] `m::Type::f()`: the method's parent is the type, so the module
+        evidence found no candidate. The `relation_candidates` view now also
+        accepts a method whose parent type is declared in that module
+        (migration, issue #478); `target_path` still pins the file, so
+        another file's same-named `inner::Thing::make` is no candidate.
+        Test: `mct-lang-rust/tests/inline_modules.rs`
+        `a_method_reached_through_an_inline_module_and_its_type_resolves`
+        (unresolved with 0 candidates before, resolved with 1 after).
   - [ ] `m::Type::f()`: the method's parent is the type, so the module
         evidence finds no candidate. Matching it needs the view to look at
         the type's parent (a migration): #478.
@@ -1506,6 +1572,22 @@ From `rules.md` and the two messages:
       `possible_entry_point` next to it. An instance `Main`, `main` and a
       class without one carry no hint. Probe: `Program` was listed with no
       note, now it carries one.
+  - [x] Go: a function of this file used by name as a call argument
+        (`http.HandleFunc("/", handler)`, `apply(helper)`) or as an element
+        of a composite literal (`map[string]func(int) int{"h": helper}`) is a
+        `references` relation, so the callback is not dead code. A parameter
+        or a local (`:=`, `var`, `range`) of an enclosing function with the
+        same name shadows it; a variable and an unknown name record nothing.
+        Only functions of the same file count: a function declared in
+        another file of the package is not referenced from here. Corpus: no
+        change. Probe on a tiny tree: dead code listed `handler` and
+        `helper` before. `go` is not installed here, so the Go semantics
+        are not run. Test: `mct-lang-go/tests/function_arguments.rs`.
+  - [x] Probed and already fine: Java (`this::inst`, `A::parse`, `A::new`),
+        C# (`d.Changed += OnChanged`, `Func<int,int> f = Twice`,
+        `new Func<int,int>(Twice)`) and Rust (`.map(parse)`,
+        `.map(Self::helper)`, `let f: fn(i32) -> i32 = double`): none is
+        listed as dead code.
   - [x] Lua: a function of this file used by name as a call argument
         (`table.sort(t, cmp)`) or a table field value (`{ on = handler }`)
         is a `references` relation, so the callback is not dead code; a
@@ -1609,7 +1691,14 @@ The criteria from the plan:
 - [x] The enriched model is implemented and verified.
 - [x] The SQLite migrations work.
 - [ ] Every supported parser has reviewed, documented coverage.
-- [ ] Searches and the MCP context use the new metadata.
+- [x] Searches and the MCP context use the new metadata. On a scratch Rust
+      project (`util::helper()` called from `run`), `find_callers`,
+      `find_references` and `impact_analysis` return `resolution`,
+      `evidence`, `candidates` and `targets` per relation
+      (`resolved,declared,1,L2 in util`), and `build_context_pack` lists the
+      callees with the signature of the definition each resolves to. Pinned
+      by `mct-index/tests/relation_resolution.rs` and
+      `mct-cli/tests/cli_mcp_parity.rs`.
 - [ ] The relevant tests pass.
 - [ ] No unjustified performance or token regression.
 - [x] The changes are organized in reviewable PRs.
