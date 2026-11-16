@@ -269,12 +269,19 @@ fn a_model_type_reference_is_resolved_not_ambiguous_with_its_file_module() {
 }
 
 #[test]
-fn a_method_called_on_an_unknown_receiver_is_never_resolved() {
+fn a_method_called_on_a_typed_parameter_resolves_through_its_import_alias() {
     let index = open_indexed();
-    // `$payer->balance()`: the receiver's class is a run-time value.
+    // `Payer $payer` with `use App\Billing\Customer as Payer`: the
+    // parameter's class is proven, and the alias names `Customer`.
     let calls = index.find_callers("balance").unwrap();
     assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].resolution, Resolution::Ambiguous);
+    assert_eq!(calls[0].resolution, Resolution::Resolved);
+    let target: Vec<_> = calls[0]
+        .candidates
+        .iter()
+        .map(|c| c.relative_path.as_str())
+        .collect();
+    assert_eq!(target, ["app/Billing/Customer.php"]);
 }
 
 #[test]
