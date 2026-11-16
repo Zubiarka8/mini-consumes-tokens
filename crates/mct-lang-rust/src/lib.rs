@@ -828,7 +828,22 @@ impl<'a> Walker<'a> {
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some((name, name_node)) = call_target(function, self.source) {
-                        let target = self.call_evidence(function, &name);
+                        let aliased = (function.kind() == "identifier")
+                            .then(|| self.aliased_item(&name, function.start_byte()))
+                            .flatten();
+                        let (name, target) = match aliased {
+                            Some((original, module)) => (
+                                original,
+                                RelationTarget {
+                                    module,
+                                    ..Default::default()
+                                },
+                            ),
+                            None => {
+                                let target = self.call_evidence(function, &name);
+                                (name, target)
+                            }
+                        };
                         let relation = self.push_relation(
                             owner,
                             RelationKind::Calls,
@@ -1190,6 +1205,35 @@ impl<'a> Walker<'a> {
             return None;
         }
         self.import_crate(first.as_deref())
+    }
+
+    /// `draw()` after `use bbb_lib::render as draw;`: the item's own name
+    /// and the crate its path starts at, when every `use` of `draw` that
+    /// reaches `at` is that same alias and nothing in this file declares or
+    /// binds `draw` itself.
+    fn aliased_item(&self, name: &str, at: usize) -> Option<(String, Option<String>)> {
+        let local = self.bound.contains(name) || self.local_fns.contains(name);
+        if local
+            || !self.scope.aliases.contains(name)
+            || self.scope.declared.contains(name)
+            || self.scope.std_imports.contains_key(name)
+        {
+            return None;
+        }
+        let roots = self.scope.import_crates.get(name)?;
+        let originals = self.scope.import_originals.get(name)?;
+        let reaches = self.scope.other_imports.get(name)?;
+        let mut here = roots
+            .iter()
+            .zip(originals)
+            .zip(reaches)
+            .filter(|(_, reach)| reach.contains(&at))
+            .map(|(pair, _)| pair);
+        let (root, original) = here.next()?;
+        if !here.all(|pair| pair == (root, original)) {
+            return None;
+        }
+        Some((original.clone()?, self.import_crate(root.as_deref())))
     }
 
     /// The crate a `use` path starting at `root` proves its item lives
@@ -1639,6 +1683,10 @@ struct FileScope {
     import_crates: HashMap<String, Vec<Option<String>>>,
     /// Names a `use … as name` gives another crate's or module's item.
     aliases: HashSet<String>,
+    /// The item's own name behind each of those imports (`render` for
+    /// `use b::render as draw`; none for a name imported unaliased), once per
+    /// import of the name, in the same order as `other_imports`.
+    import_originals: HashMap<String, Vec<Option<String>>>,
     /// Byte ranges of the blocks, modules or file where a glob import
     /// (`use m::*`) could bring in names this file can't see: the glob
     /// reaches only the block it is written in. A `use super::*` in a module
@@ -1734,6 +1782,11 @@ fn collect_scope_at(
                             .entry(used.name.clone())
                             .or_default()
                             .push(used.root);
+                        scope
+                            .import_originals
+                            .entry(used.name.clone())
+                            .or_default()
+                            .push(used.original);
                         scope
                             .other_imports
                             .entry(used.name)
@@ -2099,6 +2152,8 @@ struct UseName {
     root: Option<String>,
     /// Whether `name` is an alias (`use a::T as U`), not the item's own name.
     alias: bool,
+    /// The item's own name behind an alias (`T` in `use a::T as U`).
+    original: Option<String>,
 }
 
 /// Splits the segments leading to a `use` item into the type it lives in
@@ -2143,6 +2198,7 @@ fn collect_use_names_at_depth(
             module,
             root,
             alias: false,
+            original: None,
         });
     };
     match node.kind() {
@@ -2160,13 +2216,30 @@ fn collect_use_names_at_depth(
             // The alias is the local name; the real item is not named
             // `to_name`, so no path evidence applies to it.
             if let Some(alias) = node.child_by_field_name("alias") {
+                // The item's own name and the crate its path starts at: a
+                // single-segment path (`use rand as r`) names a crate, not
+                // an item.
+                let path = node.child_by_field_name("path");
+                let written: Vec<String> = path
+                    .map(|p| path_segments(text(p, source)))
+                    .unwrap_or_default();
+                let mut full = prefix.to_vec();
+                full.extend(written);
+                let original = (full.len() >= 2).then(|| full.last().cloned()).flatten();
+                let root = full
+                    .first()
+                    .filter(|r| {
+                        full.len() >= 2 && !matches!(r.as_str(), "crate" | "self" | "super")
+                    })
+                    .cloned();
                 out.push(UseName {
                     name: text(alias, source).to_string(),
                     loc: location(alias),
                     qualifier: None,
                     module: None,
-                    root: None,
+                    root,
                     alias: true,
+                    original,
                 });
             } else if let Some(path) = node.child_by_field_name("path") {
                 collect_use_names_at_depth(path, source, prefix, out, depth + 1);
