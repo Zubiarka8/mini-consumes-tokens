@@ -1,8 +1,9 @@
-//! A statement at-rule whose prelude is a string (`@source "./";`,
-//! `@plugin "x";`, Tailwind 4's directives) is valid CSS, but the pinned
-//! grammar rejects it and the whole file was dropped. The parser reparses
-//! with the string's bytes replaced, at the same offsets, and keeps the tree
-//! only when it is clean.
+//! A statement at-rule on one line whose prelude is a string, a selector list
+//! or a function (`@source "./";`, `@custom-variant dark (&:is(.d *));`,
+//! `@source inline("x");`: Tailwind 4's directives) is valid CSS, but the
+//! pinned grammar rejects it and the whole file was dropped. The parser
+//! reparses with the prelude's bytes replaced, at the same offsets, and keeps
+//! the tree only when it is clean.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -45,7 +46,22 @@ fn a_statement_at_rule_with_a_string_prelude_parses() {
 }
 
 #[test]
+fn a_statement_at_rule_with_any_prelude_on_one_line_parses() {
+    // Tailwind 4 directives whose prelude is a selector list or a function.
+    let parsed = parse(
+        "@custom-variant dark (&:where(.dark, .dark *));\n@custom-variant rtl (&:is([dir=rtl] *));\n@source inline(\"underline\");\n@foo bar baz;\n.btn { color: red; }\n",
+    )
+    .unwrap();
+    assert!(
+        parsed.symbols.iter().any(|s| s.name == ".btn"),
+        "{:?}",
+        parsed.symbols
+    );
+}
+
+#[test]
 fn a_real_syntax_error_is_still_rejected() {
     assert!(parse("@source \"./\";\n.btn { color: red;\n").is_err());
     assert!(parse("@source \"./\";\n.btn { ;;; } }\n").is_err());
+    assert!(parse("@custom-variant dark (&:is(.d *));\n.btn { color: red;\n").is_err());
 }

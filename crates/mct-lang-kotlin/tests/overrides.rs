@@ -105,7 +105,7 @@ fn an_override_names_every_direct_supertype_and_nothing_else() {
             "Pt.hashCode -> hashCode (Any, external)",
             "Del.area -> area (Shape)",
             "ADD.apply -> apply (Op)",
-            ".run -> run (Runnable)",
+            "start.run -> run (Runnable)",
         ]
     );
 }

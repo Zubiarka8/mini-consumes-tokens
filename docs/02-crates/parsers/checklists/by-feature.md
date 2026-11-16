@@ -711,7 +711,7 @@ Done 2 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 13
 - [x] Go: package-level `const` → `constant`
 - [x] PHP: `const` top-level and in classes
 - — Lua: no `const` keyword
-- [~] Bash: `readonly X=…` → `variable`
+- [x] Bash: `readonly X=…` and `declare -r X=…` → `constant`
 - — PowerShell: PowerShell has no constant (module or global)
 - — HTML: HTML is markup; it has no constant (module or global)
 - — CSS: CSS is markup; it has no constant (module or global)
@@ -721,7 +721,7 @@ Done 2 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 13
 
 *Done when:* Constant indexed as `constant`.
 
-Done 2 · Partial 4 · Not done 4 · Not verified 0 · Not applicable 7
+Done 3 · Partial 3 · Not done 4 · Not verified 0 · Not applicable 7
 
 ### DA04 Global / module-level variable
 

@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=402 relations=1005 name_matched_across_files=206
+# language=javascript_typescript files=7 symbols=402 relations=1053 name_matched_across_files=206
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -321,6 +321,7 @@ R 291:36 calls validatePlaceOrder -> push
 R 296:63 references createClient -> WarehouseClient
 R 297:14 calls createClient -> WarehouseClient
 R 300:10 references client -> asOrderId (name-matched: src/order.ts)
+R 184:24 references WarehouseClient::placeOrder -> ApiError
 
 == src/inventory.ts (300 lines)
 S 1-300 module inventory
@@ -428,6 +429,8 @@ R 50:38 extends OutOfStockError -> Error
 R 56:5 calls OutOfStockError::constructor -> Error
 R 69:24 references inventory -> Promise
 R 69:32 references inventory -> StockLevel
+R 74:22 calls Observable::#subscribers -> Map
+R 74:29 references Observable::#subscribers -> Set
 R 77:33 calls Observable::subscribe -> get
 R 79:17 calls Observable::subscribe -> Set
 R 80:25 calls Observable::subscribe -> set
@@ -437,6 +440,12 @@ R 87:33 calls Observable::notify -> forEach
 R 87:23 calls Observable::notify -> get
 R 87:55 calls Observable::notify -> callback
 R 93:33 extends StockCache -> Observable
+R 94:26 calls StockCache::#levels -> Map
+R 94:38 references StockCache::#levels -> StockLevel
+R 95:28 calls StockCache::#loadedAt -> Map
+R 96:19 calls StockCache::#inflight -> Map
+R 96:31 references StockCache::#inflight -> Promise
+R 96:39 references StockCache::#inflight -> StockLevel
 R 99:30 references StockCache::constructor -> StockSource
 R 103:5 calls StockCache::constructor -> Observable
 R 106:21 references StockCache::get -> StockLevel
@@ -510,6 +519,8 @@ R 238:23 calls expiringSoon -> filter
 R 238:49 calls expiringSoon -> getTime
 R 238:65 calls expiringSoon -> getTime
 R 248:13 references inventory -> Location
+R 257:25 calls PickListBuilder::#tasks -> Map
+R 257:37 references PickListBuilder::#tasks -> PickTask
 R 258:22 references inventory -> OutOfStockError
 R 260:40 references PickListBuilder::constructor -> Map
 R 260:52 references PickListBuilder::constructor -> StockLevel
@@ -782,6 +793,18 @@ R 323:45 references fromCents -> Money
 R 324:18 calls fromCents -> ofMinor
 R 327:34 references toCents -> Money
 R 329:17 calls toCents -> CurrencyMismatchError
+R 16:4 references money -> Currency
+R 17:4 references money -> Currency
+R 18:4 references money -> Currency
+R 19:4 references money -> Currency
+R 248:25 references isCurrency -> Currency
+R 253:43 references sum -> Money
+R 292:55 references MoneyRange::parse -> Money
+R 313:10 references convert -> Money
+R 324:12 references fromCents -> Money
+R 324:33 references fromCents -> Currency
+R 328:28 references toCents -> Currency
+R 329:39 references toCents -> Currency
 
 == src/order.ts (311 lines)
 S 1-311 module order
@@ -1041,7 +1064,29 @@ R 307:20 calls packingSlip -> row
 R 307:45 calls packingSlip -> format (name-matched: src/money.ts)
 R 308:14 calls packingSlip -> join
 R 311:16 references order -> Order
+R 26:4 references order -> State
+R 26:17 references order -> State
+R 26:33 references order -> State
+R 27:4 references order -> State
+R 27:22 references order -> State
+R 27:34 references order -> State
+R 28:4 references order -> State
+R 28:18 references order -> State
+R 28:32 references order -> State
+R 29:4 references order -> State
+R 29:20 references order -> State
+R 29:35 references order -> State
+R 30:4 references order -> State
+R 30:21 references order -> State
+R 31:4 references order -> State
+R 32:4 references order -> State
+R 139:19 references Order::#state -> State
 R 180:32 references Order::total -> subtotal
+R 192:18 references Order::reserve -> State
+R 200:18 references Order::pay -> State
+R 205:18 references Order::ship -> State
+R 211:18 references Order::cancel -> State
+R 289:43 references stalePayments -> State
 
 == src/ui/OrderTable.tsx (308 lines)
 S 1-308 module OrderTable
@@ -1313,6 +1358,8 @@ R 23:12 calls classifyScan -> startsWith
 R 24:71 calls classifyScan -> split (name-matched: src/money.ts)
 R 24:40 calls classifyScan -> slice
 R 25:50 calls classifyScan -> parseInt
+R 36:25 calls PickSession::sessions -> Map
+R 42:20 calls PickSession::#listeners -> Set
 R 46:68 calls PickSession::constructor -> map
 R 46:19 calls PickSession::constructor -> pickingRoute (name-matched: src/inventory.ts)
 R 46:38 calls PickSession::constructor -> map
@@ -1419,4 +1466,5 @@ R 194:44 references useIdleLogout -> reset
 R 195:40 references useIdleLogout -> reset
 R 198:49 references useIdleLogout -> reset
 R 199:45 references useIdleLogout -> reset
+R 298:20 references openSession -> PickSession
 R 336:67 references PickBoard -> finish

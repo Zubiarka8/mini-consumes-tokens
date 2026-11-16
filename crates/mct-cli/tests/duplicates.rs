@@ -1628,6 +1628,32 @@ fn partial_block_thresholds_apply_and_output_is_deterministic() {
     assert_eq!(again, blocks_report(&project, &["--partial-blocks"]));
 }
 
+/// The command never reindexes, so rows of a path that a rule added since
+/// excludes are still in the index; the dashboard hides them, and so must
+/// this report, also when the rule is in a nested `.gitignore`.
+#[test]
+fn a_nested_gitignore_rule_added_after_indexing_hides_its_paths_and_misses_the_cache() {
+    let project = Project::new("nested-gitignore");
+    fs::write(project.path().join(".mctignore"), "@import-gitignore\n").unwrap();
+    fs::create_dir_all(project.path().join("lib/gen")).unwrap();
+    fs::write(
+        project.path().join("lib/gen/blocks.rs"),
+        include_str!("fixtures/duplicates/blocks.rs"),
+    )
+    .unwrap();
+    project.init();
+    // Cached on purpose: the rule below must not be answered from it.
+    let before = duplicates(&project, &["--partial-blocks"]);
+    assert!(before.contains("\ntotal_groups: 1\n"), "{before}");
+    assert!(before.contains("\npartial_block_count: 1\n"), "{before}");
+
+    fs::write(project.path().join("lib/.gitignore"), "gen/\n").unwrap();
+    let after = duplicates(&project, &["--partial-blocks"]);
+    assert!(after.contains("\ntotal_groups: 0\n"), "{after}");
+    assert!(after.contains("\npartial_block_count: 0\n"), "{after}");
+    assert!(!after.contains("lib/gen/blocks.rs"), "{after}");
+}
+
 #[test]
 fn block_budget_flags_require_partial_blocks() {
     let project = Project::new("partial-blocks-requires");
