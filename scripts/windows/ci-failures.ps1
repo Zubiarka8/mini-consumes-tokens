@@ -29,6 +29,19 @@ $ErrorActionPreference = 'Continue'
 gh run view $run --log-failed 2>&1 | Set-Content -LiteralPath $log
 $ErrorActionPreference = 'Stop'
 
+# --log-failed has nothing while the run is still going (other jobs are queued
+# or running) even when some job already failed: read those jobs' logs through
+# the API instead.
+if ((Get-Content -LiteralPath $log | Measure-Object -Line).Lines -le 1) {
+  $ErrorActionPreference = 'Continue'
+  foreach ($job in @(gh run view $run --json jobs --jq '.jobs[] | select(.conclusion == "failure") | .databaseId')) {
+    $text = gh api --allow-escape-sequences "repos/{owner}/{repo}/actions/jobs/$job/logs" 2>$null
+    if (-not $text) { $text = gh api "repos/{owner}/{repo}/actions/jobs/$job/logs" 2>$null }
+    $text | ForEach-Object { "job $job`t" + ($_ -replace ([char]27 + '\[[0-9;]*m'), '') } | Add-Content -LiteralPath $log
+  }
+  $ErrorActionPreference = 'Stop'
+}
+
 Write-Output "CI run $run failed in:"
 gh run view $run --json jobs --jq '.jobs[] | select(.conclusion == "failure") | "  - " + .name'
 
