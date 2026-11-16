@@ -2,7 +2,8 @@
 //! a call (`Helpers.Format(x)`), names a type: the call also `references`
 //! it, and only a `class` can be the target (`static` is a class-only
 //! modifier). A local, field or `this` qualifier, and a lowercase name
-//! (a namespace), reference nothing.
+//! (a namespace), reference nothing. Only line 12 is checked: the declared
+//! types on lines 6 and 7 are references of their own.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -36,7 +37,7 @@ fn a_type_qualifier_references_the_class() {
     let refs: Vec<(&str, u32)> = parsed
         .relations
         .iter()
-        .filter(|r| r.kind == RelationKind::References)
+        .filter(|r| r.kind == RelationKind::References && r.location.line == 12)
         .map(|r| (r.to_name.as_str(), r.location.line))
         .collect();
     assert_eq!(refs, [("Helpers", 12)]);
@@ -58,7 +59,7 @@ fn the_reference_reaches_the_class_not_its_namesakes() {
         .find_references("Helpers")
         .unwrap()
         .into_iter()
-        .filter(|h| h.kind == "references")
+        .filter(|h| h.kind == "references" && h.line == 12)
         .map(|h| format!("{}:{} {:?}", h.relative_path, h.line, h.resolution))
         .collect();
     std::fs::remove_dir_all(root).unwrap();
