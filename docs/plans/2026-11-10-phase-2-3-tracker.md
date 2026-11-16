@@ -96,6 +96,18 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] C++, declared receivers only: `x.m()` and `p->m()` on a variable the
+        enclosing function declares with one class (a parameter, a local, a
+        pointer or reference, `const` or not) are qualified by that class as
+        a method; a `std::` type is external. `auto`, a builtin or a
+        qualified project type, a template parameter and a name declared
+        with two types in the function (a shadowing block, a lambda
+        parameter) prove nothing, so the call is left as it was. A type
+        alias is not followed: a receiver declared with an alias name gets
+        no candidate. On a scratch project with two classes that both
+        declare `m`, 4 ambiguous calls (2 candidates) became resolved (1).
+        Test: `mct-lang-cpp/tests/receivers.rs`; the corpus snapshot is
+        unchanged.
   - [!] Whether Kotlin (#327) and C# (#328) adopt Go's rule for a receiver
         with no stated type. Today that loses 12 (Kotlin) and 25 (C#) right
         resolutions. Waiting for the maintainer.
@@ -125,6 +137,16 @@ From `rules.md` and the two messages:
         namespaced `render`, the aliased call went from unresolved to
         resolved (1). Test: `mct-lang-php/tests/function_aliases.rs`; the
         corpus snapshot is unchanged.
+  - [x] Go: an import of a dotless module path (`module shop`, `import
+        "shop/store"`) names a repository package like a domain-rooted one,
+        for a plain and an aliased import. The path needs two or more
+        elements and a root that is no directory of GOROOT's `src/`
+        (`net/http`, `log`, `internal` stay the standard library's), so a
+        single-element path and a module named like a standard directory
+        are left unproven. On a scratch project with two packages that both
+        declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
+        (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
+        snapshot is unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
@@ -286,7 +308,18 @@ From `rules.md` and the two messages:
         were all wrong (`u64::from(l.on_hand)`, `u64::from(*byte)`) and are
         now ambiguous; the other 84 had no candidate. Dead code unchanged
         (124). Test: `mct-lang-rust/tests/primitive_conversions.rs`.
+  - [x] C#: a call whose receiver is a fully qualified name of the framework
+        (`System.Console.WriteLine(…)`, `global::System.Math.Max(…)`) is
+        external. The name must be identifiers only, rooted at `System` or
+        `Microsoft`, with at least two segments; a call or an index in the
+        chain, an alias and a simple name (`Console.WriteLine` after
+        `using System;`) keep their resolution, because a repository can
+        declare its own `Console`. On a scratch project with `Log.WriteLine`
+        and `Log.Max` next to the framework calls, 2 ambiguous calls became
+        external. Test: `mct-lang-csharp/tests/system_qualified.rs`; the
+        corpus snapshot is unchanged.
 - [x] **Evidence on `RelationHit`.** Additive MCP field: #325.
+
 - [~] **Block 1 validation.** `crates/mct-eval/suite-resolution.json` has
       labelled cases. D8 has 4 (Java, Python, TypeScript; each against a
       same-named method in an unrelated class), all correct. D9 has 2 for
@@ -306,7 +339,10 @@ From `rules.md` and the two messages:
       `opts.get` on a `dict` next to `View.get`, run with CPython), both
       correct; before the fix, 1 wrong and 1 ambiguous. Rust's D5 label
       (`stack.len()` on `stack: &Stack`, next to a free `fn len`) is now
-      correct; before, ambiguous.
+      correct; before, ambiguous. D5 has 2 for C++ (`q.to_string()` on
+      `const Quantity& q` and `b->to_string()` on `const Box* b`, each next
+      to the other class's `to_string`, checked with `clang++`), both
+      correct; before the fix, both ambiguous.
 
 ## Block 2: phase 2, SQLite and enriched model
 
