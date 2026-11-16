@@ -408,6 +408,8 @@ From `rules.md` and the two messages:
           This repository: PowerShell files that fail 2 of 35 -> 1 of 35
           (the malformed fixture, ERR-003); `review-check.ps1` gives 23
           symbols and 14 relations. ERR-002 is `RESOLVED`.
+||||||||| 2922794a
+=========
     - [x] CSS statement at-rules with a string prelude: `@source "./";`
           and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
           rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
