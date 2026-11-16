@@ -1358,8 +1358,25 @@ From `rules.md` and the two messages:
       are indexed. Corpus: +16 calls (`new HashMap<>()`,
       `Logger.getLogger(…)`), symbols unchanged; this repository: the same
       16 Java calls, dead code unchanged.
-- [ ] Relations: inheritance, implementations and overrides (3.3, depends on
-      D8).
+- [x] Relations: inheritance, implementations and overrides (3.3, depends on
+      D8). Audited with one sample per language (a base class or trait, an
+      interface, and a subclass overriding a method), indexed with
+      `init --force`, listing the `extends`, `implements` and `overrides`
+      relations. What each parser emits, by design (D8: explicit evidence
+      only, never a shared name):
+  - `extends` and `implements`: Java, Kotlin, C#, PHP, C++ (both bases as
+    `extends`), TS (class and `implements`), Python (`extends`), Lua
+    (`extends` from `setmetatable(… { __index = Base })`), Go (`extends`
+    from an embedded struct), Rust (`implements` from `impl Trait for T`).
+  - `overrides`: Java `@Override`, Kotlin and C# `override`, C++
+    `override`, Rust trait impl methods. Python `@override`, PHP
+    `#[\Override]` and a TS `override` modifier give it only when written,
+    so the samples without those markers have none.
+  - Not emitted, on purpose: an implicit interface implementation (C#
+    `public int Area()`, Java without `@Override`, a Go struct satisfying an
+    interface) and an overriding method with no marker. Naming it would be a
+    shared-name match, which D8 rules out.
+  - Result: no language is missing a relation its syntax states.
 - [ ] Language-specific features (3.4), each checked against the real
       grammar.
 - [ ] Positive and negative fixtures for each language (3.5).
