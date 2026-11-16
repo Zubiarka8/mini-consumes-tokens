@@ -117,6 +117,14 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] PHP: `use function B\render as draw;` makes `draw(2)` a call to
+        `render` with the namespace `B`, so it reaches that function and
+        never another namespace's `render`. Before, the call was recorded
+        under the alias and matched nothing. An unqualified name no import
+        binds keeps its resolution. On a scratch project with two
+        namespaced `render`, the aliased call went from unresolved to
+        resolved (1). Test: `mct-lang-php/tests/function_aliases.rs`; the
+        corpus snapshot is unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
