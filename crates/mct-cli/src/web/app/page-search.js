@@ -1,4 +1,4 @@
-// 06 · Búsqueda inteligente (keyword search over every indexed surface)
+// 06 · Search (keyword search over every indexed surface)
 import {
   h,
   clear,
