@@ -389,6 +389,15 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
+          `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
+          is a `constant`; `export`, `declare -i` and a bare assignment stay
+          `variable`s. The `readonly` modifier detail is unchanged. Test:
+          `tests/readonly_constants.rs`; `corpus.rs` pinned
+          `KNOWN_COMPRESSIONS` (a `readonly -a`) as a variable, the old
+          behavior, and now expects a constant. Corpus: 6 variables become
+          constants, symbol count unchanged. Repository snapshot (52 shell
+          files): 601 symbols before and after, dead code 0 -> 0.
     - [x] CSS statement at-rules with a string prelude: `@source "./";`
           and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
           rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
