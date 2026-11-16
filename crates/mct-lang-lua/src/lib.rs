@@ -323,6 +323,25 @@ impl<'a> Walker<'a> {
                 }
             }
             "assignment_statement" => self.visit_assignment(node, owner, depth),
+            // `return handler` hands the function to the caller.
+            "return_statement" => {
+                let mut cursor = node.walk();
+                let values: Vec<Node> = node
+                    .named_children(&mut cursor)
+                    .flat_map(|list| {
+                        if list.kind() == "expression_list" {
+                            let mut inner = list.walk();
+                            list.named_children(&mut inner).collect()
+                        } else {
+                            vec![list]
+                        }
+                    })
+                    .collect();
+                for value in values {
+                    self.reference_function_value(value, owner);
+                }
+                self.visit_children(node, owner, depth);
+            }
             "variable_declaration" => self.visit_declaration(node, owner, depth),
             "block" => {
                 self.push_scope();
@@ -555,6 +574,8 @@ impl<'a> Walker<'a> {
             .parent()
             .is_some_and(|p| p.kind() == "variable_declaration");
         for (i, value) in vals.iter().enumerate() {
+            // `alias = handler` and `M.slot = handler` use the function.
+            self.reference_function_value(*value, owner);
             let matching_var = vars.get(i);
             // Every name is declared (or found to be a reassignment) once,
             // whatever the value turns out to be.

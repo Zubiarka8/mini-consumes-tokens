@@ -184,8 +184,8 @@ round to the nearest whole percent, with halves rounded up.
 | C# | 87% | 34 | 90% | 10 | 0 |
 | C++ | 89% | 28 | 70% | 10 | 0 |
 | Go | 78% | 18 | 90% | 10 | 0 |
-| PHP | 88% | 30 | 85% | 10 | 0 |
-| Lua | 93% | 14 | 70% | 10 | 0 |
+| PHP | 88% | 30 | 95% | 10 | 0 |
+| Lua | 93% | 14 | 80% | 10 | 0 |
 | Bash | 88% | 8 | 80% | 10 | 0 |
 | PowerShell | 81% | 18 | 70% | 10 | 0 |
 
@@ -280,8 +280,8 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | C# | 94% | 96% | 50% | 88% | 90% | 75% | 100% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
-| PHP | 93% | 89% | 67% | 100% | 100% | 100% | 50% |
-| Lua | 100% | 100% | 75% | 100% | 80% | 75% | 50% |
+| PHP | 93% | 89% | 67% | 100% | 100% | 100% | 83% |
+| Lua | 100% | 100% | 75% | 100% | 80% | 75% | 83% |
 | Bash | 100% | 100% | 67% | 100% | 100% | 100% | 33% |
 | PowerShell | 90% | 100% | 50% | 80% | 80% | 100% | 33% |
 
@@ -726,7 +726,7 @@ languages:
 | Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash, PowerShell | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
 | String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
-| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go, C# | `manifest_language` in `crates/mct-index/src/manifests.rs` |
+| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go, PHP, Lua, C# | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
 Dead code (`find_dead_code`, `mct-cli dead-code`) uses the same rules for
 every language (`crates/mct-index/src/dead_code.rs`). The rules decide most
@@ -1349,7 +1349,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [~] Import graph: `get_dependency_graph`: edges correct; the resolved `require_once` path is also listed as external
 - [x] File outline: `get_file_skeleton`
-- [ ] Declared dependencies in `get_indexing_status`
+- [x] Declared dependencies in `get_indexing_status`: `composer.json` `require`/`require-dev`; the `php` platform entry is skipped
 
 ### Lua checklist (`lua`)
 
@@ -1396,7 +1396,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Import graph: `get_dependency_graph`
 - [~] File outline: `get_file_skeleton`: declaration line only; a one-line function is shown whole, then a placeholder
-- [ ] Declared dependencies in `get_indexing_status`
+- [x] Declared dependencies in `get_indexing_status`: LuaRocks `.rockspec` `dependencies`; the `lua` interpreter entry is skipped
 
 ### Bash checklist (`bash`)
 

@@ -11,8 +11,8 @@
  *
  * Parser: mct-lang-css. Expected: one `imports` of `tailwindcss`; rules for
  * the selectors in `@layer` blocks and plain rules, each spanning its nested
- * rules; no symbol for `@theme` tokens, keyframes or `@custom-variant`
- * names. Known limits: an `@utility` name has no symbol (only its nested
+ * rules; a variable per `@theme` token, an animation per keyframes, no
+ * `@custom-variant` names. Known limits: an `@utility` name has no symbol (only its nested
  * rules do), and a nested `&` rule keeps its literal selector (#115).
  *
  * Not used because tree-sitter-css 0.25 rejects them (#116, #87):
