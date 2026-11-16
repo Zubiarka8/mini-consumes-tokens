@@ -473,6 +473,16 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] CSS custom properties and `@keyframes`: each custom property
+          declaration (`--brand: red`) is a `variable` symbol and each
+          `@keyframes spin` an `animation` symbol (also inside Tailwind's
+          `@theme`). `var(--brand)`, fallbacks included, references the
+          variable, and each name in an `animation` / `animation-name` value
+          references the animation, scoped by `kind` so a same-named rule
+          (`.fade`) never matches. Animation keywords (`infinite`, `ease`)
+          reference nothing. Tests: `tests/custom_properties.rs`; the corpus
+          snapshot gains 283 symbols and 521 references (keyframe names
+          only, no keyword).
     - [x] Go fields, constants and variables: each named struct field is a
           `field` of the struct (an embedded one is none), each package-level
           `const` / `var` name, grouped or not, a `constant` / `variable` of
