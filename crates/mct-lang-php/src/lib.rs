@@ -246,6 +246,9 @@ struct Walker<'a> {
     /// visited that are not bound to a variable. Their body keeps the outer
     /// `owner`, but has its own variable scope.
     closure_depth: u32,
+    /// The scope (`owner`) each variable-bound closure was assigned in, so a
+    /// later read of the variable in that scope is a use of the closure.
+    closure_scopes: Vec<(String, SymbolId)>,
 }
 
 /// What `self::`, `static::`, `parent::` and `$this->` mean at a call site.
@@ -281,6 +284,7 @@ impl<'a> Walker<'a> {
             entry_points: Vec::new(),
             supertypes: Vec::new(),
             closure_depth: 0,
+            closure_scopes: Vec::new(),
         }
     }
 
@@ -1118,6 +1122,7 @@ impl<'a> Walker<'a> {
                                 location(r),
                                 None,
                             );
+                            self.closure_scopes.push((var.to_string(), owner));
                             if let Some(params) = r.child_by_field_name("parameters") {
                                 self.visit_children(params, id, type_name, depth + 1);
                             }
@@ -1133,6 +1138,31 @@ impl<'a> Walker<'a> {
                         self.visit_children(node, owner, type_name, depth + 1);
                     }
                     _ => self.visit_children(node, owner, type_name, depth + 1),
+                }
+            }
+            // `array_map($f, …)`, `return $f`: a variable read in the scope
+            // that bound a closure to it uses that closure. Its call and its
+            // assignment are handled by their own arms.
+            "variable_name" => {
+                let var = text(node, self.source);
+                let is_target = node.parent().is_some_and(|p| {
+                    (p.kind() == "assignment_expression"
+                        && p.child_by_field_name("left") == Some(node))
+                        || (p.kind() == "function_call_expression"
+                            && p.child_by_field_name("function") == Some(node))
+                });
+                let bound = self
+                    .closure_scopes
+                    .iter()
+                    .any(|(name, scope)| name == var.trim_start_matches('$') && *scope == owner);
+                if bound && !is_target {
+                    self.push_targeted(
+                        owner,
+                        RelationKind::References,
+                        var.trim_start_matches('$').to_string(),
+                        location(node),
+                        None,
+                    );
                 }
             }
             "anonymous_function" | "arrow_function" => {
