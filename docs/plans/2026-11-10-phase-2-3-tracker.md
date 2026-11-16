@@ -389,6 +389,15 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
+          `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
+          is a `constant`; `export`, `declare -i` and a bare assignment stay
+          `variable`s. The `readonly` modifier detail is unchanged. Test:
+          `tests/readonly_constants.rs`; `corpus.rs` pinned
+          `KNOWN_COMPRESSIONS` (a `readonly -a`) as a variable, the old
+          behavior, and now expects a constant. Corpus: 6 variables become
+          constants, symbol count unchanged. Repository snapshot (52 shell
+          files): 601 symbols before and after, dead code 0 -> 0.
     - [x] CSS statement at-rules with a string prelude: `@source "./";`
           and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
           rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
@@ -399,6 +408,15 @@ From `rules.md` and the two messages:
           fixture); `styles.css` gives 42 symbols and 6 relations. ERR-023
           is `RESOLVED`; ERR-024 (untracked generated CSS) was not
           re-checked.
+    - [x] CSS statement at-rules, any one-line prelude: the pinned grammar
+          also rejects `@custom-variant dark (&:where(.dark, .dark *));`,
+          `@source inline("underline");` and `@foo bar baz;` (probe: even
+          `@foo (&);` and `@foo a(b);` fail). The repair of the entry above
+          now blanks the whole prelude, not only its strings, on one-line
+          at-rules (`@name ...;`) the grammar reports. Test:
+          `tests/at_rule_strings.rs`, extended (real errors still
+          rejected). Corpus and this repository's CSS unchanged (all tracked
+          files already parse; the malformed fixture still fails).
     - [x] C# supertypes: an `extends`/`implements` entry names a type, so
           the first entry of a class (its base class, unless named like an
           interface) targets a `class` and every other entry an
@@ -1346,6 +1364,14 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] Kotlin: a local `fun` has the function or method it is declared in
+      as `parent` (it stays a `function`; a member keeps its type). Corpus:
+      5 symbols renamed (`packingSlip::rule`, `recomputeReorderPoint::stdDev`…),
+      none added or removed. Tests updated on purpose: `corpus.rs` and
+      `parse.rs` pinned "no parent", `overrides.rs` rendered the anonymous
+      `object : Runnable`'s `run` with an empty parent (now `start`).
+      Kotlin constructors, companion objects and anonymous classes stay as
+      decided (see the `[!]` items).
 - [x] C#: `get_indexing_status` lists the `PackageReference` items of a
       `.csproj` (version from the attribute or a `<Version>` element; none
       for a central-package reference; commented-out items skipped).
@@ -1435,6 +1461,9 @@ From `rules.md` and the two messages:
         Test: `mct-lang-rust/tests/inline_modules.rs`
         `a_method_reached_through_an_inline_module_and_its_type_resolves`
         (unresolved with 0 candidates before, resolved with 1 after).
+  - [ ] `m::Type::f()`: the method's parent is the type, so the module
+        evidence finds no candidate. Matching it needs the view to look at
+        the type's parent (a migration): #478.
 - [x] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
@@ -1478,6 +1507,17 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Lua: a function of this file used by name as a call argument
+        (`table.sort(t, cmp)`) or a table field value (`{ on = handler }`)
+        is a `references` relation, so the callback is not dead code; a
+        parameter that shadows it, a variable or an unknown name records
+        nothing. Corpus: +4 relations (`compare_locations`, `tick`, `cors`,
+        `require_tenant`, all callbacks); symbols unchanged. Probe on a tiny
+        tree: dead code listed `cmp` and `handler` before. Test:
+        `mct-lang-lua/tests/function_values.rs`. The same probe shows the
+        same false positives for Kotlin (`::parse`), PHP (`'shout'` string
+        callable), C++ (`std::transform(…, dbl)`) and Bash (`trap cleanup
+        EXIT`); Java method references and C# method groups were fine.
   - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
         expression, not part of the arm's pattern, so its names are uses.
         Before, `is_final` was taken for a local of the whole function and
@@ -1492,11 +1532,15 @@ From `rules.md` and the two messages:
         (ADR-027). This repository's snapshot: 10 of the 12 `website/`
         candidates get the note; the count is unchanged by design. Tests:
         `mct-lang-js-ts/tests/nextjs.rs`, `dead_code.rs`.
-  - [ ] Object-literal methods called by a library (`tokenizer(src) {…}` in
-        `web-ui/src/notes/obsidian.ts`, a `MarkedExtension`) are parentless
-        functions with no in-repo caller: 5 candidates, plus the same shape
-        in the bundles. Telling them apart needs a stored fact about the
-        declaration (schema or symbol details): issue #475.
+  - [x] Object-literal methods called by a library (`tokenizer(src) {…}`, a
+        `MarkedExtension`): a `method_definition` inside an object literal
+        carries a "possible entry point" hint (`javascript`,
+        `object-literal-callback`; option 2 of issue #475, no schema
+        change, no rule by name). It stays a candidate, so the count is
+        unchanged. This repository: 121 candidates before and after, 2 of
+        them with the note (`tokenizer` in `notes-dist/notes.js` and one
+        `[Symbol.iterator]` of `graph-dist/graph.js`). Test:
+        `mct-lang-js-ts/tests/object_literal_callbacks.rs`.
   - [ ] A renamed default import (`import SearchDialog from
         '@/components/search'`) does not reach the default-exported
         `DefaultSearchDialog`: needs default-export resolution across files.
