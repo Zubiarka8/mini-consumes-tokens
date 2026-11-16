@@ -317,6 +317,88 @@ fn module_location(source: &str) -> Location {
     }
 }
 
+/// An `object` declaring `@JvmStatic fun main(args: Array<String>)` (or
+/// `vararg args: String`, or no parameter), or a class whose companion
+/// object declares one, compiles to a JVM class with a static `main`: the
+/// class the `java` launcher can start. Nothing in the source calls it, so
+/// it is a possible entry point, never a proven one. A top-level `fun main`
+/// needs no hint: it is already no dead-code candidate.
+fn main_hint(node: Node, id: SymbolId, source: &str) -> Option<mct_core::EntryPointHint> {
+    let body = find_child(node, "class_body")?;
+    let has_main = if node.kind() == "object_declaration" {
+        declares_jvm_main(body, source)
+    } else {
+        let mut cursor = body.walk();
+        let found = body.named_children(&mut cursor).any(|member| {
+            member.kind() == "companion_object"
+                && find_child(member, "class_body").is_some_and(|b| declares_jvm_main(b, source))
+        });
+        found
+    };
+    has_main.then(|| mct_core::EntryPointHint {
+        symbol: id,
+        framework: "jvm".to_string(),
+        rule: "jvm-static-main".to_string(),
+        evidence: "@JvmStatic fun main of this object or its companion".to_string(),
+        requires: None,
+    })
+}
+
+fn declares_jvm_main(body: Node, source: &str) -> bool {
+    let mut cursor = body.walk();
+    let found = body.named_children(&mut cursor).any(|member| {
+        member.kind() == "function_declaration"
+            && member
+                .child_by_field_name("name")
+                .is_some_and(|name| text(name, source) == "main")
+            && is_jvm_static(member, source)
+            && takes_main_arguments(member, source)
+    });
+    found
+}
+
+fn is_jvm_static(function: Node, source: &str) -> bool {
+    let Some(modifiers) = find_child(function, "modifiers") else {
+        return false;
+    };
+    let mut cursor = modifiers.walk();
+    let found = modifiers.named_children(&mut cursor).any(|m| {
+        m.kind() == "annotation"
+            && matches!(
+                text(m, source).trim_start_matches('@'),
+                "JvmStatic" | "kotlin.jvm.JvmStatic"
+            )
+    });
+    found
+}
+
+/// No parameter, `args: Array<String>` or `vararg args: String`.
+fn takes_main_arguments(function: Node, source: &str) -> bool {
+    let Some(parameters) = find_child(function, "function_value_parameters") else {
+        return false;
+    };
+    let vararg = find_child(parameters, "parameter_modifiers")
+        .is_some_and(|m| text(m, source).split_whitespace().any(|w| w == "vararg"));
+    let mut cursor = parameters.walk();
+    let params: Vec<Node> = parameters
+        .named_children(&mut cursor)
+        .filter(|p| p.kind() == "parameter")
+        .collect();
+    let [param] = params.as_slice() else {
+        return params.is_empty();
+    };
+    let mut inner = param.walk();
+    let ty = param
+        .named_children(&mut inner)
+        .find(|c| c.kind() == "user_type")
+        .map(|t| text(t, source).split_whitespace().collect::<String>());
+    match ty.as_deref() {
+        Some("String") => vararg,
+        Some("Array<String>") => !vararg,
+        _ => false,
+    }
+}
+
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
 }
@@ -529,6 +611,8 @@ struct Walker<'a> {
     /// Direct supertypes of each enclosing class, object or enum entry
     /// body, innermost last: what an `override fun` there can override (D8).
     supertypes: Vec<Vec<Supertype>>,
+    /// Classes and objects holding a JVM `main` (see `main_hint`).
+    entry_points: Vec<mct_core::EntryPointHint>,
 }
 
 impl<'a> Walker<'a> {
@@ -750,6 +834,9 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::type_detail(node, id, self.source));
+                if let Some(hint) = main_hint(node, id, self.source) {
+                    self.entry_points.push(hint);
+                }
                 self.push_annotations(node, id);
 
                 if let Some(delegations) = find_child(node, "delegation_specifiers") {
@@ -1193,6 +1280,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            entry_points: self.entry_points,
             ..Default::default()
         }
     }
