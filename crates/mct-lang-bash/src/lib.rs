@@ -157,6 +157,67 @@ fn quoted_alternative_parse_buffer(root: Node, source: &str) -> Option<String> {
     changed.then(|| String::from_utf8(bytes).ok()).flatten()
 }
 
+/// Bash builtins a call can name (`source`/`.` are imports, not calls).
+const BUILTINS: &[&str] = &[
+    ":",
+    "alias",
+    "bg",
+    "bind",
+    "break",
+    "builtin",
+    "caller",
+    "cd",
+    "command",
+    "compgen",
+    "complete",
+    "continue",
+    "declare",
+    "dirs",
+    "disown",
+    "echo",
+    "enable",
+    "eval",
+    "exec",
+    "exit",
+    "export",
+    "false",
+    "fc",
+    "fg",
+    "getopts",
+    "hash",
+    "help",
+    "history",
+    "jobs",
+    "kill",
+    "let",
+    "local",
+    "logout",
+    "mapfile",
+    "popd",
+    "printf",
+    "pushd",
+    "pwd",
+    "read",
+    "readarray",
+    "readonly",
+    "return",
+    "set",
+    "shift",
+    "shopt",
+    "suspend",
+    "test",
+    "times",
+    "trap",
+    "true",
+    "type",
+    "typeset",
+    "ulimit",
+    "umask",
+    "unalias",
+    "unset",
+    "wait",
+];
+
 fn module_name_for(relative_path: &str) -> String {
     mct_tree_sitter::module_name(relative_path, &[".bash", ".sh"])
 }
@@ -175,6 +236,9 @@ struct Walker<'a> {
     /// This file's repository-relative path, the base of relative sources.
     path: &'a str,
     next_id: SymbolId,
+    /// Relations that call a shell builtin by name, decided in `finish`
+    /// once every function the file defines is known.
+    builtin_calls: Vec<usize>,
 }
 
 impl<'a> Walker<'a> {
@@ -310,6 +374,9 @@ impl<'a> Walker<'a> {
                                 }
                             }
                             _ => {
+                                if BUILTINS.contains(&cmd_text) {
+                                    self.builtin_calls.push(self.relations.len());
+                                }
                                 self.push_relation(
                                     owner,
                                     RelationKind::Calls,
@@ -341,7 +408,23 @@ impl<'a> Walker<'a> {
         }
     }
 
-    fn finish(self) -> ParsedFile {
+    fn finish(mut self) -> ParsedFile {
+        // A call of a builtin the file does not redefine as a function can
+        // only reach the shell's own, never another script's function.
+        for relation in std::mem::take(&mut self.builtin_calls) {
+            let name = &self.relations[relation].to_name;
+            let redefined = self
+                .symbols
+                .iter()
+                .any(|s| s.kind == SymbolKind::Function && &s.name == name);
+            if !redefined {
+                self.relation_targets.push(RelationTarget {
+                    relation,
+                    external: true,
+                    ..Default::default()
+                });
+            }
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
