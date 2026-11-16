@@ -233,6 +233,39 @@ impl FileGlobals {
                 }
                 return;
             }
+            "variable_declarator" => {
+                // `const m = await import("./m")`: `m` is the module, and
+                // `const { f } = await import("./m")` binds its `f`.
+                let module = node
+                    .child_by_field_name("value")
+                    .filter(|v| v.kind() == "await_expression")
+                    .and_then(|v| v.named_child(0))
+                    .and_then(|call| dynamic_import_module(call, source));
+                if let (Some(module), Some(name)) = (module, node.child_by_field_name("name")) {
+                    self.bind_module(name, module, source, depth + 1);
+                    return;
+                }
+            }
+            "call_expression" => {
+                if let Some((module, callback)) = then_callback(node, source) {
+                    // `import("./m").then((m) => m.f())`: the callback's
+                    // one parameter is the module, as an `await` binds it.
+                    if let Some(parameter) = sole_parameter(callback) {
+                        self.bind_module(parameter, module, source, depth + 1);
+                        if let Some(body) = callback.child_by_field_name("body") {
+                            self.visit(body, source, depth + 1);
+                        }
+                        // A rejection handler binds its own names.
+                        if let Some(arguments) = node.child_by_field_name("arguments") {
+                            let mut cursor = arguments.walk();
+                            for other in arguments.named_children(&mut cursor).skip(1) {
+                                self.visit(other, source, depth + 1);
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
             "import_alias" => {
                 self.names(node, source, depth + 1);
                 return;
@@ -247,6 +280,29 @@ impl FileGlobals {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
             self.visit(child, source, depth + 1);
+        }
+    }
+
+    /// What a pattern bound to a dynamically imported module `module`
+    /// stands for: an identifier is the module itself, and each shorthand
+    /// `{ f }` is its `f`. Any other pattern is a plain binding.
+    fn bind_module(&mut self, pattern: Node, module: String, source: &str, depth: u32) {
+        match pattern.kind() {
+            "identifier" => {
+                self.bind_import(text(pattern, source), Some(Import::Namespace(module)))
+            }
+            "object_pattern" => {
+                let mut cursor = pattern.walk();
+                for part in pattern.named_children(&mut cursor) {
+                    if part.kind() == "shorthand_property_identifier_pattern" {
+                        let import = Some(Import::Named(module.clone()));
+                        self.bind_import(text(part, source), import);
+                    } else {
+                        self.visit(part, source, depth + 1);
+                    }
+                }
+            }
+            _ => self.visit(pattern, source, depth),
         }
     }
 
@@ -267,6 +323,52 @@ impl FileGlobals {
                 }
             }
         }
+    }
+}
+
+/// The module `import("./m")` loads, for a call with a literal specifier.
+fn dynamic_import_module(call: Node, source: &str) -> Option<String> {
+    if call.kind() != "call_expression" || call.child_by_field_name("function")?.kind() != "import"
+    {
+        return None;
+    }
+    let arguments = call.child_by_field_name("arguments")?;
+    let specifier = arguments.named_child(0).filter(|a| a.kind() == "string")?;
+    module_name(text(specifier, source))
+}
+
+/// The module and the first callback of `import("./m").then(callback)`.
+fn then_callback<'tree>(call: Node<'tree>, source: &str) -> Option<(String, Node<'tree>)> {
+    let function = call
+        .child_by_field_name("function")
+        .filter(|f| f.kind() == "member_expression")?;
+    let property = function.child_by_field_name("property")?;
+    if text(property, source) != "then" {
+        return None;
+    }
+    let module = dynamic_import_module(function.child_by_field_name("object")?, source)?;
+    let callback = call
+        .child_by_field_name("arguments")?
+        .named_child(0)
+        .filter(|c| matches!(c.kind(), "arrow_function" | "function_expression"))?;
+    Some((module, callback))
+}
+
+/// A function's only parameter pattern (`m` in `m => …`, `(m) => …`,
+/// `function ({ f }) {…}`), or `None` when it takes no or several.
+fn sole_parameter(function: Node) -> Option<Node> {
+    if let Some(parameter) = function.child_by_field_name("parameter") {
+        return Some(parameter);
+    }
+    let parameters = function.child_by_field_name("parameters")?;
+    if parameters.named_child_count() != 1 {
+        return None;
+    }
+    let parameter = parameters.named_child(0)?;
+    match parameter.kind() {
+        "required_parameter" => parameter.child_by_field_name("pattern"),
+        "identifier" | "object_pattern" => Some(parameter),
+        _ => None,
     }
 }
 

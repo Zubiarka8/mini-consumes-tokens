@@ -473,6 +473,16 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] JS/TS dynamic import bindings: `const m = await
+          import("./lazy")` binds `m` to the module and `const { load } =
+          await import("./lazy")` binds `load` to its export, as a static
+          `import * as` / `import { }` does, and so does the one parameter
+          of `import("./lazy").then((m) => …)`. Calls through them carry
+          the module as evidence and resolve to `lazy`'s definition, never
+          a same-named one elsewhere. A promise kept without `await`, a
+          renamed destructuring and a name bound again get no evidence.
+          Test: `tests/dynamic_imports.rs` (red before, green after; each
+          case run with Node 24).
     - [x] Go fields, constants and variables: each named struct field is a
           `field` of the struct (an embedded one is none), each package-level
           `const` / `var` name, grouped or not, a `constant` / `variable` of
