@@ -136,17 +136,27 @@ fn at_rule_preludes_and_keyframe_steps_are_not_rules() {
         "0%",
         "50%",
         "100%",
-        "harbor-spin",
         "@keyframes",
         "@font-face",
         "@property",
-        "--harbor-progress",
         "Inter",
     ] {
         assert!(
             c.symbols_named(name).is_empty(),
             "`{name}` should not be a symbol: {:?}",
             c.symbols_named(name)
+        );
+    }
+    // A `@keyframes` name is an animation, a custom property declaration a
+    // variable: never rules.
+    for (name, kind) in [
+        ("harbor-spin", SymbolKind::Animation),
+        ("--harbor-progress", SymbolKind::Variable),
+    ] {
+        let kinds: Vec<_> = c.symbols_named(name).iter().map(|(_, s)| s.kind).collect();
+        assert!(
+            !kinds.is_empty() && kinds.iter().all(|k| *k == kind),
+            "{name}: {kinds:?}"
         );
     }
     // tokens.css is almost all at-rules and `:root`: only these selectors.
@@ -206,15 +216,20 @@ fn every_import_form_is_an_import_of_the_path_as_written() {
     );
     // `@namespace svg url(…)` is not an import.
     assert!(!c.has_relation("app", RelationKind::Imports, "http://www.w3.org/2000/svg"));
-    // Imports are the only relation CSS produces: 12 in the Harbor kit,
-    // 4 in `bootstrap-shop/` and Tailwind v4's `@import "tailwindcss"`, each
-    // as written — plus one file-level relation per local `.css` import
-    // (15: 11 + 4), named after the imported stylesheet's module.
-    assert!(c
-        .relations()
+    // Every relation but a `var()` or animation-name reference is an import:
+    // 12 in the Harbor kit, 4 in `bootstrap-shop/` and Tailwind v4's
+    // `@import "tailwindcss"`, each as written — plus one file-level
+    // relation per local `.css` import (15: 11 + 4), named after the
+    // imported stylesheet's module.
+    let relations = c.relations();
+    assert!(relations
         .iter()
-        .all(|r| r.kind == RelationKind::Imports));
-    assert_eq!(c.relations().len(), 32);
+        .all(|r| matches!(r.kind, RelationKind::Imports | RelationKind::References)));
+    let imports = relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::Imports)
+        .count();
+    assert_eq!(imports, 32);
 }
 
 #[test]
