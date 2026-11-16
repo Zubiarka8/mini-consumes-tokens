@@ -5,6 +5,14 @@ on:
     branches: [main, master]
   pull_request:
 
+# A new push to a pull request supersedes its earlier run: cancel that one
+# so the queue holds one run per pull request, not one per push. The free
+# runner pool (20 jobs, 5 on macOS) otherwise falls hours behind. A push to
+# `main` is never cancelled: every merge keeps its own record.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # Pinned to an exact stable release, never `stable` floating — a CI run
   # from six months ago and one from today must build with the same
