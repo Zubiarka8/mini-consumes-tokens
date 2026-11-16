@@ -780,6 +780,10 @@ impl<'a> Walker<'a> {
                                 &supertypes,
                             );
                         }
+                        // A plain value (`static x = make()`) runs as the field.
+                        if let Some(value) = node.child_by_field_name("value") {
+                            self.visit(value, id, None, depth + 1);
+                        }
                         id
                     }
                 };
@@ -1196,9 +1200,10 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// Keeps the value uses that name a function declared in this file,
-    /// except a function's use of its own name (`setTimeout(tick)` inside
-    /// `tick`), which does not make it reachable. Those, and the bare calls
+    /// Keeps the value uses that name a function, class or enum declared in
+    /// this file, except a use of its own name from itself or, for a type,
+    /// from one of its members (`setTimeout(tick)` inside `tick`), which does
+    /// not make it reachable. Those, and the bare calls
     /// naming a function, class or binding the file declares outside any
     /// type, reach this file's declaration: nothing nearer binds the name. A
     /// bare call to a local reaches this file too, with no symbol, unless
@@ -1207,7 +1212,11 @@ impl<'a> Walker<'a> {
         let functions: HashSet<String> = self
             .symbols
             .iter()
-            .filter(|s| s.kind == SymbolKind::Function)
+            .filter(|s| {
+                s.kind == SymbolKind::Function
+                    || (s.parent.is_none()
+                        && matches!(s.kind, SymbolKind::Class | SymbolKind::Enum))
+            })
             .map(|s| s.name.clone())
             .collect();
         // A function's own nested functions are outside any type too: their
@@ -1262,7 +1271,7 @@ impl<'a> Walker<'a> {
             let own_name = self
                 .symbols
                 .get(owner as usize)
-                .is_some_and(|s| s.name == name);
+                .is_some_and(|s| s.name == name || s.parent.as_deref() == Some(name.as_str()));
             if functions.contains(&name) && !own_name {
                 same_file.push((self.relations.len(), false));
                 self.push_relation(owner, RelationKind::References, name, loc);
