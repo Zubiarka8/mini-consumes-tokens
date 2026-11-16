@@ -66,3 +66,42 @@ fn a_parameter_a_variable_or_an_unknown_name_is_not_referenced() {
         );
     }
 }
+
+const RETURNED: &str = r#"local function by_name() end
+local function aliased() end
+local function stored() end
+local function shadowed() end
+local count = 1
+
+local function make()
+  return by_name
+end
+
+local alias = aliased
+local M = {}
+M.slot = stored
+
+local function other(shadowed)
+  return shadowed, count
+end
+
+return M
+"#;
+
+#[test]
+fn a_function_returned_or_assigned_by_name_is_referenced() {
+    let file = mct_corpus::parse_source(&LuaParser, "ret.lua", "Lua", RETURNED);
+    let mut refs: Vec<(String, u32)> = references(&file)
+        .into_iter()
+        .map(|(_, name, line)| (name, line))
+        .collect();
+    refs.sort();
+    assert_eq!(
+        refs,
+        [
+            ("aliased".to_string(), 11),
+            ("by_name".to_string(), 8),
+            ("stored".to_string(), 13),
+        ]
+    );
+}
