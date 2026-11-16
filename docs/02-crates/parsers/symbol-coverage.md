@@ -181,12 +181,12 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 89% | 33 | 100% | 10 | 1 |
 | Java | 85% | 27 | 85% | 10 | 0 |
 | Kotlin | 83% | 35 | 85% | 10 | 0 |
-| C# | 87% | 34 | 80% | 10 | 0 |
+| C# | 87% | 34 | 90% | 10 | 0 |
 | C++ | 89% | 28 | 70% | 10 | 0 |
 | Go | 78% | 18 | 90% | 10 | 0 |
 | PHP | 88% | 30 | 85% | 10 | 0 |
 | Lua | 89% | 14 | 70% | 10 | 0 |
-| Bash | 81% | 8 | 80% | 10 | 0 |
+| Bash | 88% | 8 | 80% | 10 | 0 |
 | PowerShell | 81% | 18 | 70% | 10 | 0 |
 
 ## Language by language
@@ -277,12 +277,12 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 100% | 100% |
 | Java | 80% | 90% | 50% | 100% | 100% | 75% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 100% | 100% | 50% |
-| C# | 94% | 96% | 50% | 88% | 90% | 75% | 67% |
+| C# | 94% | 96% | 50% | 88% | 90% | 75% | 100% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 100% | 50% |
 | Lua | 90% | 100% | 75% | 100% | 80% | 75% | 50% |
-| Bash | 100% | 100% | 50% | 100% | 100% | 100% | 33% |
+| Bash | 100% | 100% | 67% | 100% | 100% | 100% | 33% |
 | PowerShell | 90% | 100% | 50% | 80% | 80% | 100% | 33% |
 
 ### Rust
@@ -726,7 +726,7 @@ languages:
 | Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash, PowerShell | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
 | String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
 | Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
-| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go | `manifest_language` in `crates/mct-index/src/manifests.rs` |
+| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go, C# | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
 Dead code (`find_dead_code`, `mct-cli dead-code`) uses the same rules for
 every language (`crates/mct-index/src/dead_code.rs`). The rules decide most
@@ -1174,7 +1174,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Import graph: `get_dependency_graph`
 - [x] File outline: `get_file_skeleton`
-- [ ] Declared dependencies in `get_indexing_status`
+- [x] Declared dependencies in `get_indexing_status`: `.csproj` `PackageReference` (attribute or `<Version>` element); `Directory.Packages.props` and `packages.config` are not read
 
 ### C++ checklist (`cpp`)
 
@@ -1411,7 +1411,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Fields, constants and variables**
 
-- [~] Constant (module or global): `readonly X=…` → `variable`
+- [x] Constant (module or global): `readonly X=…` and `declare -r X=…` → `constant`
 - [x] Global / module-level variable: `variable`, `export`/`readonly`/`declare` too
 - [ ] Local variable: `local x` is deliberately not indexed
 
