@@ -1477,6 +1477,17 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Lua: a function of this file used by name as a call argument
+        (`table.sort(t, cmp)`) or a table field value (`{ on = handler }`)
+        is a `references` relation, so the callback is not dead code; a
+        parameter that shadows it, a variable or an unknown name records
+        nothing. Corpus: +4 relations (`compare_locations`, `tick`, `cors`,
+        `require_tenant`, all callbacks); symbols unchanged. Probe on a tiny
+        tree: dead code listed `cmp` and `handler` before. Test:
+        `mct-lang-lua/tests/function_values.rs`. The same probe shows the
+        same false positives for Kotlin (`::parse`), PHP (`'shout'` string
+        callable), C++ (`std::transform(…, dbl)`) and Bash (`trap cleanup
+        EXIT`); Java method references and C# method groups were fine.
   - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
         expression, not part of the arm's pattern, so its names are uses.
         Before, `is_final` was taken for a local of the whole function and
