@@ -14,6 +14,7 @@
 //! `None`, not skipped.
 
 mod composer;
+mod csproj;
 mod go;
 mod javascript;
 pub(crate) mod lua;
@@ -21,6 +22,7 @@ mod python;
 mod rust;
 
 use composer::parse_composer_json;
+use csproj::parse_csproj;
 use go::parse_go_mod;
 use javascript::parse_package_json;
 use lua::parse_rockspec;
@@ -43,6 +45,7 @@ pub fn manifest_language(file_name: &str) -> Option<&'static str> {
         "go.mod" => Some("go"),
         name if is_rockspec(name) => Some("lua"),
         "composer.json" => Some("php"),
+        name if is_csproj(name) => Some("csharp"),
         _ => None,
     }
 }
@@ -51,6 +54,12 @@ pub fn manifest_language(file_name: &str) -> Option<&'static str> {
 /// it is recognized by its extension rather than by an exact file name.
 pub(crate) fn is_rockspec(file_name: &str) -> bool {
     file_name.ends_with(".rockspec") && file_name.len() > ".rockspec".len()
+}
+
+/// A .NET project file is named `<project>.csproj`, so it is recognized by its
+/// extension rather than by an exact file name.
+pub(crate) fn is_csproj(file_name: &str) -> bool {
+    file_name.ends_with(".csproj") && file_name.len() > ".csproj".len()
 }
 
 /// One entry per dependency name: a name declared in several sections
@@ -68,6 +77,7 @@ pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency
         "go.mod" => parse_go_mod(contents),
         name if is_rockspec(name) => parse_rockspec(contents),
         "composer.json" => parse_composer_json(contents),
+        name if is_csproj(name) => parse_csproj(contents),
         _ => Vec::new(),
     };
     dedupe_by_name(deps)
@@ -306,6 +316,51 @@ test_dependencies = {
         // The primary section wins for a name declared twice.
         assert_eq!(deps[0].version.as_deref(), Some("^12.0"));
         assert_eq!(manifest_language("composer.json"), Some("php"));
+    }
+
+    #[test]
+    fn csproj_reads_package_references_with_attribute_or_element_versions() {
+        let deps = parse_manifest(
+            "App.csproj",
+            r#"<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference
+        Include="Serilog"
+        Version="3.1.1">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Dapper">
+      <Version>2.1.35</Version>
+    </PackageReference>
+    <PackageReference Include="Central.Managed" />
+    <!-- <PackageReference Include="Commented.Out" Version="1.0.0" /> -->
+    <ProjectReference Include="..\Lib\Lib.csproj" />
+  </ItemGroup>
+</Project>"#,
+        );
+        let got: Vec<_> = deps
+            .iter()
+            .map(|d| (d.name.as_str(), d.version.as_deref()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("Newtonsoft.Json", Some("13.0.3")),
+                ("Serilog", Some("3.1.1")),
+                ("Dapper", Some("2.1.35")),
+                ("Central.Managed", None),
+            ]
+        );
+        assert_eq!(manifest_language("App.csproj"), Some("csharp"));
+        assert_eq!(manifest_language(".csproj"), None);
+    }
+
+    #[test]
+    fn malformed_csproj_returns_empty_not_panic() {
+        assert!(parse_csproj("<PackageReference Include=\"x").is_empty());
+        assert!(parse_csproj("<<<>>>").is_empty());
     }
 
     #[test]
