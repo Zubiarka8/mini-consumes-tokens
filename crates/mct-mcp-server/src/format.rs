@@ -1344,28 +1344,32 @@ fn context_pack_header(pack: &crate::server::ContextPack) -> String {
                 hit.line,
                 hit.end_line,
                 def.hidden_lines,
+                def.source_offset,
             ));
         }
     }
     out
 }
 
-/// The footer under a definition whose last `hidden` lines are cut. For a
-/// body longer than the `source_lines` cap it names the hidden range, since
-/// raising `source_lines` cannot reach past the cap.
-fn hidden_lines_footer(line: u32, end_line: Option<u32>, hidden: u32) -> String {
+/// The footer under a definition whose last `hidden` lines are cut. When
+/// raising `source_lines` cannot reach them (the cap), it names the hidden
+/// range and the `source_offset` that pages to it.
+fn hidden_lines_footer(line: u32, end_line: Option<u32>, hidden: u32, offset: u32) -> String {
     let max = crate::server::CONTEXT_PACK_MAX_SOURCE_LINES;
+    let raise = format!("    … {hidden} more line(s) — raise `source_lines` to see them\n");
     let Some(end) = end_line else {
-        return format!("    … {hidden} more line(s) — raise `source_lines` to see them\n");
+        return raise;
     };
     let from = end.saturating_sub(hidden) + 1;
     let total = end.saturating_sub(line) as usize + 1;
-    let shown = total.saturating_sub(hidden as usize);
-    if total <= max {
-        format!("    … {hidden} more line(s) — raise `source_lines` to see them\n")
+    let remaining = total.saturating_sub(offset as usize);
+    let shown = remaining.saturating_sub(hidden as usize);
+    if remaining <= max {
+        raise
     } else if shown >= max {
+        let next = from - line;
         format!(
-            "    … {hidden} more line(s), L{from}-L{end}: `source_lines` shows at most {max}, so read them from the file\n"
+            "    … {hidden} more line(s), L{from}-L{end}: `source_lines` shows at most {max}, pass `source_offset: {next}` for the rest\n"
         )
     } else {
         format!(

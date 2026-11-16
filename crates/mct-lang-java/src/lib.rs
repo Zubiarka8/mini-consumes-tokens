@@ -14,8 +14,12 @@ use tree_sitter::{Node, Parser};
 
 mod details;
 mod jdk;
+mod literals;
 mod receivers;
+mod tokens;
 use receivers::Bindings;
+
+pub use tokens::JavaTokenSource;
 
 pub struct JavaParser;
 
@@ -64,7 +68,9 @@ impl LanguageParser for JavaParser {
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
@@ -398,12 +404,16 @@ impl<'a> Walker<'a> {
                     .child_by_field_name("name")
                     .map(|n| text(n, self.source).to_string())
                     .unwrap_or_default();
-                self.push_symbol(
+                let constant = self.push_symbol(
                     name.clone(),
                     SymbolKind::Field,
                     location(node),
                     type_name.map(str::to_string),
                 );
+                // `FIRST(make())`: the arguments run with the constant.
+                if let Some(arguments) = node.child_by_field_name("arguments") {
+                    self.visit_children(arguments, constant, type_name, depth + 1);
+                }
                 // `NEW { Set<State> next() { … } }`: the constant's body is
                 // its own subclass of the enum (javac's `State$1`), so its
                 // methods have the constant as their parent and the enum as
@@ -533,6 +543,35 @@ impl<'a> Walker<'a> {
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
                     self.visit_children(arguments, owner, type_name, depth + 1);
+                }
+            }
+            // `Cart::size`, `this::total`, `list::add`: the method named after
+            // `::` is referenced. `Cart::new` names a constructor, which the
+            // type use already covers.
+            "method_reference" => {
+                let mut cursor = node.walk();
+                let named: Vec<Node> = node.named_children(&mut cursor).collect();
+                let name = named
+                    .last()
+                    .filter(|n| n.kind() == "identifier" && named.len() > 1);
+                if let (Some(name), Some(object)) = (name, named.first()) {
+                    let (qualifier, member) = self.receiver(*object);
+                    self.relation_targets.push(RelationTarget {
+                        relation: self.relations.len(),
+                        kind: Some(SymbolKind::Method),
+                        qualifier,
+                        member,
+                        ..Default::default()
+                    });
+                    self.push_relation(
+                        owner,
+                        RelationKind::References,
+                        text(*name, self.source).to_string(),
+                        location(*name),
+                    );
+                }
+                if let Some(object) = named.first() {
+                    self.visit(*object, owner, type_name, depth + 1);
                 }
             }
             "object_creation_expression" => {
