@@ -785,6 +785,37 @@
           "defect": "D2"
         }
       ]
+    },
+    {
+      "name": "receiver types: a method call on a parameter declared with a class is that class's",
+      "category": "resolution",
+      "tool": "batch",
+      "args": {
+        "queries": [
+          {
+            "tool": "find_references",
+            "args": {
+              "symbol": "to_string",
+              "path": "cpp/src",
+              "limit": 200
+            }
+          }
+        ]
+      },
+      "labels": [
+        {
+          "at": "cpp/src/describe.cpp:9",
+          "relation": "calls to_string",
+          "truth": "cpp/src/quantity.hpp:6",
+          "defect": "D5"
+        },
+        {
+          "at": "cpp/src/describe.cpp:10",
+          "relation": "calls to_string",
+          "truth": "cpp/src/describe.cpp:5",
+          "defect": "D5"
+        }
+      ]
     }
   ]
 }
