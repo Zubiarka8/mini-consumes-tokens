@@ -24,8 +24,8 @@ mod details;
 mod literals;
 mod receivers;
 mod stdlib;
-mod values;
 mod tokens;
+mod values;
 
 pub use tokens::GoTokenSource;
 
