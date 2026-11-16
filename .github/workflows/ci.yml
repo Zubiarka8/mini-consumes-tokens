@@ -211,7 +211,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # A pull request fuzzes on Linux only; a push to `main` also fuzzes
+        # on macOS. The free pool runs 5 macOS jobs at a time, and 18 macOS
+        # fuzz jobs per pull request run queued macOS work for a day. The
+        # required macOS build + test job above still runs on every PR.
+        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
         crate:
           - mct-lang-rust
           - mct-lang-python
