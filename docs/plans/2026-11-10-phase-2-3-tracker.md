@@ -1525,6 +1525,12 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] Docs: PHP (`composer.json`) and Lua (`.rockspec`) already list their
+      declared dependencies in `get_indexing_status`; the checklists said
+      `[ ]`. Probed with the real binary (`init --force` then `status`):
+      `monolog/monolog ^3.0` and `lpeg ~> 1.0`, the `php` and `lua` platform
+      entries skipped. Scores: PHP and Lua features 65→75 / 60→70, structure
+      50→83. No code change.
 - [x] Kotlin: a local `fun` has the function or method it is declared in
       as `parent` (it stays a `function`; a member keeps its type). Corpus:
       5 symbols renamed (`packingSlip::rule`, `recomputeReorderPoint::stdDev`…),
