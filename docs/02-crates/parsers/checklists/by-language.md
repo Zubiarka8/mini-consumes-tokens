@@ -590,29 +590,29 @@ Done 15 · Partial 3 · Not done 11 · Not verified 0 · Not applicable 23
 - [~] TY16 Module / namespace / package: package `module` and file module; same name only when the file is named after the package
 **Fields, constants and variables**
 
-- [ ] DA01 Field / instance attribute: struct fields have no symbol
-- [ ] DA03 Constant (module or global): `const` has no symbol
-- [ ] DA04 Global / module-level variable: `var` has no symbol
+- [x] DA01 Field / instance attribute: each named struct field is a `field` of the struct
+- [x] DA03 Constant (module or global): package-level `const` → `constant`
+- [x] DA04 Global / module-level variable: package-level `var` → `variable`
 - [ ] DA05 Local variable: `find_symbol(local)` returns no symbol (MCT probe)
 - [ ] DA06 Parameter: `find_symbol(input)` returns no symbol (MCT probe)
 **Relations**
 
 - [x] RE01 Calls: `main.go` calls `lib.P_Helper`
-- [ ] RE02 Constructor call: composite literal `T{}` gives no relation
+- [x] RE02 Constructor call: composite literal `T{}` gives `references T`
 - [x] RE04 Imports: `import "lib"` → edge
 - [ ] RE06 Implements interface / trait: structural; no relation
-- [ ] RE07 Interface extends interface / supertrait: embedded interface gives no relation
-- [ ] RE09 Struct / type embedding: embedded `P_Embedded` gives no relation
+- [x] RE07 Interface extends interface / supertrait: an embedded interface gives `extends`
+- [x] RE09 Struct / type embedding: embedded `P_Embedded` gives `extends`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
 - [x] SE02 Callers and callees: `main.go` calls `P_Helper`
-- [~] SE03 Every use: struct used only in a composite literal gets no reference
+- [~] SE03 Every use: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
 - [x] SE04 Blast radius and context: `build_context_pack(P_Helper)` returned the cross-file caller
 - [ ] SE05 Exact text in strings: literal not collected
 **Code quality**
 
-- [~] QU01 Dead code: unused struct and function reported; composite-only case not exercised
+- [~] QU01 Dead code: unused struct and function reported; a struct used only as a declared type is reported
 - [x] QU02 Repeated code: `CartTotal` and `OrderTotal` form a candidate group; listed as supported by `duplicates`
 **Structure**
 
