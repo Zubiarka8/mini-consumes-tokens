@@ -273,6 +273,116 @@ fn clean_variable_name(raw: &str) -> String {
     without_sigil.to_string()
 }
 
+/// Built-in cmdlets of the Management, Utility and Core modules a call can
+/// name, lowercased and sorted for `binary_search`.
+const CMDLETS: &[&str] = &[
+    "add-content",
+    "add-member",
+    "add-type",
+    "clear-content",
+    "clear-host",
+    "clear-item",
+    "compare-object",
+    "compress-archive",
+    "convertfrom-csv",
+    "convertfrom-json",
+    "convertfrom-stringdata",
+    "convertto-csv",
+    "convertto-html",
+    "convertto-json",
+    "convertto-xml",
+    "copy-item",
+    "copy-itemproperty",
+    "enter-pssession",
+    "exit-pssession",
+    "expand-archive",
+    "export-clixml",
+    "export-csv",
+    "export-modulemember",
+    "foreach-object",
+    "format-list",
+    "format-table",
+    "format-wide",
+    "get-alias",
+    "get-childitem",
+    "get-command",
+    "get-content",
+    "get-culture",
+    "get-date",
+    "get-help",
+    "get-history",
+    "get-item",
+    "get-itemproperty",
+    "get-location",
+    "get-member",
+    "get-module",
+    "get-process",
+    "get-random",
+    "get-service",
+    "get-unique",
+    "get-variable",
+    "group-object",
+    "import-clixml",
+    "import-csv",
+    "import-module",
+    "import-powershelldatafile",
+    "invoke-command",
+    "invoke-expression",
+    "invoke-item",
+    "invoke-restmethod",
+    "invoke-webrequest",
+    "join-path",
+    "measure-command",
+    "measure-object",
+    "move-item",
+    "new-guid",
+    "new-item",
+    "new-object",
+    "new-timespan",
+    "new-variable",
+    "out-file",
+    "out-host",
+    "out-null",
+    "out-string",
+    "pop-location",
+    "push-location",
+    "read-host",
+    "remove-item",
+    "remove-itemproperty",
+    "remove-variable",
+    "rename-item",
+    "resolve-path",
+    "select-object",
+    "select-string",
+    "set-alias",
+    "set-content",
+    "set-item",
+    "set-itemproperty",
+    "set-location",
+    "set-strictmode",
+    "set-variable",
+    "sort-object",
+    "split-path",
+    "start-process",
+    "start-service",
+    "start-sleep",
+    "stop-process",
+    "stop-service",
+    "tee-object",
+    "test-connection",
+    "test-path",
+    "wait-process",
+    "where-object",
+    "write-debug",
+    "write-error",
+    "write-host",
+    "write-information",
+    "write-output",
+    "write-progress",
+    "write-verbose",
+    "write-warning",
+];
+
 #[derive(Default)]
 struct Walker<'a> {
     source: &'a str,
@@ -620,6 +730,25 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(mut self) -> ParsedFile {
+        // A call of a built-in cmdlet the file does not redefine as a
+        // function can only reach PowerShell's own, never another script's
+        // function of that name. PowerShell names ignore case.
+        let defined: Vec<String> = self
+            .symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Function)
+            .map(|s| s.name.to_ascii_lowercase())
+            .collect();
+        for target in &mut self.relation_targets {
+            let relation = &self.relations[target.relation];
+            if relation.kind != RelationKind::Calls || target.kind != Some(SymbolKind::Function) {
+                continue;
+            }
+            let name = relation.to_name.to_ascii_lowercase();
+            if CMDLETS.binary_search(&name.as_str()).is_ok() && !defined.contains(&name) {
+                target.external = true;
+            }
+        }
         // A script class is visible in another file only through `using
         // module`, so a `[T]` reaches a class or enum of this file or none.
         // PowerShell type names ignore case.
