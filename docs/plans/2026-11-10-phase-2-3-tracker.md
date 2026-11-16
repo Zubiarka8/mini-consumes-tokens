@@ -96,6 +96,18 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] C++, declared receivers only: `x.m()` and `p->m()` on a variable the
+        enclosing function declares with one class (a parameter, a local, a
+        pointer or reference, `const` or not) are qualified by that class as
+        a method; a `std::` type is external. `auto`, a builtin or a
+        qualified project type, a template parameter and a name declared
+        with two types in the function (a shadowing block, a lambda
+        parameter) prove nothing, so the call is left as it was. A type
+        alias is not followed: a receiver declared with an alias name gets
+        no candidate. On a scratch project with two classes that both
+        declare `m`, 4 ambiguous calls (2 candidates) became resolved (1).
+        Test: `mct-lang-cpp/tests/receivers.rs`; the corpus snapshot is
+        unchanged.
   - [!] Whether Kotlin (#327) and C# (#328) adopt Go's rule for a receiver
         with no stated type. Today that loses 12 (Kotlin) and 25 (C#) right
         resolutions. Waiting for the maintainer.
