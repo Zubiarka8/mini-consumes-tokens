@@ -115,6 +115,8 @@ struct Binding {
     import: Option<Import>,
     /// The in-file name an alias such as `local B = Child` stands for.
     alias_of: Option<String>,
+    /// The name is a `local function` of this file.
+    function: bool,
     /// The class of this file an instance local is built from
     /// (`local self = setmetatable({}, T)`): its `x.f = …` are fields of `T`.
     instance_of: Option<String>,
@@ -292,6 +294,7 @@ impl<'a> Walker<'a> {
                         if is_local {
                             let binding = Binding {
                                 indexed: true,
+                                function: true,
                                 ..Binding::default()
                             };
                             self.declare(&name, binding);
@@ -367,6 +370,7 @@ impl<'a> Walker<'a> {
                     }
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
+                    self.reference_function_values(arguments, owner);
                     self.visit_children(arguments, owner, depth + 1);
                 }
             }
@@ -1362,6 +1366,9 @@ impl<'a> Walker<'a> {
         let mut cursor = table.walk();
         let fields: Vec<Node> = table.named_children(&mut cursor).collect();
         for field in fields {
+            if let Some(value) = field.child_by_field_name("value") {
+                self.reference_function_value(value, owner);
+            }
             let name = field
                 .child_by_field_name("name")
                 .and_then(|key| self.key_name(key));
@@ -1397,6 +1404,38 @@ impl<'a> Walker<'a> {
                 }
                 _ => self.visit_children(field, owner, depth + 1),
             }
+        }
+    }
+
+    /// Each argument of a call that names a function of this file.
+    fn reference_function_values(&mut self, arguments: Node, owner: SymbolId) {
+        let mut cursor = arguments.walk();
+        let values: Vec<Node> = arguments.named_children(&mut cursor).collect();
+        for value in values {
+            self.reference_function_value(value, owner);
+        }
+    }
+
+    /// `value` is a bare name that stands for a function of this file: a
+    /// `local function` in scope, or a global function declared earlier that
+    /// no parameter or local shadows. It is a `References` relation from
+    /// `owner`; any other name (a parameter, a variable, an unknown name)
+    /// records nothing.
+    fn reference_function_value(&mut self, value: Node, owner: SymbolId) {
+        if value.kind() != "identifier" {
+            return;
+        }
+        let name = text(value, self.source);
+        let is_function = match self.lookup(name) {
+            Some(binding) => binding.function,
+            None => self
+                .symbols
+                .iter()
+                .any(|s| s.name == name && s.kind == SymbolKind::Function && s.parent.is_none()),
+        };
+        if is_function {
+            let name = name.to_string();
+            self.push_relation(owner, RelationKind::References, name, location(value));
         }
     }
 
