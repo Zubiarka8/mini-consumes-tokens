@@ -117,6 +117,18 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Lua: a call through a module a literal `require` bound
+        (`a.render(1)` after `local a = require("a")`, a dotted path
+        `require("lib.c")`, or `render(3)` after
+        `local render = require("b").render`) is declared in that module's
+        file. A table the file builds itself, a rebound `require` and a
+        field alias renamed away from the field prove nothing. This
+        repository's Lua (368 calls): 8 ambiguous calls changed. 6 went to
+        one candidate (`ratelimit.new` 7 → 1, `inventory.log` 2 → 1, among
+        others), and 2 `http.new()` calls on `require("resty.http")`, a
+        third-party module, went from 7 wrong candidates to none. Test:
+        `mct-lang-lua/tests/require_calls.rs`; the corpus snapshot is
+        unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an

@@ -352,7 +352,12 @@ impl<'a> Walker<'a> {
                         // two same-named chained calls collide into one
                         // indistinguishable row.
                         let relation = self.relations.len();
-                        self.push_relation(owner, RelationKind::Calls, name, location(name_node));
+                        self.push_relation(
+                            owner,
+                            RelationKind::Calls,
+                            name.clone(),
+                            location(name_node),
+                        );
                         if self.relations.len() > relation
                             && callee.kind() == "method_index_expression"
                         {
@@ -361,6 +366,7 @@ impl<'a> Walker<'a> {
                             self.push_instance_member_evidence(relation, callee);
                         }
                         self.push_std_evidence(relation, callee);
+                        self.push_import_evidence(relation, callee, &name);
                         self.push_qualifier_use(owner, callee);
                     }
                     // `money.gross(net):to_json()`: the call this one is
@@ -1194,6 +1200,39 @@ impl<'a> Walker<'a> {
                 ..Default::default()
             });
         }
+    }
+
+    /// `a.render(1)` after `local a = require("a")`, or `render(3)` after
+    /// `local render = require("b").render`: the call reaches a module a
+    /// literal `require` loaded, so the target is declared in that module's
+    /// file, never in a namesake elsewhere. Only when no other evidence
+    /// already claimed the relation.
+    fn push_import_evidence(&mut self, relation: usize, callee: Node, name: &str) {
+        if self.relation_targets.iter().any(|t| t.relation == relation) {
+            return;
+        }
+        let import = match callee.kind() {
+            "dot_index_expression" => callee
+                .child_by_field_name("table")
+                .and_then(|table| self.import_of(table))
+                .filter(|import| import.field.is_none()),
+            "identifier" => self
+                .import_of(callee)
+                .filter(|import| import.field.as_deref() == Some(name)),
+            _ => None,
+        };
+        let Some(import) = import else {
+            return;
+        };
+        let mut segments = import.module.rsplit('.');
+        let stem = segments.next().map(str::to_string);
+        let directory = segments.next().map(str::to_string);
+        self.relation_targets.push(RelationTarget {
+            relation,
+            module: directory,
+            target_module: stem,
+            ..Default::default()
+        });
     }
 
     fn push_receiver_evidence(&mut self, relation: usize, callee: Node) {
