@@ -1,4 +1,4 @@
-// 03 · Duplicados, 05 · Código muerto and 07 · Revisiones share one findings workbench.
+// 03 · Duplicate code, 05 · Unused code and 07 · Reviews share one findings workbench.
 import {
   h,
   clear,
@@ -391,13 +391,13 @@ export async function render({ root, page, params: initial }) {
   // The mounted workspace ({ update, unmount }); `closed` once the page is left.
   let workspace = null;
   let closed = false;
-  // A finding opens by its number: `n=3` on Duplicados and Código muerto, `n=duplicate-3` on
+  // A finding opens by its number: `n=3` on Duplicate code and Unused code, `n=duplicate-3` on
   // Revisiones, which lists both kinds.
   const openParams = (r) => {
     if (!r.number) return { key: r.key, n: null };
     return { n: cfg.type ? r.number : `${r.type}-${r.number}`, key: null };
   };
-  // The workspace lives on Duplicados and Código muerto only: Revisiones opens a finding there.
+  // The workspace lives on Duplicate code and Unused code only: Reviews opens a finding there.
   const open = (r, params = {}) => {
     if (cfg.type) patchQuery({ ...openParams(r), ...params });
     else location.hash = findingHref(r);
