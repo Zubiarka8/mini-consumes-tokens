@@ -23,8 +23,14 @@
 //!   `find_implementations`) — the atomic components are what actually
 //!   lines up with HTML `Element` references.
 //!
-//! CSS properties/values inside a rule's block are not modeled at all —
-//! only the selector.
+//! Inside a rule's block only two kinds of declaration are modeled. A
+//! custom property declaration (`--brand: red`) is a `Variable` symbol named
+//! `--brand`, one per declaration, and `var(--brand)` anywhere in a value is
+//! a `References` relation to it. `@keyframes spin` is an `Animation` symbol
+//! `spin`, and each animation name in an `animation` or `animation-name`
+//! value is a `References` relation to it: a keyword (`infinite`, `ease`)
+//! never is, since CSS Animations reserves those words. Other properties and
+//! values are not modeled.
 //!
 //! A nested rule (CSS Nesting) is named after its selector resolved against
 //! its parent rule's (#115): every `&` (a `nesting_selector` node — never an
@@ -478,6 +484,14 @@ impl<'a> Walker<'a> {
             }
             // Inside `@scope`, `&` is the scoping root, not a parent rule.
             "scope_statement" => self.visit_children(node, owner, depth + 1, Parents::Root),
+            "declaration" => self.index_declaration(node, owner, depth),
+            "keyframes_statement" => {
+                if let Some(name) = find_named_child(node, "keyframes_name") {
+                    let name_text = text(name, self.source).to_string();
+                    self.push_symbol(name_text, SymbolKind::Animation, location(name));
+                }
+                self.visit_children(node, owner, depth + 1, parents);
+            }
             "import_statement" => {
                 if let Some(target) = import_target(node, self.source) {
                     self.push_import(owner, target, location(node));
@@ -485,6 +499,71 @@ impl<'a> Walker<'a> {
             }
             _ => self.visit_children(node, owner, depth + 1, parents),
         }
+    }
+
+    /// A custom property declaration defines its `--name`; any declaration
+    /// references the custom properties its value reads through `var()`,
+    /// and an `animation`/`animation-name` value the animations it names.
+    fn index_declaration(&mut self, declaration: Node, owner: SymbolId, depth: u32) {
+        let Some(property) = find_named_child(declaration, "property_name") else {
+            return;
+        };
+        let property_text = text(property, self.source);
+        if property_text.starts_with("--") {
+            self.push_symbol(
+                property_text.to_string(),
+                SymbolKind::Variable,
+                location(property),
+            );
+        }
+        let names_animations = property_text.eq_ignore_ascii_case("animation")
+            || property_text.eq_ignore_ascii_case("animation-name");
+        let mut cursor = declaration.walk();
+        for value in declaration.named_children(&mut cursor) {
+            if value.id() == property.id() {
+                continue;
+            }
+            if names_animations
+                && value.kind() == "plain_value"
+                && !is_animation_keyword(text(value, self.source))
+            {
+                self.push_reference(owner, value, SymbolKind::Animation);
+            }
+            self.index_var_reads(value, owner, depth + 1);
+        }
+    }
+
+    /// Every `var(--name)` under `value`, fallbacks included.
+    fn index_var_reads(&mut self, value: Node, owner: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        if value.kind() == "call_expression"
+            && find_named_child(value, "function_name")
+                .is_some_and(|f| text(f, self.source).eq_ignore_ascii_case("var"))
+        {
+            let name = find_named_child(value, "arguments").and_then(|a| a.named_child(0));
+            if let Some(name) = name
+                .filter(|n| n.kind() == "plain_value" && text(*n, self.source).starts_with("--"))
+            {
+                self.push_reference(owner, name, SymbolKind::Variable);
+            }
+        }
+        let mut cursor = value.walk();
+        for child in value.named_children(&mut cursor) {
+            self.index_var_reads(child, owner, depth + 1);
+        }
+    }
+
+    /// A `References` relation to the `kind` symbol `name` spells.
+    fn push_reference(&mut self, owner: SymbolId, name: Node, kind: SymbolKind) {
+        self.relation_targets.push(RelationTarget {
+            relation: self.relations.len(),
+            kind: Some(kind),
+            ..Default::default()
+        });
+        let to_name = text(name, self.source).to_string();
+        self.push_relation(owner, RelationKind::References, to_name, location(name));
     }
 
     /// Indexes every selector of `rule_set` and returns what its nested
@@ -687,6 +766,38 @@ impl<'a> Walker<'a> {
 /// `3xl:…`): `\` + 1–6 hex digits (plus one optional whitespace) is that
 /// code point — U+FFFD for zero, a surrogate or past U+10FFFF — and `\`
 /// before any other character is that character.
+/// A word an `animation` value can hold that names no animation: the
+/// CSS-wide keywords and those of the other `animation-*` longhands (CSS
+/// Animations 1 §3), which an animation name may not be.
+fn is_animation_keyword(word: &str) -> bool {
+    const KEYWORDS: &[&str] = &[
+        "alternate",
+        "alternate-reverse",
+        "backwards",
+        "both",
+        "ease",
+        "ease-in",
+        "ease-in-out",
+        "ease-out",
+        "forwards",
+        "infinite",
+        "inherit",
+        "initial",
+        "linear",
+        "none",
+        "normal",
+        "paused",
+        "revert",
+        "revert-layer",
+        "reverse",
+        "running",
+        "step-end",
+        "step-start",
+        "unset",
+    ];
+    KEYWORDS.iter().any(|k| word.eq_ignore_ascii_case(k))
+}
+
 fn unescape_css(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
