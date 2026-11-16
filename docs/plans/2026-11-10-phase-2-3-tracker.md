@@ -129,6 +129,16 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Go: an import of a dotless module path (`module shop`, `import
+        "shop/store"`) names a repository package like a domain-rooted one,
+        for a plain and an aliased import. The path needs two or more
+        elements and a root that is no directory of GOROOT's `src/`
+        (`net/http`, `log`, `internal` stay the standard library's), so a
+        single-element path and a module named like a standard directory
+        are left unproven. On a scratch project with two packages that both
+        declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
+        (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
+        snapshot is unchanged.
 - [x] **D7, reference counts.** A relation resolved elsewhere, or external,
       no longer keeps a symbol alive in dead code: #331.
   - [!] #330 (overview ranking and dashboard counts) needs a migration and an
