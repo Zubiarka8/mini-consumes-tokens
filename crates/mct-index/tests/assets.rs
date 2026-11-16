@@ -345,9 +345,10 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // `rockspec_items` (issue #267), 13 is ADR-026's module-shadowing view
     // change (issue #272), 14 is ADR-027's `symbol_entry_points` (issue #273)
     // 15 is ADR-035's function-local variable scope (issue #320), 16 is
-    // ADR-034's declaration details (issue #321) and 17 is ADR-036's
-    // `not_field` relation target (issue #412).
-    assert_eq!(before, 17);
+    // ADR-034's declaration details (issue #321), 17 is ADR-036's
+    // `not_field` relation target (issue #412) and 18 is ADR-037's
+    // inherited-member candidates (issue #479).
+    assert_eq!(before, 18);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
