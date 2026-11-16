@@ -21,6 +21,9 @@ error). What each one does is in `../README.md`.
 | `ci-failures.ps1 [<run-id>]` | `ci-failures.sh` |
 | `pr-status.ps1 <number>` | `pr-status.sh` |
 | `corpus-progress-check.ps1` | `corpus-progress-check.sh` |
+| `pr-sync.ps1 <branch> [--base B] [--push] [--no-fetch]` | `pr-sync.sh` |
+| `pr-overview.ps1 [--all] [--limit N]` | `pr-overview.sh` |
+| `check-many.ps1 [--toolchain T] [--timeout MIN] <worktree>... [-- check.ps1 options]` | `check-many.sh` |
 | `parse-probe.ps1 <files...>` | `parse-probe.sh` |
 | `install-hooks.ps1 [--uninstall]` | `install-hooks.sh` |
 
