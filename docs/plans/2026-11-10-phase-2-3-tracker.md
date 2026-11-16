@@ -1375,7 +1375,16 @@ From `rules.md` and the two messages:
       declaring kind; CSS indexes rules only, by design (the table above
       puts CSS out of scope for declarations). HTML, Markdown, XML and
       XAML have no declarations.
-- [ ] Positive and negative fixtures for each language (3.5).
+- [~] Positive and negative fixtures for each language (3.5).
+  - [x] Survey, not a review: every language crate has a corpus directory
+        of 8-10 fixture files and tests that assert an absence. A grep
+        for negative-looking assertions (`assert!(!…)`, `is_empty()`,
+        `None`, `false`, names such as `unexpected` or `never`) counts
+        18-96 per crate against 25-162 tests (lowest ratios: PowerShell
+        21/47, C# 29/57, HTML 16/32, Kotlin 38/80). The count shows no
+        language without negatives; it does not show that each rule has
+        one. The box stays `[~]` until a fixture-by-fixture review, which
+        needs a scope from the maintainer.
 
 ## Block 4: quality, fixtures and performance
 
