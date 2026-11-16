@@ -408,6 +408,15 @@ From `rules.md` and the two messages:
           fixture); `styles.css` gives 42 symbols and 6 relations. ERR-023
           is `RESOLVED`; ERR-024 (untracked generated CSS) was not
           re-checked.
+    - [x] CSS statement at-rules, any one-line prelude: the pinned grammar
+          also rejects `@custom-variant dark (&:where(.dark, .dark *));`,
+          `@source inline("underline");` and `@foo bar baz;` (probe: even
+          `@foo (&);` and `@foo a(b);` fail). The repair of the entry above
+          now blanks the whole prelude, not only its strings, on one-line
+          at-rules (`@name ...;`) the grammar reports. Test:
+          `tests/at_rule_strings.rs`, extended (real errors still
+          rejected). Corpus and this repository's CSS unchanged (all tracked
+          files already parse; the malformed fixture still fails).
     - [x] C# supertypes: an `extends`/`implements` entry names a type, so
           the first entry of a class (its base class, unless named like an
           interface) targets a `class` and every other entry an
