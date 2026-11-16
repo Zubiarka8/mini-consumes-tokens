@@ -1464,6 +1464,8 @@ From `rules.md` and the two messages:
       `type_uses.rs` now also expects `std::mutex` in
       `std::lock_guard<std::mutex>` (on purpose). Stacked on #516. Corpus:
       823 -> 852 relations.
+||||||||| df269981
+=========
   - [x] Rust: a match guard (`None if text.is_some_and(is_final)`) is an
         expression, not part of the arm's pattern, so its names are uses.
         Before, `is_final` was taken for a local of the whole function and
