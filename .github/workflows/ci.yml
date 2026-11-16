@@ -211,12 +211,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # A pull request fuzzes on Linux only; a push to `main` also fuzzes
-        # on macOS. The free pool runs 5 macOS jobs at a time, and 18 macOS
-        # fuzz jobs per pull request run queued macOS work for a day. The
-        # required macOS build + test job above still runs on every PR.
-        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
-        crate:
+        os: [ubuntu-latest]
+        crate: &fuzz-smoke-crates
           - mct-lang-rust
           - mct-lang-python
           - mct-lang-lua
@@ -235,7 +231,7 @@ jobs:
           - mct-lang-xaml
           - mct-lang-xml
           - mct-index
-    steps:
+    steps: &fuzz-smoke-steps
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
@@ -293,3 +289,20 @@ jobs:
             crates/${{ matrix.crate }}/fuzz/logs/
           if-no-files-found: warn
           retention-days: 7
+
+  # The same fuzz smoke tests on macOS, for a push to `main` only. The free
+  # pool runs 5 macOS jobs at a time, and 18 macOS fuzz jobs per pull
+  # request queued macOS work for a day. The required macOS build + test
+  # job above still runs on every pull request. A job-level `if:` is used
+  # because a matrix built with `fromJSON(...)` from the event name still
+  # expanded to both systems on pull requests.
+  fuzz-smoke-macos:
+    if: github.event_name == 'push'
+    name: fuzz smoke test (${{ matrix.crate }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest]
+        crate: *fuzz-smoke-crates
+    steps: *fuzz-smoke-steps
