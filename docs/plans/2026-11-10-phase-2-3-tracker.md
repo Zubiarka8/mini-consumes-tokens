@@ -416,6 +416,8 @@ From `rules.md` and the two messages:
           reported as dead code. Still open in the probe: FN03 (`f := func()` in a
           function has no symbol) and `var i P_Iface = s` gives no reference
           to `P_Iface` (#442); RE06 (structural implements) is by design.
+||||||||| d65c494e
+=========
     - [x] CSS statement at-rules with a string prelude: `@source "./";`
           and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
           rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
