@@ -26,7 +26,31 @@ pub(crate) fn variable_detail(assignment: Node, symbol: SymbolId, source: &str) 
         .child_by_field_name("name")
         .map(|n| slice(n, source))
         .unwrap_or_default();
-    let mut head: Vec<&str> = Vec::new();
+    let mut head = declaration_head(assignment, source);
+    let readonly = is_readonly(&head);
+    head.push(name);
+    SymbolDetail {
+        symbol,
+        signature: (!name.is_empty()).then(|| head.join(" ")),
+        modifiers: if readonly {
+            vec![Modifier::Readonly]
+        } else {
+            Vec::new()
+        },
+        ..Default::default()
+    }
+}
+
+/// Whether `assignment` is declared read-only: `readonly X=1`, or a
+/// `declare`/`typeset` with a flag group containing `r` (`-r`, `-rx`, `-ar`).
+pub(crate) fn is_readonly_assignment(assignment: Node, source: &str) -> bool {
+    is_readonly(&declaration_head(assignment, source))
+}
+
+/// The keyword and flag words of the `declaration_command` around
+/// `assignment`, in order; empty for a bare assignment.
+fn declaration_head<'a>(assignment: Node, source: &'a str) -> Vec<&'a str> {
+    let mut head = Vec::new();
     if let Some(command) = assignment
         .parent()
         .filter(|p| p.kind() == "declaration_command")
@@ -39,22 +63,15 @@ pub(crate) fn variable_detail(assignment: Node, symbol: SymbolId, source: &str) 
             }
         }
     }
-    let readonly = head.first() == Some(&"readonly")
+    head
+}
+
+fn is_readonly(head: &[&str]) -> bool {
+    head.first() == Some(&"readonly")
         || head
             .iter()
             .skip(1)
-            .any(|flag| flag.starts_with('-') && flag.contains('r'));
-    head.push(name);
-    SymbolDetail {
-        symbol,
-        signature: (!name.is_empty()).then(|| head.join(" ")),
-        modifiers: if readonly {
-            vec![Modifier::Readonly]
-        } else {
-            Vec::new()
-        },
-        ..Default::default()
-    }
+            .any(|flag| flag.starts_with('-') && flag.contains('r'))
 }
 
 /// `node`'s source text, or "" when its range is not on char boundaries.
