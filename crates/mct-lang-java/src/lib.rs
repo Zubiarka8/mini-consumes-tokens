@@ -83,6 +83,76 @@ fn module_name_for(relative_path: &str) -> String {
         .to_string()
 }
 
+/// A type whose body declares a method the `java` launcher can start
+/// (JLS §12.1.4, JEP 512): `void main(String[] args)`, `void main(String...
+/// args)` or `void main()`, static or not. Nothing in the source calls it,
+/// so the type is a possible entry point, never a proven one: the build
+/// names the main class.
+fn main_hint(type_node: Node, id: SymbolId, source: &str) -> Option<mct_core::EntryPointHint> {
+    let body = type_node.child_by_field_name("body")?;
+    // An enum's methods sit in its `enum_body_declarations`.
+    let members = find_child(body, "enum_body_declarations").unwrap_or(body);
+    let mut cursor = members.walk();
+    let has_main = members
+        .named_children(&mut cursor)
+        .any(|member| is_launcher_main(member, source));
+    has_main.then(|| mct_core::EntryPointHint {
+        symbol: id,
+        framework: "java".to_string(),
+        rule: "main-method".to_string(),
+        evidence: "void main method of this type".to_string(),
+        requires: None,
+    })
+}
+
+fn is_launcher_main(member: Node, source: &str) -> bool {
+    if member.kind() != "method_declaration"
+        || member
+            .child_by_field_name("name")
+            .is_none_or(|name| text(name, source) != "main")
+        || member
+            .child_by_field_name("type")
+            .is_none_or(|ty| ty.kind() != "void_type")
+    {
+        return false;
+    }
+    let Some(parameters) = member.child_by_field_name("parameters") else {
+        return false;
+    };
+    let mut cursor = parameters.walk();
+    let params: Vec<Node> = parameters.named_children(&mut cursor).collect();
+    match params.as_slice() {
+        [] => true,
+        [param] => is_string_array(*param, source),
+        _ => false,
+    }
+}
+
+/// `String[] a`, `String a[]`, `String... a` (or `java.lang.String`).
+fn is_string_array(param: Node, source: &str) -> bool {
+    let is_string = |ty: &str| matches!(ty, "String" | "java.lang.String");
+    match param.kind() {
+        "formal_parameter" => {
+            let Some(ty) = param.child_by_field_name("type") else {
+                return false;
+            };
+            let ty: String = text(ty, source).split_whitespace().collect();
+            match ty.strip_suffix("[]") {
+                Some(element) => is_string(element),
+                None => is_string(&ty) && find_child(param, "dimensions").is_some(),
+            }
+        }
+        "spread_parameter" => {
+            let mut cursor = param.walk();
+            let element = param
+                .named_children(&mut cursor)
+                .find(|c| matches!(c.kind(), "type_identifier" | "scoped_type_identifier"));
+            element.is_some_and(|ty| is_string(text(ty, source)))
+        }
+        _ => false,
+    }
+}
+
 fn text<'a>(node: Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or_default()
 }
@@ -107,6 +177,8 @@ struct Walker<'a> {
     supertypes: Vec<Vec<Supertype>>,
     /// Type names that a single-type JDK import binds in this file (D9).
     jdk: jdk::JdkImports,
+    /// Types declaring the launcher's `main` method (see `main_hint`).
+    entry_points: Vec<mct_core::EntryPointHint>,
 }
 
 impl<'a> Walker<'a> {
@@ -355,6 +427,9 @@ impl<'a> Walker<'a> {
                 );
                 self.details
                     .push(details::type_detail(node, id, self.source));
+                if let Some(hint) = main_hint(node, id, self.source) {
+                    self.entry_points.push(hint);
+                }
                 self.push_annotations(node, id);
 
                 // JLS §8.1.4, §8.1.5, §9.1.3: a class extends a class,
@@ -748,6 +823,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            entry_points: self.entry_points,
             ..Default::default()
         }
     }
