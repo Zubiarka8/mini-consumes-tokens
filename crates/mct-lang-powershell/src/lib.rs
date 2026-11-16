@@ -85,12 +85,14 @@ impl LanguageParser for PowerShellParser {
 
         if tree.root_node().has_error() {
             let mut normalized = file.contents.as_bytes().to_vec();
-            if normalize_identifier_comma_arguments(
+            let commas = normalize_identifier_comma_arguments(
                 tree.root_node(),
                 &file.contents,
                 &mut normalized,
                 0,
-            ) {
+            );
+            let params = terminate_param_blocks(tree.root_node(), &mut normalized, 0);
+            if commas || params {
                 if let Some(reparsed) = parser.parse(&normalized, None) {
                     if !reparsed.root_node().has_error() {
                         tree = reparsed;
@@ -170,6 +172,31 @@ fn normalize_identifier_comma_arguments(
     }
     for child in children {
         changed |= normalize_identifier_comma_arguments(child, source, normalized, depth + 1);
+    }
+    changed
+}
+
+/// Repair only the pinned grammar's rejection of a statement that follows a
+/// `param(...)` block on the same line (`function F { param($a) $a + 1 }`),
+/// which PowerShell accepts: the grammar leaves the block in an `ERROR` node.
+/// The blank after the block becomes `;`, a one-byte substitution that keeps
+/// every location. A full reparse must accept the entire file.
+fn terminate_param_blocks(node: Node, normalized: &mut [u8], depth: u32) -> bool {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return false;
+    }
+    let mut changed = false;
+    if node.kind() == "param_block" && node.parent().is_some_and(|p| p.kind() == "ERROR") {
+        if let Some(byte) = normalized.get_mut(node.end_byte()) {
+            if matches!(*byte, b' ' | b'\t') {
+                *byte = b';';
+                changed = true;
+            }
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        changed |= terminate_param_blocks(child, normalized, depth + 1);
     }
     changed
 }
