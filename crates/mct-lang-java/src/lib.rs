@@ -14,8 +14,12 @@ use tree_sitter::{Node, Parser};
 
 mod details;
 mod jdk;
+mod literals;
 mod receivers;
+mod tokens;
 use receivers::Bindings;
+
+pub use tokens::JavaTokenSource;
 
 pub struct JavaParser;
 
@@ -88,7 +92,9 @@ impl LanguageParser for JavaParser {
             );
         }
         walker.visit_children(root, module_id, None, 0);
-        Ok(walker.finish())
+        let mut parsed = walker.finish();
+        parsed.literals = literals::collect(root, &file.contents);
+        Ok(parsed)
     }
 }
 
