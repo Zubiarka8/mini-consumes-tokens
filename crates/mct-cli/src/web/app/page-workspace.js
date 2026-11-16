@@ -1,4 +1,4 @@
-// 08 · Workspace de código unificado: explorer | source | everything known about the file
+// 08 · Unified code workspace: explorer | source | everything known about the file
 import { h, clear, api, isAbort, patchQuery, onQuery, fmt, hrefTo, copy, basename } from "./core.js";
 import {
   icon,

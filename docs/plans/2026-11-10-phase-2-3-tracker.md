@@ -487,6 +487,16 @@ From `rules.md` and the two messages:
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [ ] Work through the gaps by language group.
+    - [x] PowerShell one-line functions: `function F { param($a) $a + 1 }`
+          (a statement after `param(...)` on the same line) was a syntax
+          error that dropped the whole file. The grammar puts the block in
+          an `ERROR` node, so the parser reparses with `;` in the blank
+          after it, at the same offsets, and keeps a clean tree only. Test:
+          `tests/one_line_param.rs` (also: two real syntax errors are still
+          rejected). Corpus unchanged. This repository: the same 2 of 35
+          PowerShell files fail before and after (`review-check.ps1:29`,
+          ERR-002, a different construct). Recorded in
+          `errors/HISTORY.md`; the checklist's FN01 cell is `[x]`.
     - [x] C++ cells re-probed with a current `mct-cli` (`a.cpp` with a macro,
           a `const`, a union, an abstract base, a derived class with a
           mem-initializer, a lambda, `new T()` and `T t;`). Stale cells
@@ -502,6 +512,20 @@ From `rules.md` and the two messages:
           gives no reference and `P_St` is reported as dead code, #441) and
           RE02 (`new P_Sub()` is ambiguous the same way). TY02/TY04 stay
           `[~]` by design. Go cells are still to re-probe.
+    - [x] Go cells re-probed with a current `mct-cli` (`a.go` with a
+          `const`, a `var`, an embedded struct, an embedded interface, a
+          composite literal and a function-local closure). The scored list of
+          `symbol-coverage.md` already had them as done; the older
+          `checklists/*.md` views are brought in line: DA01 (struct fields),
+          DA03, DA04, RE02 (`T{}` gives `references T`), RE07 and RE09
+          (embedding gives `extends`). SE03 and QU01 stay `[~]`, as in the
+          scored list: a composite literal references its type, but a type
+          named only in a declaration (`var w Widget`) gets none and is
+          reported as dead code. Still open in the probe: FN03 (`f := func()` in a
+          function has no symbol) and `var i P_Iface = s` gives no reference
+          to `P_Iface` (#442); RE06 (structural implements) is by design.
+||||||||| d65c494e
+=========
     - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
           `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
           is a `constant`; `export`, `declare -i` and a bare assignment stay
@@ -1501,6 +1525,12 @@ From `rules.md` and the two messages:
       `overrides` or a qualified call, has two candidates and stays
       ambiguous. Merging the pair is a resolution change for every C++
       relation (see D8).
+- [x] Docs: PHP (`composer.json`) and Lua (`.rockspec`) already list their
+      declared dependencies in `get_indexing_status`; the checklists said
+      `[ ]`. Probed with the real binary (`init --force` then `status`):
+      `monolog/monolog ^3.0` and `lpeg ~> 1.0`, the `php` and `lua` platform
+      entries skipped. Scores: PHP and Lua features 65→75 / 60→70, structure
+      50→83. No code change.
 - [x] Kotlin: a local `fun` has the function or method it is declared in
       as `parent` (it stays a `function`; a member keeps its type). Corpus:
       5 symbols renamed (`packingSlip::rule`, `recomputeReorderPoint::stdDev`…),
