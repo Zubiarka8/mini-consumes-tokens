@@ -1,4 +1,4 @@
-// 02 · Código indexado: file tree and filters | symbol table | symbol inspector
+// 02 · Indexed code: file tree and filters | symbol table | symbol inspector
 import {
   h,
   clear,

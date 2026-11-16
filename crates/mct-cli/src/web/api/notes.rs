@@ -17,7 +17,7 @@ const MAX_GRAPH_NODES: usize = 5000;
 const MAX_SYMBOLS: usize = 30;
 
 fn folder(note: &Note) -> &str {
-    note.path.rsplit_once('/').map_or("(raíz)", |(dir, _)| dir)
+    note.path.rsplit_once('/').map_or("(root)", |(dir, _)| dir)
 }
 
 fn backlink_count(site: &Site, note: &Note) -> usize {
