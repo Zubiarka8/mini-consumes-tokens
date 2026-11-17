@@ -3,7 +3,7 @@
 == com/example/warehouse/app/OrderService.java (303 lines)
 S 1-303 module OrderService
 S 38-303 class OrderService
-S 40-40 field OrderService::LOG
+S 40-40 constant OrderService::LOG
 S 43-50 class OrderService::PlaceOrder
 S 43-43 method PlaceOrder::customerId
 S 43-43 method PlaceOrder::currency
@@ -832,7 +832,7 @@ S 69-72 method HALF_UP::mode
 S 74-79 field RoundingPolicy::DOWN
 S 75-78 method DOWN::mode
 S 81-81 method RoundingPolicy::mode
-S 84-84 field Money::DEFAULT_ROUNDING
+S 84-84 constant Money::DEFAULT_ROUNDING
 S 86-86 field Money::amount
 S 87-87 field Money::currency
 S 89-92 method Money::Money
@@ -1336,7 +1336,7 @@ S 191-203 method Jdbc::query
 S 205-212 method Jdbc::update
 S 214-220 method Jdbc::prepare
 S 224-283 class Repository::Orders
-S 225-229 field Orders::INSERT
+S 225-229 constant Orders::INSERT
 S 231-231 field Orders::outbox
 S 233-236 method Orders::Orders
 S 238-243 method Orders::mapper

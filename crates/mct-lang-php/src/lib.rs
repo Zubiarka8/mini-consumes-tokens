@@ -969,10 +969,16 @@ impl<'a> Walker<'a> {
                     }
                     if let Some(seg) = last_segment(function) {
                         let target = Some(self.function_target(function));
+                        // `use function B\render as draw;`: `draw(…)` calls
+                        // the function by its own name, not the alias.
+                        let imported = (function.kind() == "name")
+                            .then(|| self.scope.resolve_function(text(function, self.source)))
+                            .flatten()
+                            .map(|r| r.name);
                         self.push_targeted(
                             owner,
                             RelationKind::Calls,
-                            text(seg, self.source).to_string(),
+                            imported.unwrap_or_else(|| text(seg, self.source).to_string()),
                             location(seg),
                             target,
                         );
