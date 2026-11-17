@@ -1549,6 +1549,7 @@ dependencies = [
  "mct-corpus",
  "mct-index",
  "mct-lang-css",
+ "mct-lang-js-ts",
  "mct-tree-sitter",
  "tree-sitter",
  "tree-sitter-html",
