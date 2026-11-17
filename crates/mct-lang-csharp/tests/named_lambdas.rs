@@ -62,11 +62,11 @@ fn a_local_bound_to_a_lambda_is_a_function() {
             ("cb", SymbolKind::Field, Some("S"), 2),
             ("Helper", SymbolKind::Method, Some("S"), 3),
             ("Run", SymbolKind::Method, Some("S"), 4),
-            // A local function has no parent; a named lambda neither.
+            // Named lambdas have no parent; a local function belongs to its method.
             ("twice", SymbolKind::Function, None, 5),
             ("add", SymbolKind::Function, None, 6),
             ("log", SymbolKind::Function, None, 7),
-            ("Local", SymbolKind::Function, None, 8),
+            ("Local", SymbolKind::Function, Some("Run"), 8),
         ]
     );
 }
