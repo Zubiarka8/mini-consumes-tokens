@@ -580,6 +580,15 @@ From `rules.md` and the two messages:
           reported as dead code. Still open in the probe: FN03 (`f := func()` in a
           function has no symbol) and `var i P_Iface = s` gives no reference
           to `P_Iface` (#442); RE06 (structural implements) is by design.
+    - [x] Checklist views synced: `checklists/by-language.md`,
+          `by-feature.md` and `by-feature-language.md` were older than the
+          scored lists of `symbol-coverage.md` (the page `coverage_scores`
+          checks). For the twelve source languages, 48 marks and their notes
+          differed (for example Python and JS/TS module constants, Java and
+          Kotlin annotations, C# `: base()`); every one now follows the
+          scored list, and the per-language, per-feature and summary counts
+          are recomputed from the marks. `symbol-coverage.md` and the scores
+          are unchanged. Markup languages untouched.
 ||||||||| d65c494e
 =========
     - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
