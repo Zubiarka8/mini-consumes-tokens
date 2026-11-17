@@ -150,6 +150,15 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] PHP: `use function B\render as draw;` makes `draw(2)` a call to
+        `render` with the namespace `B`, so it reaches that function and
+        never another namespace's `render`. Before, the call was recorded
+        under the alias and matched nothing. An unqualified name no import
+        binds keeps its resolution. On a scratch project with two
+        namespaced `render`, the aliased call went from unresolved to
+        resolved (1). Test: `mct-lang-php/tests/function_aliases.rs`; the
+        corpus snapshot is unchanged.
+||||||| b8808e48
   - [x] Kotlin: a bare call of a function the file imports
         (`import a.render`, or `import b.render as draw` and `draw(1)`)
         carries the package segment as module evidence, so it reaches the
@@ -539,6 +548,20 @@ From `rules.md` and the two messages:
           16 C# files declares a `const`, so their snapshots and dead code
           are unchanged: the unit test is the only evidence. C# scores 79% ->
           81% and 30% -> 40% (fields and constants).
+||||||| b8808e48
+||||||| e494d60a
+    - [x] Java constants: a `static final` field is a `constant` of its
+          type, and so is a field of an interface (a `constant_declaration`,
+          implicitly `public static final`, which was not indexed at all
+          before), one per declarator. A `final` instance field, a `static`
+          non-final field and an enum constant stay `field`s. Test:
+          `tests/static_final_constants.rs`. Corpus: 3 fields become
+          constants (`Orders::INSERT`, `OrderService::LOG`,
+          `Money::DEFAULT_ROUNDING`), symbol count unchanged (the corpus has
+          no interface constant). Repository snapshot (15 Java files, 462
+          symbols): the same 3 become constants; no relation names them, so
+          resolution is unchanged; dead code 0 -> 0. Java scores 83% -> 85%
+          and 38% -> 50% (fields and constants).
 ||||||| b8808e48
     - [x] Lua nested functions: a named function declared inside another
           (`local function helper()` or `function g()` in a body, an
@@ -1821,6 +1844,15 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] C++: a function of this file passed by name as a call argument
+        (`std::transform(first, last, out, dbl)`, `std::sort(…, less)`) is a
+        `references` relation, so the callback is not dead code. A parameter
+        of an enclosing function with the same name shadows it; a variable
+        and an unknown name record nothing. Known gap: a local variable named
+        like a file function still counts. Corpus: no change (it passes no
+        function by name). Probe on a tiny tree: dead code listed `dbl`
+        before. Test: `mct-lang-cpp/tests/function_values.rs`.
+||||||| b8808e48
   - [x] Bash: `trap handler SIGNAL` calls `handler` when the handler is a
         single plain word (`trap cleanup EXIT`, `trap 'on_err' ERR`), so a
         trap handler is not dead code. A command string (`trap 'echo bye;
