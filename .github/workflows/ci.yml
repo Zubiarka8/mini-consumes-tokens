@@ -13,6 +13,21 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Least privilege: no job in this workflow writes to the repository.
+permissions:
+  contents: read
+
+# Where the Linux jobs run (see the `runs-on: &pc-or-hosted` anchor below):
+# - a push to main, or a pull request whose head branch lives in THIS
+#   repository → the owner's self-hosted runners (labels pc-4060);
+# - a pull request from a fork → GitHub-hosted ubuntu-latest, never the PC.
+# Setting the repository variable SELF_HOSTED_DISABLED=true sends everything
+# back to ubuntu-latest (e.g. while the PC is off), with no code change.
+# NOTE: a fork can edit this file in its own PR, so this routing is not the
+# security boundary. The boundary is the repository setting "Require
+# approval for all external contributors": nothing from a fork runs until
+# the owner approves it after reading the diff.
+
 env:
   # Pinned to an exact stable release, never `stable` floating — a CI run
   # from six months ago and one from today must build with the same
@@ -25,7 +40,15 @@ jobs:
   # disagree with a contributor's `cargo fmt`.
   fmt:
     name: rustfmt
-    runs-on: ubuntu-latest
+    runs-on: &pc-or-hosted ${{ vars.SELF_HOSTED_DISABLED != 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","pc-4060"]') || 'ubuntu-latest' }}
+    # Every Linux job runs in a container pinned to the CI toolchain: the
+    # same environment on the PC and on ubuntu-latest, and nothing a job
+    # installs touches the host. --cpus/--memory cap each job so four runners
+    # in parallel share the PC (16 threads, 32 GB) instead of fighting over it;
+    # cargo and nextest read the CPU quota and size their parallelism to it.
+    container: &rust-container
+      image: rust:1.96.0-bookworm
+      options: --cpus 4 --memory 6g
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +65,10 @@ jobs:
   # rebuild both from the lockfile and fail if the committed files differ.
   web-bundles:
     name: web bundles are fresh + web tests
-    runs-on: ubuntu-latest
+    runs-on: *pc-or-hosted
+    container:
+      image: node:24-bookworm
+      options: --cpus 4 --memory 6g
     steps:
       - uses: actions/checkout@v4
 
@@ -85,13 +111,55 @@ jobs:
         working-directory: crates/mct-cli/tests/dashboard
         run: npm test
 
+  # The Linux leg, split out of the matrix below so it can run in a container
+  # on the self-hosted runners. Its check name is unchanged, so branch
+  # protection that requires "build + test + clippy (ubuntu-latest)" still
+  # matches, wherever the job actually ran.
+  build-test-linux:
+    name: build + test + clippy (ubuntu-latest)
+    runs-on: *pc-or-hosted
+    container: *rust-container
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: "Build workspace (all targets: lib, bins, examples, tests)"
+        run: cargo build --locked --workspace --all-targets
+
+      # nextest runs every test as its own process, all test binaries at
+      # once, sized to the container's CPU quota — one job with the whole
+      # suite in parallel instead of one job per test. Doctests are not
+      # supported by nextest, so they keep running under `cargo test --doc`.
+      - name: Test workspace (nextest, parallel)
+        run: cargo nextest run --locked --workspace --profile ci
+
+      - name: Doctests
+        run: cargo test --locked --workspace --doc
+
+      - name: Test Unix installer destination (local release fixture)
+        run: |
+          command -v python3 >/dev/null || { apt-get update -qq && apt-get install -y -qq python3 >/dev/null; }
+          python3 scripts/unix/tests/test_install.py
+
+      - name: Clippy (deny warnings, unwrap/expect/panic in production code)
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic
+
   build-test:
     name: build + test + clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -157,7 +225,8 @@ jobs:
 
   cargo-audit:
     name: cargo-audit (dependency vulnerabilities)
-    runs-on: ubuntu-latest
+    runs-on: *pc-or-hosted
+    container: *rust-container
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.96.0
