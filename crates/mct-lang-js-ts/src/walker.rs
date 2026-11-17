@@ -1021,6 +1021,26 @@ impl<'a> Walker<'a> {
                 }
             }
             "export_statement" => self.visit_export_statement(node, owner, type_name, depth),
+            // `x instanceof Marker` uses the class on its right.
+            "binary_expression" => {
+                if node
+                    .child_by_field_name("operator")
+                    .is_some_and(|op| text(op, self.source) == "instanceof")
+                {
+                    if let Some(class) = node.child_by_field_name("right") {
+                        let name = rightmost_name(class).map(|n| text(n, self.source));
+                        if let Some(name) = name.filter(|n| !self.bound.contains(*n)) {
+                            self.push_relation(
+                                owner,
+                                RelationKind::References,
+                                name.to_string(),
+                                location(class),
+                            );
+                        }
+                    }
+                }
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             "assignment_expression" => {
                 self.visit_assignment_expression(node, owner, type_name, depth)
             }
@@ -1281,7 +1301,14 @@ impl<'a> Walker<'a> {
                 .symbols
                 .get(owner as usize)
                 .is_some_and(|s| s.name == name || s.parent.as_deref() == Some(name.as_str()));
-            if functions.contains(&name) && !own_name {
+            // `x instanceof Marker` already recorded this use at its own arm.
+            let recorded = self.relations.iter().any(|r| {
+                r.from == owner
+                    && r.kind == RelationKind::References
+                    && r.to_name == name
+                    && r.location == loc
+            });
+            if functions.contains(&name) && !own_name && !recorded {
                 same_file.push((self.relations.len(), false));
                 self.push_relation(owner, RelationKind::References, name, loc);
             }
