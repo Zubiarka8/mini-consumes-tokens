@@ -1887,6 +1887,27 @@ From `rules.md` and the two messages:
 ||||||| f5e9d7ae
 ||||||| c3b9fab5
 ||||||| 4315f82b
+||||||| 3dd37981
+  - [x] Java: a type named in a field, parameter, return type, `throws`,
+        local, generic argument, cast, `instanceof` or class literal
+        (`Kind.class`) is a `references` relation, so a class or interface
+        used only as a type is not dead code. Before, Java recorded types
+        only for `extends`, `implements` and annotations. A type parameter,
+        the type of `new` (already a call), a supertype and a qualifier of a
+        scoped name add nothing; a single-type JDK import is external.
+        Corpus: +611 relations (1055 → 1666, 255 name-matched across files
+        from 149), symbols unchanged; 90 of them are `String`, with no
+        candidate. Dead code over the corpus project: 7 → 2 (`PriceList`,
+        `RateSourceException`, `RoundingPolicy`, `State`, `RowMapper` were
+        false positives; `Range` and `InMemory` remain). Probe: 8 → 1.
+        `annotations.rs` updated on purpose: its helper collected every
+        `references`, now it keeps only those that carry the annotation kind.
+        Test: `mct-lang-java/tests/type_references.rs`.
+||||||| b8808e48
+||||||| e494d60a
+||||||| f5e9d7ae
+||||||| c3b9fab5
+||||||| 4315f82b
 - [x] JS/TS, `instanceof`: the class on the right of `x instanceof Marker`
       (also `ns.Marker`, by its last name) is a `references` relation. A
       parameter shadowing the name records nothing. Probe: a class tested
