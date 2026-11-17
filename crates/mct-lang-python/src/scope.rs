@@ -209,8 +209,8 @@ pub(crate) struct ModuleScope {
 /// What an import binds a local name to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Import {
-    /// `from a.b import f [as g]`: a name defined in module `b`.
-    From(String),
+    /// `from a.b import f [as g]`: the name `f` defined in module `b`.
+    From { module: String, name: String },
     /// `import a.b as m` (`a.b`) or `import a.b` (`a`): a module, whose
     /// dotted path the name stands for.
     Module(String),
@@ -297,7 +297,17 @@ impl ModuleScope {
     /// app.util import parse`), when an import is its only binding.
     pub(crate) fn imported_from(&self, name: &str) -> Option<&str> {
         match self.import_of(name)? {
-            Import::From(module) => Some(module),
+            Import::From { module, .. } => Some(module),
+            Import::Module(_) => None,
+        }
+    }
+
+    /// The name a bare `name` stands for in the module it was imported
+    /// from (`parse` for `from app.util import parse as p`), when an import
+    /// is its only binding.
+    pub(crate) fn original_name(&self, name: &str) -> Option<&str> {
+        match self.import_of(name)? {
+            Import::From { name, .. } => Some(name),
             Import::Module(_) => None,
         }
     }
@@ -308,7 +318,7 @@ impl ModuleScope {
     pub(crate) fn module_alias(&self, name: &str) -> Option<&str> {
         match self.import_of(name)? {
             Import::Module(path) => Some(path),
-            Import::From(_) => None,
+            Import::From { .. } => None,
         }
     }
 
@@ -553,14 +563,18 @@ impl ModuleScope {
                 "wildcard_import" => self.opaque = true,
                 "aliased_import" => {
                     if let Some(alias) = child.child_by_field_name("alias") {
-                        let import = if from {
-                            from_module.clone().map(Import::From)
-                        } else {
-                            child
-                                .child_by_field_name("name")
-                                .map(|n| Import::Module(text(n, source).to_string()))
-                        };
                         let original = child.child_by_field_name("name").map(|n| text(n, source));
+                        let import = if from {
+                            from_module
+                                .clone()
+                                .zip(original)
+                                .map(|(module, name)| Import::From {
+                                    module,
+                                    name: name.to_string(),
+                                })
+                        } else {
+                            original.map(|n| Import::Module(n.to_string()))
+                        };
                         self.mark_override(
                             text(alias, source),
                             from_typing && original == Some("override"),
@@ -584,7 +598,12 @@ impl ModuleScope {
                             // `from m import a.b` is not valid Python; only
                             // a single name is a definition of `m`.
                             (child.named_child_count() == 1)
-                                .then(|| from_module.clone().map(Import::From))
+                                .then(|| {
+                                    from_module.clone().map(|module| Import::From {
+                                        module,
+                                        name: name.to_string(),
+                                    })
+                                })
                                 .flatten()
                         } else {
                             Some(Import::Module(name.to_string()))
