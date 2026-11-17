@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=402 relations=1053 name_matched_across_files=206
+# language=javascript_typescript files=7 symbols=402 relations=1053 name_matched_across_files=207
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -274,7 +274,7 @@ R 218:24 calls WarehouseClient::events -> EventSource
 R 220:26 calls WarehouseClient::events -> parse (name-matched: src/money.ts)
 R 220:49 references WarehouseClient::events -> OrderEvent (name-matched: src/order.ts)
 R 221:7 calls WarehouseClient::events -> onEvent (name-matched: src/order.ts)
-R 221:15 calls WarehouseClient::events -> describeEvent
+R 221:15 calls WarehouseClient::events -> describe (name-matched: src/order.ts)
 R 223:25 calls WarehouseClient::events -> close (name-matched: src/ui/PickBoard.jsx)
 R 230:35 references WarehouseClient::stock -> Promise
 R 230:43 references WarehouseClient::stock -> Map

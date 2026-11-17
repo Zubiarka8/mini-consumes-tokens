@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 89% | 33 | 100% | 10 | 1 |
 | Java | 85% | 27 | 85% | 10 | 0 |
 | Kotlin | 83% | 35 | 85% | 10 | 0 |
-| C# | 87% | 34 | 90% | 10 | 0 |
+| C# | 88% | 34 | 90% | 10 | 0 |
 | C++ | 89% | 28 | 70% | 10 | 0 |
 | Go | 78% | 18 | 90% | 10 | 0 |
 | PHP | 88% | 30 | 95% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 100% | 100% |
 | Java | 80% | 95% | 38% | 100% | 100% | 75% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 100% | 100% | 50% |
-| C# | 94% | 96% | 50% | 88% | 90% | 75% | 100% |
+| C# | 100% | 96% | 50% | 88% | 90% | 75% | 100% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 100% | 83% |
@@ -497,7 +497,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | methods, constructors, destructors, operators | `method_declaration`, `constructor_declaration`, `destructor_declaration`, `operator_declaration`, `conversion_operator_declaration` | `method` |
 | fields, events | `field_declaration`, `event_field_declaration` | `field` |
 | properties, indexers, event properties | `property_declaration`, `indexer_declaration`, `event_declaration` | `field` |
-| local functions | `local_function_statement` | `function`, no parent |
+| local functions | `local_function_statement` | `function`, parented by the enclosing method or function when present |
 | `Func<int, int> f = x => …;`, `Action f = delegate { … };` in a body | `local_declaration_statement` declarator with a `lambda_expression` / `anonymous_method_expression` value | `function`, no parent, like a local function; it owns the lambda's calls, so `f(2)` reaches it. A field holding a lambda stays a `field`; a lambda passed as an argument declares nothing |
 | `delegate` | `delegate_declaration` | `type_alias` |
 | `: Base, IFoo` | base list | `extends` / `implements` by the `IFoo` heuristic |
@@ -1113,8 +1113,8 @@ percentages and denominators; these checklists provide the scored evidence.
 
 **Functions and methods**
 
-- [~] Nested function (named, inside a function): local function as `function` with no parent
-- [x] Lambda / closure assigned to a name: `Func<int, int> f = x => …;` and `Action f = delegate { … };` in a body are a `function`, no parent like a local function, with the declaration up to the body as signature; a field holding a lambda stays a `field`
+- [x] Nested function (named, inside a function): local function as `function`, its parent the enclosing method or local function
+- [x] Lambda / closure assigned to a name: `Func<int, int> f = x => …;` and `Action f = delegate { … };` in a body are a `function`, no parent, with the declaration up to the body as signature; a field holding a lambda stays a `field`
 - [x] Method: `method`
 - [x] Constructor: `method` named after the class, static constructor too
 - [x] Destructor / finalizer: `~Name` as `method`
