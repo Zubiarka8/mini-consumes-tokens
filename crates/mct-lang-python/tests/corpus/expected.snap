@@ -1,4 +1,4 @@
-# language=python files=15 symbols=643 relations=1504 name_matched_across_files=395
+# language=python files=15 symbols=643 relations=1504 name_matched_across_files=400
 
 == library/cli.py (307 lines)
 S 1-307 module cli
@@ -71,7 +71,7 @@ R 14:20 imports cli -> Any
 R 14:25 imports cli -> Callable
 R 14:35 imports cli -> Optional
 R 14:45 imports cli -> Sequence
-R 16:27 imports cli -> svc
+R 16:15 imports cli -> services (name-matched: library/services.py)
 R 17:7 imports cli -> errors (name-matched: library/errors.py)
 R 17:21 imports cli -> LibraryError (name-matched: library/errors.py)
 R 17:35 imports cli -> audit (name-matched: library/errors.py)
@@ -96,7 +96,7 @@ R 21:7 imports cli -> repository (name-matched: library/repository.py)
 R 21:25 imports cli -> Catalogue (name-matched: library/repository.py)
 R 21:36 imports cli -> load_fixture (name-matched: library/repository.py)
 R 21:50 imports cli -> open_database (name-matched: library/repository.py)
-R 21:85 imports cli -> SqlRepo
+R 21:65 imports cli -> SqliteRepository (name-matched: library/repository.py)
 R 24:23 imports cli -> toml_reader
 R 24:12 imports cli -> tomllib
 R 54:44 calls Context::__init__ -> build_services (name-matched: library/services.py)
@@ -784,7 +784,7 @@ R 13:55 imports reports -> Iterator
 R 13:65 imports reports -> NamedTuple
 R 13:77 imports reports -> Sequence
 R 13:87 imports reports -> TypedDict
-R 15:25 imports reports -> m
+R 15:15 imports reports -> models (name-matched: library/models.py)
 R 16:7 imports reports -> errors (name-matched: library/errors.py)
 R 16:21 imports reports -> Timer (name-matched: library/errors.py)
 R 16:28 imports reports -> ValidationError (name-matched: library/errors.py)
@@ -1606,7 +1606,7 @@ R 4:20 imports models -> Any
 R 6:13 imports models -> conf
 R 6:25 imports models -> settings
 R 7:18 imports models -> exceptions
-R 7:55 imports models -> DjangoValidationError
+R 7:36 imports models -> ValidationError (name-matched: library/errors.py)
 R 8:13 imports models -> db
 R 8:23 imports models -> models
 R 9:16 imports models -> models
@@ -1649,7 +1649,7 @@ R 67:27 calls BookRecord::Meta -> Q
 R 67:52 calls BookRecord::Meta -> Q
 R 76:21 calls BookRecord::clean -> normalize_isbn (name-matched: library/models.py)
 R 77:16 calls BookRecord::clean -> is_valid_isbn (name-matched: library/models.py)
-R 78:19 calls BookRecord::clean -> DjangoValidationError
+R 78:19 calls BookRecord::clean -> ValidationError (name-matched: library/errors.py)
 R 81:16 calls BookRecord::get_absolute_url -> reverse
 R 84:18 extends CopyRecord -> Model
 R 85:18 extends CopyRecord::Status -> TextChoices
