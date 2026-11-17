@@ -150,6 +150,20 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Lua: a call through a module a literal `require` bound
+        (`a.render(1)` after `local a = require("a")`, a dotted path
+        `require("lib.c")`, or `render(3)` after
+        `local render = require("b").render`) is declared in that module's
+        file. A table the file builds itself, a rebound `require` and a
+        field alias renamed away from the field prove nothing. This
+        repository's Lua (368 calls): 8 ambiguous calls changed. 6 went to
+        one candidate (`ratelimit.new` 7 → 1, `inventory.log` 2 → 1, among
+        others), and 2 `http.new()` calls on `require("resty.http")`, a
+        third-party module, went from 7 wrong candidates to none. Test:
+        `mct-lang-lua/tests/require_calls.rs`; the corpus snapshot is
+        unchanged.
+||||||| b8808e48
+||||||| e494d60a
   - [x] PHP: `use function B\render as draw;` makes `draw(2)` a call to
         `render` with the namespace `B`, so it reaches that function and
         never another namespace's `render`. Before, the call was recorded
@@ -540,6 +554,16 @@ From `rules.md` and the two messages:
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [~] Work through the gaps by language group.
   - [ ] Work through the gaps by language group.
+    - [x] C# `const` members: a `const` field is a `constant` of its type, one
+          per declarator, as Rust's `const`, C++'s `constexpr` and Kotlin's
+          `const val`. `static readonly` and `readonly` stay `field`s (run-time
+          values), a local `const` is no symbol, as before. Test:
+          `tests/const_fields.rs`. Neither the corpus nor this repository's
+          16 C# files declares a `const`, so their snapshots and dead code
+          are unchanged: the unit test is the only evidence. C# scores 79% ->
+          81% and 30% -> 40% (fields and constants).
+||||||| b8808e48
+||||||| e494d60a
     - [x] Java constants: a `static final` field is a `constant` of its
           type, and so is a field of an interface (a `constant_declaration`,
           implicitly `public static final`, which was not indexed at all
@@ -713,6 +737,20 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] A local import is not also an external one: a parser records a
+          local import twice, the path as written and the file it names,
+          at the same spot, and `get_dependency_graph` listed the unmatched
+          written path (`lib.h`, `./lib.sh`, `app.js`) as external beside
+          the edge. The index now drops a written path whose sibling import
+          at the same spot has candidates; a proven external and a path
+          that resolves to nothing stay external. PHP `require_once
+          "lib.php"` and `require_once("lib.php")` record the import too,
+          not only `'lib.php'`. Tests: `mct-index`
+          `tests/dependency_graph.rs`, `mct-lang-php` `tests/includes.rs`
+          (each red without its half). Probe: C++, PHP, Bash, PowerShell,
+          CSS, HTML and JS `require` show the edge and no external; ST01 is
+          `[x]` for C++, PHP, Bash, PowerShell and MK05 for CSS and HTML.
+||||||| b8808e48
     - [x] HTML inline event handlers: an `on<event>` attribute
           (`onclick="save()"`, any case) runs its value as JavaScript, so
           each function it calls by bare name is a `calls` relation, scoped
@@ -1841,6 +1879,24 @@ From `rules.md` and the two messages:
       record nothing. Probe: `helper`, called only inside a macro, was dead
       code, now it is not. Corpus: 1 new relation
       (`bounded -> InventoryError::Validation`).
+||||||| b8808e48
+||||||| e494d60a
+||||||| f5e9d7ae
+  - [x] C#: a type named in a field, property, parameter, return type,
+        local, generic argument, cast, `is`/`as` check, `typeof`, `catch`,
+        pattern or `foreach` is a `references` relation from the member that
+        names it (last segment of a qualified name), so a class or interface
+        used only as a type is not dead code. Before, C# recorded types only
+        for base types. A type parameter, the type of `new` (already a call)
+        and a base type add nothing; `int`/`string` are keywords, not
+        identifiers. An `x is MAX` constant pattern is a reference to `MAX`
+        too. Corpus: +424 relations (679 → 1103, 239 name-matched across
+        files from 156), symbols unchanged; BCL names (`Task`,
+        `CancellationToken`, `IEnumerable`) have no candidate. Dead code over
+        the corpus project: 20 → 10 (`ErrorCode`, `Severity`, `Result`,
+        `Unit`, `OrderStatus`, `StockChanged`, `Projection`, `Palette`,
+        `ChangeKind`, `ServiceHost` were false positives). Probe: 8
+        candidates → 0. Test: `mct-lang-csharp/tests/type_references.rs`.
 ||||||| b8808e48
 ||||||| e494d60a
   - [x] C++: a function of this file passed by name as a call argument

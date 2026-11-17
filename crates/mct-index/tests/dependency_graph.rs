@@ -1,6 +1,9 @@
 //! Module-level dependency graph over resolved `imports` relations.
 //!
-//! Toy parser, one symbol per line: `def NAME [imports TARGET [path=PATH] [ext]]`.
+//! Toy parser, one symbol per line:
+//! `def NAME [imports TARGET [path=PATH] [ext] [as=SPEC]]`, where `as=SPEC`
+//! adds a second import of `SPEC` at the same spot, as a parser records a
+//! local import's path as written beside its module.
 
 // Test code: a panic here means a broken test precondition.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -63,15 +66,19 @@ impl mct_core::LanguageParser for FakeParser {
                 }
             }
             parsed.relation_targets.push(target);
-            parsed.relations.push(SymbolRelation {
+            let relation = |to_name: &str| SymbolRelation {
                 from: id,
                 kind: RelationKind::Imports,
-                to_name: rest[2].to_string(),
+                to_name: to_name.to_string(),
                 location: Location {
                     end_line: None,
                     ..location
                 },
-            });
+            };
+            parsed.relations.push(relation(rest[2]));
+            if let Some(spec) = rest[3..].iter().find_map(|w| w.strip_prefix("as=")) {
+                parsed.relations.push(relation(spec));
+            }
         }
         Ok(parsed)
     }
@@ -161,6 +168,24 @@ fn self_and_same_file_imports_are_dropped_and_unresolved_ones_are_external() {
     assert_eq!(g.nodes, vec!["a.a"]);
     assert!(g.edges.is_empty());
     assert_eq!(g.external, vec!["missing", "serde"]);
+}
+
+#[test]
+fn a_local_import_written_as_a_path_is_not_external() {
+    let index = index_of(&[
+        (
+            "a.a",
+            "def fa imports fb path=b.a as=./b.a\n\
+             def fc imports gone as=./gone.a\n\
+             def fd imports cdn ext as=https://cdn/x\n",
+        ),
+        ("b.a", "def fb\n"),
+    ]);
+    let g = index.dependency_graph("a.a", 1, 50).unwrap();
+    assert_eq!(g.edges, vec![edge("a.a", "b.a", 1)]);
+    // `./b.a` restates the resolved `fb`; a path whose import resolves to
+    // nothing (`./gone.a`) and a proven external stay external.
+    assert_eq!(g.external, vec!["./gone.a", "cdn", "gone", "https://cdn/x"]);
 }
 
 #[test]
