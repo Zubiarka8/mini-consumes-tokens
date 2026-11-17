@@ -114,7 +114,7 @@ impl<'a> Walker<'a> {
             }
         } else {
             let module = match self.globals.import_of(name) {
-                Some(globals::Import::Named(m)) if !member => m,
+                Some(globals::Import::Named { module: m, .. }) if !member => m,
                 Some(globals::Import::Namespace(m)) if member => m,
                 _ => return,
             };
@@ -1034,7 +1034,9 @@ impl<'a> Walker<'a> {
     fn push_identifier_call(&mut self, function: Node, owner: SymbolId) {
         let evidence = self.relation_targets.len();
         self.mark_global(function, false);
-        let name = text(function, self.source);
+        let written = text(function, self.source);
+        // `import { render as draw }`: `draw(…)` calls the export `render`.
+        let name = self.globals.imported_name(written).unwrap_or(written);
         let index = self.relations.len();
         self.push_relation(
             owner,
@@ -1048,7 +1050,7 @@ impl<'a> Walker<'a> {
         match self.relation_targets.get_mut(evidence) {
             Some(target) => target.not_field = true,
             None => {
-                self.bare_calls.push((index, self.bound.contains(name)));
+                self.bare_calls.push((index, self.bound.contains(written)));
                 self.relation_targets.push(RelationTarget {
                     relation: index,
                     not_field: true,
