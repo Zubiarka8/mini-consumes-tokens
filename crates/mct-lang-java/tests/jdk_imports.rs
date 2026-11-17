@@ -88,7 +88,9 @@ fn a_call_on_a_single_type_jdk_import_is_external() {
             "add external",
             "HashSet",
             "add",
-            "requireNonNull",
+            // `import static java.util.Objects.requireNonNull;` in a class
+            // with no supertype and no method of that name: the JDK's.
+            "requireNonNull external",
             "max",
             "size external",
         ]
