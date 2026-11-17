@@ -1,4 +1,4 @@
-# language=bash files=5 symbols=176 relations=595 name_matched_across_files=172
+# language=bash files=5 symbols=176 relations=596 name_matched_across_files=172
 
 == bin/backup.sh (303 lines)
 S 1-303 module backup
@@ -584,6 +584,7 @@ R 194:5 calls log::on_error -> return
 R 198:5 calls log::install_traps -> set
 R 199:5 calls log::install_traps -> trap
 R 200:5 calls log::install_traps -> trap
+R 200:5 calls log::install_traps -> run_cleanup
 R 201:5 calls log::install_traps -> trap
 R 207:5 calls log::retry -> shift
 R 210:13 calls log::retry -> log_error
