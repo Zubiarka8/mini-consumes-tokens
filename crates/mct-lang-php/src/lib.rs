@@ -70,7 +70,8 @@
 //!   `$x = <non-callable>;` is not indexed, matching `mct-lang-python`'s
 //!   choice not to track plain module-level variables.
 //! - `require`/`require_once`/`include`/`include_once` become `Imports`
-//!   only when their argument is a literal string; a computed path
+//!   only when their argument is a literal string (`'x.php'`, or
+//!   `"x.php"` with nothing interpolated, parenthesized or not); a computed path
 //!   (`require __DIR__ . '/x.php';`) has nothing static to record and is
 //!   skipped, same precedent as `mct-lang-bash`'s `source`.
 //! - `new Foo(...)` is a `Calls` relation to `Foo` (the class name, as in
@@ -947,7 +948,8 @@ impl<'a> Walker<'a> {
             | "require_once_expression"
             | "include_expression"
             | "include_once_expression" => {
-                if let Some(target) = node.named_child(0) {
+                // `require_once("x.php")` is `require_once "x.php"`.
+                if let Some(target) = node.named_child(0).map(without_parentheses) {
                     self.push_include_target(owner, target, location(node));
                     if let Some(path) = literal_string_text(target, self.source) {
                         self.push_relation(owner, RelationKind::Imports, path, location(node));
@@ -969,10 +971,16 @@ impl<'a> Walker<'a> {
                     }
                     if let Some(seg) = last_segment(function) {
                         let target = Some(self.function_target(function));
+                        // `use function B\render as draw;`: `draw(…)` calls
+                        // the function by its own name, not the alias.
+                        let imported = (function.kind() == "name")
+                            .then(|| self.scope.resolve_function(text(function, self.source)))
+                            .flatten()
+                            .map(|r| r.name);
                         self.push_targeted(
                             owner,
                             RelationKind::Calls,
-                            text(seg, self.source).to_string(),
+                            imported.unwrap_or_else(|| text(seg, self.source).to_string()),
                             location(seg),
                             target,
                         );
@@ -1497,9 +1505,6 @@ fn named_children(node: Node) -> Vec<Node> {
     node.named_children(&mut cursor).collect()
 }
 
-/// Literal text of a plain `string` node (quotes trimmed), or `None` for
-/// anything computed (concatenation, interpolation, a variable, ...) — only
-/// a literal has a static path worth recording as an `Imports` target.
 /// The value of a string literal that interpolates nothing: `'x'`, or `"x"`
 /// with no variable or expression inside.
 fn plain_string_value(node: Node, source: &str) -> Option<String> {
@@ -1517,16 +1522,23 @@ fn plain_string_value(node: Node, source: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_string())
 }
 
+/// Literal text of a string that interpolates nothing (quotes trimmed),
+/// or `None` for anything computed (concatenation, interpolation, a
+/// variable, ...) — only a literal has a static path worth recording as an
+/// `Imports` target.
 fn literal_string_text(node: Node, source: &str) -> Option<String> {
-    if node.kind() != "string" {
-        return None;
+    plain_string_value(node, source)
+}
+
+/// `node` without the parentheses around it: `("x.php")` is `"x.php"`.
+fn without_parentheses(mut node: Node) -> Node {
+    while node.kind() == "parenthesized_expression" {
+        match node.named_child(0) {
+            Some(inner) => node = inner,
+            None => break,
+        }
     }
-    let trimmed = text(node, source).trim_matches(|c| c == '"' || c == '\'');
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
+    node
 }
 
 /// The lowercase name of every `function` declared anywhere under `node`.
