@@ -1891,6 +1891,16 @@ From `rules.md` and the two messages:
 ||||||| e494d60a
 ||||||| 8894cca0
 ||||||| c3b9fab5
+||||||| 4315f82b
+- [x] JS/TS, `instanceof`: the class on the right of `x instanceof Marker`
+      (also `ns.Marker`, by its last name) is a `references` relation. A
+      parameter shadowing the name records nothing. Probe: a class tested
+      only by `instanceof` was dead code, now it is not; the corpus gains 4
+      relations (`ApiError`).
+||||||| b8808e48
+||||||| e494d60a
+||||||| f5e9d7ae
+||||||| c3b9fab5
   - [x] Kotlin: a callable reference (`::parse`, `Box::size`, `tokens::get`)
         is a `references` relation to the function it names, so a function
         used only that way is not dead code. `Type::name` is qualified by
