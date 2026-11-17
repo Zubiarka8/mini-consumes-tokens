@@ -601,6 +601,12 @@ struct Walker<'a> {
     next_id: SymbolId,
     /// Declared types of the enclosing functions' locals (see `receivers`).
     locals: receivers::Types,
+    /// Top-level functions this file imports, by the name a call uses (the
+    /// alias, or the function's own): `(function, package segment)`.
+    function_imports: std::collections::HashMap<String, (String, String)>,
+    /// Bare calls of an imported name: `(relation, bound name)`, decided in
+    /// `finish` once every declaration of the file is known.
+    import_calls: Vec<(usize, String)>,
     /// What each enclosing class or object body declares, innermost last.
     classes: Vec<receivers::ClassScope>,
     /// The class `this` is, an index into `classes`; `None` inside a
@@ -1055,6 +1061,8 @@ impl<'a> Walker<'a> {
                 let named: Vec<Node> = node.named_children(&mut cursor).collect();
                 if let Some(path) = named.first() {
                     self.push_type_import(owner, text(*path, self.source), location(node));
+                    let alias = named.get(1).map(|a| text(*a, self.source));
+                    self.note_function_import(text(*path, self.source), alias);
                 }
                 let imported = if named.len() >= 2 {
                     // `import a.b.Foo as Bar` — the alias is what call sites use.
@@ -1087,15 +1095,30 @@ impl<'a> Walker<'a> {
                     {
                         self.push_receiver(receiver, text(name_node, self.source));
                     }
+                    // A bare call of an imported function names the function,
+                    // not the alias it is imported under.
+                    let written = text(name_node, self.source);
+                    let bare = node.child(0).is_some_and(|c| c.kind() == "identifier");
+                    let imported = bare
+                        .then(|| self.function_imports.get(written))
+                        .flatten()
+                        .map(|(function, _)| function.clone());
                     // location(name_node), not location(node): a chained call
                     // (`a.f(x).f(y)`) would otherwise collide two distinct
                     // calls into one indistinguishable row.
+                    let relation = self.relations.len();
                     self.push_relation(
                         owner,
                         RelationKind::Calls,
-                        text(name_node, self.source).to_string(),
+                        imported.unwrap_or_else(|| written.to_string()),
                         location(name_node),
                     );
+                    if bare
+                        && self.function_imports.contains_key(written)
+                        && self.relations.len() > relation
+                    {
+                        self.import_calls.push((relation, written.to_string()));
+                    }
                 }
                 self.visit_children(node, owner, type_name, depth + 1);
             }
@@ -1306,7 +1329,58 @@ impl<'a> Walker<'a> {
         });
     }
 
-    fn finish(self) -> ParsedFile {
+    /// `import a.render [as draw]`: a top-level function named by its
+    /// package segment. The last segment must be lowercase (a function or
+    /// property, not a type), the one before it a lowercase package segment,
+    /// and the import no wildcard.
+    fn note_function_import(&mut self, path: &str, alias: Option<&str>) {
+        let segments: Vec<&str> = path
+            .split('.')
+            .map(|s| s.trim().trim_matches('`'))
+            .collect();
+        let [.., package, function] = segments.as_slice() else {
+            return;
+        };
+        let lower = |s: &str| s.starts_with(|c: char| c.is_lowercase());
+        if !lower(function) || !lower(package) || *function == "*" {
+            return;
+        }
+        let bound = alias
+            .unwrap_or(function)
+            .trim()
+            .trim_matches('`')
+            .to_string();
+        // Two imports binding one name prove neither.
+        if self
+            .function_imports
+            .insert(bound.clone(), (function.to_string(), package.to_string()))
+            .is_some()
+        {
+            self.function_imports
+                .insert(bound, (String::new(), String::new()));
+        }
+    }
+
+    fn finish(mut self) -> ParsedFile {
+        // A bare call of an imported name reaches the function under that
+        // package, unless the file declares the name itself.
+        for (relation, bound) in std::mem::take(&mut self.import_calls) {
+            let declared = self.symbols.iter().any(|s| s.name == bound);
+            let Some((function, package)) = self.function_imports.get(&bound) else {
+                continue;
+            };
+            if declared
+                || function.is_empty()
+                || self.relation_targets.iter().any(|t| t.relation == relation)
+            {
+                continue;
+            }
+            self.relation_targets.push(RelationTarget {
+                relation,
+                module: Some(package.clone()),
+                ..Default::default()
+            });
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
