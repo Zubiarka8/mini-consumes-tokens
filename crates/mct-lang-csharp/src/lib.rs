@@ -273,17 +273,20 @@ impl<'a> Walker<'a> {
             }
             // A local function (in a method body or among top-level
             // statements) is a plain function with no owning type; its
-            // calls attach to it, not to the enclosing method.
-            // A local bound to a lambda or anonymous method (`Func<int>
-            // f = () => …;`) is a function, like a local function: it owns
-            // the calls in its body, so a call through the local reaches
-            // it. Any other declarator is walked as before, under `owner`.
+            // Local lambda bindings own their calls, like local functions.
             "local_declaration_statement" if has_named_lambda(node) => {
                 self.visit_local_declaration(node, owner, type_name, depth);
             }
+            // A local function belongs to its enclosing callable.
             "local_function_statement" => {
                 let name = self.field_text(node, "name");
-                let id = self.push_symbol(name, SymbolKind::Function, location(node), None);
+                let enclosing = self
+                    .symbols
+                    .iter()
+                    .find(|s| s.id == owner)
+                    .filter(|s| matches!(s.kind, SymbolKind::Method | SymbolKind::Function))
+                    .map(|s| s.name.clone());
+                let id = self.push_symbol(name, SymbolKind::Function, location(node), enclosing);
                 self.details
                     .push(details::method_detail(node, id, self.source));
                 self.visit_callable(node, id, None, depth);
