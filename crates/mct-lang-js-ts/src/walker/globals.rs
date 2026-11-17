@@ -317,8 +317,12 @@ impl FileGlobals {
                 let mut cursor = pattern.walk();
                 for part in pattern.named_children(&mut cursor) {
                     if part.kind() == "shorthand_property_identifier_pattern" {
-                        let import = Some(Import::Named(module.clone()));
-                        self.bind_import(text(part, source), import);
+                        let name = text(part, source);
+                        let import = Some(Import::Named {
+                            module: module.clone(),
+                            name: name.to_string(),
+                        });
+                        self.bind_import(name, import);
                     } else {
                         self.visit(part, source, depth + 1);
                     }
