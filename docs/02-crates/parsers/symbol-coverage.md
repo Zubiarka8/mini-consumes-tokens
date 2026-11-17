@@ -185,7 +185,7 @@ round to the nearest whole percent, with halves rounded up.
 | C++ | 89% | 28 | 70% | 10 | 0 |
 | Go | 78% | 18 | 90% | 10 | 0 |
 | PHP | 88% | 30 | 95% | 10 | 0 |
-| Lua | 89% | 14 | 80% | 10 | 0 |
+| Lua | 93% | 14 | 80% | 10 | 0 |
 | Bash | 88% | 8 | 80% | 10 | 0 |
 | PowerShell | 81% | 18 | 70% | 10 | 0 |
 
@@ -281,7 +281,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 100% | 83% |
-| Lua | 90% | 100% | 75% | 100% | 80% | 75% | 83% |
+| Lua | 100% | 100% | 75% | 100% | 80% | 75% | 83% |
 | Bash | 100% | 100% | 67% | 100% | 100% | 100% | 33% |
 | PowerShell | 90% | 100% | 50% | 80% | 80% | 100% | 33% |
 
@@ -1356,7 +1356,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Functions and methods**
 
 - [x] Top-level function: `function` and `local function`
-- [~] Nested function (named, inside a function): `function` with no parent
+- [x] Nested function (named, inside a function): `function` whose parent is the innermost enclosing named function
 - [x] Lambda / closure assigned to a name: `local f = function() end` becomes `function`
 - [x] Method: `M.f` and `M:f` become `method` of `M`
 - [x] Operator overload: `Vec.__add = function(a, b)` → `method` of `Vec`
