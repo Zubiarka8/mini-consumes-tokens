@@ -96,6 +96,15 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] Kotlin, literal receivers: `"x".trim()`, `5.toString()` and
+        `'c'.code` are qualified by `String`, `Int` or `Char`, so a
+        same-named method of a repository class is no candidate. Only plain
+        decimal digits that fit an `Int` count (no `L` suffix, radix prefix
+        or larger value), and an extension function the repository declares
+        on that type still resolves (`fun String.shout()`). On a scratch
+        project, `"x".trim()` next to `Util.trim` went from ambiguous to
+        without candidates. Test: `mct-lang-kotlin/tests/literal_receivers.rs`;
+        the corpus snapshot is unchanged.
   - [x] PHP, proven receivers only: `$x->m()` is qualified by the class a
         parameter is typed with (`A $x`, `?A $x`, resolved through `use`
         aliases and the namespace) when the body never assigns `$x`, by the
@@ -141,6 +150,18 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Java: a bare call of a member the file imports statically one by
+        one (`import static a.Fmt.render;`) is that type's method under
+        that package, and a JDK one (`java.lang.Math.max`) is external. A
+        wildcard static import, a name two static imports bind, a method of
+        the name the file declares, and a class that names a superclass or
+        interfaces (or an anonymous class body) prove nothing, because an
+        inherited method hides the import (JLS 6.4.1). On a scratch project
+        with two `Fmt.render`, 1 ambiguous call (2 candidates) became
+        resolved (1). One test changed on purpose:
+        `jdk_imports.rs` pinned `requireNonNull` under
+        `import static java.util.Objects.requireNonNull` as not external,
+        which was the gap. Test: `mct-lang-java/tests/static_imports.rs`;
   - [x] C#: a bare call in a file with exactly one `using static NS.Type;`
         is that type's method under that namespace, or the framework's
         (external) for `System`/`Microsoft`. Several `using static` (which
@@ -167,6 +188,17 @@ From `rules.md` and the two messages:
         declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
         (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
         snapshot is unchanged.
+  - [x] JS/TS: `import { render as draw } from "./b.js"` makes `draw(2)` a
+        call to `render` with module `b` as evidence, so it reaches `b.js`
+        and never another module's `render`. A default import keeps its
+        local name, and a name no single import binds keeps its own. On a
+        scratch project with two modules that both declare `render`, the
+        aliased call went from unresolved to resolved (1). This
+        repository's JS/TS (24744 relations): one relation changes,
+        `describeEvent(…)` in the corpus (`import { describe as
+        describeEvent } from "../order"`), from no candidate to one, the
+        `describe` of `src/order.ts`. The corpus snapshot changes by that
+        one relation. Test: `mct-lang-js-ts/tests/aliased_imports.rs`.
   - [x] Rust: `use bbb_lib::render as draw;` makes `draw()` a call to
         `render` with `bbb_lib` as crate evidence, so it reaches that
         crate's item and never another crate's `render`. A `crate::`,
@@ -486,6 +518,7 @@ From `rules.md` and the two messages:
         are now scored); Lua classes, `extends` through `setmetatable`,
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
+  - [~] Work through the gaps by language group.
   - [ ] Work through the gaps by language group.
     - [x] Java constants: a `static final` field is a `constant` of its
           type, and so is a field of an interface (a `constant_declaration`,
@@ -499,6 +532,18 @@ From `rules.md` and the two messages:
           symbols): the same 3 become constants; no relation names them, so
           resolution is unchanged; dead code 0 -> 0. Java scores 83% -> 85%
           and 38% -> 50% (fields and constants).
+    - [x] C# local functions: a `local_function_statement` has the method
+          or local function it is declared in as `parent` (a lambda in
+          between is transparent; a constructor is a method named after its
+          class). It stays a `function`. Test: `tests/local_functions.rs`;
+          `corpus.rs` pinned `Rollback` with no parent and now expects
+          `PlaceAsync`. Corpus: 3 local functions gain a `Build::`/`Render::`/
+          `PlaceAsync::` prefix, no relation changes. Repository snapshot (16
+          C# files, 496 symbols): the 28 calls to 5 local-function names
+          resolve identically before and after; dead code 0 -> 0. C# scores
+          79% -> 81% and 83% -> 89%. PHP is left out on purpose: a PHP
+          function declared inside another is global once the outer runs, so
+          the outer is not its owner.
     - [x] PowerShell one-line functions: `function F { param($a) $a + 1 }`
           (a statement after `param(...)` on the same line) was a syntax
           error that dropped the whole file. The grammar puts the block in
@@ -509,6 +554,17 @@ From `rules.md` and the two messages:
           PowerShell files fail before and after (`review-check.ps1:29`,
           ERR-002, a different construct). Recorded in
           `errors/HISTORY.md`; the checklist's FN01 cell is `[x]`.
+    - [x] PowerShell comma lists: `Remove-Item a, b -Force` and
+          `Remove-Item Env:A, Env:B` (a bare-word list with a blank after the
+          comma) were a syntax error that dropped the file (ERR-002). On the
+          lines where the grammar reports its error, such a `word, word`
+          becomes one word in a same-offset reparse, kept only when clean.
+          Test: `tests/comma_lists.rs` (real syntax errors still rejected).
+          This repository: PowerShell files that fail 2 of 35 -> 1 of 35
+          (the malformed fixture, ERR-003); `review-check.ps1` gives 23
+          symbols and 14 relations. ERR-002 is `RESOLVED`.
+||||||||| 2922794a
+=========
     - [x] C++ cells re-probed with a current `mct-cli` (`a.cpp` with a macro,
           a `const`, a union, an abstract base, a derived class with a
           mem-initializer, a lambda, `new T()` and `T t;`). Stale cells
@@ -536,6 +592,15 @@ From `rules.md` and the two messages:
           reported as dead code. Still open in the probe: FN03 (`f := func()` in a
           function has no symbol) and `var i P_Iface = s` gives no reference
           to `P_Iface` (#442); RE06 (structural implements) is by design.
+    - [x] Checklist views synced: `checklists/by-language.md`,
+          `by-feature.md` and `by-feature-language.md` were older than the
+          scored lists of `symbol-coverage.md` (the page `coverage_scores`
+          checks). For the twelve source languages, 48 marks and their notes
+          differed (for example Python and JS/TS module constants, Java and
+          Kotlin annotations, C# `: base()`); every one now follows the
+          scored list, and the per-language, per-feature and summary counts
+          are recomputed from the marks. `symbol-coverage.md` and the scores
+          are unchanged. Markup languages untouched.
 ||||||||| d65c494e
 =========
     - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
@@ -547,6 +612,22 @@ From `rules.md` and the two messages:
           behavior, and now expects a constant. Corpus: 6 variables become
           constants, symbol count unchanged. Repository snapshot (52 shell
           files): 601 symbols before and after, dead code 0 -> 0.
+    - [x] Python aliased imports: `from m import f as g` binds `g` to the
+          `f` that `m` defines, so a call `g()`, a decorator `@g`, a base
+          class `g` and a value use of `g` name `f`, with `m` as module
+          evidence; the `Imports` relation names `f` too. A package
+          `__init__.py` re-exporting `from .core import f as g` keeps `f`
+          alive. A name bound again after the import keeps its own name.
+          A call through the re-exported alias (`from pkg import g; g()`)
+          stays unresolved: following it needs the other file. Test:
+          `tests/aliased_imports.rs` (truth checked with `python3`);
+          `corpus.rs` and `parse.rs` pinned the alias as the imported name
+          (`m`, `svc`, `SqlRepo`, `dd`) and now expect the original.
+          Corpus: symbols and relations unchanged (643, 1504), 5 more
+          relations name a definition of another file; the Django
+          `ValidationError as DjangoValidationError` stays unresolved in
+          the index (module evidence `exceptions`). Repository snapshot (86
+          Python files): 1544 symbols, dead code 45 -> 45.
     - [x] CSS statement at-rules with a string prelude: `@source "./";`
           and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
           rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
@@ -600,6 +681,16 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] JS/TS dynamic import bindings: `const m = await
+          import("./lazy")` binds `m` to the module and `const { load } =
+          await import("./lazy")` binds `load` to its export, as a static
+          `import * as` / `import { }` does, and so does the one parameter
+          of `import("./lazy").then((m) => …)`. Calls through them carry
+          the module as evidence and resolve to `lazy`'s definition, never
+          a same-named one elsewhere. A promise kept without `await`, a
+          renamed destructuring and a name bound again get no evidence.
+          Test: `tests/dynamic_imports.rs` (red before, green after; each
+          case run with Node 24).
     - [x] CSS custom properties and `@keyframes`: each custom property
           declaration (`--brand: red`) is a `variable` symbol and each
           `@keyframes spin` an `animation` symbol (also inside Tailwind's
@@ -1582,11 +1673,6 @@ From `rules.md` and the two messages:
     interface) and an overriding method with no marker. Naming it would be a
     shared-name match, which D8 rules out.
   - Result: no language is missing a relation its syntax states.
-- [ ] Language-specific features (3.4), each checked against the real
-      grammar.
-- [ ] Positive and negative fixtures for each language (3.5).
-- [ ] Relations: inheritance, implementations and overrides (3.3, depends on
-      D8).
 - [x] Language-specific features (3.4), each checked against the real
       grammar. For every code language the grammar crate's
       `node-types.json` was compared with the node kinds the parser
@@ -1662,9 +1748,6 @@ From `rules.md` and the two messages:
         Test: `mct-lang-rust/tests/inline_modules.rs`
         `a_method_reached_through_an_inline_module_and_its_type_resolves`
         (unresolved with 0 candidates before, resolved with 1 after).
-  - [ ] `m::Type::f()`: the method's parent is the type, so the module
-        evidence finds no candidate. Matching it needs the view to look at
-        the type's parent (a migration): #478.
 - [x] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
@@ -1684,7 +1767,7 @@ From `rules.md` and the two messages:
         L496-L695, `400` L696-L849 with no footer. Test: `context_pack.rs`
         `source_offset_pages_past_the_source_lines_cap`; the capped-footer
         test now expects the new wording.
-- [ ] False positives in impact analysis and dead code (D7 #331 covers part
+- [~] False positives in impact analysis and dead code (D7 #331 covers part
       of this).
   - [x] Python: a function or class passed by name as an argument
         (`safely(score_verdicts, …)`, `sorted(rows, key=rank)`,
@@ -1708,6 +1791,13 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] C#, `static Main`: a class or struct declaring `static ... Main(...)`
+      carries an entry-point hint (`dotnet`, `static-main`), as a framework
+      convention does. It stays a dead-code candidate, since a project can
+      name another entry point, and `find_dead_code` shows
+      `possible_entry_point` next to it. An instance `Main`, `main` and a
+      class without one carry no hint. Probe: `Program` was listed with no
+      note, now it carries one.
 - [x] Python, `__all__`: each string of a module-level `__all__ = [...]`
       (or `+=`, list or tuple) that names a `def` or `class` of the file is
       a `references` relation from the module, pinned to the file, so a
