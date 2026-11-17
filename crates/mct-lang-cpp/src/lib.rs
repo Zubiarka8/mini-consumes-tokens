@@ -572,6 +572,7 @@ impl<'a> Walker<'a> {
                     self.visit(function, ctx, depth + 1);
                 }
                 if let Some(arguments) = node.child_by_field_name("arguments") {
+                    self.reference_function_arguments(arguments, ctx.owner);
                     self.visit_children(arguments, ctx, depth + 1);
                 }
             }
@@ -622,6 +623,34 @@ impl<'a> Walker<'a> {
                 self.visit_children(node, ctx, depth + 1);
             }
             _ => self.visit_children(node, ctx, depth + 1),
+        }
+    }
+
+    /// Each argument of a call that is a bare name of a function of this
+    /// file is a `References` relation from `owner`: the function is passed
+    /// as a callback (`std::transform(a, b, out, dbl)`). A parameter of an
+    /// enclosing function with that name shadows it; a variable or an
+    /// unknown name is no function and records nothing.
+    fn reference_function_arguments(&mut self, arguments: Node<'a>, owner: SymbolId) {
+        let mut cursor = arguments.walk();
+        let values: Vec<Node<'a>> = arguments.named_children(&mut cursor).collect();
+        for value in values {
+            if value.kind() != "identifier" {
+                continue;
+            }
+            let name = text(value, self.source);
+            let is_function = self
+                .symbols
+                .iter()
+                .any(|s| s.name == name && s.kind == SymbolKind::Function);
+            if is_function && !is_enclosing_parameter(value, name, self.source) {
+                self.push_relation(
+                    owner,
+                    RelationKind::References,
+                    name.to_string(),
+                    location(value),
+                );
+            }
         }
     }
 
@@ -1397,4 +1426,36 @@ fn opens_std(node: Node, source: &str, depth: u32) -> bool {
         .named_children(&mut cursor)
         .any(|child| opens_std(child, source, depth + 1));
     found
+}
+
+/// Whether `name` is a parameter of a function enclosing `node`.
+fn is_enclosing_parameter(node: Node, name: &str, source: &str) -> bool {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        if ancestor.kind() == "function_definition" {
+            let mut declarator = ancestor.child_by_field_name("declarator");
+            while let Some(d) = declarator {
+                if d.kind() == "function_declarator" {
+                    return d
+                        .child_by_field_name("parameters")
+                        .is_some_and(|params| declares_identifier(params, name, source));
+                }
+                declarator = d.child_by_field_name("declarator");
+            }
+        }
+        current = ancestor.parent();
+    }
+    false
+}
+
+/// Whether an `identifier` named `name` appears under `node`.
+fn declares_identifier(node: Node, name: &str, source: &str) -> bool {
+    if node.kind() == "identifier" && text(node, source) == name {
+        return true;
+    }
+    let mut cursor = node.walk();
+    let children: Vec<Node> = node.named_children(&mut cursor).collect();
+    children
+        .into_iter()
+        .any(|child| declares_identifier(child, name, source))
 }
