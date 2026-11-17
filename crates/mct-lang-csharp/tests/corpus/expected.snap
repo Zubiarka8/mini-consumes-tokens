@@ -236,8 +236,8 @@ R 282:41 references Http::StatusFor -> ErrorCode
 R 292:24 references ErrorCatalog::Build -> Dictionary
 R 292:35 references ErrorCatalog::Build -> ErrorCode
 R 292:46 references ErrorCatalog::Build -> Entry
-R 295:22 references Add -> ErrorCode
-R 295:52 references Add -> Severity
+R 295:22 references Build::Add -> ErrorCode
+R 295:52 references Build::Add -> Severity
 R 307:38 references ErrorCatalog::Explain -> WarehouseException
 R 316:23 references ErrorCatalog::SeverityOf -> Severity
 R 316:43 references ErrorCatalog::SeverityOf -> Exception
@@ -1068,7 +1068,7 @@ R 135:23 references Renderers::Get -> IRenderer
 R 138:23 references Renderers::Names -> IEnumerable
 R 144:32 references TextRenderer::Render -> TextWriter
 R 144:83 references TextRenderer::Render -> Table
-R 157:38 references WriteRow -> TextWriter
+R 157:38 references Render::WriteRow -> TextWriter
 R 164:59 references TextRenderer::Widths -> Table
 R 186:35 references CsvRenderer::Render -> TextWriter
 R 186:86 references CsvRenderer::Render -> Table
