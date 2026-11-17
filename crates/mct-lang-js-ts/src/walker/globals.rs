@@ -110,8 +110,10 @@ pub(super) struct FileGlobals {
 /// package.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Import {
-    /// `import { f } from "m"`, `import f from "m"`: a definition of `m`.
-    Named(String),
+    /// `import { f } from "m"`, `import f from "m"`: the definition `name` of
+    /// module `module` (`render` for `import { render as draw }`; a default
+    /// import keeps its local name).
+    Named { module: String, name: String },
     /// `import * as m from "m"`: the module itself.
     Namespace(String),
 }
@@ -130,6 +132,15 @@ impl FileGlobals {
     }
 
     /// The import a name is bound by, when nothing else binds it.
+    /// The name a bare `local` was exported under by its module, when an
+    /// import is its only binding (`render` for `import { render as draw }`).
+    pub(super) fn imported_name(&self, local: &str) -> Option<&str> {
+        match self.import_of(local)? {
+            Import::Named { name, .. } => Some(name),
+            Import::Namespace(_) => None,
+        }
+    }
+
     pub(super) fn import_of(&self, name: &str) -> Option<&Import> {
         if self.opaque || self.rebound.contains(name) {
             return None;
@@ -170,7 +181,12 @@ impl FileGlobals {
         for part in clause.named_children(&mut cursor) {
             match part.kind() {
                 "identifier" => {
-                    self.bind_import(text(part, source), module.clone().map(Import::Named));
+                    let local = text(part, source);
+                    let import = module.clone().map(|module| Import::Named {
+                        module,
+                        name: local.to_string(),
+                    });
+                    self.bind_import(local, import);
                 }
                 "namespace_import" => {
                     if let Some(name) = part.named_child(0) {
@@ -185,7 +201,13 @@ impl FileGlobals {
                             .child_by_field_name("alias")
                             .or_else(|| spec.child_by_field_name("name"));
                         if let Some(local) = local.filter(|l| l.kind() == "identifier") {
-                            let import = module.clone().map(Import::Named);
+                            let original = spec
+                                .child_by_field_name("name")
+                                .map_or(text(local, source), |n| text(n, source));
+                            let import = module.clone().map(|module| Import::Named {
+                                module,
+                                name: original.to_string(),
+                            });
                             self.bind_import(text(local, source), import);
                         }
                     }
