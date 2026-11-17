@@ -554,6 +554,16 @@ From `rules.md` and the two messages:
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [~] Work through the gaps by language group.
   - [ ] Work through the gaps by language group.
+    - [x] C# `const` members: a `const` field is a `constant` of its type, one
+          per declarator, as Rust's `const`, C++'s `constexpr` and Kotlin's
+          `const val`. `static readonly` and `readonly` stay `field`s (run-time
+          values), a local `const` is no symbol, as before. Test:
+          `tests/const_fields.rs`. Neither the corpus nor this repository's
+          16 C# files declares a `const`, so their snapshots and dead code
+          are unchanged: the unit test is the only evidence. C# scores 79% ->
+          81% and 30% -> 40% (fields and constants).
+||||||| b8808e48
+||||||| e494d60a
     - [x] Java constants: a `static final` field is a `constant` of its
           type, and so is a field of an interface (a `constant_declaration`,
           implicitly `public static final`, which was not indexed at all
