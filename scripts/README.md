@@ -20,6 +20,7 @@ The CI planner, used by `.github/workflows/ci.yml` and `ci-recovery.yml`. It nee
 | Command | What it does |
 |---|---|
 | `python3 scripts/ci/main.py plan --base <sha> [--head <sha>] [--event E]` | Risk level R0 to R4, the crates and platforms to test, and one reason per changed path, from `git diff` against the merge base, `cargo metadata` and `ci_policy.toml`. A missing base, an unknown path or a failed `cargo metadata` means the full suite. `--strict` makes them an error instead. |
+| `python3 scripts/ci/main.py plan --event schedule --scope extra` | The platform matrix of `ci-full.yml`: every target a PR does not test. `--scope all` gives all eight. |
 | `python3 scripts/ci/main.py run … --dry-run` | The cargo build, test and clippy commands the plan selects. Without `--dry-run` it runs them and stops at the first failure. |
 | `python3 scripts/ci/main.py gate` | The `ci-gate` job: reads `toJSON(needs)` from `$NEEDS_JSON` and fails unless every required job succeeded. |
 | `python3 scripts/ci/main.py recovery --repo R --run ID [--apply]` | Classifies a run's failed jobs as infrastructure or code failures. `--apply` reruns only the infrastructure ones, within `max_attempts`. Needs `gh`. |

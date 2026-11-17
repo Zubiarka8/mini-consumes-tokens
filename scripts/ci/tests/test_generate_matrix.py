@@ -45,6 +45,16 @@ class Matrix(unittest.TestCase):
         matrix = build(full_plan("t"), POLICY, scope="all")
         self.assertEqual({e["target"] for e in matrix.include}, RELEASE_WORKFLOW_TARGETS)
 
+    def test_extra_scope_is_every_platform_a_pull_request_does_not_test(self):
+        extra = {e["id"] for e in build(full_plan("t"), POLICY, scope="extra").include}
+        pr = {e["id"] for e in build(full_plan("t"), POLICY, scope="pr").include}
+        self.assertFalse(extra & pr)
+        self.assertEqual(extra | pr, {p["id"] for p in POLICY["platforms"]})
+
+    def test_unknown_scope_is_rejected(self):
+        with self.assertRaises(MatrixError):
+            build(full_plan("t"), POLICY, scope="everything")
+
     def test_release_workflow_targets_match_the_policy(self):
         text = (Path(__file__).resolve().parents[3] / ".github/workflows/release.yml").read_text()
         found = set(re.findall(r"target:\s*([a-z0-9_]+-[a-z0-9_-]+)", text))
@@ -52,7 +62,7 @@ class Matrix(unittest.TestCase):
 
     def test_no_duplicates_and_every_platform_accounted_for(self):
         for plan in (full_plan("t"), classify(changes("docs/a.md"), graph(), POLICY)):
-            for scope in ("pr", "all"):
+            for scope in ("pr", "extra", "all"):
                 matrix = build(plan, POLICY, scope)
                 listed = ids(matrix) + [pid for pid, _ in matrix.skipped]
                 self.assertEqual(sorted(listed), sorted(p["id"] for p in POLICY["platforms"]))
