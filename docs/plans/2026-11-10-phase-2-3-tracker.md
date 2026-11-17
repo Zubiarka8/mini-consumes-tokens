@@ -162,6 +162,18 @@ From `rules.md` and the two messages:
         third-party module, went from 7 wrong candidates to none. Test:
         `mct-lang-lua/tests/require_calls.rs`; the corpus snapshot is
         unchanged.
+||||||| b8808e48
+  - [x] Kotlin: a bare call of a function the file imports
+        (`import a.render`, or `import b.render as draw` and `draw(1)`)
+        carries the package segment as module evidence, so it reaches the
+        `render` under `a/` and not another package's. An aliased call is
+        recorded under the function's own name. A name the file declares, a
+        wildcard import, a type import (uppercase last segment) and a name
+        two imports bind prove nothing. On a scratch project with two
+        packages that both declare `render`, 2 calls became resolved (1
+        candidate) from ambiguous (2) and unresolved (the alias). Test:
+        `mct-lang-kotlin/tests/function_imports.rs`; the corpus snapshot is
+        unchanged.
   - [x] Java: a bare call of a member the file imports statically one by
         one (`import static a.Fmt.render;`) is that type's method under
         that package, and a JDK one (`java.lang.Math.max`) is external. A
@@ -532,6 +544,17 @@ From `rules.md` and the two messages:
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [~] Work through the gaps by language group.
   - [ ] Work through the gaps by language group.
+    - [x] Lua nested functions: a named function declared inside another
+          (`local function helper()` or `function g()` in a body, an
+          anonymous function around it is transparent) has the innermost
+          enclosing named function as `parent`, as the Python and JS/TS
+          nested functions do. A `function M.x()` or `M:m()` keeps its table.
+          It stays a `function`, not a `method`. Test:
+          `tests/nested_functions.rs`. Corpus: 3 nested functions gain a
+          `start_refresher::`/`packing_slip::` prefix, no relation changes.
+          Repository snapshot (19 Lua files, 456 symbols): all 6 calls to
+          the 4 nested names stay resolved to the same functions; dead code
+          0 -> 0. Lua scores 86% -> 89% and 90% -> 100% (constructs).
     - [x] C# local functions: a `local_function_statement` has the method
           or local function it is declared in as `parent` (a lambda in
           between is transparent; a constructor is a method named after its
@@ -681,6 +704,17 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] HTML inline event handlers: an `on<event>` attribute
+          (`onclick="save()"`, any case) runs its value as JavaScript, so
+          each function it calls by bare name is a `calls` relation, scoped
+          to a JavaScript `function` (`language`, `kind`). A member call
+          (`form.reset()`), a keyword, the name after `new` or `function`,
+          text in a string literal and any other attribute call nothing.
+          Test: `tests/event_handlers.rs` (HTML, JS and CSS parsers in one
+          index; a same-named CSS rule never matches). Probe: `clicked` in
+          `app.js`, called only from `onclick`, was dead code and is now
+          resolved; `neverUsed` stays a candidate. This repository's 56
+          HTML and JS files (bundles excluded): dead code 0 -> 0.
     - [x] JS/TS dynamic import bindings: `const m = await
           import("./lazy")` binds `m` to the module and `const { load } =
           await import("./lazy")` binds `load` to its export, as a static
@@ -1791,6 +1825,13 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] Bash: `trap handler SIGNAL` calls `handler` when the handler is a
+        single plain word (`trap cleanup EXIT`, `trap 'on_err' ERR`), so a
+        trap handler is not dead code. A command string (`trap 'echo bye;
+        exit' EXIT`), `-`, `''`, `-p`/`-l` and an expansion name nothing.
+        Corpus: +1 call (`trap run_cleanup EXIT` in `lib/log.sh`), symbols
+        unchanged. Probe on a tiny tree: dead code listed `cleanup` before.
+        Test: `mct-lang-bash/tests/trap_handlers.rs`.
 - [x] C#, `static Main`: a class or struct declaring `static ... Main(...)`
       carries an entry-point hint (`dotnet`, `static-main`), as a framework
       convention does. It stays a dead-code candidate, since a project can
