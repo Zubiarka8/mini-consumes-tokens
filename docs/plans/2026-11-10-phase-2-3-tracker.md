@@ -1786,6 +1786,14 @@ From `rules.md` and the two messages:
       pinned, `std::` is external, built-ins and template parameters give
       none). Stacked on #441. Corpus: 809 -> 823 relations, all `std::`
       or same-file types.
+- [x] C++, template arguments: a type written as a template argument
+      (`Box<Tag>`, `std::vector<std::pair<Row, int>>`, nested to any depth)
+      is a `references` relation with the evidence a declared type gets.
+      `type_uses.rs` now also expects `std::mutex` in
+      `std::lock_guard<std::mutex>` (on purpose). Stacked on #516. Corpus:
+      823 -> 852 relations.
+||||||||| df269981
+=========
 - [x] C#, `static Main`: a class or struct declaring `static ... Main(...)`
       carries an entry-point hint (`dotnet`, `static-main`), as a framework
       convention does. It stays a dead-code candidate, since a project can
