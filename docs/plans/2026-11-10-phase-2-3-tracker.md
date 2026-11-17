@@ -1696,6 +1696,13 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] C#, `static Main`: a class or struct declaring `static ... Main(...)`
+      carries an entry-point hint (`dotnet`, `static-main`), as a framework
+      convention does. It stays a dead-code candidate, since a project can
+      name another entry point, and `find_dead_code` shows
+      `possible_entry_point` next to it. An instance `Main`, `main` and a
+      class without one carry no hint. Probe: `Program` was listed with no
+      note, now it carries one.
 - [x] Python, `__all__`: each string of a module-level `__all__ = [...]`
       (or `+=`, list or tuple) that names a `def` or `class` of the file is
       a `references` relation from the module, pinned to the file, so a
