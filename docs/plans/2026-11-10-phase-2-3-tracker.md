@@ -1872,6 +1872,20 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] Rust, `macro_rules!` body (grammar check, 3.4): the transcriber of a
+      rule (`helper($x) * 2`, `util::run($x)`) is walked with the macro as
+      owner, so a function it names is used and is no longer reported as
+      dead code; the matcher side and a metavariable named like a function
+      record nothing. Probe: `helper`, called only inside a macro, was dead
+      code, now it is not. Corpus: 1 new relation
+      (`bounded -> InventoryError::Validation`).
+||||||| b8808e48
+||||||| e494d60a
+||||||| f5e9d7ae
+||||||| c3b9fab5
+||||||| 4315f82b
+||||||| 3dd37981
+||||||| a349b1b8
 - [x] C++, casts and alias targets: the type in `static_cast<T*>`,
       `dynamic_cast`, `reinterpret_cast`, `const_cast`, a C-style
       `(T*)p` cast and the target of `using Name = T;` is a `references`
