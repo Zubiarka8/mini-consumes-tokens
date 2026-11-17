@@ -520,6 +520,17 @@ From `rules.md` and the two messages:
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [~] Work through the gaps by language group.
   - [ ] Work through the gaps by language group.
+    - [x] Lua nested functions: a named function declared inside another
+          (`local function helper()` or `function g()` in a body, an
+          anonymous function around it is transparent) has the innermost
+          enclosing named function as `parent`, as the Python and JS/TS
+          nested functions do. A `function M.x()` or `M:m()` keeps its table.
+          It stays a `function`, not a `method`. Test:
+          `tests/nested_functions.rs`. Corpus: 3 nested functions gain a
+          `start_refresher::`/`packing_slip::` prefix, no relation changes.
+          Repository snapshot (19 Lua files, 456 symbols): all 6 calls to
+          the 4 nested names stay resolved to the same functions; dead code
+          0 -> 0. Lua scores 86% -> 89% and 90% -> 100% (constructs).
     - [x] C# local functions: a `local_function_statement` has the method
           or local function it is declared in as `parent` (a lambda in
           between is transparent; a constructor is a method named after its

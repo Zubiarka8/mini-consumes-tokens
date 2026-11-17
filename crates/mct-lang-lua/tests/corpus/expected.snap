@@ -384,7 +384,7 @@ S 162-186 method M::start_refresher
 S 164-172 variable start_refresher::refresh_batch
 S 166-166 variable start_refresher::_
 S 166-166 variable start_refresher::sku
-S 173-180 function tick
+S 173-180 function start_refresher::tick
 S 177-177 variable tick::_
 S 181-181 variable start_refresher::ok
 S 181-181 variable start_refresher::err
@@ -465,7 +465,7 @@ R 166:21 calls M::start_refresher -> ipairs
 R 167:15 calls M::start_refresher -> invalidate
 R 168:15 calls M::start_refresher -> get
 R 169:19 calls M::start_refresher -> yield
-R 178:7 calls tick -> refresh_batch
+R 178:7 calls start_refresher::tick -> refresh_batch
 R 181:29 calls M::start_refresher -> every
 R 181:45 references M::start_refresher -> tick
 R 183:47 calls M::start_refresher -> tostring
@@ -736,8 +736,8 @@ S 238-238 variable largest::sorted
 S 242-242 variable largest::top
 S 243-243 variable largest::i
 S 250-265 method M::packing_slip
-S 252-254 function rule
-S 255-257 function row
+S 252-254 function packing_slip::rule
+S 255-257 function packing_slip::row
 S 258-258 variable packing_slip::out
 S 259-259 variable packing_slip::_
 S 259-259 variable packing_slip::line
@@ -801,8 +801,8 @@ R 239:9 calls M::largest -> sort
 R 240:14 calls M::largest -> total
 R 240:26 calls M::largest -> total
 R 243:19 calls M::largest -> min
-R 253:19 calls rule -> rep
-R 256:27 calls row -> rep
+R 253:19 calls packing_slip::rule -> rep
+R 256:27 calls packing_slip::row -> rep
 R 258:17 calls M::packing_slip -> rule
 R 258:25 calls M::packing_slip -> row
 R 258:55 calls M::packing_slip -> rule
