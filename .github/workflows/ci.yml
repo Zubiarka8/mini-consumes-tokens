@@ -52,6 +52,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Trust the workspace (container user differs from the checkout owner)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: dtolnay/rust-toolchain@1.96.0
         with:
           components: rustfmt
@@ -71,6 +74,9 @@ jobs:
       options: --cpus 4 --memory 6g
     steps:
       - uses: actions/checkout@v4
+
+      - name: Trust the workspace (container user differs from the checkout owner)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/setup-node@v4
         with:
@@ -121,6 +127,9 @@ jobs:
     container: *rust-container
     steps:
       - uses: actions/checkout@v4
+
+      - name: Trust the workspace (container user differs from the checkout owner)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: dtolnay/rust-toolchain@1.96.0
         with:
@@ -229,6 +238,10 @@ jobs:
     container: *rust-container
     steps:
       - uses: actions/checkout@v4
+
+      - name: Trust the workspace (container user differs from the checkout owner)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - uses: dtolnay/rust-toolchain@1.96.0
       - uses: taiki-e/install-action@v2
         with:
