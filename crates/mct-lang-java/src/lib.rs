@@ -548,14 +548,22 @@ impl<'a> Walker<'a> {
                 self.locals = outer_locals;
                 self.generics.truncate(generics_len);
             }
-            "field_declaration" => {
+            // An interface's fields are `constant_declaration`s, implicitly
+            // `public static final` (JLS §9.3); a class's `static final`
+            // field is a constant too.
+            "field_declaration" | "constant_declaration" => {
+                let kind = if node.kind() == "constant_declaration" || is_static_final(node) {
+                    SymbolKind::Constant
+                } else {
+                    SymbolKind::Field
+                };
                 let mut cursor = node.walk();
                 for declarator in node.children(&mut cursor) {
                     if declarator.kind() == "variable_declarator" {
                         if let Some(name_node) = declarator.child_by_field_name("name") {
                             let id = self.push_symbol(
                                 text(name_node, self.source).to_string(),
-                                SymbolKind::Field,
+                                kind,
                                 location(declarator),
                                 type_name.map(str::to_string),
                             );
@@ -999,6 +1007,16 @@ fn collect_type_identifiers<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
 
 /// Last `identifier` in a possibly-dotted import path
 /// (`scoped_identifier` chains), i.e. the imported class/member name.
+/// Whether `declaration`'s modifiers hold both `static` and `final`.
+fn is_static_final(declaration: Node) -> bool {
+    let Some(modifiers) = find_child(declaration, "modifiers") else {
+        return false;
+    };
+    let mut cursor = modifiers.walk();
+    let kinds: Vec<&str> = modifiers.children(&mut cursor).map(|c| c.kind()).collect();
+    kinds.contains(&"static") && kinds.contains(&"final")
+}
+
 fn last_identifier(node: Node) -> Option<Node> {
     match node.kind() {
         "identifier" => Some(node),
