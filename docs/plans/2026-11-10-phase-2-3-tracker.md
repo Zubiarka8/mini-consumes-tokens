@@ -1888,6 +1888,28 @@ From `rules.md` and the two messages:
 ||||||| c3b9fab5
 ||||||| 4315f82b
 ||||||| 3dd37981
+||||||| a349b1b8
+- [x] C++, casts and alias targets: the type in `static_cast<T*>`,
+      `dynamic_cast`, `reinterpret_cast`, `const_cast`, a C-style
+      `(T*)p` cast and the target of `using Name = T;` is a `references`
+      relation with the evidence a declared type gets (this file's type is
+      pinned, `std::` is external, built-ins and template parameters give
+      none). Stacked on #441. Corpus: 809 -> 823 relations, all `std::`
+      or same-file types.
+- [x] C++, template arguments: a type written as a template argument
+      (`Box<Tag>`, `std::vector<std::pair<Row, int>>`, nested to any depth)
+      is a `references` relation with the evidence a declared type gets.
+      `type_uses.rs` now also expects `std::mutex` in
+      `std::lock_guard<std::mutex>` (on purpose). Stacked on #516. Corpus:
+      823 -> 852 relations.
+||||||||| df269981
+=========
+||||||| b8808e48
+||||||| e494d60a
+||||||| 8894cca0
+||||||| c3b9fab5
+||||||| 4315f82b
+||||||| 3dd37981
   - [x] Java: a type named in a field, parameter, return type, `throws`,
         local, generic argument, cast, `instanceof` or class literal
         (`Kind.class`) is a `references` relation, so a class or interface
