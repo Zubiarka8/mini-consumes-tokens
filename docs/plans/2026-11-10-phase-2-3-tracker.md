@@ -531,6 +531,19 @@ From `rules.md` and the two messages:
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [~] Work through the gaps by language group.
   - [ ] Work through the gaps by language group.
+    - [x] Java constants: a `static final` field is a `constant` of its
+          type, and so is a field of an interface (a `constant_declaration`,
+          implicitly `public static final`, which was not indexed at all
+          before), one per declarator. A `final` instance field, a `static`
+          non-final field and an enum constant stay `field`s. Test:
+          `tests/static_final_constants.rs`. Corpus: 3 fields become
+          constants (`Orders::INSERT`, `OrderService::LOG`,
+          `Money::DEFAULT_ROUNDING`), symbol count unchanged (the corpus has
+          no interface constant). Repository snapshot (15 Java files, 462
+          symbols): the same 3 become constants; no relation names them, so
+          resolution is unchanged; dead code 0 -> 0. Java scores 83% -> 85%
+          and 38% -> 50% (fields and constants).
+||||||| b8808e48
     - [x] Lua nested functions: a named function declared inside another
           (`local function helper()` or `function g()` in a body, an
           anonymous function around it is transparent) has the innermost

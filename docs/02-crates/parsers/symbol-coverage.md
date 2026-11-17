@@ -179,7 +179,7 @@ round to the nearest whole percent, with halves rounded up.
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 91% | 29 | 95% | 10 | 0 |
 | JS/TS | 89% | 33 | 100% | 10 | 1 |
-| Java | 83% | 27 | 85% | 10 | 0 |
+| Java | 85% | 27 | 85% | 10 | 0 |
 | Kotlin | 83% | 35 | 85% | 10 | 0 |
 | C# | 88% | 34 | 90% | 10 | 0 |
 | C++ | 89% | 28 | 70% | 10 | 0 |
@@ -275,7 +275,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Rust | 100% | 100% | 100% | 90% | 80% | 100% | 100% |
 | Python | 100% | 100% | 50% | 100% | 100% | 100% | 83% |
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 100% | 100% |
-| Java | 80% | 90% | 38% | 100% | 100% | 75% | 67% |
+| Java | 80% | 90% | 50% | 100% | 100% | 75% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 100% | 100% | 50% |
 | C# | 100% | 96% | 50% | 88% | 90% | 75% | 100% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
@@ -1007,7 +1007,7 @@ percentages and denominators; these checklists provide the scored evidence.
 **Fields, constants and variables**
 
 - [x] Field / instance attribute: `field`
-- [~] Constant (module or global): `static final` is a `field`
+- [x] Constant (module or global): a `static final` field and an interface field are `constant`s of their type; a `final` instance field stays a `field`
 - [ ] Local variable
 - [ ] Parameter
 
