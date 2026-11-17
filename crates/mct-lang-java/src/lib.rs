@@ -201,6 +201,14 @@ struct Walker<'a> {
     supertypes: Vec<Vec<Supertype>>,
     /// Type names that a single-type JDK import binds in this file (D9).
     jdk: jdk::JdkImports,
+    /// Members this file imports statically one by one
+    /// (`import static a.Fmt.render;`), by name: `(type, package segment,
+    /// is the JDK's)`. A name two such imports bind is an empty entry.
+    static_imports: std::collections::HashMap<String, (String, String, bool)>,
+    /// Bare calls of a statically imported name: `(index in
+    /// `relation_targets`, name)`, decided in `finish` once every
+    /// declaration of the file is known.
+    static_calls: Vec<(usize, String)>,
     /// Types declaring the launcher's `main` method (see `main_hint`).
     entry_points: Vec<mct_core::EntryPointHint>,
 }
@@ -615,6 +623,12 @@ impl<'a> Walker<'a> {
             "import_declaration" => {
                 if let Some(path) = node.named_child(0) {
                     self.push_type_import(owner, text(path, self.source), location(node));
+                    if node
+                        .children(&mut node.walk())
+                        .any(|c| c.kind() == "static")
+                    {
+                        self.note_static_import(text(path, self.source));
+                    }
                     if let Some(last) = last_identifier(path) {
                         self.push_relation(
                             owner,
@@ -636,6 +650,14 @@ impl<'a> Walker<'a> {
                     // (D9): the single-type import shadows the package's own
                     // types, so no repository method is the target.
                     let external = qualifier.as_deref().is_some_and(|q| self.jdk.is_jdk(q));
+                    let name = text(name_node, self.source);
+                    if node.child_by_field_name("object").is_none()
+                        && self.static_imports.contains_key(name)
+                        && !inherits_members(node)
+                    {
+                        self.static_calls
+                            .push((self.relation_targets.len(), name.to_string()));
+                    }
                     self.relation_targets.push(RelationTarget {
                         relation: self.relations.len(),
                         kind: Some(SymbolKind::Method),
@@ -859,7 +881,54 @@ impl<'a> Walker<'a> {
         );
     }
 
-    fn finish(self) -> ParsedFile {
+    /// `import static a.Fmt.render;`: a member named after its type and
+    /// package segment. A wildcard, a type import (uppercase last segment)
+    /// and a path with no type before the member prove nothing.
+    fn note_static_import(&mut self, path: &str) {
+        let segments: Vec<&str> = path.split('.').map(str::trim).collect();
+        let [.., package, ty, member] = segments.as_slice() else {
+            return;
+        };
+        let upper = |s: &str| s.starts_with(|c: char| c.is_ascii_uppercase());
+        if upper(member) || !upper(ty) || package.is_empty() || *member == "*" {
+            return;
+        }
+        let jdk = matches!(segments.first(), Some(&"java" | &"javax"));
+        let entry = (ty.to_string(), package.to_string(), jdk);
+        // Two static imports binding one name prove neither.
+        if self
+            .static_imports
+            .insert(member.to_string(), entry)
+            .is_some()
+        {
+            self.static_imports
+                .insert(member.to_string(), Default::default());
+        }
+    }
+
+    fn finish(mut self) -> ParsedFile {
+        // A bare call of a statically imported name reaches that member,
+        // unless the file declares a method of the name: a declared method
+        // hides the import.
+        for (index, name) in std::mem::take(&mut self.static_calls) {
+            let declared = self
+                .symbols
+                .iter()
+                .any(|s| s.name == name && s.kind == SymbolKind::Method);
+            let Some((ty, package, jdk)) = self.static_imports.get(&name) else {
+                continue;
+            };
+            if declared || ty.is_empty() {
+                continue;
+            }
+            let target = &mut self.relation_targets[index];
+            if *jdk {
+                target.external = true;
+            } else {
+                target.qualifier = Some(ty.clone());
+                target.module = Some(package.clone());
+            }
+        }
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
@@ -897,6 +966,43 @@ impl<'a> Walker<'a> {
             ..Default::default()
         });
     }
+}
+
+/// Whether a class around `node` may inherit a method: it names a
+/// superclass or interfaces, or it is the body of an anonymous class
+/// (`new Base() { … }`). An inherited method hides a static import of the
+/// same name (JLS 6.4.1), and its declaration is not in this file.
+fn inherits_members(node: Node) -> bool {
+    let mut ancestor = node.parent();
+    while let Some(parent) = ancestor {
+        match parent.kind() {
+            "class_declaration"
+            | "interface_declaration"
+            | "enum_declaration"
+            | "record_declaration" => {
+                let mut cursor = parent.walk();
+                let inherits = parent.children(&mut cursor).any(|c| {
+                    matches!(
+                        c.kind(),
+                        "superclass" | "super_interfaces" | "extends_interfaces"
+                    )
+                });
+                if inherits {
+                    return true;
+                }
+            }
+            "object_creation_expression"
+                if parent
+                    .children(&mut parent.walk())
+                    .any(|c| c.kind() == "class_body") =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+        ancestor = parent.parent();
+    }
+    false
 }
 
 /// `extends`/`implements` clauses wrap their `type_identifier`(s) in
