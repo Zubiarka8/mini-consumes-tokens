@@ -117,7 +117,8 @@ fn assert_decorator_owner(source: &str, owner: &str, decorator: &str) {
 #[test]
 fn extracts_import_and_from_import() {
     let parsed = parse("import os\nfrom collections import OrderedDict, defaultdict as dd\n");
-    mct_corpus::assert_imports(&parsed, &["os", "OrderedDict", "dd"]);
+    // `defaultdict as dd` imports `defaultdict`; `dd` is only the local name.
+    mct_corpus::assert_imports(&parsed, &["os", "OrderedDict", "defaultdict"]);
 }
 
 #[test]
