@@ -342,7 +342,12 @@ impl<'a> Walker<'a> {
                         );
                         self.details
                             .push(details::alias_detail(node, id, self.source));
+                        if let Some(target) = node.child_by_field_name("type") {
+                            self.push_descriptor_type_use(id, target);
+                        }
                     }
+                } else if let Some(target) = node.child_by_field_name("type") {
+                    self.push_descriptor_type_use(ctx.owner, target);
                 }
             }
             // `typedef Type Name, *NamePtr;`
@@ -582,6 +587,32 @@ impl<'a> Walker<'a> {
                 self.template_params.push(names);
                 self.visit_children(node, ctx, depth + 1);
                 self.template_params.pop();
+            }
+            // `(Marker*)p`
+            "cast_expression" => {
+                if let Some(target) = node.child_by_field_name("type") {
+                    self.push_descriptor_type_use(ctx.owner, target);
+                }
+                self.visit_children(node, ctx, depth + 1);
+            }
+            // `static_cast<Marker*>(p)` and the other three named casts.
+            "template_function" => {
+                let named_cast = node.child_by_field_name("name").is_some_and(|n| {
+                    matches!(
+                        text(n, self.source),
+                        "static_cast" | "dynamic_cast" | "reinterpret_cast" | "const_cast"
+                    )
+                });
+                if let Some(arguments) =
+                    node.child_by_field_name("arguments").filter(|_| named_cast)
+                {
+                    let mut cursor = arguments.walk();
+                    let targets: Vec<Node<'a>> = arguments.named_children(&mut cursor).collect();
+                    for target in targets {
+                        self.push_descriptor_type_use(ctx.owner, target);
+                    }
+                }
+                self.visit_children(node, ctx, depth + 1);
             }
             "new_expression" => {
                 if let Some(written) = node.child_by_field_name("type") {
@@ -943,19 +974,46 @@ impl<'a> Walker<'a> {
     /// `References` relation from `owner`. A built-in type (`int`), `auto`
     /// and an inline `struct { ... }` name none.
     fn push_type_use(&mut self, owner: SymbolId, declaration: Node<'a>) {
-        let Some(written) = declaration.child_by_field_name("type") else {
-            return;
-        };
-        let Some(name_node) = constructed_type_name(written) else {
-            return;
-        };
-        let name = text(name_node, self.source);
-        if self.template_params.iter().flatten().any(|p| *p == name) {
-            return;
+        if let Some(written) = declaration.child_by_field_name("type") {
+            self.push_written_type(owner, written);
         }
-        let std = !self.opens_std && is_std_qualified(written, self.source);
-        self.type_uses
-            .push((owner, name.to_string(), std, location(name_node)));
+    }
+
+    /// The type a `type_descriptor` (a cast's or an alias's target) names.
+    fn push_descriptor_type_use(&mut self, owner: SymbolId, descriptor: Node<'a>) {
+        if descriptor.kind() == "type_descriptor" {
+            self.push_type_use(owner, descriptor);
+        }
+    }
+
+    /// A written type and, through a worklist, the types in its template
+    /// arguments (`Box<Tag>`, `std::vector<std::pair<Row, int>>`).
+    fn push_written_type(&mut self, owner: SymbolId, written: Node<'a>) {
+        let mut pending = vec![written];
+        while let Some(written) = pending.pop() {
+            let tail = qualified_tail(written);
+            if tail.kind() == "template_type" {
+                if let Some(arguments) = tail.child_by_field_name("arguments") {
+                    let mut cursor = arguments.walk();
+                    pending.extend(
+                        arguments
+                            .named_children(&mut cursor)
+                            .filter(|a| a.kind() == "type_descriptor")
+                            .filter_map(|a| a.child_by_field_name("type")),
+                    );
+                }
+            }
+            let Some(name_node) = constructed_type_name(written) else {
+                continue;
+            };
+            let name = text(name_node, self.source);
+            if self.template_params.iter().flatten().any(|p| *p == name) {
+                continue;
+            }
+            let std = !self.opens_std && is_std_qualified(written, self.source);
+            self.type_uses
+                .push((owner, name.to_string(), std, location(name_node)));
+        }
     }
 
     /// The types the parameters of function `owner` name. Only a real
