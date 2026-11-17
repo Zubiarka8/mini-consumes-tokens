@@ -141,6 +141,18 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Java: a bare call of a member the file imports statically one by
+        one (`import static a.Fmt.render;`) is that type's method under
+        that package, and a JDK one (`java.lang.Math.max`) is external. A
+        wildcard static import, a name two static imports bind, a method of
+        the name the file declares, and a class that names a superclass or
+        interfaces (or an anonymous class body) prove nothing, because an
+        inherited method hides the import (JLS 6.4.1). On a scratch project
+        with two `Fmt.render`, 1 ambiguous call (2 candidates) became
+        resolved (1). One test changed on purpose:
+        `jdk_imports.rs` pinned `requireNonNull` under
+        `import static java.util.Objects.requireNonNull` as not external,
+        which was the gap. Test: `mct-lang-java/tests/static_imports.rs`;
   - [x] C#: a bare call in a file with exactly one `using static NS.Type;`
         is that type's method under that namespace, or the framework's
         (external) for `System`/`Microsoft`. Several `using static` (which
