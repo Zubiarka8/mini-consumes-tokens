@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 89% | 33 | 100% | 10 | 1 |
 | Java | 85% | 27 | 85% | 10 | 0 |
 | Kotlin | 83% | 35 | 85% | 10 | 0 |
-| C# | 88% | 34 | 90% | 10 | 0 |
+| C# | 90% | 34 | 90% | 10 | 0 |
 | C++ | 89% | 28 | 70% | 10 | 0 |
 | Go | 78% | 18 | 90% | 10 | 0 |
 | PHP | 88% | 30 | 95% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 100% | 100% |
 | Java | 80% | 95% | 50% | 100% | 100% | 75% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 100% | 100% | 50% |
-| C# | 100% | 96% | 50% | 88% | 90% | 75% | 100% |
+| C# | 100% | 96% | 60% | 88% | 90% | 75% | 100% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 100% | 83% |
@@ -1142,7 +1142,7 @@ percentages and denominators; these checklists provide the scored evidence.
 
 - [x] Field / instance attribute: fields, properties, events and indexers all become `field`
 - [x] Constructor-promoted field: a record's positional parameter is a `field`, unless the body redeclares it
-- [~] Constant (module or global): `const` is a `field`
+- [x] Constant (module or global): a `const` member is a `constant` of its type; `static readonly` and `readonly` stay `field`s
 - [ ] Local variable
 - [ ] Parameter
 
