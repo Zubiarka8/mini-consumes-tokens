@@ -200,10 +200,11 @@ fn cross_file_imports_and_calls_are_extracted() {
         RelationKind::Imports,
         "LendingService",
     );
-    // `from . import models as m` imports the alias.
-    c.relation("reports.py", "reports", RelationKind::Imports, "m");
-    c.relation("cli.py", "cli", RelationKind::Imports, "svc");
-    c.relation("cli.py", "cli", RelationKind::Imports, "SqlRepo");
+    // `from . import models as m` imports `models`; the alias is only the
+    // local name (also `svc`, `SqlRepo` below).
+    c.relation("reports.py", "reports", RelationKind::Imports, "models");
+    c.relation("cli.py", "cli", RelationKind::Imports, "services");
+    c.relation("cli.py", "cli", RelationKind::Imports, "SqliteRepository");
     // An import inside a function belongs to that function.
     c.relation("cli.py", "main", RelationKind::Imports, "audit_trail");
     c.relation("cli.py", "repl", RelationKind::Imports, "shlex");

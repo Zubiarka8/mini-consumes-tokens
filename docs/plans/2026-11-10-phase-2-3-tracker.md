@@ -141,6 +141,18 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+  - [x] Java: a bare call of a member the file imports statically one by
+        one (`import static a.Fmt.render;`) is that type's method under
+        that package, and a JDK one (`java.lang.Math.max`) is external. A
+        wildcard static import, a name two static imports bind, a method of
+        the name the file declares, and a class that names a superclass or
+        interfaces (or an anonymous class body) prove nothing, because an
+        inherited method hides the import (JLS 6.4.1). On a scratch project
+        with two `Fmt.render`, 1 ambiguous call (2 candidates) became
+        resolved (1). One test changed on purpose:
+        `jdk_imports.rs` pinned `requireNonNull` under
+        `import static java.util.Objects.requireNonNull` as not external,
+        which was the gap. Test: `mct-lang-java/tests/static_imports.rs`;
   - [x] C#: a bare call in a file with exactly one `using static NS.Type;`
         is that type's method under that namespace, or the framework's
         (external) for `System`/`Microsoft`. Several `using static` (which
@@ -167,6 +179,17 @@ From `rules.md` and the two messages:
         declare `Trim`, 2 ambiguous calls (2 candidates) became resolved
         (1). Test: `mct-lang-go/tests/local_modules.rs`; the corpus
         snapshot is unchanged.
+  - [x] JS/TS: `import { render as draw } from "./b.js"` makes `draw(2)` a
+        call to `render` with module `b` as evidence, so it reaches `b.js`
+        and never another module's `render`. A default import keeps its
+        local name, and a name no single import binds keeps its own. On a
+        scratch project with two modules that both declare `render`, the
+        aliased call went from unresolved to resolved (1). This
+        repository's JS/TS (24744 relations): one relation changes,
+        `describeEvent(…)` in the corpus (`import { describe as
+        describeEvent } from "../order"`), from no candidate to one, the
+        `describe` of `src/order.ts`. The corpus snapshot changes by that
+        one relation. Test: `mct-lang-js-ts/tests/aliased_imports.rs`.
   - [x] Rust: `use bbb_lib::render as draw;` makes `draw()` a call to
         `render` with `bbb_lib` as crate evidence, so it reaches that
         crate's item and never another crate's `render`. A `crate::`,
@@ -535,6 +558,22 @@ From `rules.md` and the two messages:
           behavior, and now expects a constant. Corpus: 6 variables become
           constants, symbol count unchanged. Repository snapshot (52 shell
           files): 601 symbols before and after, dead code 0 -> 0.
+    - [x] Python aliased imports: `from m import f as g` binds `g` to the
+          `f` that `m` defines, so a call `g()`, a decorator `@g`, a base
+          class `g` and a value use of `g` name `f`, with `m` as module
+          evidence; the `Imports` relation names `f` too. A package
+          `__init__.py` re-exporting `from .core import f as g` keeps `f`
+          alive. A name bound again after the import keeps its own name.
+          A call through the re-exported alias (`from pkg import g; g()`)
+          stays unresolved: following it needs the other file. Test:
+          `tests/aliased_imports.rs` (truth checked with `python3`);
+          `corpus.rs` and `parse.rs` pinned the alias as the imported name
+          (`m`, `svc`, `SqlRepo`, `dd`) and now expect the original.
+          Corpus: symbols and relations unchanged (643, 1504), 5 more
+          relations name a definition of another file; the Django
+          `ValidationError as DjangoValidationError` stays unresolved in
+          the index (module evidence `exceptions`). Repository snapshot (86
+          Python files): 1544 symbols, dead code 45 -> 45.
     - [x] CSS statement at-rules with a string prelude: `@source "./";`
           and `@plugin "x";` (Tailwind 4) are valid CSS the pinned grammar
           rejects, which dropped `crates/mct-cli/web-ui/src/styles.css`
@@ -588,6 +627,16 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] JS/TS dynamic import bindings: `const m = await
+          import("./lazy")` binds `m` to the module and `const { load } =
+          await import("./lazy")` binds `load` to its export, as a static
+          `import * as` / `import { }` does, and so does the one parameter
+          of `import("./lazy").then((m) => …)`. Calls through them carry
+          the module as evidence and resolve to `lazy`'s definition, never
+          a same-named one elsewhere. A promise kept without `await`, a
+          renamed destructuring and a name bound again get no evidence.
+          Test: `tests/dynamic_imports.rs` (red before, green after; each
+          case run with Node 24).
     - [x] CSS custom properties and `@keyframes`: each custom property
           declaration (`--brand: red`) is a `variable` symbol and each
           `@keyframes spin` an `animation` symbol (also inside Tailwind's
@@ -1703,6 +1752,13 @@ From `rules.md` and the two messages:
       pinned, `std::` is external, built-ins and template parameters give
       none). Stacked on #441. Corpus: 809 -> 823 relations, all `std::`
       or same-file types.
+- [x] C#, `static Main`: a class or struct declaring `static ... Main(...)`
+      carries an entry-point hint (`dotnet`, `static-main`), as a framework
+      convention does. It stays a dead-code candidate, since a project can
+      name another entry point, and `find_dead_code` shows
+      `possible_entry_point` next to it. An instance `Main`, `main` and a
+      class without one carry no hint. Probe: `Program` was listed with no
+      note, now it carries one.
 - [x] Python, `__all__`: each string of a module-level `__all__ = [...]`
       (or `+=`, list or tuple) that names a `def` or `class` of the file is
       a `references` relation from the module, pinned to the file, so a
