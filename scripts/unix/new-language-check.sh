@@ -70,7 +70,7 @@ check required "syntax-error assertion (inline/shared)" "$dir/tests/parse.rs" 'P
 check required "fuzz harness (fuzz/Cargo.toml [workspace])" "$dir/fuzz/Cargo.toml" '^\[workspace\]'
 check required "fuzz target (fuzz/fuzz_targets/*.rs)"    "$dir/fuzz/fuzz_targets" 'fuzz_target!'
 # A harness CI never runs is the gap CONTRIBUTING.md warns about.
-check required "ci.yml fuzz-smoke matrix entry"          .github/workflows/ci.yml "^ *- $crate\$"
+check required "ci-nightly.yml fuzz-smoke matrix entry"  .github/workflows/ci-nightly.yml "^ *- $crate\$"
 # Escaped: names like `C++` or `C#` are not valid/literal regexes as-is.
 readme_re="$(printf '%s' "$readme_name" | sed 's/[][\.*^$+?(){}|/]/\\&/g')"
 check warn     "parser checklist by-language row"        docs/02-crates/parsers/checklists/by-language.md "$readme_re" -i

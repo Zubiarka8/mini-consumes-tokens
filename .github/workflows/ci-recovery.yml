@@ -1,0 +1,65 @@
+name: CI recovery
+
+# Two ways to get CI unstuck without touching branch protection:
+#
+# 1. Push a repair commit to a `recovery/**` branch. The full ci.yml runs on
+#    that exact commit (no pull request, no merge), so a fix can be proven
+#    green before anyone opens or merges a pull request. A `push` trigger
+#    works from the branch itself; `workflow_dispatch` would not, because
+#    GitHub only offers it for workflows that exist on the default branch.
+#
+# 2. Once this file is on `main`: run it by hand with the id of a failed run.
+#    It classifies each failed job as infrastructure (runner never acquired,
+#    lost connection, 5xx) or code. Only infrastructure failures are rerun,
+#    only with `apply`, and only while the run is below
+#    [recovery].max_attempts in scripts/ci/ci_policy.toml. A code failure is
+#    reported and left red.
+#
+# Neither path pushes, tags, releases or edits checks, so it cannot trigger
+# itself or release.yml.
+on:
+  push:
+    branches: ["recovery/**"]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Id of the failed workflow run to diagnose"
+        required: true
+        type: string
+      apply:
+        description: "Rerun the jobs classified as infrastructure failures"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-recovery-${{ github.ref }}-${{ inputs.run_id || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate repair commit
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
+  diagnose:
+    name: Diagnose run ${{ inputs.run_id }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write # only to rerun jobs of the given run
+    steps:
+      - uses: actions/checkout@v4
+      - name: Classify failed jobs (and rerun infrastructure failures when asked)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          APPLY: ${{ inputs.apply && '--apply' || '' }}
+        run: |
+          case "$RUN_ID" in ''|*[!0-9]*) echo "::error::run_id must be a number"; exit 2;; esac
+          # shellcheck disable=SC2086 # APPLY is empty or one flag
+          python3 scripts/ci/main.py recovery --repo "$GITHUB_REPOSITORY" --run "$RUN_ID" $APPLY

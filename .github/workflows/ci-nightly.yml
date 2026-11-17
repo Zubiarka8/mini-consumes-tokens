@@ -1,0 +1,142 @@
+name: CI nightly (fuzz)
+
+# Fuzz smoke tests, moved out of ci.yml so they never compete with the
+# required pull request checks for runners. None of these jobs is a required
+# check. `schedule` runs only from the default branch.
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC every day
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per commit; a newer nightly or push never cancels an older one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  # Linux: every push to `main` and every night. 18 jobs on the 20-job
+  # Linux pool take about a minute each (median 0.9 min, 2026-11-16/17).
+  fuzz-smoke:
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    name: fuzz smoke test (${{ matrix.crate }}, ${{ matrix.os }})
+    # Linux/macOS only — deliberately, not an oversight. cargo-fuzz's
+    # default AddressSanitizer needs a runtime DLL
+    # (clang_rt.asan_dynamic-x86_64.dll, shipped with MSVC's own C++ tools,
+    # not with rustup) that isn't on PATH by default on Windows runners;
+    # without it the built fuzz binary fails at launch with
+    # STATUS_DLL_NOT_FOUND. Disabling the sanitizer instead
+    # (--sanitizer none) fails to *link*, not run: MSVC's link.exe doesn't
+    # resolve the __start___sancov_cntrs/__stop___sancov_cntrs
+    # section-boundary symbols the sancov coverage instrumentation needs —
+    # GNU ld/lld synthesize these automatically, link.exe does not. Both
+    # failure modes were hit and confirmed locally on Windows before this
+    # decision was made (see checklist.md). Decision: fuzzing runs only on
+    # Linux/macOS in CI. The build-test job in ci.yml still runs the full
+    # workspace build and test suite on Windows without exception — this
+    # exclusion is for fuzzing only. Revisit if a Windows-native fuzzing
+    # path appears that doesn't need manually resolving the ASan DLL path.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        crate: &fuzz-smoke-crates
+          - mct-lang-rust
+          - mct-lang-python
+          - mct-lang-lua
+          - mct-lang-java
+          - mct-lang-csharp
+          - mct-lang-js-ts
+          - mct-lang-cpp
+          - mct-lang-go
+          - mct-lang-bash
+          - mct-lang-powershell
+          - mct-lang-php
+          - mct-lang-md
+          - mct-lang-css
+          - mct-lang-html
+          - mct-lang-kotlin
+          - mct-lang-xaml
+          - mct-lang-xml
+          - mct-index
+    steps: &fuzz-smoke-steps
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/${{ matrix.crate }}/fuzz -> target
+
+      # Not in taiki-e/install-action's tool list, so built from source —
+      # a few seconds on Linux/macOS, not worth pre-building separately.
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      # Keep compilation outside the runtime budget for the smoke campaign.
+      - name: Build fuzz target
+        timeout-minutes: 10
+        working-directory: crates/${{ matrix.crate }}
+        run: |
+          # cargo-fuzz has no --locked; fail here if fuzz/Cargo.lock is stale.
+          (cd fuzz && cargo fetch --locked)
+          target_name=$(cargo fuzz list)
+          cargo fuzz build "$target_name"
+
+      # Inputs that once crashed or exhausted memory, replayed one by one
+      # under the sanitizer: a random 30s campaign is not guaranteed to
+      # reach them again.
+      - name: Replay fuzz regressions
+        timeout-minutes: 5
+        working-directory: crates/${{ matrix.crate }}
+        run: |
+          target_name=$(cargo fuzz list)
+          dir="fuzz/regressions/$target_name"
+          if [ -d "$dir" ]; then
+            mkdir -p fuzz/logs
+            cargo fuzz run "$target_name" "$dir"/* -- -rss_limit_mb=2048 -timeout=10 2>&1 | tee fuzz/logs/regressions.log
+          fi
+
+      # Smoke test only: confirms the harness builds and runs clean against
+      # its (unseeded, in CI) corpus, not a real fuzzing campaign — no
+      # crash is expected or being searched for here.
+      - name: Short fuzz campaign (no crash expected)
+        timeout-minutes: 5
+        working-directory: crates/${{ matrix.crate }}
+        run: |
+          target_name=$(cargo fuzz list)
+          mkdir -p fuzz/logs
+          cargo fuzz run "$target_name" -- -max_total_time=30 -timeout=10 -rss_limit_mb=2048 2>&1 | tee fuzz/logs/smoke.log
+
+      - name: Preserve fuzz diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.crate }}-${{ matrix.os }}-${{ github.run_attempt }}
+          path: |
+            crates/${{ matrix.crate }}/fuzz/artifacts/
+            crates/${{ matrix.crate }}/fuzz/corpus/
+            crates/${{ matrix.crate }}/fuzz/logs/
+          if-no-files-found: warn
+          retention-days: 7
+
+  # macOS: nightly and on demand only, never per push. The free pool runs
+  # 5 macOS jobs at a time. 18 macOS fuzz jobs per push to `main` (12 pushes
+  # on 2026-11-17) queued a median 45 min, 15 of them were never given a
+  # runner ("The job was not acquired by Runner of type hosted"), and the
+  # required macOS build + test of pull requests waited behind them (22 of
+  # 100 cancelled). `max-parallel` leaves a macOS slot free for pull requests.
+  fuzz-smoke-macos:
+    if: github.event_name != 'push'
+    name: fuzz smoke test (${{ matrix.crate }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        os: [macos-latest]
+        crate: *fuzz-smoke-crates
+    steps: *fuzz-smoke-steps
