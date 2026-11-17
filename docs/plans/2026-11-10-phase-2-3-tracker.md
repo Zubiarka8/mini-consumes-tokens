@@ -691,6 +691,17 @@ From `rules.md` and the two messages:
           (`SHELF_STARTED_AT`, used at `console.php:353`), relations
           unchanged. Open PHP gaps: global `$var`, anonymous classes,
           `namespace`.
+    - [x] HTML inline event handlers: an `on<event>` attribute
+          (`onclick="save()"`, any case) runs its value as JavaScript, so
+          each function it calls by bare name is a `calls` relation, scoped
+          to a JavaScript `function` (`language`, `kind`). A member call
+          (`form.reset()`), a keyword, the name after `new` or `function`,
+          text in a string literal and any other attribute call nothing.
+          Test: `tests/event_handlers.rs` (HTML, JS and CSS parsers in one
+          index; a same-named CSS rule never matches). Probe: `clicked` in
+          `app.js`, called only from `onclick`, was dead code and is now
+          resolved; `neverUsed` stays a candidate. This repository's 56
+          HTML and JS files (bundles excluded): dead code 0 -> 0.
     - [x] JS/TS dynamic import bindings: `const m = await
           import("./lazy")` binds `m` to the module and `const { load } =
           await import("./lazy")` binds `load` to its export, as a static
