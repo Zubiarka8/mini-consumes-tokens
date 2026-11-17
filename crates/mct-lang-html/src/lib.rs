@@ -11,7 +11,9 @@
 //! `find_references("#header")`/`find_references(".nav")` (resolved by
 //! `mct-lang-css`, in the same index) show which markup a CSS rule affects.
 //! `<link rel="stylesheet" href="...">` and `<script src="...">` emit an
-//! `Imports` relation to the target path. Embedded `<script>`/`<style>`
+//! `Imports` relation to the target path. An inline event handler
+//! (`onclick="save()"`) emits a `Calls` relation to each JavaScript function
+//! its value calls by name. Embedded `<script>`/`<style>`
 //! *content* is not parsed by this crate (it stays raw text in
 //! `tree-sitter-html`'s own grammar) — that's `mct-lang-js-ts`'s and
 //! `mct-lang-css`'s job respectively, for their own file extensions, not this
@@ -246,6 +248,20 @@ impl<'a> Walker<'a> {
             None => (owner, parent_name.map(str::to_string)),
         };
 
+        for (name, value, node) in &attrs {
+            if is_event_handler(name) {
+                for callee in handler_calls(value) {
+                    self.relation_targets.push(RelationTarget {
+                        relation: self.relations.len(),
+                        language: Some("javascript_typescript".to_string()),
+                        kind: Some(SymbolKind::Function),
+                        ..Default::default()
+                    });
+                    self.push_relation(new_owner, RelationKind::Calls, callee, location(*node));
+                }
+            }
+        }
+
         if tag_name.eq_ignore_ascii_case("link")
             && attr("rel").is_some_and(|(r, _)| r.eq_ignore_ascii_case("stylesheet"))
         {
@@ -321,6 +337,72 @@ fn asset_module(spec: &str) -> Option<(String, &'static str)> {
         .map(|stem| (stem, "javascript_typescript"));
     let (stem, language) = file.strip_suffix(".css").map(|stem| (stem, "css")).or(js)?;
     (!stem.is_empty()).then(|| (stem.to_string(), language))
+}
+
+/// An event handler content attribute: `on` and an event name (`onclick`,
+/// `onsubmit`). Attribute names arrive lowercased.
+fn is_event_handler(name: &str) -> bool {
+    name.strip_prefix("on")
+        .is_some_and(|event| !event.is_empty() && event.bytes().all(|b| b.is_ascii_lowercase()))
+}
+
+/// Words a handler body never calls as a function of the page.
+const NOT_CALLEES: &[&str] = &[
+    "catch", "for", "function", "if", "return", "switch", "typeof", "void", "while", "with",
+];
+
+/// The functions a handler body calls by bare name, in order: `save` in
+/// `save()`, `validate` and `track` in `return validate(this) &&
+/// track('x')`. A member call (`form.reset()`), a keyword, the name after
+/// `new` or `function`, and text inside a string literal call nothing.
+fn handler_calls(body: &str) -> Vec<String> {
+    let bytes = body.as_bytes();
+    let is_start = |b: u8| b.is_ascii_alphabetic() || b == b'_' || b == b'$';
+    let is_part = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+    let mut calls = Vec::new();
+    let mut previous_word = "";
+    let mut previous_byte = b' ';
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if matches!(b, b'"' | b'\'' | b'`') {
+            // Skip the string literal, honoring backslash escapes.
+            i += 1;
+            while i < bytes.len() && bytes[i] != b {
+                i += if bytes[i] == b'\\' { 2 } else { 1 };
+            }
+            i += 1;
+            previous_byte = b;
+            continue;
+        }
+        if !is_start(b) {
+            if !b.is_ascii_whitespace() {
+                previous_byte = b;
+                previous_word = "";
+            }
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < bytes.len() && is_part(bytes[i]) {
+            i += 1;
+        }
+        let word = body.get(start..i).unwrap_or_default();
+        let mut next = i;
+        while next < bytes.len() && bytes[next].is_ascii_whitespace() {
+            next += 1;
+        }
+        let called = bytes.get(next) == Some(&b'(')
+            && previous_byte != b'.'
+            && !matches!(previous_word, "new" | "function")
+            && !NOT_CALLEES.contains(&word);
+        if called {
+            calls.push(word.to_string());
+        }
+        previous_word = word;
+        previous_byte = b' ';
+    }
+    calls
 }
 
 fn find_tag(node: Node) -> Option<Node> {
