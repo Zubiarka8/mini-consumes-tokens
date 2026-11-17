@@ -1893,6 +1893,26 @@ From `rules.md` and the two messages:
 ||||||| b8808e48
 ||||||| e494d60a
 ||||||| 695eceeb
+||||||| c3b9fab5
+  - [x] Kotlin: a callable reference (`::parse`, `Box::size`, `tokens::get`)
+        is a `references` relation to the function it names, so a function
+        used only that way is not dead code. `Type::name` is qualified by
+        `Type`; a bound `value::name` is a member name only; `Type::class`
+        names no function. Corpus: +20 references (`::println`, `::get`,
+        `Scope::parse`, `::describe`…), symbols unchanged. One is
+        name-matched to the wrong candidate: `::describe` in
+        `WarehouseApp.kt` (the top-level `describe(event)` of `Order.kt`)
+        lands on `Inventory.describe()`, the same name-only choice a bare
+        `describe(e)` call gets today. Probe on a tiny tree: dead code
+        listed `parse` and `twice` before. Test:
+        `mct-lang-kotlin/tests/callable_references.rs`.
+- [x] Kotlin, class literal: `Box::class` is a `references` relation to
+      `Box` (an uppercase simple name; `value::class` records nothing).
+      Probe: a class used only as `Used::class` is no longer dead code, an
+      unused one still is. Stacked on #504.
+||||||| b8808e48
+||||||| e494d60a
+||||||| f5e9d7ae
   - [x] C#: a type named in a field, property, parameter, return type,
         local, generic argument, cast, `is`/`as` check, `typeof`, `catch`,
         pattern or `foreach` is a `references` relation from the member that
