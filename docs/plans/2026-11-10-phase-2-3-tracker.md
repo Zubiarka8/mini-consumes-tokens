@@ -1812,6 +1812,15 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] C++: a function of this file passed by name as a call argument
+        (`std::transform(first, last, out, dbl)`, `std::sort(…, less)`) is a
+        `references` relation, so the callback is not dead code. A parameter
+        of an enclosing function with the same name shadows it; a variable
+        and an unknown name record nothing. Known gap: a local variable named
+        like a file function still counts. Corpus: no change (it passes no
+        function by name). Probe on a tiny tree: dead code listed `dbl`
+        before. Test: `mct-lang-cpp/tests/function_values.rs`.
+||||||| b8808e48
   - [x] Bash: `trap handler SIGNAL` calls `handler` when the handler is a
         single plain word (`trap cleanup EXIT`, `trap 'on_err' ERR`), so a
         trap handler is not dead code. A command string (`trap 'echo bye;
