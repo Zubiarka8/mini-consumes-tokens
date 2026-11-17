@@ -1132,6 +1132,20 @@ impl<'a> Walker<'a> {
         }
         let name = text(*name_node, self.source).to_string();
         if name == "class" {
+            // `Box::class` is a use of `Box`, not of a function.
+            if let [receiver] = receiver {
+                let class = text(*receiver, self.source).trim();
+                if class.starts_with(|c: char| c.is_ascii_uppercase())
+                    && class.chars().all(|c| c.is_alphanumeric() || c == '_')
+                {
+                    self.push_relation(
+                        owner,
+                        RelationKind::References,
+                        class.to_string(),
+                        location(*receiver),
+                    );
+                }
+            }
             return;
         }
         let qualifier = receiver

@@ -70,3 +70,21 @@ fn a_class_reference_is_no_function() {
     let refs = references(&parsed());
     assert!(!refs.iter().any(|(name, _)| name == "class"), "{refs:?}");
 }
+
+#[test]
+fn a_class_literal_references_its_class() {
+    let refs = references(&parsed());
+    assert!(refs.contains(&("Box".into(), None)), "{refs:?}");
+    assert_eq!(
+        refs.iter().filter(|(name, _)| name == "Box").count(),
+        1,
+        "{refs:?}"
+    );
+}
+
+#[test]
+fn a_lowercase_receiver_is_no_class_literal() {
+    let source = "fun main(box: Any) { val k = box::class }\n";
+    let file = mct_corpus::parse_source(&KotlinParser, "src/a.kt", "Kotlin", source);
+    assert!(references(&file).is_empty());
+}

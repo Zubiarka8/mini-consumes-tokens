@@ -1791,6 +1791,10 @@ From `rules.md` and the two messages:
         `describe(e)` call gets today. Probe on a tiny tree: dead code
         listed `parse` and `twice` before. Test:
         `mct-lang-kotlin/tests/callable_references.rs`.
+- [x] Kotlin, class literal: `Box::class` is a `references` relation to
+      `Box` (an uppercase simple name; `value::class` records nothing).
+      Probe: a class used only as `Used::class` is no longer dead code, an
+      unused one still is. Stacked on #504.
 - [x] C#, `static Main`: a class or struct declaring `static ... Main(...)`
       carries an entry-point hint (`dotnet`, `static-main`), as a framework
       convention does. It stays a dead-code candidate, since a project can
