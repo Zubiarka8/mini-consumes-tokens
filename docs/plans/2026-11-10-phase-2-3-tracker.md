@@ -96,6 +96,15 @@ From `rules.md` and the two messages:
         became external (`str.casefold`/`str.strip` on `str` attributes of
         the Python corpus); no qualifier or other language changed; dead
         code unchanged (124).
+  - [x] Kotlin, literal receivers: `"x".trim()`, `5.toString()` and
+        `'c'.code` are qualified by `String`, `Int` or `Char`, so a
+        same-named method of a repository class is no candidate. Only plain
+        decimal digits that fit an `Int` count (no `L` suffix, radix prefix
+        or larger value), and an extension function the repository declares
+        on that type still resolves (`fun String.shout()`). On a scratch
+        project, `"x".trim()` next to `Util.trim` went from ambiguous to
+        without candidates. Test: `mct-lang-kotlin/tests/literal_receivers.rs`;
+        the corpus snapshot is unchanged.
   - [x] PHP, proven receivers only: `$x->m()` is qualified by the class a
         parameter is typed with (`A $x`, `?A $x`, resolved through `use`
         aliases and the namespace) when the body never assigns `$x`, by the
