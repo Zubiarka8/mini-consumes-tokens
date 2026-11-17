@@ -518,6 +518,7 @@ From `rules.md` and the two messages:
         are now scored); Lua classes, `extends` through `setmetatable`,
         metamethods, variables and duplicates were added by `dc683c35`
         (constructs 54% → 82%). The other cells were confirmed as written.
+  - [~] Work through the gaps by language group.
   - [ ] Work through the gaps by language group.
     - [x] C# local functions: a `local_function_statement` has the method
           or local function it is declared in as `parent` (a lambda in
@@ -1640,11 +1641,6 @@ From `rules.md` and the two messages:
     interface) and an overriding method with no marker. Naming it would be a
     shared-name match, which D8 rules out.
   - Result: no language is missing a relation its syntax states.
-- [ ] Language-specific features (3.4), each checked against the real
-      grammar.
-- [ ] Positive and negative fixtures for each language (3.5).
-- [ ] Relations: inheritance, implementations and overrides (3.3, depends on
-      D8).
 - [x] Language-specific features (3.4), each checked against the real
       grammar. For every code language the grammar crate's
       `node-types.json` was compared with the node kinds the parser
@@ -1720,9 +1716,6 @@ From `rules.md` and the two messages:
         Test: `mct-lang-rust/tests/inline_modules.rs`
         `a_method_reached_through_an_inline_module_and_its_type_resolves`
         (unresolved with 0 candidates before, resolved with 1 after).
-  - [ ] `m::Type::f()`: the method's parent is the type, so the module
-        evidence finds no candidate. Matching it needs the view to look at
-        the type's parent (a migration): #478.
 - [x] Reading long functions through the context tools.
   - [x] `build_context_pack` caps a body at 200 lines (`source_lines`), and
         its footer said "raise `source_lines`" even at that cap. For a body
@@ -1742,7 +1735,7 @@ From `rules.md` and the two messages:
         L496-L695, `400` L696-L849 with no footer. Test: `context_pack.rs`
         `source_offset_pages_past_the_source_lines_cap`; the capped-footer
         test now expects the new wording.
-- [ ] False positives in impact analysis and dead code (D7 #331 covers part
+- [~] False positives in impact analysis and dead code (D7 #331 covers part
       of this).
   - [x] Python: a function or class passed by name as an argument
         (`safely(score_verdicts, …)`, `sorted(rows, key=rank)`,
