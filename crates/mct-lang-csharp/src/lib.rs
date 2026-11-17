@@ -118,6 +118,8 @@ struct Walker<'a> {
     /// What an `override` member of each enclosing type can override,
     /// innermost last (D8).
     supertypes: Vec<Vec<Supertype>>,
+    /// Classes holding the program's `static Main` (see `main_hint`).
+    entry_points: Vec<mct_core::EntryPointHint>,
 }
 
 impl<'a> Walker<'a> {
@@ -136,6 +138,7 @@ impl<'a> Walker<'a> {
             static_usings: Vec::new(),
             static_calls: Vec::new(),
             supertypes: Vec::new(),
+            entry_points: Vec::new(),
         }
     }
 
@@ -592,6 +595,9 @@ impl<'a> Walker<'a> {
         );
         self.details
             .push(details::type_detail(node, id, self.source));
+        if let Some(hint) = main_hint(node, id, kind, self.source) {
+            self.entry_points.push(hint);
+        }
         self.visit_attributes(node, id, type_name, depth);
         if kind != SymbolKind::Enum {
             if let Some(base_list) = find_child(node, "base_list") {
@@ -1049,6 +1055,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            entry_points: self.entry_points,
             ..Default::default()
         }
     }
@@ -1333,6 +1340,42 @@ fn is_type_parameter(node: Node, name: &str, source: &str) -> bool {
         current = ancestor.parent();
     }
     false
+}
+
+/// A class or struct declaring `static ... Main(...)` holds the program's
+/// entry point, which no source line calls: a possible entry point, never a
+/// proven one (a project can name another with `StartupObject`).
+fn main_hint(
+    node: Node,
+    id: SymbolId,
+    kind: SymbolKind,
+    source: &str,
+) -> Option<mct_core::EntryPointHint> {
+    if !matches!(kind, SymbolKind::Class | SymbolKind::Struct) {
+        return None;
+    }
+    let body = node.child_by_field_name("body")?;
+    let mut cursor = body.walk();
+    let has_main = body.named_children(&mut cursor).any(|member| {
+        member.kind() == "method_declaration"
+            && member
+                .child_by_field_name("name")
+                .is_some_and(|name| text(name, source) == "Main")
+            && {
+                let mut inner = member.walk();
+                let is_static = member
+                    .children(&mut inner)
+                    .any(|m| m.kind() == "modifier" && text(m, source) == "static");
+                is_static
+            }
+    });
+    has_main.then(|| mct_core::EntryPointHint {
+        symbol: id,
+        framework: "dotnet".to_string(),
+        rule: "static-main".to_string(),
+        evidence: "static Main method of this type".to_string(),
+        requires: None,
+    })
 }
 
 /// The lambda or anonymous method a local declarator is bound to
