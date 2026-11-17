@@ -1264,6 +1264,19 @@ impl<'a> Walker<'a> {
                 }
             }
             "call_expression" => typed(receivers::constructed(receiver, self.source)),
+            // A literal's type is its syntax: `"x".trim()` is `String.trim`.
+            "string_literal" | "multiline_string_literal" => (Some("String".to_string()), false),
+            "character_literal" => (Some("Char".to_string()), false),
+            // Plain decimal digits that fit an `Int`: a suffix (`5L`), a
+            // radix prefix or a larger value is another type.
+            "number_literal" => {
+                let digits = text(receiver, self.source);
+                if digits.len() <= 9 && digits.bytes().all(|b| b.is_ascii_digit()) {
+                    (Some("Int".to_string()), false)
+                } else {
+                    (None, true)
+                }
+            }
             _ => (None, true),
         };
         self.relation_targets.push(RelationTarget {
