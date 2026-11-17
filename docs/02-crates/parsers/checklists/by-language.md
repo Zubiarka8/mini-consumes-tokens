@@ -553,7 +553,7 @@ Done 25 · Partial 7 · Not done 6 · Not verified 0 · Not applicable 14
 - [ ] QU02 Repeated code: listed under `unsupported_languages`
 **Structure**
 
-- [~] ST01 Import graph: `#include "lib.h"` also listed as external
+- [x] ST01 Import graph: edge `main.cpp → lib.h`, no external
 - [x] ST02 File outline: `get_file_skeleton(src/audit.cpp)` returned top-level declarations
 - [ ] ST03 Declared dependencies: `CMakeLists.txt` is not reported by status
 
@@ -708,7 +708,7 @@ Done 30 · Partial 4 · Not done 6 · Not verified 0 · Not applicable 12
 - [ ] QU02 Repeated code: listed under `unsupported_languages`
 **Structure**
 
-- [~] ST01 Import graph: resolved `require_once` path also listed as external
+- [x] ST01 Import graph: edge `main.php → lib.php` for `'lib.php'`, `"lib.php"` and `("lib.php")`, no external
 - [x] ST02 File outline: `get_file_skeleton(src/audit.php)` returned declarations and collapsed bodies
 - [x] ST03 Declared dependencies: `composer.json` `require` counted; the `php` platform entry is skipped
 
@@ -837,7 +837,7 @@ Done 11 · Partial 3 · Not done 3 · Not verified 0 · Not applicable 35
 - [ ] QU02 Repeated code: listed under `unsupported_languages`
 **Structure**
 
-- [~] ST01 Import graph: resolved `source` path also listed as external
+- [x] ST01 Import graph: edge `main.sh → lib.sh`, no external
 - [~] ST02 File outline: `get_file_skeleton`: declaration line only; a one-line function is shown whole, then a placeholder
 - — ST03 Declared dependencies: Bash scripts have no package manifest
 
@@ -922,7 +922,7 @@ Done 11 · Partial 3 · Not done 13 · Not verified 0 · Not applicable 25
 - [ ] QU02 Repeated code: listed under `unsupported_languages`
 **Structure**
 
-- [~] ST01 Import graph: dot-sourced path also listed as external
+- [x] ST01 Import graph: edge `main.ps1 → lib.ps1`, no external
 - [~] ST02 File outline: declaration line and placeholder
 - [ ] ST03 Declared dependencies: `.psd1` module manifest is not reported by status
 
@@ -966,7 +966,7 @@ Done 4 · Partial 1 · Not done 7 · Not verified 0 · Not applicable 4
 - [x] MK02 Find references: `#id` and `.class` of an identified element
 - [ ] MK03 Dead code: markup-only fixture returns no candidates
 - [ ] MK04 Repeated code: markup-only duplicate report returns no candidates
-- [~] MK05 Import graph: `<link>` edge to CSS; script source not resolved
+- [x] MK05 Import graph: `<link>` and `<script src>` edges, no external
 - [x] MK06 File outline: `get_file_skeleton` returned the HTML outline
 - [ ] MK07 Exact text in strings: exact-phrase search found no HTML text
 
@@ -999,7 +999,7 @@ Done 6 · Partial 1 · Not done 7 · Not verified 0 · Not applicable 4
 - [x] MK02 Find references: HTML class and ID selectors resolve to their CSS elements (HTML integration tests)
 - [ ] MK03 Dead code: markup-only fixture returns no candidates
 - [ ] MK04 Repeated code: markup-only duplicate report returns no candidates
-- [~] MK05 Import graph: local `@import` edge, also listed as external
+- [x] MK05 Import graph: local `@import` edge, no external
 - [x] MK06 File outline: `get_file_skeleton` returned the CSS outline
 - [ ] MK07 Exact text in strings: exact-phrase search found no CSS source text
 
