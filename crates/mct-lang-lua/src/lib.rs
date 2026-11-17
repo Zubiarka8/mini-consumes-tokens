@@ -145,6 +145,9 @@ struct Walker<'a> {
     next_id: SymbolId,
     /// Function bodies (named or anonymous) the walk is currently inside.
     function_depth: u32,
+    /// Names of the named functions the walk is inside, innermost last: the
+    /// parent of a named function declared in one of them.
+    enclosing: Vec<String>,
     /// The table `T` of the innermost enclosing `function T:m()`, whose
     /// implicit `self` a colon call's receiver is; `None` when `self` is
     /// unknown or an explicit parameter.
@@ -170,6 +173,7 @@ impl<'a> Walker<'a> {
             details: Vec::new(),
             next_id: 0,
             function_depth: 0,
+            enclosing: Vec::new(),
             self_table: None,
             scopes: vec![HashMap::new()],
             globals: HashSet::new(),
@@ -288,6 +292,8 @@ impl<'a> Walker<'a> {
                     } else {
                         SymbolKind::Function
                     };
+                    // A plain name inside a function belongs to it.
+                    let parent = parent.or_else(|| self.enclosing.last().cloned());
                     let is_local = node.prev_sibling().is_some_and(|s| s.kind() == "local")
                         || text(node, self.source).starts_with("local ");
                     if name_node.kind() == "identifier" {
@@ -302,7 +308,7 @@ impl<'a> Walker<'a> {
                             self.globals.insert(name.clone());
                         }
                     }
-                    let id = self.push_symbol(name, kind, location(node), parent);
+                    let id = self.push_symbol(name.clone(), kind, location(node), parent);
                     self.details.push(details::function_detail(
                         node,
                         node.start_byte(),
@@ -311,7 +317,9 @@ impl<'a> Walker<'a> {
                         id,
                         self.source,
                     ));
+                    self.enclosing.push(name);
                     self.visit_function_body(node, id, depth);
+                    self.enclosing.pop();
                 }
             }
             "assignment_statement" => self.visit_assignment(node, owner, depth),
