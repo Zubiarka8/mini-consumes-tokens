@@ -1876,7 +1876,6 @@ From `rules.md` and the two messages:
       `module-info.java` in one repository, `requires com.example.core`
       resolves to the other file's declaration and `java.sql` is external.
       `exports`/`opens` name packages and record nothing. Stacked on #497.
-||||||| 0c53dabd
   - [x] Rust: a type named in the turbofish of a call (`size_of::<Turbo>()`,
         `o.is::<Marker>()`, `"1".parse::<Item>()`) is a `references`
         relation from the function that writes it, so a type used only that
