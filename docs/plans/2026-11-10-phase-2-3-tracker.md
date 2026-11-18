@@ -1879,6 +1879,17 @@ From `rules.md` and the two messages:
         `index_integration.rs` counted every `LineItem` reference as a
         construction, now counts the calls and checks a type use exists.
         Test: `mct-lang-kotlin/tests/type_references.rs`.
+||||||| 0c53dabd
+  - [x] Rust: a type named in the turbofish of a call (`size_of::<Turbo>()`,
+        `o.is::<Marker>()`, `"1".parse::<Item>()`) is a `references`
+        relation from the function that writes it, so a type used only that
+        way is not dead code (`Vec::<Gen>::new()` already was). The `_` of
+        `collect::<Vec<_>>()` is no type and is not recorded; that also drops
+        3 existing `references … -> _` rows. Corpus: +1 relation (`Vec`),
+        −3 (`_`), symbols unchanged. This repository (494 Rust files, 38282
+        symbols): dead code 1 → 1, symbols unchanged. Probe: `Marker` and
+        `Turbo` were listed before. Test:
+        `mct-lang-rust/tests/turbofish_types.rs`.
   - [x] PHP: a function named by a string argument of a function that takes
         a callable (`array_map('shout', $xs)`, `usort($xs, "by_name")`,
         `register_shutdown_function('on_exit')`; 20 such PHP functions) is a
