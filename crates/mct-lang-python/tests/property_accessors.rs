@@ -109,7 +109,10 @@ fn a_property_owns_its_accessors_calls_and_no_accessor_is_referenced() {
         relations,
         [
             rel("balance Field", RelationKind::References, "property", 5),
+            // The return annotation of the getter and the setter value.
+            rel("balance Field", RelationKind::References, "int", 6),
             rel("balance Field", RelationKind::Calls, "audit", 7),
+            rel("balance Field", RelationKind::References, "int", 10),
             rel("balance Field", RelationKind::Calls, "check", 11),
             rel("balance Field", RelationKind::Calls, "reset", 15),
             rel(

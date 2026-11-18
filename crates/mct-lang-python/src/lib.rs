@@ -372,11 +372,20 @@ impl<'a> Walker<'a> {
                     self.visit_children(arguments, owner, class_name, depth + 1);
                 }
             }
+            "typed_parameter" | "typed_default_parameter" => {
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.push_annotation_references(ty, owner, depth + 1);
+                }
+                self.visit_children(node, owner, class_name, depth + 1);
+            }
             "augmented_assignment" => {
                 self.push_dunder_all(node, owner);
                 self.visit_children(node, owner, class_name, depth + 1);
             }
             "assignment" => {
+                if let Some(ty) = node.child_by_field_name("type") {
+                    self.push_annotation_references(ty, owner, depth + 1);
+                }
                 self.push_dunder_all(node, owner);
                 // `f = lambda …` declares `f`, and the lambda's body is its.
                 let owner = self.push_lambda_binding(node).unwrap_or_else(|| {
@@ -655,6 +664,9 @@ impl<'a> Walker<'a> {
                     id,
                     self.source,
                 ));
+                if let Some(ty) = node.child_by_field_name("return_type") {
+                    self.push_annotation_references(ty, id, depth + 1);
+                }
                 if let (true, Some(class)) = (getter, class_name) {
                     self.properties.insert((class.to_string(), name), id);
                 }
@@ -1009,6 +1021,34 @@ impl<'a> Walker<'a> {
                 let mut cursor = value.walk();
                 for part in value.named_children(&mut cursor) {
                     self.push_value_references(part, owner, depth + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// A name inside a type annotation (`h: Handler`, `-> Out`,
+    /// `rows: list[Row]`, `x: A | None`) is a use of it: a `References`
+    /// relation, recorded only when the name carries evidence. A dotted
+    /// `pkg.Type` and a forward-reference string are left alone.
+    fn push_annotation_references(&mut self, ty: Node, owner: SymbolId, depth: u32) {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            return;
+        }
+        match ty.kind() {
+            "identifier" => self.push_value_references(ty, owner, depth + 1),
+            "type"
+            | "generic_type"
+            | "type_parameter"
+            | "subscript"
+            | "binary_operator"
+            | "union_type"
+            | "tuple"
+            | "list"
+            | "parenthesized_expression" => {
+                let mut cursor = ty.walk();
+                for part in ty.named_children(&mut cursor) {
+                    self.push_annotation_references(part, owner, depth + 1);
                 }
             }
             _ => {}
