@@ -67,6 +67,30 @@ impl LanguageParser for JavaParser {
         walker.jdk = jdk::JdkImports::of(root, &file.contents);
         let module_id =
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
+        // `package a.b;` — one Module symbol per file spanning it, not
+        // deduplicated across files, as Kotlin's package header does.
+        if let Some(package) =
+            find_child(root, "package_declaration").and_then(|p| p.named_child(0))
+        {
+            walker.push_symbol(
+                text(package, &file.contents).to_string(),
+                SymbolKind::Module,
+                module_location(root),
+                None,
+            );
+        }
+        // `module com.example.app { … }` of a `module-info.java`: the Java
+        // module is a `module` symbol spanning the file, as a package is.
+        if let Some(name) =
+            find_child(root, "module_declaration").and_then(|m| m.child_by_field_name("name"))
+        {
+            walker.push_symbol(
+                text(name, &file.contents).to_string(),
+                SymbolKind::Module,
+                module_location(root),
+                None,
+            );
+        }
         walker.visit_children(root, module_id, None, 0);
         let mut parsed = walker.finish();
         parsed.literals = literals::collect(root, &file.contents);
@@ -636,6 +660,24 @@ impl<'a> Walker<'a> {
                             self.locals = outer_locals;
                         }
                     }
+                }
+            }
+            // `requires java.sql;` imports another Java module: a JDK one
+            // (`java.*`, `jdk.*`) is external, any other resolves by name to
+            // that module's declaration. `exports` and `opens` name
+            // packages and record nothing.
+            "requires_module_directive" => {
+                if let Some(module) = node.child_by_field_name("module") {
+                    let name = text(module, self.source).to_string();
+                    let external = name.starts_with("java.") || name.starts_with("jdk.");
+                    let relation = self.relations.len();
+                    self.push_relation(owner, RelationKind::Imports, name, location(node));
+                    self.relation_targets.push(RelationTarget {
+                        relation,
+                        kind: Some(SymbolKind::Module),
+                        external,
+                        ..Default::default()
+                    });
                 }
             }
             // A type named in a declaration or an expression: `Config config`,

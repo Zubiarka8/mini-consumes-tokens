@@ -551,6 +551,15 @@ From `rules.md` and the two messages:
         (constructs 54% → 82%). The other cells were confirmed as written.
   - [~] Work through the gaps by language group.
   - [ ] Work through the gaps by language group.
+    - [x] Java `package`: a `package a.b;` clause is a `module` named
+          `a.b` spanning the file, one per file (not deduplicated), as
+          Kotlin's package header, Go's package clause and C#'s namespace
+          are. A file with no clause has only its file module. Test:
+          `tests/package_module.rs`. Corpus: symbols 432 -> 438, relations
+          unchanged at 1055. Repository snapshot (15 Java files): symbols 462
+          -> 477 (the 15 packages); the 150 relations found through the 62
+          type names are identical before and after; dead code 0 -> 0. Java
+          scores 83% -> 85% and 90% -> 95%.
     - [x] C# `const` members: a `const` field is a `constant` of its type, one
           per declarator, as Rust's `const`, C++'s `constexpr` and Kotlin's
           `const val`. `static readonly` and `readonly` stay `field`s (run-time
@@ -1861,6 +1870,12 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] Java, `module-info.java` (grammar check, 3.4): `module a.b { … }` is a
+      `module` symbol spanning the file and each `requires` is an import of
+      that module, external for `java.*`/`jdk.*`. End to end: two
+      `module-info.java` in one repository, `requires com.example.core`
+      resolves to the other file's declaration and `java.sql` is external.
+      `exports`/`opens` name packages and record nothing. Stacked on #497.
   - [x] Kotlin: a type named in a property, parameter, return or receiver
         type, local, generic argument, cast or `is` check is a `references`
         relation (last segment of a qualified name), so a class or interface
