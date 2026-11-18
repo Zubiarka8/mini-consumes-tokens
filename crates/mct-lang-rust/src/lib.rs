@@ -511,7 +511,19 @@ impl<'a> Walker<'a> {
                 let parent = self
                     .callable_owner(owner)
                     .or_else(|| self.module_owner(owner));
-                self.push_named(node, SymbolKind::Function, parent);
+                let id = self.push_named(node, SymbolKind::Function, parent);
+                // Calls and function uses in a macro rule's transcriber
+                // belong to the macro; the matcher only binds metavariables.
+                let mut cursor = node.walk();
+                let rules: Vec<Node> = node
+                    .named_children(&mut cursor)
+                    .filter(|r| r.kind() == "macro_rule")
+                    .collect();
+                for rule in rules {
+                    if let Some(right) = rule.child_by_field_name("right") {
+                        self.visit(right, id, None, depth + 1);
+                    }
+                }
             }
             "parameter" => {
                 if let Some(pattern) = node.child_by_field_name("pattern") {
