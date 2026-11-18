@@ -169,12 +169,19 @@ fn find_references_finds_cross_file_calls_from_main() {
     assert_eq!(describe_refs.len(), 1);
     assert_eq!(describe_refs[0].relative_path, "Main.kt");
 
-    // Both `LineItem(...)` constructions are recorded.
+    // Both `LineItem(...)` constructions are recorded. A type named in a
+    // declaration (`List<LineItem>`) is a reference too, so only the calls
+    // are counted here.
     let item_refs = index.find_references("LineItem").unwrap();
+    let constructions: Vec<_> = item_refs.iter().filter(|r| r.kind == "calls").collect();
     assert_eq!(
-        item_refs.len(),
+        constructions.len(),
         2,
         "Main.kt constructs LineItem twice: {item_refs:?}"
     );
-    assert!(item_refs.iter().all(|r| r.relative_path == "Main.kt"));
+    assert!(constructions.iter().all(|r| r.relative_path == "Main.kt"));
+    assert!(
+        item_refs.iter().any(|r| r.kind == "references"),
+        "a type use is a reference: {item_refs:?}"
+    );
 }
