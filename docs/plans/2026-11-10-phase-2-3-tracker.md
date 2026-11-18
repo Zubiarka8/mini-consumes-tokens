@@ -1871,7 +1871,6 @@ From `rules.md` and the two messages:
         callable). Probe on a tiny tree: dead code listed `shout` before.
         `php` is not installed here, so the PHP semantics are not run.
         Test: `mct-lang-php/tests/string_callables.rs`.
-||||||| 239d96e4
 - [x] Python, annotations: a name in a parameter, return or variable
       annotation (`h: Handler`, `-> Out`, `rows: list[Row]`, `x: A | None`)
       is a `references` relation with the evidence a bare call gets. A
