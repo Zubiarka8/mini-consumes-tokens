@@ -1861,6 +1861,12 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] Python, annotations: a name in a parameter, return or variable
+      annotation (`h: Handler`, `-> Out`, `rows: list[Row]`, `x: A | None`)
+      is a `references` relation with the evidence a bare call gets. A
+      dotted name and a string forward reference are left alone. Probe:
+      3 classes used only in annotations were dead code, now 0; the corpus
+      snapshot grows by 706 lines, mostly external builtins (`int`, `str`).
 - [x] Java, record compact constructor (found by comparing the grammar's
       declaration node kinds with the ones the parser names, 3.4): a
       `public Point { … }` is a `method` named after its record, and the
