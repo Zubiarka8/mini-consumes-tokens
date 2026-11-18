@@ -173,7 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = subs.add_parser("plan", help="risk level, selected crates and platform matrix")
     _add_range_args(sub)
-    sub.add_argument("--scope", choices=("pr", "all"), default="pr")
+    sub.add_argument("--scope", choices=("pr", "extra", "all"), default="pr")
     sub.set_defaults(func=cmd_plan)
 
     sub = subs.add_parser("run", help="run the selected cargo build, test and clippy")
