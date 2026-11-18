@@ -93,6 +93,7 @@ fn a_declared_type_of_this_file_or_of_std_is_referenced() {
             (make.clone(), "Point", 13, "this file"),
             (shop.clone(), "Point", 13, "this file"),
             (make.clone(), "lock_guard", 14, "external"),
+            (make.clone(), "mutex", 14, "external"),
             (make.clone(), "Point", 15, "this file"),
             (make.clone(), "string", 16, "external"),
         ]
