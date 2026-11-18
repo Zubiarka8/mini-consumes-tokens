@@ -44,7 +44,9 @@ def check_platform(platform: dict) -> None:
 
 
 def build(plan: Plan, policy: dict, scope: str = "pr") -> Matrix:
-    """`scope` is `pr` (pull request platforms) or `all` (every platform)."""
+    """`scope`: `pr` (pull request platforms), `extra` (the others) or `all`."""
+    if scope not in ("pr", "extra", "all"):
+        raise MatrixError(f"unknown scope {scope}")
     platforms = policy.get("platforms", [])
     for platform in platforms:
         check_platform(platform)
@@ -55,6 +57,9 @@ def build(plan: Plan, policy: dict, scope: str = "pr") -> Matrix:
     for platform in platforms:
         if scope == "pr" and not platform.get("pr", False):
             skipped.append((platform["id"], "not a pull request platform (full/release only)"))
+            continue
+        if scope == "extra" and platform.get("pr", False):
+            skipped.append((platform["id"], "already tested on every pull request"))
             continue
         if not plan.full and not plan.test_crates:
             skipped.append((platform["id"], f"{plan.level}: no Rust tests selected"))

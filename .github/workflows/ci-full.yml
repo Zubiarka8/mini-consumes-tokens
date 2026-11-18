@@ -1,0 +1,110 @@
+name: CI full (platforms)
+
+# The workspace tests on the release targets that no pull request runs:
+# Linux GNU ARM64, Linux MUSL x64 and ARM64, macOS Intel and Windows ARM64.
+# ci.yml already tests Linux x64, macOS ARM64 and Windows x64 on every pull
+# request. release.yml builds these five, but only smoke-tests the binaries,
+# and only at release time. Here every target runs natively, with the full
+# `cargo test`. The matrix comes from scripts/ci/ci_policy.toml
+# (`plan --scope extra`), the same table release.yml is tested against.
+#
+# Not a required check. Runs weekly, on demand, and on a pull request that
+# changes this file or the platform policy, so a change to it is tested
+# before it merges.
+on:
+  schedule:
+    - cron: "41 4 * * 0" # 04:41 UTC every Sunday
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "extra = the 5 targets PRs do not test, all = all 8"
+        type: choice
+        options: [extra, all]
+        default: extra
+  pull_request:
+    paths:
+      - ".github/workflows/ci-full.yml"
+      - "scripts/ci/ci_policy.toml"
+      - "scripts/ci/generate_matrix.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  matrix:
+    name: platform matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Plan every platform of the scope
+        id: plan
+        env:
+          SCOPE: ${{ inputs.scope || 'extra' }}
+        run: python3 scripts/ci/main.py plan --event schedule --scope "$SCOPE"
+
+  test:
+    name: test (${{ matrix.id }})
+    needs: matrix
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # A native target must land on a runner of its architecture; a
+      # mislabelled runner would otherwise "pass" by testing another arch.
+      - name: Confirm the runner architecture
+        shell: bash
+        run: |
+          py="$(command -v python3 || command -v python)"
+          "$py" scripts/ci/main.py cache-key --target "${{ matrix.target }}" --mode "${{ matrix.mode }}"
+
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master 2026-10-16
+        with:
+          toolchain: 1.96.0
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install musl-gcc (musl targets only)
+        if: endsWith(matrix.target, '-musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Test workspace
+        if: matrix.run_tests
+        shell: bash
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
+        # --no-fail-fast: one run shows every failing crate on a platform.
+        run: cargo test --locked --workspace --no-fail-fast --target "${{ matrix.target }}"
+
+      - name: Build workspace (cross targets, not run)
+        if: ${{ !matrix.run_tests }}
+        shell: bash
+        run: cargo build --locked --workspace --all-targets --target "${{ matrix.target }}"
+
+  gate:
+    name: CI full gate
+    if: always()
+    needs: [matrix, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Every platform passed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 scripts/ci/main.py gate --required matrix,test

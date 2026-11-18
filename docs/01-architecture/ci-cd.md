@@ -47,6 +47,7 @@ Run outcomes: PR 16 success, 46 failure, 22 cancelled; push 4 success, 12 failur
   ci.yml           PRs, pushes, manual runs, and workflow_call: plan (observation), ci-scripts,
                    fmt, web-bundles, build-test x3, cargo-audit, ci-gate
   ci-nightly.yml   fuzz smoke tests: Linux on push to main and nightly, macOS nightly only
+  ci-full.yml      weekly + dispatch: cargo test on ARM64, MUSL, macOS Intel, Windows ARM64
   ci-recovery.yml  push to recovery/** = full ci.yml on that commit; dispatch = diagnose/rerun
   release.yml      tags v* and manual runs (unchanged)
   docs.yml, quality-report.yml  unchanged
@@ -138,7 +139,7 @@ When files of several levels change, the highest level wins, and a rename counts
 | macOS Intel | macos-26-intel | x86_64-apple-darwin | no | yes | native |
 | Windows ARM64 | windows-11-arm | aarch64-pc-windows-msvc | no | yes | native |
 
-The eight targets equal `release.yml`'s matrix, and the test `test_release_workflow_targets_match_the_policy` keeps them in sync. These runner labels are evidenced by `release.yml`'s green runs (43437608826, v0.3.2). The planner only emits a matrix today. Wiring the "full / release" column into a `ci-full` run is a later step (section 4).
+The eight targets equal `release.yml`'s matrix, and the test `test_release_workflow_targets_match_the_policy` keeps them in sync. These runner labels are evidenced by `release.yml`'s green runs (43437608826, v0.3.2). `ci-full.yml` runs the whole `cargo test` natively on the five targets that pull requests do not cover (`plan --scope extra`). It runs weekly (Sunday 04:41 UTC), on demand with `scope: all`, and on a PR that changes it or the platform policy. Before this change, those targets were only built, and smoke-tested at release time. It is not a required check.
 
 ### Cache
 
