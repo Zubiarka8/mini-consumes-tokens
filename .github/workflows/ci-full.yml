@@ -89,7 +89,8 @@ jobs:
         env:
           CC_x86_64_unknown_linux_musl: musl-gcc
           CC_aarch64_unknown_linux_musl: musl-gcc
-        run: cargo test --locked --workspace --target "${{ matrix.target }}"
+        # --no-fail-fast: one run shows every failing crate on a platform.
+        run: cargo test --locked --workspace --no-fail-fast --target "${{ matrix.target }}"
 
       - name: Build workspace (cross targets, not run)
         if: ${{ !matrix.run_tests }}
