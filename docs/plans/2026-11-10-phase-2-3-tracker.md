@@ -1861,6 +1861,13 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+- [x] Java, record compact constructor (found by comparing the grammar's
+      declaration node kinds with the ones the parser names, 3.4): a
+      `public Point { … }` is a `method` named after its record, and the
+      calls of its body belong to it, not to the enclosing class or file
+      module. Corpus: 4 new symbols, 11 calls change owner
+      (`OrderService`, `Money`, `Order` -> the compact constructors),
+      relations unchanged.
 - [x] Rust, `macro_rules!` body (grammar check, 3.4): the transcriber of a
       rule (`helper($x) * 2`, `util::run($x)`) is walked with the macro as
       owner, so a function it names is used and is no longer reported as
