@@ -4,6 +4,13 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  # Full validation on demand (works once this file is on the default branch).
+  workflow_dispatch:
+  # ci-recovery.yml calls this workflow to validate a repair branch in full.
+  workflow_call:
+
+permissions:
+  contents: read
 
 # A new push to a pull request supersedes its earlier run: cancel that one
 # so the queue holds one run per pull request, not one per push. The free
@@ -20,6 +27,53 @@ env:
   RUST_TOOLCHAIN: "1.96.0"
 
 jobs:
+  # Level 0, observation mode: computes which crates and platforms a change
+  # needs (scripts/ci, see docs/03-ci/incremental-ci.md) and writes the plan
+  # to the run summary. Nothing consumes it yet: build-test still runs the
+  # full suite until the plan has been compared with full runs.
+  plan:
+    name: CI plan (observation)
+    runs-on: ubuntu-latest
+    outputs:
+      level: ${{ steps.plan.outputs.level }}
+      full: ${{ steps.plan.outputs.full }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+      - name: Plan
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+        run: |
+          python3 scripts/ci/main.py plan --event "$EVENT" --base "$BASE" --head "$HEAD_SHA"
+          python3 scripts/ci/main.py run --dry-run --event "$EVENT" --base "$BASE" --head "$HEAD_SHA"
+
+  # The CI's own scripts and workflows. Standard library Python and a
+  # checksum-pinned actionlint only: no project build, so a broken Rust
+  # workspace cannot stop the CI from checking itself.
+  ci-scripts:
+    name: CI scripts and workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: CI planner tests
+        working-directory: scripts/ci/tests
+        run: python3 -m unittest discover -t . -s . -v
+      - name: actionlint
+        env:
+          VERSION: "1.7.12"
+          SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          file="actionlint_${VERSION}_linux_amd64.tar.gz"
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/$file" "https://github.com/rhysd/actionlint/releases/download/v${VERSION}/${file}"
+          echo "${SHA256}  $RUNNER_TEMP/$file" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+
   # rustfmt's output doesn't depend on the OS, so one Linux run is enough.
   # Same pinned toolchain as the build, so a newer rustfmt can't make CI
   # disagree with a contributor's `cargo fmt`.
@@ -27,10 +81,11 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master 2026-10-16
         with:
+          toolchain: 1.96.0
           components: rustfmt
 
       - name: Check formatting
@@ -44,9 +99,9 @@ jobs:
     name: web bundles are fresh + web tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
@@ -93,13 +148,19 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master 2026-10-16
         with:
+          toolchain: 1.96.0
           components: clippy
 
-      - uses: Swatinem/rust-cache@v2
+      # PRs restore the cache main saved but never write their own: the
+      # repository was over its 10 GB cache quota (10.67 GB, 110 entries on
+      # 2026-11-17), so every save evicted another entry.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # Windows note (see CONTRIBUTING.md "Windows build prerequisites"):
       # git2 (default-features = false, so no openssl/libssh2 system deps)
@@ -159,9 +220,11 @@ jobs:
     name: cargo-audit (dependency vulnerabilities)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.96.0
-      - uses: taiki-e/install-action@v2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master 2026-10-16
+        with:
+          toolchain: 1.96.0
+      - uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
         with:
           tool: cargo-audit
 
@@ -189,127 +252,20 @@ jobs:
           EOF
           cargo audit
 
-  # The fuzz smoke tests run for a push to `main` only, on Linux and on
-  # macOS (see `fuzz-smoke-macos`). Each pull request used to queue 18
-  # Ubuntu fuzz jobs next to its 4 required checks, and with ~45 open pull
-  # requests that was ~800 jobs on a free pool of 20: every pull request
-  # waited hours for checks that are not required to merge. The required
-  # build + test + clippy jobs still run on every pull request.
-  fuzz-smoke:
-    if: github.event_name == 'push'
-    name: fuzz smoke test (${{ matrix.crate }}, ${{ matrix.os }})
-    # Linux/macOS only — deliberately, not an oversight. cargo-fuzz's
-    # default AddressSanitizer needs a runtime DLL
-    # (clang_rt.asan_dynamic-x86_64.dll, shipped with MSVC's own C++ tools,
-    # not with rustup) that isn't on PATH by default on Windows runners;
-    # without it the built fuzz binary fails at launch with
-    # STATUS_DLL_NOT_FOUND. Disabling the sanitizer instead
-    # (--sanitizer none) fails to *link*, not run: MSVC's link.exe doesn't
-    # resolve the __start___sancov_cntrs/__stop___sancov_cntrs
-    # section-boundary symbols the sancov coverage instrumentation needs —
-    # GNU ld/lld synthesize these automatically, link.exe does not. Both
-    # failure modes were hit and confirmed locally on Windows before this
-    # decision was made (see checklist.md). Decision: fuzzing runs only on
-    # Linux/macOS in CI. The build-test job above still runs the full
-    # workspace build and test suite on Windows without exception — this
-    # exclusion is for fuzzing only. Revisit if a Windows-native fuzzing
-    # path appears that doesn't need manually resolving the ASan DLL path.
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        crate: &fuzz-smoke-crates
-          - mct-lang-rust
-          - mct-lang-python
-          - mct-lang-lua
-          - mct-lang-java
-          - mct-lang-csharp
-          - mct-lang-js-ts
-          - mct-lang-cpp
-          - mct-lang-go
-          - mct-lang-bash
-          - mct-lang-powershell
-          - mct-lang-php
-          - mct-lang-md
-          - mct-lang-css
-          - mct-lang-html
-          - mct-lang-kotlin
-          - mct-lang-xaml
-          - mct-lang-xml
-          - mct-index
-    steps: &fuzz-smoke-steps
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: crates/${{ matrix.crate }}/fuzz -> target
-
-      # Not in taiki-e/install-action's tool list, so built from source —
-      # a few seconds on Linux/macOS, not worth pre-building separately.
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
-
-      # Keep compilation outside the runtime budget for the smoke campaign.
-      - name: Build fuzz target
-        timeout-minutes: 10
-        working-directory: crates/${{ matrix.crate }}
-        run: |
-          # cargo-fuzz has no --locked; fail here if fuzz/Cargo.lock is stale.
-          (cd fuzz && cargo fetch --locked)
-          target_name=$(cargo fuzz list)
-          cargo fuzz build "$target_name"
-
-      # Inputs that once crashed or exhausted memory, replayed one by one
-      # under the sanitizer: a random 30s campaign is not guaranteed to
-      # reach them again.
-      - name: Replay fuzz regressions
-        timeout-minutes: 5
-        working-directory: crates/${{ matrix.crate }}
-        run: |
-          target_name=$(cargo fuzz list)
-          dir="fuzz/regressions/$target_name"
-          if [ -d "$dir" ]; then
-            mkdir -p fuzz/logs
-            cargo fuzz run "$target_name" "$dir"/* -- -rss_limit_mb=2048 -timeout=10 2>&1 | tee fuzz/logs/regressions.log
-          fi
-
-      # Smoke test only: confirms the harness builds and runs clean against
-      # its (unseeded, in CI) corpus, not a real fuzzing campaign — no
-      # crash is expected or being searched for here.
-      - name: Short fuzz campaign (no crash expected)
-        timeout-minutes: 5
-        working-directory: crates/${{ matrix.crate }}
-        run: |
-          target_name=$(cargo fuzz list)
-          mkdir -p fuzz/logs
-          cargo fuzz run "$target_name" -- -max_total_time=30 -timeout=10 -rss_limit_mb=2048 2>&1 | tee fuzz/logs/smoke.log
-
-      - name: Preserve fuzz diagnostics
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: fuzz-${{ matrix.crate }}-${{ matrix.os }}-${{ github.run_attempt }}
-          path: |
-            crates/${{ matrix.crate }}/fuzz/artifacts/
-            crates/${{ matrix.crate }}/fuzz/corpus/
-            crates/${{ matrix.crate }}/fuzz/logs/
-          if-no-files-found: warn
-          retention-days: 7
-
-  # The same fuzz smoke tests on macOS, for a push to `main` only. The free
-  # pool runs 5 macOS jobs at a time, and 18 macOS fuzz jobs per pull
-  # request queued macOS work for a day. The required macOS build + test
-  # job above still runs on every pull request. A job-level `if:` is used
-  # because a matrix built with `fromJSON(...)` from the event name still
-  # expanded to both systems on pull requests.
-  fuzz-smoke-macos:
-    if: github.event_name == 'push'
-    name: fuzz smoke test (${{ matrix.crate }}, ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest]
-        crate: *fuzz-smoke-crates
-    steps: *fuzz-smoke-steps
+  # The one stable check to require on main: it runs even when a job before
+  # it failed, and passes only if every job listed in
+  # scripts/ci/ci_policy.toml [gate].required ended in `success`. A required
+  # job that was skipped, cancelled or never ran blocks it. `always()` (not
+  # `!cancelled()`) on purpose: GitHub reports a skipped required check as
+  # passing, so a cancelled run must end this job red, not skipped.
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs: [plan, ci-scripts, fmt, web-bundles, build-test, cargo-audit]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Every required job succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 scripts/ci/main.py gate

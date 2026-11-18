@@ -83,7 +83,7 @@ This is the extension point most contributions will touch, so it gets its own ch
 4. **Wire it in** — nowhere else in `mct-core`, `mct-index`, `mct-cli` or `mct-mcp-server` changes:
    - the root `Cargo.toml`: a `members` entry and a `[workspace.dependencies]` entry.
    - `crates/mct-languages`: one dependency in its `Cargo.toml`, one `registry.register(...)` line in `src/lib.rs::build_registry`, and a representative extension in that file's test. The CLI, the MCP server and `mct-eval` all index through this one registry, so they cannot ship different language sets.
-   - the `matrix.crate` list in `.github/workflows/ci.yml`'s `fuzz-smoke` job, for the `fuzz/` harness from step 5a — otherwise CI silently never fuzzes it.
+   - the `matrix.crate` list in `.github/workflows/ci-nightly.yml`'s `fuzz-smoke` job, for the `fuzz/` harness from step 5a — otherwise CI silently never fuzzes it.
 5. **Tests** in `crates/mct-lang-<name>/tests/parse.rs`:
    - A function-and-call extraction test.
    - At least one test covering the language's distinctive idiomatic syntax (generics for C#/Java, templates for C++, decorators for Python — whatever the equivalent is for your language).
@@ -206,12 +206,17 @@ If `cargo build` fails on Windows with a `link.exe`/`cl.exe`-not-found error, th
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` has four jobs:
+`.github/workflows/ci.yml` runs these jobs on every push and PR (design and evidence: [ci-cd.md](docs/01-architecture/ci-cd.md)):
+
+- **`plan`** — observation only: which crates and platforms the change needs, by `scripts/ci/main.py plan` and `scripts/ci/ci_policy.toml`, written to the run summary. Nothing uses it yet.
+- **`ci-scripts`** — the `scripts/ci/tests` unittest suite and a checksum-pinned `actionlint` over the workflows.
+- **`web-bundles`** — the committed dashboard bundles match their source, and the web tests pass.
+- **`ci-gate`** — runs last, even after a failure, and fails unless every job in `[gate].required` succeeded. A skipped, cancelled or missing required job blocks it.
 
 - **`fmt`** — `cargo fmt --all --check` on one Linux run (rustfmt output does not depend on the OS).
 - **`build-test`** — matrix over Linux/macOS/Windows: `cargo build --locked --workspace --all-targets`, `cargo test --locked --workspace`, `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic`; `--locked` fails the job when `Cargo.lock` would need an update. Runs on every push/PR, on all three OS, no exceptions.
 - **`cargo-audit`** — Linux only (one run is enough for a dependency audit). Two passes: a full report of every severity (informational, never fails the job — low/medium findings stay visible in the log), then a second pass with `severity_threshold = "high"` in a generated `.cargo/audit.toml`, whose exit code is what actually gates the job. Advisories with no CVSS score bypass the severity filter and always fail this step (fail-safe for unscored issues).
-- **`fuzz-smoke`** — matrix over `{ubuntu-latest, macos-latest} × {every crate listed in matrix.crate}` (every `mct-lang-*` crate plus `mct-index`; check the workflow file for the authoritative list rather than a count that goes stale), short (30s) `cargo-fuzz` campaigns confirming each harness builds and runs without crashing. **Deliberately excludes Windows** — see the long comment above that job in the workflow file for exactly why (an ASan runtime DLL PATH issue and a separate MSVC linker limitation with sancov instrumentation, both confirmed locally before this decision was made). The regular `build-test` job still covers Windows fully; only fuzzing is Linux/macOS-only.
+- **`fuzz-smoke`** (in `.github/workflows/ci-nightly.yml`: Linux on every push to `main` and nightly, macOS nightly only) — matrix over `{ubuntu-latest, macos-latest} × {every crate listed in matrix.crate}` (every `mct-lang-*` crate plus `mct-index`; check the workflow file for the authoritative list rather than a count that goes stale), short (30s) `cargo-fuzz` campaigns confirming each harness builds and runs without crashing. **Deliberately excludes Windows** — see the long comment above that job in the workflow file for exactly why (an ASan runtime DLL PATH issue and a separate MSVC linker limitation with sancov instrumentation, both confirmed locally before this decision was made). The regular `build-test` job still covers Windows fully; only fuzzing is Linux/macOS-only.
 
 ## Quality evaluation
 
