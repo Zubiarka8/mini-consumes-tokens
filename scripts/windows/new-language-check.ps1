@@ -86,7 +86,7 @@ Test-Place required 'syntax-error assertion (inline/shared)' "$dir/tests/parse.r
 Test-Place required 'fuzz harness (fuzz/Cargo.toml [workspace])' "$dir/fuzz/Cargo.toml" '^\[workspace\]'
 Test-Place required 'fuzz target (fuzz/fuzz_targets/*.rs)'    "$dir/fuzz/fuzz_targets" 'fuzz_target!'
 # A harness CI never runs is the gap CONTRIBUTING.md warns about.
-Test-Place required 'ci.yml fuzz-smoke matrix entry'          '.github/workflows/ci.yml' ('^ *- ' + $c + '$')
+Test-Place required 'ci-nightly.yml fuzz-smoke matrix entry'  '.github/workflows/ci-nightly.yml' ('^ *- ' + $c + '$')
 # Escaped: names like `C++` or `C#` are not valid/literal regexes as-is.
 Test-Place warn     'parser checklist by-language row'        'docs/02-crates/parsers/checklists/by-language.md' ([regex]::Escape($readmeName)) -IgnoreCase
 Test-Place warn     'internal/checklist.md coverage row'      'internal/checklist.md' ('`' + $c + '`')

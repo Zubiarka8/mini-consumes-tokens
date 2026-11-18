@@ -1,0 +1,287 @@
+# CI selection policy: the one place that decides which change runs which checks.
+#
+# Read by scripts/ci/*.py (Python standard library `tomllib`, no extra package).
+# Any change to this file, to scripts/ci/ or to .github/ is itself R4, so a
+# policy edit is always validated by the full suite (see [[rules]] below).
+#
+# Levels (higher wins when a change touches several kinds of file):
+#   R0  isolated docs        docs checks, plus the tests known to read docs
+#   R1  localized change     tests of the touched crate only
+#   R2  cross-cutting change tests of the touched crates and every dependent
+#   R3  critical change      full workspace, every platform
+#   R4  security or infra    full workspace, every platform, reinforced review
+
+version = 1
+
+# A path no rule matches gets this level. Unknown means "not proven safe".
+unknown_level = "R3"
+
+# When the dependents of the touched crates cover at least this share of the
+# workspace, the change is treated as general and runs the full suite.
+full_suite_share = 0.6
+
+# Crates whose change is general by definition: the core model, the index,
+# the shared grammar helpers, the language registry and the MCP surface.
+critical_crates = [
+  "mct-core",
+  "mct-index",
+  "mct-tree-sitter",
+  "mct-languages",
+  "mct-mcp-server",
+]
+
+# Crates whose behavior depends on the host OS (paths, processes, sockets):
+# their tests run on every platform, not only Linux.
+platform_sensitive_crates = ["mct-cli", "mct-mcp-server", "mct-index"]
+
+# Tests that read files outside their crate. A docs-only change still runs
+# them. `the_coverage_score_table_matches_the_checklists` in mct-languages
+# reads the parser checklists under docs/ (CI run 44093968778 failed on it).
+docs_consumer_crates = ["mct-languages", "mct-eval"]
+
+# Paths outside crates/ that belong to a crate.
+[path_owners]
+"vendor/tree-sitter-md/" = "mct-lang-md"
+
+# Rules are glob patterns: `*` stays inside one directory, `**` crosses them. Every matching
+# rule applies; the highest level wins. `scope` says what the level means:
+#   docs   docs checks only
+#   crate  the owning crate (by path) decides, see dependency_graph.py
+#   full   the full suite
+[[rules]]
+pattern = ".github/**"
+level = "R4"
+scope = "full"
+reason = "CI or repository automation"
+
+[[rules]]
+pattern = "scripts/ci/**"
+level = "R4"
+scope = "full"
+reason = "CI selector or its policy"
+
+[[rules]]
+pattern = "Cargo.lock"
+level = "R4"
+scope = "full"
+reason = "dependency versions (security audit and full suite)"
+
+[[rules]]
+pattern = "**/fuzz/Cargo.lock"
+level = "R4"
+scope = "full"
+reason = "fuzz dependency versions"
+
+[[rules]]
+pattern = "install.sh"
+level = "R4"
+scope = "full"
+reason = "installer"
+
+[[rules]]
+pattern = "install.ps1"
+level = "R4"
+scope = "full"
+reason = "installer"
+
+[[rules]]
+pattern = "packaging/**"
+level = "R4"
+scope = "full"
+reason = "release packaging"
+
+[[rules]]
+pattern = "SECURITY.md"
+level = "R4"
+scope = "full"
+reason = "security policy"
+
+[[rules]]
+pattern = "Cargo.toml"
+level = "R3"
+scope = "full"
+reason = "workspace manifest"
+
+[[rules]]
+pattern = "rust-toolchain*"
+level = "R4"
+scope = "full"
+reason = "toolchain pin"
+
+[[rules]]
+pattern = ".cargo/**"
+level = "R4"
+scope = "full"
+reason = "cargo build configuration"
+
+[[rules]]
+pattern = "crates/*/fuzz/**"
+level = "R3"
+scope = "full"
+reason = "fuzz harness"
+
+[[rules]]
+pattern = "crates/**"
+level = "R1"
+scope = "crate"
+reason = "crate source"
+
+[[rules]]
+pattern = "vendor/**"
+level = "R1"
+scope = "crate"
+reason = "vendored grammar"
+
+[[rules]]
+pattern = "scripts/unix/**"
+level = "R2"
+scope = "full"
+reason = "developer and CI scripts"
+
+[[rules]]
+pattern = "scripts/windows/**"
+level = "R2"
+scope = "full"
+reason = "developer and CI scripts (PowerShell)"
+
+[[rules]]
+pattern = "scripts/*"
+level = "R2"
+scope = "full"
+reason = "developer and CI scripts"
+
+[[rules]]
+pattern = "website/**"
+level = "R0"
+scope = "docs"
+reason = "public website (docs.yml builds it)"
+
+[[rules]]
+pattern = "docs/**"
+level = "R0"
+scope = "docs"
+reason = "documentation"
+
+[[rules]]
+pattern = "errors/**"
+level = "R0"
+scope = "docs"
+reason = "error registry"
+
+[[rules]]
+pattern = "benchmarks/**"
+level = "R0"
+scope = "docs"
+reason = "benchmark reports"
+
+[[rules]]
+pattern = "internal/**"
+level = "R0"
+scope = "docs"
+reason = "internal notes and checklists"
+
+[[rules]]
+pattern = "*.md"
+level = "R0"
+scope = "docs"
+reason = "top-level documentation"
+
+[[rules]]
+pattern = "LICENSE"
+level = "R0"
+scope = "docs"
+reason = "license text"
+
+[[rules]]
+pattern = "THIRD_PARTY_NOTICES.md"
+level = "R0"
+scope = "docs"
+reason = "license text"
+
+# Platforms. `pr` platforms are the ones a pull request may run; the rest run
+# in the full and release workflows. `mode`: native runs tests, cross only
+# builds (a cross build is never reported as tested).
+[[platforms]]
+id = "linux-x64"
+runner = "ubuntu-latest"
+target = "x86_64-unknown-linux-gnu"
+arch = "X64"
+mode = "native"
+pr = true
+
+[[platforms]]
+id = "macos-arm64"
+runner = "macos-latest"
+target = "aarch64-apple-darwin"
+arch = "ARM64"
+mode = "native"
+pr = true
+
+[[platforms]]
+id = "windows-x64"
+runner = "windows-latest"
+target = "x86_64-pc-windows-msvc"
+arch = "X64"
+mode = "native"
+pr = true
+
+[[platforms]]
+id = "linux-arm64"
+runner = "ubuntu-24.04-arm"
+target = "aarch64-unknown-linux-gnu"
+arch = "ARM64"
+mode = "native"
+pr = false
+
+[[platforms]]
+id = "linux-x64-musl"
+runner = "ubuntu-latest"
+target = "x86_64-unknown-linux-musl"
+arch = "X64"
+mode = "native"
+pr = false
+
+[[platforms]]
+id = "linux-arm64-musl"
+runner = "ubuntu-24.04-arm"
+target = "aarch64-unknown-linux-musl"
+arch = "ARM64"
+mode = "native"
+pr = false
+
+[[platforms]]
+id = "macos-x64"
+runner = "macos-26-intel"
+target = "x86_64-apple-darwin"
+arch = "X64"
+mode = "native"
+pr = false
+
+[[platforms]]
+id = "windows-arm64"
+runner = "windows-11-arm"
+target = "aarch64-pc-windows-msvc"
+arch = "ARM64"
+mode = "native"
+pr = false
+
+# Jobs the final gate (`ci-gate`) requires on every run of ci.yml. A job not
+# listed here may be skipped; one listed here must end in `success`.
+[gate]
+required = ["fmt", "web-bundles", "build-test", "cargo-audit", "ci-scripts"]
+
+# Automatic reruns of a job whose failure is classified as infrastructure.
+[recovery]
+max_attempts = 2
+transient_patterns = [
+  "The job was not acquired by Runner",
+  "lost communication with the server",
+  "The runner has received a shutdown signal",
+  "The hosted runner encountered an error",
+  "Could not resolve host",
+  "Failed to connect to",
+  "HTTP 502",
+  "HTTP 503",
+  "HTTP 504",
+  "spurious network error",
+]
