@@ -179,7 +179,7 @@ round to the nearest whole percent, with halves rounded up.
 | Rust | 98% | 26 | 90% | 10 | 0 |
 | Python | 91% | 29 | 95% | 10 | 0 |
 | JS/TS | 89% | 33 | 100% | 10 | 1 |
-| Java | 85% | 27 | 85% | 10 | 0 |
+| Java | 87% | 27 | 85% | 10 | 0 |
 | Kotlin | 83% | 35 | 85% | 10 | 0 |
 | C# | 90% | 34 | 90% | 10 | 0 |
 | C++ | 89% | 28 | 70% | 10 | 0 |
