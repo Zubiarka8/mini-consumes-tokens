@@ -82,13 +82,14 @@ jobs:
             target: aarch64-pc-windows-msvc
             native: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master 2026-10-16
         with:
+          toolchain: 1.96.0
           targets: ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.target }}
 
@@ -179,7 +180,7 @@ jobs:
           }
           Remove-Item -Recurse -Force $check
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ matrix.name }}
           path: dist/*
@@ -193,9 +194,9 @@ jobs:
       NFPM_VERSION_PIN: "2.47.0"
       NFPM_SHA256: "0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: linux-*-musl
           path: artifacts
@@ -220,16 +221,16 @@ jobs:
           fi
           mkdir -p dist
           for pair in "x86_64 amd64" "arm64 arm64"; do
-            set -- $pair
-            tarball="artifacts/linux-$1-musl/mini-consumes-tokens-$label-linux-$1-musl.tar.gz"
+            read -r arch pkg_arch <<< "$pair"
+            tarball="artifacts/linux-$arch-musl/mini-consumes-tokens-$label-linux-$arch-musl.tar.gz"
             work="$(mktemp -d)"
             tar -xzf "$tarball" -C "$work"
-            export NFPM_ARCH="$2" NFPM_VERSION="$version"
+            export NFPM_ARCH="$pkg_arch" NFPM_VERSION="$version"
             rm -rf pkg
-            cp -R "$work/mini-consumes-tokens-$label-linux-$1-musl" pkg
+            cp -R "$work/mini-consumes-tokens-$label-linux-$arch-musl" pkg
             for format in deb rpm; do
               nfpm package --config packaging/nfpm.yaml --packager "$format" \
-                --target "dist/mini-consumes-tokens-$label-linux-$1.$format"
+                --target "dist/mini-consumes-tokens-$label-linux-$arch.$format"
             done
           done
           ls -la dist
@@ -252,7 +253,7 @@ jobs:
           mct-cli --version
           mct-mcp-server --help > /dev/null
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: linux-packages
           path: dist/*
@@ -267,7 +268,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: artifacts
 
@@ -280,7 +281,7 @@ jobs:
           count="$(find release -type f | wc -l)"
           [ "$count" -eq 12 ] || { echo "::error::expected 12 files, found $count"; exit 1; }
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: release/*
           fail_on_unmatched_files: true

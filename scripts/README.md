@@ -13,6 +13,20 @@ script names and flags wherever both exist:
 | `unix/` | macOS and Linux (bash 3.2+, so macOS's `/bin/bash` works) | the scripts below |
 | `windows/` | Windows (Windows PowerShell 5.1+ or PowerShell 7+) | the same scripts as `.ps1` — see `windows/README.md` |
 
+## ci/
+
+The CI planner, used by `.github/workflows/ci.yml` and `ci-recovery.yml`. It needs only Python 3.11+ (standard library) and git, plus cargo for `plan`, and it runs on every OS. Design and evidence: [docs/01-architecture/ci-cd.md](../docs/01-architecture/ci-cd.md). Exit codes: 0 ok, 1 the check failed, 2 usage or environment error. Logs are `key=value` lines on stderr.
+
+| Command | What it does |
+|---|---|
+| `python3 scripts/ci/main.py plan --base <sha> [--head <sha>] [--event E]` | Risk level R0 to R4, the crates and platforms to test, and one reason per changed path, from `git diff` against the merge base, `cargo metadata` and `ci_policy.toml`. A missing base, an unknown path or a failed `cargo metadata` means the full suite. `--strict` makes them an error instead. |
+| `python3 scripts/ci/main.py run … --dry-run` | The cargo build, test and clippy commands the plan selects. Without `--dry-run` it runs them and stops at the first failure. |
+| `python3 scripts/ci/main.py gate` | The `ci-gate` job: reads `toJSON(needs)` from `$NEEDS_JSON` and fails unless every required job succeeded. |
+| `python3 scripts/ci/main.py recovery --repo R --run ID [--apply]` | Classifies a run's failed jobs as infrastructure or code failures. `--apply` reruns only the infrastructure ones, within `max_attempts`. Needs `gh`. |
+| `python3 scripts/ci/main.py metrics --repo R --since YYYY-MM-DD` | Queue time, run time and outcomes per job, plus total runner minutes. Needs `gh`. |
+| `python3 scripts/ci/main.py cache-key --target T` | A cache key with the target and host arch. Fails when the runner's arch does not match a native target. |
+| `cd scripts/ci/tests && python3 -m unittest discover -t . -s .` | The planner's own tests. |
+
 ## unix/
 
 | Script | What it does |
