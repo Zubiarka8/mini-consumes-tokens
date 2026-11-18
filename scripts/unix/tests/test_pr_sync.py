@@ -109,6 +109,21 @@ class PrSyncTests(unittest.TestCase):
         self.assertIn('feature edit', merged)
         self.assertIn('main edit', merged)
 
+    def test_a_checkout_behind_origin_is_fast_forwarded_before_merging(self):
+        self.diverge('head\n- [x] first\n- [x] from feature\n', 'head\n- [x] first\n- [x] from main\n')
+        # The branch moves on origin from somewhere else; this checkout still has the old tip.
+        self.git('checkout', '-q', 'feature')
+        old_tip = self.git('rev-parse', 'HEAD')
+        self.write('other.txt', 'elsewhere\n')
+        self.commit('pushed from elsewhere')
+        self.git('push', '-q', 'origin', 'feature')
+        self.git('reset', '-q', '--hard', old_tip)
+        result = self.sync('--push')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('fast-forwarded', result.stdout)
+        self.assertEqual(self.git('rev-parse', 'feature'), self.git('rev-parse', 'origin/feature'))
+        self.assertTrue((self.repo / 'other.txt').exists())
+
 
 if __name__ == '__main__':
     unittest.main()
