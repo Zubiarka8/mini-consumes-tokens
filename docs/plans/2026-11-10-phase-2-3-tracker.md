@@ -1861,6 +1861,17 @@ From `rules.md` and the two messages:
         decorators of `library/errors.py` each return a nested `wrapper`, and
         `path=` evidence can't tell the two apart), 2 unresolved. Dead code
         unchanged (122).
+  - [x] PHP: a function named by a string argument of a function that takes
+        a callable (`array_map('shout', $xs)`, `usort($xs, "by_name")`,
+        `register_shutdown_function('on_exit')`; 20 such PHP functions) is a
+        `references` relation, so the callback is not dead code. Only a
+        function declared in the same file counts; a namespaced string
+        (`'App\\shout'`), a method callable (`[$obj, 'm']`) and any other
+        string record nothing. Corpus: no change (it has no string
+        callable). Probe on a tiny tree: dead code listed `shout` before.
+        `php` is not installed here, so the PHP semantics are not run.
+        Test: `mct-lang-php/tests/string_callables.rs`.
+||||||| 239d96e4
 - [x] Python, annotations: a name in a parameter, return or variable
       annotation (`h: Handler`, `-> Out`, `rows: list[Row]`, `x: A | None`)
       is a `references` relation with the evidence a bare call gets. A
