@@ -162,8 +162,6 @@ From `rules.md` and the two messages:
         third-party module, went from 7 wrong candidates to none. Test:
         `mct-lang-lua/tests/require_calls.rs`; the corpus snapshot is
         unchanged.
-||||||| b8808e48
-||||||| e494d60a
   - [x] PHP: `use function B\render as draw;` makes `draw(2)` a call to
         `render` with the namespace `B`, so it reaches that function and
         never another namespace's `render`. Before, the call was recorded
@@ -172,7 +170,6 @@ From `rules.md` and the two messages:
         namespaced `render`, the aliased call went from unresolved to
         resolved (1). Test: `mct-lang-php/tests/function_aliases.rs`; the
         corpus snapshot is unchanged.
-||||||| b8808e48
   - [x] Kotlin: a bare call of a function the file imports
         (`import a.render`, or `import b.render as draw` and `draw(1)`)
         carries the package segment as module evidence, so it reaches the
@@ -562,8 +559,6 @@ From `rules.md` and the two messages:
           16 C# files declares a `const`, so their snapshots and dead code
           are unchanged: the unit test is the only evidence. C# scores 79% ->
           81% and 30% -> 40% (fields and constants).
-||||||| b8808e48
-||||||| e494d60a
     - [x] Java constants: a `static final` field is a `constant` of its
           type, and so is a field of an interface (a `constant_declaration`,
           implicitly `public static final`, which was not indexed at all
@@ -576,7 +571,6 @@ From `rules.md` and the two messages:
           symbols): the same 3 become constants; no relation names them, so
           resolution is unchanged; dead code 0 -> 0. Java scores 83% -> 85%
           and 38% -> 50% (fields and constants).
-||||||| b8808e48
     - [x] Lua nested functions: a named function declared inside another
           (`local function helper()` or `function g()` in a body, an
           anonymous function around it is transparent) has the innermost
@@ -619,8 +613,6 @@ From `rules.md` and the two messages:
           This repository: PowerShell files that fail 2 of 35 -> 1 of 35
           (the malformed fixture, ERR-003); `review-check.ps1` gives 23
           symbols and 14 relations. ERR-002 is `RESOLVED`.
-||||||||| 2922794a
-=========
     - [x] C++ cells re-probed with a current `mct-cli` (`a.cpp` with a macro,
           a `const`, a union, an abstract base, a derived class with a
           mem-initializer, a lambda, `new T()` and `T t;`). Stale cells
@@ -657,8 +649,6 @@ From `rules.md` and the two messages:
           scored list, and the per-language, per-feature and summary counts
           are recomputed from the marks. `symbol-coverage.md` and the scores
           are unchanged. Markup languages untouched.
-||||||||| d65c494e
-=========
     - [x] Bash `readonly` constants: a file-level `readonly X=1`, or a
           `declare`/`typeset` with `r` in a flag group (`-r`, `-rx`, `-ar`),
           is a `constant`; `export`, `declare -i` and a bare assignment stay
@@ -750,7 +740,6 @@ From `rules.md` and the two messages:
           (each red without its half). Probe: C++, PHP, Bash, PowerShell,
           CSS, HTML and JS `require` show the edge and no external; ST01 is
           `[x]` for C++, PHP, Bash, PowerShell and MK05 for CSS and HTML.
-||||||| b8808e48
     - [x] HTML inline event handlers: an `on<event>` attribute
           (`onclick="save()"`, any case) runs its value as JavaScript, so
           each function it calls by bare name is a `calls` relation, scoped
@@ -1879,13 +1868,6 @@ From `rules.md` and the two messages:
       record nothing. Probe: `helper`, called only inside a macro, was dead
       code, now it is not. Corpus: 1 new relation
       (`bounded -> InventoryError::Validation`).
-||||||| b8808e48
-||||||| e494d60a
-||||||| f5e9d7ae
-||||||| c3b9fab5
-||||||| 4315f82b
-||||||| 3dd37981
-||||||| a349b1b8
 - [x] C++, casts and alias targets: the type in `static_cast<T*>`,
       `dynamic_cast`, `reinterpret_cast`, `const_cast`, a C-style
       `(T*)p` cast and the target of `using Name = T;` is a `references`
@@ -1899,14 +1881,6 @@ From `rules.md` and the two messages:
       `type_uses.rs` now also expects `std::mutex` in
       `std::lock_guard<std::mutex>` (on purpose). Stacked on #516. Corpus:
       823 -> 852 relations.
-||||||||| df269981
-=========
-||||||| b8808e48
-||||||| e494d60a
-||||||| 8894cca0
-||||||| c3b9fab5
-||||||| 4315f82b
-||||||| 3dd37981
   - [x] Java: a type named in a field, parameter, return type, `throws`,
         local, generic argument, cast, `instanceof` or class literal
         (`Kind.class`) is a `references` relation, so a class or interface
@@ -1922,20 +1896,11 @@ From `rules.md` and the two messages:
         `annotations.rs` updated on purpose: its helper collected every
         `references`, now it keeps only those that carry the annotation kind.
         Test: `mct-lang-java/tests/type_references.rs`.
-||||||| b8808e48
-||||||| e494d60a
-||||||| f5e9d7ae
-||||||| c3b9fab5
-||||||| 4315f82b
 - [x] JS/TS, `instanceof`: the class on the right of `x instanceof Marker`
       (also `ns.Marker`, by its last name) is a `references` relation. A
       parameter shadowing the name records nothing. Probe: a class tested
       only by `instanceof` was dead code, now it is not; the corpus gains 4
       relations (`ApiError`).
-||||||| b8808e48
-||||||| e494d60a
-||||||| f5e9d7ae
-||||||| c3b9fab5
   - [x] Kotlin: a callable reference (`::parse`, `Box::size`, `tokens::get`)
         is a `references` relation to the function it names, so a function
         used only that way is not dead code. `Type::name` is qualified by
@@ -1952,9 +1917,6 @@ From `rules.md` and the two messages:
       `Box` (an uppercase simple name; `value::class` records nothing).
       Probe: a class used only as `Used::class` is no longer dead code, an
       unused one still is. Stacked on #504.
-||||||| b8808e48
-||||||| e494d60a
-||||||| f5e9d7ae
   - [x] C#: a type named in a field, property, parameter, return type,
         local, generic argument, cast, `is`/`as` check, `typeof`, `catch`,
         pattern or `foreach` is a `references` relation from the member that
@@ -1970,8 +1932,6 @@ From `rules.md` and the two messages:
         `Unit`, `OrderStatus`, `StockChanged`, `Projection`, `Palette`,
         `ChangeKind`, `ServiceHost` were false positives). Probe: 8
         candidates → 0. Test: `mct-lang-csharp/tests/type_references.rs`.
-||||||| b8808e48
-||||||| e494d60a
   - [x] C++: a function of this file passed by name as a call argument
         (`std::transform(first, last, out, dbl)`, `std::sort(…, less)`) is a
         `references` relation, so the callback is not dead code. A parameter
@@ -1980,7 +1940,6 @@ From `rules.md` and the two messages:
         like a file function still counts. Corpus: no change (it passes no
         function by name). Probe on a tiny tree: dead code listed `dbl`
         before. Test: `mct-lang-cpp/tests/function_values.rs`.
-||||||| b8808e48
   - [x] Bash: `trap handler SIGNAL` calls `handler` when the handler is a
         single plain word (`trap cleanup EXIT`, `trap 'on_err' ERR`), so a
         trap handler is not dead code. A command string (`trap 'echo bye;
