@@ -1871,6 +1871,13 @@ From `rules.md` and the two messages:
         callable). Probe on a tiny tree: dead code listed `shout` before.
         `php` is not installed here, so the PHP semantics are not run.
         Test: `mct-lang-php/tests/string_callables.rs`.
+||||||| 239d96e4
+- [x] Python, annotations: a name in a parameter, return or variable
+      annotation (`h: Handler`, `-> Out`, `rows: list[Row]`, `x: A | None`)
+      is a `references` relation with the evidence a bare call gets. A
+      dotted name and a string forward reference are left alone. Probe:
+      3 classes used only in annotations were dead code, now 0; the corpus
+      snapshot grows by 706 lines, mostly external builtins (`int`, `str`).
 - [x] Java, record compact constructor (found by comparing the grammar's
       declaration node kinds with the ones the parser names, 3.4): a
       `public Point { … }` is a `method` named after its record, and the
