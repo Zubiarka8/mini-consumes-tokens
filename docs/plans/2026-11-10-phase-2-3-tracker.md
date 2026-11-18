@@ -1876,6 +1876,25 @@ From `rules.md` and the two messages:
       `module-info.java` in one repository, `requires com.example.core`
       resolves to the other file's declaration and `java.sql` is external.
       `exports`/`opens` name packages and record nothing. Stacked on #497.
+||||||| bb8fa7cb
+  - [x] Kotlin: a type named in a property, parameter, return or receiver
+        type, local, generic argument, cast or `is` check is a `references`
+        relation (last segment of a qualified name), so a class or interface
+        used only as a type is not dead code. Before, Kotlin recorded types
+        only for supertypes and annotations. A type parameter, a supertype
+        and an annotation add nothing more; the 14 core types (`String`,
+        `Int`, `Unit`, `Any`…) are not recorded, since a repository does not
+        declare them (this kept 265 of 758 candidate relations out).
+        Corpus: +493 relations (835 → 1328, 214 name-matched across files
+        from 113), symbols unchanged. Dead code over the corpus project:
+        29 → 21 (`Request`, `Handler`, `Rate`, `Scope`, `CycleCount`,
+        `StockTransfer`, `State`, `VatCategory` were false positives).
+        Probe: 9 → 2. `X::class` is not covered here (it is the callable
+        reference of #504). Tests updated on purpose: `annotations.rs`
+        keeps only the references that carry the annotation kind;
+        `index_integration.rs` counted every `LineItem` reference as a
+        construction, now counts the calls and checks a type use exists.
+        Test: `mct-lang-kotlin/tests/type_references.rs`.
   - [x] Rust: a type named in the turbofish of a call (`size_of::<Turbo>()`,
         `o.is::<Marker>()`, `"1".parse::<Item>()`) is a `references`
         relation from the function that writes it, so a type used only that

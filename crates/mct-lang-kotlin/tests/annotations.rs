@@ -34,6 +34,9 @@ fn references(parsed: &ParsedFile) -> Vec<(&str, &str, u32, Option<SymbolKind>)>
                 .and_then(|t| t.kind);
             (from, r.to_name.as_str(), r.location.line, kind)
         })
+        // A type named in a declaration (`Store`) is a reference too; only
+        // an annotation names a class, so it carries that kind.
+        .filter(|(_, _, _, kind)| kind.is_some())
         .collect()
 }
 
