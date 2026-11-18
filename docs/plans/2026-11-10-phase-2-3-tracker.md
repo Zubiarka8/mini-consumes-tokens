@@ -1867,15 +1867,6 @@ From `rules.md` and the two messages:
       dotted name and a string forward reference are left alone. Probe:
       3 classes used only in annotations were dead code, now 0; the corpus
       snapshot grows by 706 lines, mostly external builtins (`int`, `str`).
-||||||| b8808e48
-||||||| e494d60a
-||||||| f5e9d7ae
-||||||| c3b9fab5
-||||||| 4315f82b
-||||||| 3dd37981
-||||||| a349b1b8
-||||||| f74633c3
-||||||| d45cf53c
 - [x] Java, record compact constructor (found by comparing the grammar's
       declaration node kinds with the ones the parser names, 3.4): a
       `public Point { … }` is a `method` named after its record, and the
