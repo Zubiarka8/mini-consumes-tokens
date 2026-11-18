@@ -1876,7 +1876,6 @@ From `rules.md` and the two messages:
       `module-info.java` in one repository, `requires com.example.core`
       resolves to the other file's declaration and `java.sql` is external.
       `exports`/`opens` name packages and record nothing. Stacked on #497.
-||||||| bb8fa7cb
   - [x] Kotlin: a type named in a property, parameter, return or receiver
         type, local, generic argument, cast or `is` check is a `references`
         relation (last segment of a qualified name), so a class or interface
