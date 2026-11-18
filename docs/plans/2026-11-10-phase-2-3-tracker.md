@@ -1879,7 +1879,6 @@ From `rules.md` and the two messages:
         `index_integration.rs` counted every `LineItem` reference as a
         construction, now counts the calls and checks a type use exists.
         Test: `mct-lang-kotlin/tests/type_references.rs`.
-||||||| 0c53dabd
   - [x] Rust: a type named in the turbofish of a call (`size_of::<Turbo>()`,
         `o.is::<Marker>()`, `"1".parse::<Item>()`) is a `references`
         relation from the function that writes it, so a type used only that
