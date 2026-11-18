@@ -1879,6 +1879,22 @@ From `rules.md` and the two messages:
         `index_integration.rs` counted every `LineItem` reference as a
         construction, now counts the calls and checks a type use exists.
         Test: `mct-lang-kotlin/tests/type_references.rs`.
+  - [x] PHP: a function named by a string argument of a function that takes
+        a callable (`array_map('shout', $xs)`, `usort($xs, "by_name")`,
+        `register_shutdown_function('on_exit')`; 20 such PHP functions) is a
+        `references` relation, so the callback is not dead code. Only a
+        function declared in the same file counts; a namespaced string
+        (`'App\\shout'`), a method callable (`[$obj, 'm']`) and any other
+        string record nothing. Corpus: no change (it has no string
+        callable). Probe on a tiny tree: dead code listed `shout` before.
+        `php` is not installed here, so the PHP semantics are not run.
+        Test: `mct-lang-php/tests/string_callables.rs`.
+- [x] Python, annotations: a name in a parameter, return or variable
+      annotation (`h: Handler`, `-> Out`, `rows: list[Row]`, `x: A | None`)
+      is a `references` relation with the evidence a bare call gets. A
+      dotted name and a string forward reference are left alone. Probe:
+      3 classes used only in annotations were dead code, now 0; the corpus
+      snapshot grows by 706 lines, mostly external builtins (`int`, `str`).
 - [x] Java, record compact constructor (found by comparing the grammar's
       declaration node kinds with the ones the parser names, 3.4): a
       `public Point { … }` is a `method` named after its record, and the
