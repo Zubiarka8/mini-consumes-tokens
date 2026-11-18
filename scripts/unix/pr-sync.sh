@@ -65,6 +65,14 @@ cd "$worktree"
 
 if [ ! -f "$(git rev-parse --git-dir)/MERGE_HEAD" ]; then
   [ -z "$(git status --porcelain)" ] || die "$worktree has uncommitted changes"
+  # A checkout that lags behind origin/<branch> (the branch moved from another
+  # clone or worktree) is brought up to date first; one that has diverged is
+  # not touched, since the push would be rejected.
+  if git rev-parse --verify -q "origin/$branch" >/dev/null && ! git merge-base --is-ancestor "origin/$branch" HEAD; then
+    git merge-base --is-ancestor HEAD "origin/$branch" || die "$branch has diverged from origin/$branch; reconcile it first"
+    git merge --ff-only -q "origin/$branch"
+    echo "fast-forwarded $branch to origin/$branch"
+  fi
   if git merge-base --is-ancestor "origin/$base" HEAD; then
     echo "$branch already contains origin/$base"
   else
