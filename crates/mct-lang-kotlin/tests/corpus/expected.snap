@@ -1,4 +1,4 @@
-# language=kotlin files=5 symbols=488 relations=1328 name_matched_across_files=214
+# language=kotlin files=5 symbols=488 relations=1348 name_matched_across_files=216
 
 == app/WarehouseApp.kt (305 lines)
 S 1-305 module WarehouseApp
@@ -255,6 +255,7 @@ R 170:44 calls OrderService::dashboard -> countByState (name-matched: order/Orde
 R 170:38 calls OrderService::dashboard -> all
 R 172:77 calls OrderService::packingSlip -> let
 R 172:55 calls OrderService::packingSlip -> findByNumber
+R 172:83 references OrderService::packingSlip -> renderSlip
 R 180:68 references Request -> Map
 R 180:90 calls Request -> emptyMap
 R 184:32 calls Response::ok -> Response
@@ -297,6 +298,8 @@ R 229:48 calls requireScope -> removePrefix
 R 230:61 calls requireScope -> orEmpty
 R 230:43 calls requireScope -> let
 R 230:25 calls requireScope -> let
+R 230:37 references requireScope -> get
+R 230:54 references requireScope -> parse
 R 232:26 calls requireScope -> Response
 R 233:32 calls requireScope -> Response
 R 234:17 calls requireScope -> handler
@@ -311,6 +314,7 @@ R 241:5 calls orderRoutes -> get
 R 242:31 calls orderRoutes -> split (name-matched: money/Money.kt)
 R 243:38 calls orderRoutes -> let
 R 243:17 calls orderRoutes -> packingSlip
+R 243:52 references orderRoutes -> ok
 R 243:68 calls orderRoutes -> notFound
 R 245:5 calls orderRoutes -> post
 R 246:69 calls orderRoutes -> badRequest
@@ -368,6 +372,8 @@ R 294:20 references main -> Rejected
 R 296:5 calls main -> println
 R 298:39 calls main -> forEach
 R 298:23 calls main -> map
+R 298:29 references main -> describe (name-matched: inventory/Inventory.kt)
+R 298:49 references main -> println
 R 299:22 calls main -> forEach
 R 299:32 calls main -> println
 R 300:9 calls main -> println
@@ -375,6 +381,7 @@ R 300:25 calls main -> dashboard
 R 302:28 references main -> Accepted
 R 303:46 calls main -> let
 R 303:17 calls main -> packingSlip
+R 303:52 references main -> println
 
 == inventory/Inventory.kt (309 lines)
 S 1-309 module Inventory
@@ -495,6 +502,9 @@ R 27:41 calls Location -> startsWith
 R 29:18 overrides Location::compareTo -> compareTo
 R 29:35 references Location::compareTo -> Location
 R 30:9 calls Location::compareTo -> compareValuesBy
+R 30:48 references Location::compareTo -> zone
+R 30:64 references Location::compareTo -> aisle
+R 30:81 references Location::compareTo -> level
 R 32:18 overrides Location::toString -> toString
 R 32:18 overrides Location::toString -> toString
 R 32:44 calls Location::toString -> format (name-matched: money/Money.kt)
@@ -591,10 +601,13 @@ R 192:21 references Inventory::reserve -> OutOfStockException
 R 193:18 calls Inventory::reserve -> forEach
 R 193:28 calls Inventory::reserve -> undo
 R 196:14 calls Inventory::reserve -> forEach
+R 196:32 references Inventory::reserve -> stockReserved
 R 197:40 calls Inventory::reserve -> forEach
 R 197:29 calls Inventory::reserve -> distinct
 R 197:14 calls Inventory::reserve -> map
+R 197:50 references Inventory::reserve -> checkReorderPoint
 R 198:14 calls Inventory::reserve -> map
+R 198:31 references Inventory::reserve -> id
 R 201:60 references Inventory::reserveLine -> List
 R 201:65 references Inventory::reserveLine -> Reservation
 R 201:38 references Inventory::reserveLine -> OrderId (name-matched: order/Order.kt)
@@ -1322,6 +1335,7 @@ R 144:19 calls Order::addLine -> CurrencyMismatchException (name-matched: money/
 R 153:28 references Order::isLarge -> Money (name-matched: money/Money.kt)
 R 155:27 references Order::drainEvents -> EventSink
 R 156:17 calls Order::drainEvents -> forEach
+R 156:31 references Order::drainEvents -> accept
 R 157:17 calls Order::drainEvents -> clear (name-matched: money/Money.kt)
 R 165:13 calls Order::summary -> trimMargin
 R 167:18 overrides Order::toString -> toString
@@ -1336,6 +1350,7 @@ R 173:74 calls Order::place -> apply
 R 173:20 calls Order::place -> Order
 R 173:34 calls Order::place -> random
 R 174:23 calls Order::place -> forEach
+R 174:33 references Order::place -> addLine
 R 175:17 calls Order::place -> record
 R 175:35 calls Order::place -> Placed
 R 175:68 calls Order::place -> toList
@@ -1381,6 +1396,7 @@ R 208:71 calls stalePayments::isStale -> toMinutes
 R 208:41 calls stalePayments::isStale -> between
 R 208:49 calls stalePayments::isStale -> placedAt
 R 211:12 calls Collection::stalePayments -> filter
+R 211:21 references Collection::stalePayments -> isStale
 R 225:33 references OrderValidator -> Set
 R 225:47 calls OrderValidator -> emptySet
 R 227:58 references OrderValidator::validate -> List
@@ -1435,6 +1451,7 @@ R 267:9 calls OrderHistory::accept -> require
 R 273:22 references OrderHistory::lastState -> State
 R 273:53 calls OrderHistory::lastState -> let
 R 273:39 calls OrderHistory::lastState -> lastOrNull
+R 273:59 references OrderHistory::lastState -> stateAfter
 R 275:18 references OrderHistory::lines -> List
 R 275:41 calls OrderHistory::lines -> map
 R 275:59 calls OrderHistory::lines -> describe
@@ -1627,6 +1644,7 @@ R 79:70 references LoyaltyDiscount::discount -> Money (name-matched: money/Money
 R 79:36 references LoyaltyDiscount::discount -> PricingContext
 R 79:62 references LoyaltyDiscount::discount -> Money (name-matched: money/Money.kt)
 R 80:45 calls LoyaltyDiscount::discount -> let
+R 80:56 references LoyaltyDiscount::discount -> get (name-matched: app/WarehouseApp.kt)
 R 86:102 implements CouponDiscount -> DiscountRule
 R 86:65 references CouponDiscount -> Money (name-matched: money/Money.kt)
 R 86:93 references CouponDiscount -> Money (name-matched: money/Money.kt)
@@ -1775,6 +1793,7 @@ R 243:37 calls importPriceList -> isNotBlank
 R 243:59 calls importPriceList -> startsWith
 R 245:42 calls importPriceList -> map
 R 245:31 calls importPriceList -> split (name-matched: money/Money.kt)
+R 245:54 references importPriceList -> trim
 R 247:17 calls importPriceList -> require
 R 249:37 calls importPriceList -> of (name-matched: money/Money.kt)
 R 249:40 calls importPriceList -> BigDecimal
@@ -1786,6 +1805,7 @@ R 258:26 references missingPrices -> List
 R 258:48 references missingPrices -> Map
 R 258:60 references missingPrices -> Money (name-matched: money/Money.kt)
 R 259:11 calls missingPrices -> filterNot
+R 259:29 references missingPrices -> containsKey
 R 262:5 references Map::convertedTo -> Map
 R 262:17 references Map::convertedTo -> Money (name-matched: money/Money.kt)
 R 262:94 references Map::convertedTo -> Map

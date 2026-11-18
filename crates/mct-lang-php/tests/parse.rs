@@ -214,6 +214,11 @@ fn syntax_error_is_reported_not_panicked() {
 // input is exactly the shape that triggered it — thousands of nested
 // parenthesized expressions — and must return `Ok` (truncated past
 // `MAX_TRAVERSAL_DEPTH`, never crashing the process) rather than panic.
+//
+// The depth cap alone was not enough: each level of `visit` took ~16 KiB in
+// a debug build, so the capped walk needed ~2 MiB, and the 2 MiB test thread
+// overflowed on aarch64 Linux and Windows (ci-full.yml). The 512 KiB stack
+// keeps that headroom checked on every platform.
 #[test]
 fn deeply_nested_expression_does_not_stack_overflow() {
     let nesting = 5_000;
@@ -223,12 +228,21 @@ fn deeply_nested_expression_does_not_stack_overflow() {
     source.push_str(&")".repeat(nesting));
     source.push_str(";\n");
 
-    let result = PhpParser.parse(&SourceFile {
-        relative_path: "deep.php".to_string(),
-        contents: source,
-    });
+    let result = std::thread::Builder::new()
+        .stack_size(512 * 1024)
+        .spawn(move || {
+            PhpParser
+                .parse(&SourceFile {
+                    relative_path: "deep.php".to_string(),
+                    contents: source,
+                })
+                .is_ok()
+        })
+        .unwrap()
+        .join()
+        .unwrap();
     assert!(
-        result.is_ok(),
+        result,
         "deeply nested input must not crash the parser, even if truncated"
     );
 }
