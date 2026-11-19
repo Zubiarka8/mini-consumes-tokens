@@ -59,6 +59,33 @@ pub struct Incident<'a> {
     pub detail: &'a str,
 }
 
+/// An incident found while a reindex transaction is open. It is logged only
+/// after the commit, so a rolled-back run leaves no record and the retry that
+/// follows still finds the problem new.
+#[derive(Debug)]
+pub(crate) struct Pending {
+    pub(crate) kind: &'static str,
+    pub(crate) path: String,
+    pub(crate) line: Option<u32>,
+    pub(crate) detail: String,
+}
+
+/// Logs what a committed `operation` found. Best effort, like [`log_incident`].
+pub(crate) fn flush_pending(root: &Path, operation: &str, pending: Vec<Pending>) {
+    for item in pending {
+        let _ = log_incident(
+            root,
+            &Incident {
+                operation,
+                kind: item.kind,
+                path: Some(&item.path),
+                line: item.line,
+                detail: &item.detail,
+            },
+        );
+    }
+}
+
 /// Records `incident` under `root`.
 ///
 /// Returns the published file, or `Ok(None)` when `<root>/.mct-index` does not
@@ -284,13 +311,7 @@ fn clean_text(root: &Path, raw: &str) -> String {
 
 /// Keywords whose value follows an `=` or `:`; the value is replaced.
 const SECRET_KEYS: [&str; 7] = [
-    "password",
-    "passwd",
-    "secret",
-    "token",
-    "api_key",
-    "api-key",
-    "apikey",
+    "password", "passwd", "secret", "token", "api_key", "api-key", "apikey",
 ];
 
 /// A second layer, not the guarantee: callers already pass only diagnostics.
@@ -427,7 +448,10 @@ mod tests {
     fn utc_stamp_matches_known_instants() {
         assert_eq!(utc_stamp(at(0, 0)), "19700101T000000.000000Z");
         // 2026-11-19T15:30:45.123456Z
-        assert_eq!(utc_stamp(at(1_795_102_245, 123_456)), "20261119T153045.123456Z");
+        assert_eq!(
+            utc_stamp(at(1_795_102_245, 123_456)),
+            "20261119T153045.123456Z"
+        );
         // Leap day: 2024-02-29T23:59:59Z
         assert_eq!(utc_stamp(at(1_709_251_199, 0)), "20240229T235959.000000Z");
         // 2000-03-01T00:00:00Z, after the 400-year leap rule.
@@ -453,13 +477,22 @@ mod tests {
 
     #[test]
     fn secrets_are_redacted() {
-        assert_eq!(redact_secrets("password=hunter2 ok"), "password=<redacted> ok");
+        assert_eq!(
+            redact_secrets("password=hunter2 ok"),
+            "password=<redacted> ok"
+        );
         assert_eq!(
             redact_secrets("Authorization: Bearer abc.def"),
             "Authorization: <redacted>"
         );
-        assert_eq!(redact_secrets("sent bearer abc now"), "sent bearer <redacted> now");
-        assert_eq!(redact_secrets(r#"{"token": "t0k3n"}"#), r#"{"token": "<redacted>"}"#);
+        assert_eq!(
+            redact_secrets("sent bearer abc now"),
+            "sent bearer <redacted> now"
+        );
+        assert_eq!(
+            redact_secrets(r#"{"token": "t0k3n"}"#),
+            r#"{"token": "<redacted>"}"#
+        );
         // A parser message that merely mentions the word stays readable.
         assert_eq!(
             redact_secrets("line 3: unexpected token `}`"),
@@ -497,18 +530,28 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(published, errors.join(name("bb")));
-        assert_eq!(std::fs::read_to_string(errors.join(name("aa"))).unwrap(), "older");
+        assert_eq!(
+            std::fs::read_to_string(errors.join(name("aa"))).unwrap(),
+            "older"
+        );
         assert!(!errors.join(".tmp-t0").exists());
 
         // Every candidate name taken: an error, the older record untouched.
         let mut calls = 0;
         let result = write_incident(dir.path(), &incident, now, &mut || {
             calls += 1;
-            if calls == 1 { "t1".into() } else { "aa".into() }
+            if calls == 1 {
+                "t1".into()
+            } else {
+                "aa".into()
+            }
         });
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::AlreadyExists);
         assert!(!errors.join(".tmp-t1").exists());
-        assert_eq!(std::fs::read_to_string(errors.join(name("aa"))).unwrap(), "older");
+        assert_eq!(
+            std::fs::read_to_string(errors.join(name("aa"))).unwrap(),
+            "older"
+        );
     }
 
     #[test]
@@ -525,11 +568,10 @@ mod tests {
             detail: "d",
         };
         let mut ids = ["t0", "t1", "zz"].into_iter().map(String::from);
-        let published = write_incident(dir.path(), &incident, at(0, 0), &mut || {
-            ids.next().unwrap()
-        })
-        .unwrap()
-        .unwrap();
+        let published =
+            write_incident(dir.path(), &incident, at(0, 0), &mut || ids.next().unwrap())
+                .unwrap()
+                .unwrap();
         assert!(published.ends_with("19700101T000000.000000Z--op--k--zz.log"));
         // The other writer's temporary is not ours to remove.
         assert!(errors.join(".tmp-t0").exists());

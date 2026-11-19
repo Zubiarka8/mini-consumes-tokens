@@ -9,6 +9,7 @@ use rusqlite::{params, OptionalExtension};
 use walkdir::WalkDir;
 
 use crate::assets::{self, AssetError};
+use crate::incidents;
 use crate::manifests;
 use crate::symbol_changes;
 use crate::{ExcludeSet, Index, Result};
@@ -130,7 +131,9 @@ pub fn reindex(
     registry: &LanguageRegistry,
     force: bool,
 ) -> Result<ReindexReport> {
-    atomic_run(index, |index| reindex_inner(index, registry, force))
+    atomic_run(index, "reindex", |index| {
+        reindex_inner(index, registry, force)
+    })
 }
 
 fn reindex_inner(
@@ -200,25 +203,77 @@ fn reindex_inner(
 /// Publishes a complete reindex run with one SQLite commit. A panic is caught
 /// only long enough to roll back the transaction, then resumed unchanged.
 /// Process termination also leaves SQLite to roll the open transaction back.
-fn atomic_run<T>(index: &mut Index, operation: impl FnOnce(&mut Index) -> Result<T>) -> Result<T> {
+///
+/// The incidents the run queued ([`queue_incident`]) are logged after the
+/// commit; a rolled-back run drops them.
+fn atomic_run<T>(
+    index: &mut Index,
+    name: &str,
+    operation: impl FnOnce(&mut Index) -> Result<T>,
+) -> Result<T> {
     index.conn.execute_batch("BEGIN IMMEDIATE")?;
+    index.pending_incidents.borrow_mut().clear();
     match catch_unwind(AssertUnwindSafe(|| operation(index))) {
         Ok(Ok(value)) => match index.conn.execute_batch("COMMIT") {
-            Ok(()) => Ok(value),
+            Ok(()) => {
+                let pending = std::mem::take(&mut *index.pending_incidents.borrow_mut());
+                incidents::flush_pending(&index.root, name, pending);
+                Ok(value)
+            }
             Err(error) => {
                 let _ = index.conn.execute_batch("ROLLBACK");
+                index.pending_incidents.borrow_mut().clear();
                 Err(error.into())
             }
         },
-        Ok(Err(error)) => match index.conn.execute_batch("ROLLBACK") {
-            Ok(()) => Err(error),
-            Err(rollback_error) => Err(rollback_error.into()),
-        },
+        Ok(Err(error)) => {
+            let rolled_back = index.conn.execute_batch("ROLLBACK");
+            index.pending_incidents.borrow_mut().clear();
+            match rolled_back {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(rollback_error.into()),
+            }
+        }
         Err(payload) => {
             let _ = index.conn.execute_batch("ROLLBACK");
+            index.pending_incidents.borrow_mut().clear();
             resume_unwind(payload)
         }
     }
+}
+
+/// Queues an incident for the open run; see [`atomic_run`].
+fn queue_incident(index: &Index, kind: &'static str, path: &str, line: Option<u32>, detail: &str) {
+    index
+        .pending_incidents
+        .borrow_mut()
+        .push(incidents::Pending {
+            kind,
+            path: path.to_string(),
+            line,
+            detail: detail.to_string(),
+        });
+}
+
+/// Records a syntax error in `index_issues` and queues an incident only when
+/// the stored issue is new or changed. A file that stays invalid with the same
+/// diagnostic is re-parsed on every run (its `files` row is gone) but is not
+/// logged again; a fix clears the row, so a later break logs afresh.
+fn record_syntax_issue(
+    index: &Index,
+    relative_path: &str,
+    detail: &str,
+    line: Option<u32>,
+) -> Result<()> {
+    if record_issue(
+        &index.conn,
+        relative_path,
+        UnsupportedKind::SyntaxError,
+        detail,
+    )? {
+        queue_incident(index, "syntax-error", relative_path, line, detail);
+    }
+    Ok(())
 }
 
 /// What [`index_file`] found at a path, for the stale-row sweeps.
@@ -259,6 +314,8 @@ fn record_read_failure(
         UnsupportedKind::ReadFailure,
         &detail,
     )?;
+    // One record per occurrence, unlike a syntax error.
+    queue_incident(index, "read-failure", relative_path, None, &detail);
     report.issues.push(UnsupportedFile {
         relative_path: relative_path.to_string(),
         kind: UnsupportedKind::ReadFailure,
@@ -495,12 +552,7 @@ fn index_file(
                 "line {line}: not valid UTF-8 (first invalid byte at offset {offset}); \
                  re-save the file as UTF-8 to index it"
             );
-            record_issue(
-                &index.conn,
-                &relative_path,
-                UnsupportedKind::SyntaxError,
-                &detail,
-            )?;
+            record_syntax_issue(index, &relative_path, &detail, u32::try_from(line).ok())?;
             report.issues.push(UnsupportedFile {
                 relative_path: relative_path.clone(),
                 kind: UnsupportedKind::SyntaxError,
@@ -547,12 +599,7 @@ fn index_file(
                 "DELETE FROM files WHERE relative_path = ?1",
                 params![relative_path],
             )?;
-            record_issue(
-                &index.conn,
-                &relative_path,
-                UnsupportedKind::SyntaxError,
-                &detail,
-            )?;
+            record_syntax_issue(index, &relative_path, &detail, u32::try_from(line).ok())?;
             report.issues.push(UnsupportedFile {
                 relative_path: relative_path.clone(),
                 kind: UnsupportedKind::SyntaxError,
@@ -640,12 +687,7 @@ fn index_asset(
     )?;
     report.files_parsed += 1;
     if let Some(detail) = issue {
-        record_issue(
-            &index.conn,
-            &relative_path,
-            UnsupportedKind::SyntaxError,
-            &detail,
-        )?;
+        record_syntax_issue(index, &relative_path, &detail, None)?;
         report.issues.push(UnsupportedFile {
             relative_path: relative_path.clone(),
             kind: UnsupportedKind::SyntaxError,
@@ -686,7 +728,9 @@ pub fn reindex_paths(
     registry: &LanguageRegistry,
     paths: &[PathBuf],
 ) -> Result<ReindexReport> {
-    atomic_run(index, |index| reindex_paths_inner(index, registry, paths))
+    atomic_run(index, "reindex", |index| {
+        reindex_paths_inner(index, registry, paths)
+    })
 }
 
 fn reindex_paths_inner(
@@ -1549,13 +1593,14 @@ fn record_issue(
     relative_path: &str,
     kind: UnsupportedKind,
     detail: &str,
-) -> Result<()> {
+) -> Result<bool> {
     let issue_kind = match kind {
         UnsupportedKind::UnsupportedLanguage => "unsupported_language",
         UnsupportedKind::SyntaxError => "syntax_error",
         UnsupportedKind::ReadFailure => "read_failure",
     };
-    conn.execute(
+    // 0 rows: the same issue with the same detail was already stored.
+    let changed = conn.execute(
         "INSERT INTO index_issues (relative_path, issue_kind, detail, detected_at)
          VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(relative_path, issue_kind) DO UPDATE SET
@@ -1564,7 +1609,7 @@ fn record_issue(
          WHERE index_issues.detail IS NOT excluded.detail",
         params![relative_path, issue_kind, detail, unix_now()],
     )?;
-    Ok(())
+    Ok(changed > 0)
 }
 
 /// Publishes the run as a new generation if it wrote anything since
