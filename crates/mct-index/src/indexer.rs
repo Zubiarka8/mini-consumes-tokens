@@ -599,7 +599,7 @@ fn index_file(
                 "DELETE FROM files WHERE relative_path = ?1",
                 params![relative_path],
             )?;
-            record_syntax_issue(index, &relative_path, &detail, u32::try_from(line).ok())?;
+            record_syntax_issue(index, &relative_path, &detail, Some(line))?;
             report.issues.push(UnsupportedFile {
                 relative_path: relative_path.clone(),
                 kind: UnsupportedKind::SyntaxError,
