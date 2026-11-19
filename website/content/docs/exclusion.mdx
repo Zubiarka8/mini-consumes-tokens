@@ -33,7 +33,7 @@ These are skipped in every project, at any depth. They live in `crates/mct-index
 Create the file with comments that explain the syntax:
 
 ```bash
-mct-cli --root . ignore-init
+mct-cli --root . init-mctignore
 ```
 
 Or write it by hand. Example:
@@ -86,7 +86,7 @@ docs/*
 
 ### Reusing `.gitignore`
 
-`@import-gitignore` (or `mct-cli ignore-init --import-gitignore`) adds every line of `.gitignore`, `!` lines included, at the place where the directive stands. Without the directive, `.gitignore` is never read. If `.gitignore` doesn't exist, the line does nothing.
+`@import-gitignore` (or `mct-cli init-mctignore --import-gitignore`) adds every line of `.gitignore`, `!` lines included, at the place where the directive stands. Without the directive, `.gitignore` is never read. If `.gitignore` doesn't exist, the line does nothing.
 
 ## When changes take effect
 
