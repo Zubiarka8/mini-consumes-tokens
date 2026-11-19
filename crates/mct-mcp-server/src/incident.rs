@@ -71,6 +71,12 @@ pub fn record_failure(root: &Path, operation: &str, kind: &str, detail: &str) {
     );
 }
 
+/// Records a failed `mct-cli` command. Quoted values in `message` are
+/// replaced, as for a tool call, because the message may echo an argument.
+pub fn record_cli_error(root: &Path, operation: &str, message: &str) {
+    record_failure(root, operation, "cli-error", &scrub_values(message));
+}
+
 fn record(root: &Path, operation: &str, kind: &str, tool: &str, message: &str) {
     let detail = format!("{tool}: {}", scrub_values(message));
     let detail = truncate(&detail, MAX_DETAIL);
