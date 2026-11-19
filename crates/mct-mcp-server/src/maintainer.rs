@@ -358,13 +358,21 @@ impl Run<'_> {
 
     /// Runs one hash-skipped full reindex and lets waiting requests through.
     fn refresh_and_activate(&self) {
-        let error = match self.index.blocking_lock().reindex(self.registry, false) {
+        let mut index = self.index.blocking_lock();
+        let error = match index.reindex(self.registry, false) {
             Ok(_) => None,
             Err(err) => {
+                crate::incident::record_failure(
+                    index.root(),
+                    "catch-up-reindex",
+                    "reindex-failed",
+                    &err.to_string(),
+                );
                 tracing::warn!(error = %err, "catch-up reindex failed; answering from the index as it stands");
                 Some(format!("the index could not be refreshed: {err}"))
             }
         };
+        drop(index);
         self.shared.activity.set_phase(Phase::Active, error);
     }
 
