@@ -87,10 +87,31 @@ pub struct ParsedFile {
     /// names them (see [`EntryPointHint`]). Empty for parsers that know no
     /// such convention.
     pub entry_points: Vec<EntryPointHint>,
+    /// Literal join points associated with symbols in this file.
+    pub join_points: Vec<JoinPoint>,
     /// Declaration details for some of `symbols` (ADR-034). Sparse: a symbol
     /// without an entry has no known details. An entry naming an unknown
     /// symbol is ignored, and so is every entry after the first for a symbol.
     pub symbol_details: Vec<SymbolDetail>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JoinPoint {
+    pub symbol: SymbolId,
+    pub kind: JoinKind,
+    pub value: String,
+    pub role: JoinRole,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinKind {
+    HttpEndpoint,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinRole {
+    Declares,
+    Uses,
 }
 
 /// Parser-declared evidence that a framework **may** load a symbol by

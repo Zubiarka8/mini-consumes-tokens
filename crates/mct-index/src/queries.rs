@@ -472,9 +472,9 @@ pub fn list_symbols(
     is_file: bool,
     kind: Option<&str>,
     language: Option<&str>,
-) -> Result<Vec<SymbolListEntry>> {
+) -> Result<Vec<(i64, SymbolListEntry)>> {
     let mut sql = String::from(
-        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent, s.level
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.end_line, s.parent, s.level, s.id
          FROM symbols s JOIN files f ON f.id = s.file_id
          WHERE ",
     );
@@ -503,16 +503,19 @@ pub fn list_symbols(
     let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
     let rows = stmt
         .query_map(params.as_slice(), |row| {
-            Ok(SymbolListEntry {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                language: row.get(2)?,
-                relative_path: row.get(3)?,
-                line: row.get(4)?,
-                end_line: row.get(5)?,
-                parent: row.get(6)?,
-                level: row.get(7)?,
-            })
+            Ok((
+                row.get(8)?,
+                SymbolListEntry {
+                    name: row.get(0)?,
+                    kind: row.get(1)?,
+                    language: row.get(2)?,
+                    relative_path: row.get(3)?,
+                    line: row.get(4)?,
+                    end_line: row.get(5)?,
+                    parent: row.get(6)?,
+                    level: row.get(7)?,
+                },
+            ))
         })?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)

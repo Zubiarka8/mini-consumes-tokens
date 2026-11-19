@@ -884,6 +884,21 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
+        // Declared join points (issue #566): preserve literal framework entry
+        // points separately from call relations and reparse existing files.
+        M::up(
+            r#"
+            CREATE TABLE join_points (
+                symbol_id INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+                kind      TEXT NOT NULL,
+                value     TEXT NOT NULL,
+                role      TEXT NOT NULL CHECK (role IN ('declares', 'uses')),
+                PRIMARY KEY (symbol_id, kind, value, role)
+            ) WITHOUT ROWID;
+
+            UPDATE files SET content_hash = '';
+            "#,
+        ),
     ])
 }
 
@@ -895,6 +910,25 @@ mod tests {
     use rusqlite::Connection;
 
     use super::migrations;
+
+    #[test]
+    fn join_point_migration_queues_existing_files_for_reparse(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, 19)?;
+        conn.execute(
+            "INSERT INTO files (relative_path, language, content_hash, last_indexed_at)
+             VALUES ('api.rs', 'rust', 'old-hash', 0)",
+            [],
+        )?;
+        migrations().to_latest(&mut conn)?;
+        let hash: String = conn.query_row("SELECT content_hash FROM files", [], |r| r.get(0))?;
+        let points: u32 = conn.query_row("SELECT COUNT(*) FROM join_points", [], |r| r.get(0))?;
+        assert!(hash.is_empty());
+        assert_eq!(points, 0);
+        Ok(())
+    }
 
     #[test]
     fn alias_migration_reparses_without_inventing_legacy_aliases(

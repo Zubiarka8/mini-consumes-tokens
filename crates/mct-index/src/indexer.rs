@@ -1403,6 +1403,24 @@ fn write_parsed_file(
         )?;
     }
 
+    for point in &parsed.join_points {
+        let Some(&symbol_id) = id_map.get(&point.symbol) else {
+            continue;
+        };
+        let kind = match point.kind {
+            mct_core::JoinKind::HttpEndpoint => "http",
+        };
+        let role = match point.role {
+            mct_core::JoinRole::Declares => "declares",
+            mct_core::JoinRole::Uses => "uses",
+        };
+        tx.execute(
+            "INSERT INTO join_points (symbol_id, kind, value, role) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT DO NOTHING",
+            params![symbol_id, kind, point.value, role],
+        )?;
+    }
+
     write_symbol_details(tx, &id_map, &parsed.symbol_details)?;
 
     let targets: HashMap<usize, &mct_core::RelationTarget> = parsed

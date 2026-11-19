@@ -226,3 +226,70 @@ async fn each_application_of_a_monorepo_is_judged_by_its_own_manifest() {
         "{out}"
     );
 }
+
+#[tokio::test]
+async fn declared_routes_are_reported_separately_from_dead_code() {
+    let project = Project::new(&[
+        (
+            "api.rs",
+            r#"
+            #[actix_web::get("/api/notes/")]
+            async fn notes() {}
+            #[actix_web::post(r"/api/notes")]
+            async fn create_note() {}
+            #[actix_web::get(NOTES_PATH)]
+            async fn computed() {}
+            #[actix_web::get("/api/" + suffix)]
+            async fn concatenated() {}
+            #[custom::get("/api/other")]
+            async fn unrelated() {}
+            fn plain() {}
+        "#,
+        ),
+        ("other.rs", "fn notes() {}"),
+    ]);
+    let server = project.server();
+    for format in ["toon", "text"] {
+        let out = dead_code(&server, format).await;
+        assert!(
+            out.contains("possible entry point: http GET /api/notes"),
+            "{out}"
+        );
+        assert!(
+            out.contains("possible entry point: http POST /api/notes"),
+            "{out}"
+        );
+        assert!(
+            out.contains("computed") && out.contains("unrelated") && out.contains("plain"),
+            "{out}"
+        );
+        let homonym = if format == "toon" {
+            "function,notes,other.rs,"
+        } else {
+            "other.rs:\n  function notes"
+        };
+        assert!(out.contains(homonym), "{out}");
+        assert!(out.contains("concatenated"), "{out}");
+        assert!(out.contains("detected: 5"), "{out}");
+    }
+}
+
+#[test]
+fn declared_route_survives_reopen_and_is_removed_by_incremental_reindex() {
+    let project = Project::new(&[("api.rs", "#[actix_web::get(\"/\")]\nasync fn index() {}")]);
+    let registry = mct_languages::build_registry();
+    let db = project.0.join(".mct-index/index.sqlite3");
+    let open = || Index::open(&project.0, &db, ExcludeSet::default()).unwrap();
+    open().reindex(&registry, false).unwrap();
+    let mut index = open();
+    let scan = mct_index::scan_dead_code(&index, None, None).unwrap();
+    assert!(scan.candidates.is_empty());
+    assert_eq!(scan.declared_entry_points.len(), 1);
+
+    write(&project.0, "api.rs", "async fn index() {}");
+    index.reindex(&registry, false).unwrap();
+    let scan = mct_index::scan_dead_code(&index, None, None).unwrap();
+    assert!(scan.declared_entry_points.is_empty());
+    assert_eq!(scan.candidates.len(), 1);
+    assert_eq!(scan.symbols[scan.candidates[0]].name, "index");
+}

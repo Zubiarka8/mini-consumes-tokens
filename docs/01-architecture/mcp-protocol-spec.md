@@ -100,6 +100,12 @@ budget, 512..16000 (default 4000); it bounds the response, not analysis work.
 Restart pagination after a reindex or a review change. Existing `path`,
 `language`, `limit`, `offset` and `format` parameters retain their defaults.
 
+Symbols that declare a join point are excluded from the candidate counts.
+When declarations exist in scope, both formats report
+`declared_entry_points_total` and show up to 20 declaration reasons, subject
+to the output budget. Candidate pagination applies only to candidates.
+See [ADR-038](adrs/038-declared-join-points.md).
+
 ### Source revision verification
 
 MCP source consumers compare the bytes read with the indexed Git blob hash
