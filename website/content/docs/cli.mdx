@@ -25,8 +25,8 @@ The index always lives in `<root>/.mct-index/index.sqlite3`. The path can't be c
 | [`reindex`](#reindex) | Update the index after changes | writes |
 | [`status`](#status) | Show what is indexed and what failed | opens; may create or migrate |
 | [`mcp-register`](#mcp-register) | Add the server to `.mcp.json` | no |
-| [`ignore-init`](#ignore-init) | Create a starter `.mctignore` | no |
-| [`gitignore-init`](#gitignore-init) | Add `.mct-index/` to `.gitignore` | no |
+| [`init-mctignore`](#init-mctignore) | Create a starter `.mctignore` | no |
+| [`git-exclusions-init`](#git-exclusions-init) | Add `.mct-index/` to `.gitignore` | no |
 | [`dead-code`](#dead-code) | Write a CSV of possibly unused symbols | reads |
 | [`probe`](#probe) | Parse files without indexing them, to debug a parser | no |
 | `obsidian` | Regenerate the vault from an existing index | opens; may migrate |
@@ -145,13 +145,17 @@ It writes this entry, with the absolute project path:
 
 If `.mcp.json` already exists, only this one entry is added or replaced; other servers in the file are kept. For clients that use a different file, see [AI clients](/docs/clients).
 
-## `ignore-init` [#ignore-init]
+<span id="ignore-init" />
+
+## `init-mctignore` [#init-mctignore]
+
+The previous name `ignore-init` remains available as an alias.
 
 Creates a starter `.mctignore` at the project root, with comments that explain the syntax. Use it to keep extra files out of the index (docs, fixtures, generated code). See [Excluding files](/docs/exclusion).
 
 ```bash
-mct-cli --root . ignore-init
-mct-cli --root . ignore-init --import-gitignore
+mct-cli --root . init-mctignore
+mct-cli --root . init-mctignore --import-gitignore
 ```
 
 | Option | Meaning |
@@ -161,12 +165,16 @@ mct-cli --root . ignore-init --import-gitignore
 
 If `.mctignore` already exists it is left alone. The `--import-gitignore` and `--generated` options can update an existing file.
 
-## `gitignore-init` [#gitignore-init]
+<span id="gitignore-init" />
+
+## `git-exclusions-init` [#git-exclusions-init]
+
+The previous name `gitignore-init` remains available as an alias.
 
 Adds `.mct-index/` to `.gitignore` (and creates the file if needed), so the index is never committed. It only appends; if the entry is already there, nothing changes.
 
 ```bash
-mct-cli --root . gitignore-init
+mct-cli --root . git-exclusions-init
 ```
 
 ```text

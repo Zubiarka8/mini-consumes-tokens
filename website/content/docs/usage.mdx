@@ -19,12 +19,12 @@ mct-cli --root . status     # files and symbols indexed, last run, any read fail
 
 ## Keep files out of the index
 
-`mct-cli --root . ignore-init` writes a starter `.mctignore`. Edit it to exclude things like `docs/` or `*.md`, then run `reindex --force`. A connected server applies the edit before its next tool call, so an excluded file is never served from the old index.
+`mct-cli --root . init-mctignore` writes a starter `.mctignore`. Edit it to exclude things like `docs/` or `*.md`, then run `reindex --force`. A connected server applies the edit before its next tool call, so an excluded file is never served from the old index.
 
 - `--import-gitignore` excludes what your own `.gitignore` files already exclude, nested ones included.
 - `--generated` adds editable rules for `venv`, caches, `bin`, `obj`, `build` and `dist` at any depth. It is opt-in because `bin` can hold real source.
 - Next.js output (`.next/`) is always excluded.
-- `mct-cli --root . gitignore-init` keeps the generated database out of git.
+- `mct-cli --root . git-exclusions-init` keeps the generated database out of git.
 
 The full rule syntax is in [File exclusion rules](/docs/exclusion).
 
