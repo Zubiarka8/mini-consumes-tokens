@@ -318,9 +318,33 @@ fn main() -> anyhow::Result<()> {
     } else {
         cli.root
     };
+    run(cli.command, roots)
+}
 
+impl Command {
+    /// The subcommand's name, as the incident log records it.
+    fn operation(&self) -> &'static str {
+        match self {
+            Command::Init { .. } => "init",
+            Command::Reindex { .. } => "reindex",
+            Command::Obsidian => "obsidian",
+            Command::Web { .. } => "web",
+            Command::Call { .. } => "call",
+            Command::Status => "status",
+            Command::McpRegister { .. } => "mcp-register",
+            Command::IgnoreInit { .. } => "ignore-init",
+            Command::GitignoreInit => "gitignore-init",
+            Command::DeadCode { .. } => "dead-code",
+            Command::Duplicates { .. } => "duplicates",
+            Command::Probe { .. } => "probe",
+            Command::Update => "update",
+        }
+    }
+}
+
+fn run(command: Command, roots: Vec<PathBuf>) -> anyhow::Result<()> {
     // The only commands that take several roots; they open their own indexes.
-    if let Command::Init { force, no_obsidian } = cli.command {
+    if let Command::Init { force, no_obsidian } = command {
         return init_roots(&roots, force, no_obsidian);
     }
     if let Command::Call {
@@ -329,9 +353,18 @@ fn main() -> anyhow::Result<()> {
         args_file,
         json,
         timeout,
-    } = cli.command
+    } = command
     {
-        let args = read_call_args(args.as_deref(), args_file.as_deref())?;
+        let args = match read_call_args(args.as_deref(), args_file.as_deref()) {
+            Ok(args) => args,
+            Err(err) => {
+                // Before any root is called: one record per project, if it has an index.
+                for root in &roots {
+                    log_cli_failure(root, "call", &err);
+                }
+                return Err(err);
+            }
+        };
         return call_roots(&roots, &tool, args, json, timeout);
     }
     let root = match roots.as_slice() {
@@ -341,45 +374,61 @@ fn main() -> anyhow::Result<()> {
         ),
     };
 
+    let operation = command.operation();
+    let result = run_single(root.clone(), command);
+    if let Err(err) = &result {
+        log_cli_failure(&root, operation, err);
+    }
+    result
+}
+
+/// Records a failed command in the project's incident log. Best effort: the
+/// error is still returned and printed by the caller.
+fn log_cli_failure(root: &Path, operation: &str, err: &anyhow::Error) {
+    mct_mcp_server::incident::record_cli_error(root, operation, &format!("{err:#}"));
+}
+
+/// Every command that takes exactly one root.
+fn run_single(root: PathBuf, command: Command) -> anyhow::Result<()> {
     // None of these touch the index at all, so they're handled before
     // Index::open — running them shouldn't have the side effect of creating
     // .mct-index/.
     if let Command::McpRegister {
         name,
         reindex_delay,
-    } = cli.command
+    } = command
     {
         return mcp_register(&root, name, reindex_delay);
     }
     if let Command::IgnoreInit {
         import_gitignore,
         generated,
-    } = cli.command
+    } = command
     {
         if generated {
             return ignore_preset::run(&root, import_gitignore);
         }
         return ignore_init(&root, import_gitignore);
     }
-    if let Command::GitignoreInit = cli.command {
+    if let Command::GitignoreInit = command {
         return gitignore_init(&root);
     }
-    if let Command::Probe { files } = &cli.command {
+    if let Command::Probe { files } = &command {
         return probe(&build_registry(), files);
     }
-    if let Command::Update = cli.command {
+    if let Command::Update = command {
         return self_update();
     }
     // Does not create or mutate the index; it may save its report cache beside
     // the existing database, so it checks for the database before running.
-    if let Command::Duplicates { options } = cli.command {
+    if let Command::Duplicates { options } = command {
         return duplicates::run(&root, options);
     }
     if let Command::Web {
         port,
         no_obsidian,
         idle_timeout,
-    } = cli.command
+    } = command
     {
         return web::run(&root, port, no_obsidian, idle_timeout);
     }
@@ -389,7 +438,7 @@ fn main() -> anyhow::Result<()> {
     let exclude = ExcludeSet::for_project(&root);
     let mut index = Index::open(&root, &db_path, exclude)?;
 
-    match cli.command {
+    match command {
         Command::Reindex { force, no_obsidian } => {
             if !no_obsidian {
                 mct_obsidian::register(&mut index);
@@ -932,6 +981,7 @@ fn init_roots(roots: &[PathBuf], force: bool, no_obsidian: bool) -> anyhow::Resu
         if let Err(err) = result {
             failed += 1;
             eprintln!("error: {}: {err:#}", display_path(root));
+            log_cli_failure(root, "init", &err);
         }
     }
     match (failed, roots.len()) {
@@ -1030,6 +1080,9 @@ fn call_roots(
                 None => call.await,
             }
         });
+        if let Err(err) = &outcome {
+            log_cli_failure(root, "call", &anyhow::anyhow!("{tool}: {err:#}"));
+        }
         outcomes.push((root, outcome));
     }
 

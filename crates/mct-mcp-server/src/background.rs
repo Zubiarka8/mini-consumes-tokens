@@ -481,10 +481,18 @@ pub fn spawn_watcher_with_schedule(
                     removed_symbols = ?report.removed_symbols,
                     "auto-reindex after file changes settled"
                 ),
-                Some(Err(err)) => tracing::warn!(
-                    error = %err,
-                    "auto-reindex failed; a full reindex will retry it"
-                ),
+                Some(Err(err)) => {
+                    crate::incident::record_failure(
+                        guard.root(),
+                        "auto-reindex",
+                        "reindex-failed",
+                        &err.to_string(),
+                    );
+                    tracing::warn!(
+                        error = %err,
+                        "auto-reindex failed; a full reindex will retry it"
+                    );
+                }
             }
             reconcile_at = Instant::now() + reconciliation_interval;
             if watcher_disconnected {

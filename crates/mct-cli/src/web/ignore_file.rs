@@ -185,6 +185,11 @@ impl Site {
             }
         };
         if current != base {
+            self.record_incident(
+                "dashboard-ignore",
+                "ignore-conflict",
+                &format!("{name} changed on disk meanwhile"),
+            );
             return match state_json(&self.root, rules) {
                 Ok(mut state) => {
                     state["error"] = format!(

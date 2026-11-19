@@ -13,6 +13,7 @@ mod duplicates;
 mod error;
 mod exclude;
 mod file_tree;
+mod incidents;
 mod indexer;
 pub mod luarocks;
 mod manifests;
@@ -59,6 +60,7 @@ pub use exclude::{
     IGNORE_FILE_TEMPLATE,
 };
 pub use file_tree::FileTreeNode;
+pub use incidents::{log_incident, Incident};
 pub use indexer::{
     DependencyInfo, IndexStatus, IndexedFile, LanguageCoverage, ManifestDependencies,
     ReindexReport, UnsupportedFile, UnsupportedKind,
@@ -174,6 +176,8 @@ pub struct Index {
     /// Hook failures from reindexes whose report never reaches the caller
     /// ([`Index::apply_exclusion_changes`]); see [`Index::take_warnings`].
     pending_warnings: Vec<String>,
+    /// Incidents found by the reindex in progress, logged once it commits.
+    pending_incidents: std::cell::RefCell<Vec<incidents::Pending>>,
     /// Whether the post-reindex hook has succeeded on this connection. Until
     /// it has, it runs even after a run that published nothing, so derived
     /// views (the Obsidian vault) are written once per process.
@@ -215,6 +219,7 @@ impl Index {
             exclude,
             post_reindex: None,
             pending_warnings: Vec::new(),
+            pending_incidents: std::cell::RefCell::new(Vec::new()),
             post_reindex_done: false,
             last_verified_at: None,
             last_full_verified_at: None,
@@ -250,6 +255,7 @@ impl Index {
             exclude,
             post_reindex: None,
             pending_warnings: Vec::new(),
+            pending_incidents: std::cell::RefCell::new(Vec::new()),
             post_reindex_done: false,
             last_verified_at: None,
             last_full_verified_at: None,
@@ -276,6 +282,7 @@ impl Index {
             exclude,
             post_reindex: None,
             pending_warnings: Vec::new(),
+            pending_incidents: std::cell::RefCell::new(Vec::new()),
             post_reindex_done: false,
             last_verified_at: None,
             last_full_verified_at: None,
@@ -391,7 +398,20 @@ impl Index {
         if let Some(hook) = &self.post_reindex {
             match hook(self) {
                 Ok(()) => self.post_reindex_done = true,
-                Err(err) => report.warnings.push(err.to_string()),
+                Err(err) => {
+                    let detail = err.to_string();
+                    let _ = log_incident(
+                        &self.root,
+                        &Incident {
+                            operation: "reindex",
+                            kind: "post-reindex-hook",
+                            path: None,
+                            line: None,
+                            detail: &detail,
+                        },
+                    );
+                    report.warnings.push(detail);
+                }
             }
         }
     }
