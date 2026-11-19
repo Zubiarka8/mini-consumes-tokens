@@ -46,13 +46,13 @@ If a command is not found, its folder is not on your `PATH`. See [Installation](
 ### 3. Keep the index out of git
 
 ```bash
-mct-cli --root . gitignore-init
+mct-cli --root . git-exclusions-init
 ```
 
 ### 4. Choose what not to index (optional)
 
 ```bash
-mct-cli --root . ignore-init --import-gitignore
+mct-cli --root . init-mctignore --import-gitignore
 ```
 
 Then edit `.mctignore`. See [Excluding files](/docs/exclusion).
@@ -144,8 +144,8 @@ curl -sSL https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/
 export PATH="$HOME/.local/bin:$PATH"
 
 # 2. Prepare the project
-mct-cli --root . gitignore-init
-mct-cli --root . ignore-init --import-gitignore
+mct-cli --root . git-exclusions-init
+mct-cli --root . init-mctignore --import-gitignore
 
 # 3. Build and check the index
 mct-cli --root . init
@@ -164,8 +164,8 @@ $ErrorActionPreference = "Stop"
 irm https://raw.githubusercontent.com/Zubiarka8/mini-consumes-tokens/main/install.ps1 | iex
 $env:PATH = "$env:LOCALAPPDATA\mct\bin;$env:PATH"
 
-mct-cli --root . gitignore-init
-mct-cli --root . ignore-init --import-gitignore
+mct-cli --root . git-exclusions-init
+mct-cli --root . init-mctignore --import-gitignore
 mct-cli --root . init
 mct-cli --root . status
 
