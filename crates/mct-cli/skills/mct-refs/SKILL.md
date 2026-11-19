@@ -4,4 +4,5 @@ description: "Every use of a symbol: calls, imports, extends, implements and ove
 ---
 1. Call find_references with symbol=<arg>. Page with offset if the list is cut.
 2. Report the references grouped by kind and file.
+3. Prefer this for types, constants and traits, where callers alone miss imports and implementations. For a plain function, mct-callers is enough.
 Do not read whole files.

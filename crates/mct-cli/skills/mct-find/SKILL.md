@@ -4,4 +4,5 @@ description: "Go to the definition of a symbol by its exact name. Use when you k
 ---
 1. Call find_symbol with name=<arg>.
 2. Report each definition as path:line with its kind and signature. If several match, list all of them and use path or language to narrow.
+3. If nothing matches, the name is probably inexact: use mct-search for words or mct-meaning for behavior. Do not guess a name.
 Do not read whole files.

@@ -56,17 +56,19 @@ pub const WORKFLOWS: &[Workflow] = &[
         name: "overview",
         description: "Orientation in an unfamiliar crate, directory or file. Use first, before reading code.",
         arg: optional("path", "Crate, directory or file; omit for the whole project"),
-        steps: "1. Call get_project_overview with path={arg} (omit path for the whole project).\n\
+        steps: "1. Call get_project_overview with path={arg} (omit path for the whole project). Start wide, then narrow to one crate or directory only after the first answer.\n\
 2. If the layout is still unclear, call get_file_tree with path={arg}.\n\
-3. Report the modules, the key symbols and the top callers, then name the one file to look at next.\n\
+3. Report the modules, the key symbols and the top callers, then name the one file to look at next and why.\n\
+4. Next step: get_file_skeleton on that file, or the symbols prompt for a whole directory.\n\
 Do not read whole files.",
     },
     Workflow {
         name: "tree",
         description: "Directory and file layout of a path, without symbols.",
         arg: optional("path", "Directory to show; omit for the project root"),
-        steps: "1. Call get_file_tree with path={arg} (omit path for the project root). Raise depth only if the tree is too shallow.\n\
+        steps: "1. Call get_file_tree with path={arg} (omit path for the project root). Raise depth only if the tree is too shallow; a deep tree of a large directory wastes tokens.\n\
 2. Report the layout and point at the directories that matter for the task.\n\
+3. This shows layout only. To see what the code defines, use the symbols prompt or the overview prompt.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -75,6 +77,7 @@ Do not read whole files.",
         arg: required("path", "File to outline"),
         steps: "1. Call get_file_skeleton with path={arg}. If you do not know the file, call list_symbols first.\n\
 2. Report the declarations in order, with their signatures.\n\
+3. If you need one collapsed body, call build_context_pack on that symbol instead of reading the file.\n\
 Read the file itself only to edit it.",
     },
     Workflow {
@@ -83,6 +86,7 @@ Read the file itself only to edit it.",
         arg: required("path", "File, directory or crate"),
         steps: "1. Call list_symbols with path={arg}. A file path matches exactly; a directory or crate path matches as a prefix. Narrow with kind or language.\n\
 2. Report the symbols grouped by file and kind.\n\
+3. Once you know the exact name, move on: the find prompt for its definition, the context prompt before editing it.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -91,6 +95,7 @@ Do not read whole files.",
         arg: required("name", "Exact symbol name"),
         steps: "1. Call find_symbol with name={arg}.\n\
 2. Report each definition as path:line with its kind and signature. If several match, list all of them and use path or language to narrow.\n\
+3. If nothing matches, the name is probably inexact: use the search prompt for words or the meaning prompt for behavior. Do not guess a name.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -99,6 +104,7 @@ Do not read whole files.",
         arg: required("query", "Words or a partial identifier"),
         steps: "1. Call search_symbols_like with query={arg}. An exact name always ranks first.\n\
 2. Report the hits with path:line and kind. If none fit, rephrase the words once, then try the meaning prompt.\n\
+3. Spellings differ by style (camel case, snake case, Pascal case), so try the other style or a shorter stem before giving up.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -107,6 +113,7 @@ Do not read whole files.",
         arg: required("query", "What the code does, in words"),
         steps: "1. Call hybrid_search_like with query={arg}. Put the phrase in double quotes for an exact phrase match.\n\
 2. Report the hits with path:line and a one-line reason each. If the first line says the semantic half is off, say that the ranking is lexical only.\n\
+3. Describe the behavior, not a guessed name: retry a failed request beats retry handler. Check a promising hit with the skeleton prompt or the context prompt before relying on it.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -115,6 +122,7 @@ Do not read whole files.",
         arg: required("function", "Function or method name"),
         steps: "1. Call find_callers with function={arg}. Use depth=2 only if the direct callers are not enough.\n\
 2. Report callers as path:line, grouped by file. Say so when the name is ambiguous instead of picking one.\n\
+3. Keep callers the tool lists as ambiguous or unresolved apart from the certain ones. For the full blast radius with tests, use the impact prompt.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -123,6 +131,7 @@ Do not read whole files.",
         arg: required("function", "Function or method name"),
         steps: "1. Call find_calls with function={arg}.\n\
 2. Report the callees as path:line. List unresolved or ambiguous callees separately and do not guess them.\n\
+3. To follow one callee, run the calls prompt on it; to see who else uses it, the callers prompt. Stop after two hops unless asked for more.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -131,6 +140,7 @@ Do not read whole files.",
         arg: required("symbol", "Symbol name"),
         steps: "1. Call find_references with symbol={arg}. Page with offset if the list is cut.\n\
 2. Report the references grouped by kind and file.\n\
+3. Prefer this for types, constants and traits, where callers alone miss imports and implementations. For a plain function, the callers prompt is enough.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -140,6 +150,7 @@ Do not read whole files.",
         steps: "1. Call impact_analysis with symbol={arg}, depth=2.\n\
 2. Call build_context_pack on the same symbol.\n\
 3. Report callers by crate, the tests that cover it, and any ambiguous caller without guessing.\n\
+4. End with a verdict: what breaks if the signature changes, which tests to run first, and what stays safe. Say plainly when no test covers it.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -148,6 +159,7 @@ Do not read whole files.",
         arg: required("symbol", "Symbol you plan to edit"),
         steps: "1. Call build_context_pack with symbol={arg}. Use path or language if the name is ambiguous, and source_lines to see more of the body.\n\
 2. Report the definition, then the callers, callees and tests it lists.\n\
+3. Edit from this pack. If it shows the symbol is widely used, run the impact prompt before changing its signature.\n\
 Read the file only to edit it.",
     },
     Workflow {
@@ -156,6 +168,7 @@ Read the file only to edit it.",
         arg: required("module", "File or directory"),
         steps: "1. Call get_dependency_graph with module={arg}. Raise depth for more hops, or pass export=mermaid for a diagram.\n\
 2. Report the imports, the importers and any cycle. List unresolved and third-party imports separately.\n\
+3. For a cycle, name the files that close it and which import is cheapest to cut.\n\
 Do not read whole files.",
     },
     Workflow {
@@ -164,7 +177,8 @@ Do not read whole files.",
         arg: optional("path", "Directory or file; omit for the whole project"),
         steps: "1. Call find_dead_code with path={arg}.\n\
 2. For each hit, call find_references, and impact_analysis if it looks used, before calling it dead.\n\
-3. Report confirmed candidates and the hits you ruled out with the reason. Zero indexed references is a heuristic, not proof.\n\
+3. Check last the likely false positives: entry points, tests, public API, trait implementations and anything reached through macros or reflection.\n\
+4. Report confirmed candidates and the hits you ruled out with the reason. Zero indexed references is a heuristic, not proof.\n\
 Do not delete anything unasked.",
     },
     Workflow {
@@ -174,6 +188,7 @@ Do not delete anything unasked.",
         steps: "1. Call find_duplicate_code with path={arg}.\n\
 2. For each group, call build_context_pack on its members to compare what they do.\n\
 3. Report true duplicates apart from code that only looks alike, and which copy to keep.\n\
+4. Same shape with a different reason to change (two parsers for different formats) is a look-alike. Merge only when one fix would belong in every copy.\n\
 Do not edit unasked.",
     },
     Workflow {
@@ -182,14 +197,16 @@ Do not edit unasked.",
         arg: None,
         steps: "1. Call get_indexing_status.\n\
 2. Report the file and symbol counts, any syntax or read failure with its path, and whether the index looks stale.\n\
-3. Suggest the reindex prompt only if it looks stale.",
+3. A file that fails to parse is missing from search results; say so whenever an answer depends on it.\n\
+4. Suggest the reindex prompt only if it looks stale.",
     },
     Workflow {
         name: "reindex",
         description: "Refresh the index now. Use only when status shows it stale or after large edits.",
         arg: None,
         steps: "1. Call reindex. Pass force=true only if unchanged files must be parsed again, for example after upgrading mct-cli.\n\
-2. Report the files parsed, removed and unchanged, and every issue it lists.",
+2. Report the files parsed, removed and unchanged, and every issue it lists.\n\
+3. The index already refreshes itself as files settle. If results still look wrong afterwards, run the status prompt and report instead of reindexing in a loop.",
     },
 ];
 

@@ -351,10 +351,14 @@ mod tests {
         // Wording that legitimately differs: a skill points at a sibling skill,
         // a prompt at the sibling prompt, and `<arg>` is `{arg}`.
         let normalise = |line: &str| {
-            line.replace("<arg>", "{arg}")
-                .replace("mct-reindex", "the reindex prompt")
-                .replace("mct-meaning", "the meaning prompt")
-                .replace("mct-status", "status")
+            let mut line = line.replace("<arg>", "{arg}");
+            for w in mct_mcp_server::prompts::WORKFLOWS {
+                line = line.replace(
+                    &format!("mct-{}", w.name),
+                    &format!("the {} prompt", w.name),
+                );
+            }
+            line
         };
         for w in mct_mcp_server::prompts::WORKFLOWS {
             let prompt: Vec<String> = w.steps.lines().map(|l| normalise(l.trim())).collect();

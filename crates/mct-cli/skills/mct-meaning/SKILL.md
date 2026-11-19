@@ -4,4 +4,5 @@ description: "Search by what the code does, not by its name. Use when you can on
 ---
 1. Call hybrid_search_like with query=<arg>. Put the phrase in double quotes for an exact phrase match.
 2. Report the hits with path:line and a one-line reason each. If the first line says the semantic half is off, say that the ranking is lexical only.
+3. Describe the behavior, not a guessed name: retry a failed request beats retry handler. Check a promising hit with mct-skeleton or mct-context before relying on it.
 Do not read whole files.
