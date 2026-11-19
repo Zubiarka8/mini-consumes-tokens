@@ -275,6 +275,7 @@ async fn startup_index(
     watcher: WatcherSettings,
 ) {
     tracing::info!("starting initial reindex");
+    let root = index.lock().await.root().to_path_buf();
     let outcome = tokio::task::spawn_blocking({
         let index = index.clone();
         let registry = registry.clone();
@@ -287,12 +288,24 @@ async fn startup_index(
             readiness.mark_ready();
         }
         Ok(Err(err)) => {
+            mct_mcp_server::incident::record_failure(
+                &root,
+                "startup-index",
+                "reindex-failed",
+                &err.to_string(),
+            );
             tracing::error!(error = %err, "initial reindex failed; tools report it until `reindex` succeeds");
             readiness.mark_failed(err.to_string());
             // The watcher starts once the `reindex` tool has recovered the index.
             readiness.until_ready().await;
         }
         Err(join) => {
+            mct_mcp_server::incident::record_failure(
+                &root,
+                "startup-index",
+                "task-failed",
+                &join.to_string(),
+            );
             tracing::error!(error = %join, "initial reindex task failed");
             readiness.mark_failed(format!("indexing task failed: {join}"));
             readiness.until_ready().await;

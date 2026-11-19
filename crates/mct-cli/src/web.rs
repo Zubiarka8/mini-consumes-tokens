@@ -403,6 +403,22 @@ impl Site {
         self.stamp = failed;
     }
 
+    /// Records a dashboard failure in the project's local incident log. Best
+    /// effort and silent: the response the page receives is never affected.
+    /// `detail` names the finding or the rule file, never a note or a body.
+    fn record_incident(&self, operation: &str, kind: &str, detail: &str) {
+        let _ = mct_index::log_incident(
+            &self.root,
+            &mct_index::Incident {
+                operation,
+                kind,
+                path: None,
+                line: None,
+                detail,
+            },
+        );
+    }
+
     /// Applies one review decision sent as a JSON body (`csrf`, `key`,
     /// `state`, `note`, `revision`). `revision` is the one the page showed:
     /// if the decision changed since, nothing is saved and 409 returns the
@@ -440,6 +456,11 @@ impl Site {
         };
         let note = fields.get("note").and_then(|v| v.as_str()).unwrap_or("");
         if !api::review_sources_current(self, key) {
+            self.record_incident(
+                "dashboard-review",
+                "review-source-stale",
+                &format!("finding {key}: the source changed or is unavailable"),
+            );
             return response::Response::failure(
                 409,
                 "The source changed or is unavailable. Reindex before saving the review.",
@@ -459,6 +480,11 @@ impl Site {
                 response::Response::json(&api::review_json(self, &key))
             }
             Err(ReviewError::Conflict) => {
+                self.record_incident(
+                    "dashboard-review",
+                    "review-conflict",
+                    &format!("finding {key}: the finding or its review changed meanwhile"),
+                );
                 let mut current = api::review_json(self, &key);
                 current["error"] = "This finding or its review changed meanwhile. \
                                     Nothing was saved; its current state is shown."
@@ -467,6 +493,11 @@ impl Site {
             }
             Err(error) => {
                 eprintln!("warning: cannot save review: {error}");
+                self.record_incident(
+                    "dashboard-review",
+                    "review-save-failed",
+                    &format!("finding {key}: {error}"),
+                );
                 let status = match error {
                     ReviewError::Invalid(_) => 400,
                     ReviewError::Degraded(_) | ReviewError::Locked { .. } => 503,

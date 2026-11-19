@@ -1902,6 +1902,7 @@ mod duplicate_groups;
 
 #[path = "tests/group_invariants.rs"]
 mod group_invariants;
+mod incident_log;
 mod partial_blocks;
 
 /// Starts the real accept loop on an ephemeral port in a background thread.

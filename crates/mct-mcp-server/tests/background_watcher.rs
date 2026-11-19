@@ -489,6 +489,15 @@ mod changed_paths {
                 EventKind::Modify(ModifyKind::Any),
                 &["/repo/.mct-index/index.sqlite3"],
             ),
+            // The incident log: a record and its temporary file must not
+            // wake the watcher, or logging a failure would trigger a reindex.
+            event(
+                EventKind::Create(CreateKind::Any),
+                &[
+                    "/repo/.mct-index/errors/20261119T153045.123456Z--reindex--syntax-error--0123456789ab.log",
+                    "/repo/.mct-index/errors/.tmp-0123456789ab",
+                ],
+            ),
             event(EventKind::Modify(ModifyKind::Any), &["/elsewhere/a.rs"]),
         ];
         assert_eq!(changed(&events), Changed::Nothing);

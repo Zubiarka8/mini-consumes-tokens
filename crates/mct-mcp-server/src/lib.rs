@@ -7,6 +7,7 @@ pub mod embedder;
 pub mod exit_idle;
 pub mod format;
 pub mod graph_render;
+pub mod incident;
 pub mod intent;
 pub mod maintainer;
 pub mod pack_budget;

@@ -19,6 +19,7 @@ use crate::duplicate_query;
 pub use crate::duplicate_query::FindDuplicateCodeArgs;
 use crate::embedder::SemanticModel;
 use crate::format;
+use crate::incident;
 use crate::intent;
 use crate::pack_budget::{self, PackRequest};
 use crate::readiness::{self, IndexState, Readiness};
@@ -1706,6 +1707,36 @@ impl MctServer {
         }
     }
 
+    /// The body of [`ServerHandler::call_tool`], apart from the incident log.
+    /// Next to the response it names the incident kind when that response is
+    /// an `is_error` result: the index was not ready, or rmcp refused the
+    /// arguments before the tool ran (it reports that as a result, not as a
+    /// JSON-RPC error).
+    async fn dispatch_call(
+        &self,
+        tool: &str,
+        request: rmcp::model::CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(rmcp::model::CallToolResponse, Option<&'static str>), McpError> {
+        if let Some(refused) = self.not_ready_result(tool, self.ready_wait).await {
+            return Ok((
+                rmcp::model::CallToolResponse::Complete(refused),
+                Some("not-ready"),
+            ));
+        }
+        self.sync_exclusions_for(tool).await?;
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        let response = self.tool_router.call(call).await?;
+        let mut refusal = None;
+        if let rmcp::model::CallToolResponse::Complete(result) = &response {
+            check_postcondition(tool, result)?;
+            if result.is_error == Some(true) {
+                refusal = Some(incident::result_error_kind(result));
+            }
+        }
+        Ok((response, refusal))
+    }
+
     /// Runs one `batch` sub-query through the same tool method a direct call
     /// would hit, so its validation, defaults and output are identical.
     /// `reindex` is refused (a batch stays read-only, and a mid-batch
@@ -3185,8 +3216,23 @@ impl MctServer {
                     wait = Duration::ZERO;
                 }
                 match outcome {
-                    Ok(result) => format::BatchOutcome::Ok(result_text(&result)),
-                    Err(err) => format::BatchOutcome::Err(err.message.to_string()),
+                    Ok(result) => {
+                        // A refusal comes back as `Ok`; it is a failure too.
+                        if result.is_error == Some(true) {
+                            incident::record_refusal(
+                                &self.root,
+                                "batch",
+                                &tool,
+                                "not-ready",
+                                &result,
+                            );
+                        }
+                        format::BatchOutcome::Ok(result_text(&result))
+                    }
+                    Err(err) => {
+                        incident::record_error(&self.root, "batch", &tool, &err);
+                        format::BatchOutcome::Err(err.message.to_string())
+                    }
                 }
             };
             rendered += outcome.len();
@@ -3215,23 +3261,28 @@ impl ServerHandler for MctServer {
     }
 
     // The macro's default `call_tool`, plus the POST contract check — and,
-    // first, the current ignore rules applied to the index.
+    // first, the current ignore rules applied to the index. A failure is
+    // recorded in the incident log and returned unchanged.
     async fn call_tool(
         &self,
         request: rmcp::model::CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::CallToolResponse, McpError> {
-        let tool = request.name.clone();
-        if let Some(refused) = self.not_ready_result(&tool, self.ready_wait).await {
-            return Ok(rmcp::model::CallToolResponse::Complete(refused));
+        let tool = request.name.to_string();
+        match self.dispatch_call(&tool, request, context).await {
+            Err(err) => {
+                incident::record_error(&self.root, "tools-call", &tool, &err);
+                Err(err)
+            }
+            Ok((response, refusal)) => {
+                if let (Some(kind), rmcp::model::CallToolResponse::Complete(result)) =
+                    (refusal, &response)
+                {
+                    incident::record_refusal(&self.root, "tools-call", &tool, kind, result);
+                }
+                Ok(response)
+            }
         }
-        self.sync_exclusions_for(&tool).await?;
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        let response = self.tool_router.call(call).await?;
-        if let rmcp::model::CallToolResponse::Complete(result) = &response {
-            check_postcondition(&tool, result)?;
-        }
-        Ok(response)
     }
 
     fn get_info(&self) -> InitializeResult {
