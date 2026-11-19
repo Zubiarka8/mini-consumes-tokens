@@ -81,3 +81,20 @@ Use `hybrid_search_like` with a double-quoted phrase. `search_symbols_like` sear
 `discover_tool_categories` lists every registered tool's name and one-line purpose, grouped by category, with no input schemas. It is a cheap first call for a client that wants to defer the schema payload. `get_tool_schema` then returns one named tool's full input schema, description and contract (`PRE`, `POST` and `EFFECTS` from `tools.ttc`) on demand.
 
 Both are additive. The standard MCP `tools/list` handshake still returns every tool's full schema up front, so ordinary clients are unaffected. These two tools only help a client built to use them.
+## MCP prompts
+
+The server also advertises the `prompts` capability. `prompts/list` returns the
+same workflows as the `mct-*` skills, under the skill's name without the prefix:
+`overview`, `tree`, `skeleton`, `symbols`, `find`, `search`, `meaning`,
+`callers`, `calls`, `refs`, `impact`, `context`, `deps`, `dead-code`,
+`duplicates`, `status` and `reindex`. `prompts/get` returns one user message
+with the steps and the argument filled in; the argument is named like the
+parameter of the first tool the prompt calls (`symbol`, `function`, `path`,
+`query`, `name`, `module`).
+
+A missing required argument, an argument the prompt does not take, or an unknown
+prompt is `invalid_params`. Asking for a prompt runs no tool and does not
+change `tools/list`. Every prompt starts by saying that, with Tool Attention
+on, `tools/list` shows `select_tools` only and has to be called first; the tools
+themselves stay callable by name. A test in `mct-cli` keeps each prompt equal to
+its skill.
