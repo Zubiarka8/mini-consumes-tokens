@@ -13,6 +13,7 @@ mod duplicates;
 mod error;
 mod exclude;
 mod file_tree;
+mod incidents;
 mod indexer;
 pub mod luarocks;
 mod manifests;
@@ -59,6 +60,7 @@ pub use exclude::{
     IGNORE_FILE_TEMPLATE,
 };
 pub use file_tree::FileTreeNode;
+pub use incidents::{log_incident, Incident};
 pub use indexer::{
     DependencyInfo, IndexStatus, IndexedFile, LanguageCoverage, ManifestDependencies,
     ReindexReport, UnsupportedFile, UnsupportedKind,
