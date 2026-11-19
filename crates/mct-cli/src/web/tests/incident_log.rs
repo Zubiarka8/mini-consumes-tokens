@@ -17,11 +17,16 @@ fn records(root: &Path) -> Vec<String> {
     names
 }
 
-/// The status line and body of a response, without what varies between two
-/// runs: headers, and the revision, which carries a millisecond timestamp.
+/// The status line and body of a response, without what differs between two
+/// runs: headers and every clock reading (`revision`, `updated`, history `at`).
 fn status_and_body(response: &str) -> (String, serde_json::Value) {
     let mut body: serde_json::Value = serde_json::from_str(Server::body(response)).unwrap();
-    body.as_object_mut().unwrap().remove("revision");
+    let fields = body.as_object_mut().unwrap();
+    fields.remove("revision");
+    fields.remove("updated");
+    for event in fields["history"].as_array_mut().unwrap() {
+        event.as_object_mut().unwrap().remove("at");
+    }
     (
         response.lines().next().unwrap_or_default().to_string(),
         body,
