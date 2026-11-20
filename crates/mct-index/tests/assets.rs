@@ -351,8 +351,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // type-method candidate (issue #478), 20 is ADR-038's `join_points`
     // (issue #566) and 21 stores their location and marks the relations
     // made from matching points (issue #561), 22 drops non-type candidates
-    // of C# and C++ supertype relations (issue #388).
-    assert_eq!(before, 22);
+    // of C# and C++ supertype relations (issue #388), 23 scopes a nested
+    // function's candidates to its own file (issue #376).
+    assert_eq!(before, 23);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
