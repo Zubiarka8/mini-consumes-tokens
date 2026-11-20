@@ -63,7 +63,7 @@ pub use exclude::{
 pub use file_tree::FileTreeNode;
 pub use incidents::{log_incident, Incident};
 pub use indexer::{
-    DependencyInfo, IndexStatus, IndexedFile, LanguageCoverage, ManifestDependencies,
+    AliasSource, DependencyInfo, IndexStatus, IndexedFile, LanguageCoverage, ManifestDependencies,
     ReindexReport, UnsupportedFile, UnsupportedKind,
 };
 pub use queries::{

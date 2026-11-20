@@ -120,7 +120,100 @@ fn registry() -> mct_core::LanguageRegistry {
         language: "beta",
         extensions: &["b"],
     }));
+    registry.register(Arc::new(FakeParser {
+        language: "rust",
+        extensions: &["rs"],
+    }));
     registry
+}
+
+#[test]
+fn cargo_library_names_resolve_only_inside_the_declaring_package() {
+    let (dir, mut index) = index_of(&[
+        (
+            "packages/searcher/Cargo.toml",
+            "[package]\nname = 'grep-searcher'\nversion = '1.0.0'\n[lib]\nname = 'renamed_lib'\n",
+        ),
+        ("packages/searcher/src/lib.rs", "def Searcher\n"),
+        (
+            "packages/other/Cargo.toml",
+            "[package]\nname = 'other'\nversion = '1.0.0'\n",
+        ),
+        ("packages/other/src/lib.rs", "def Searcher\n"),
+        (
+            "consumer/src/main.rs",
+            "def main calls Searcher mod=renamed_lib\n",
+        ),
+    ]);
+    let hit = call_of(&index, "main");
+    assert_eq!(hit.resolution, Resolution::Resolved);
+    assert_eq!(
+        candidates(&index, &hit),
+        vec!["packages/searcher/src/lib.rs:1 None"]
+    );
+
+    fs::write(
+        dir.join("packages/searcher/Cargo.toml"),
+        "[package]\nname = 'grep-searcher'\nversion = '1.0.0'\n[lib]\nname = 'another_name'\n",
+    )
+    .unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert_eq!(call_of(&index, "main").resolution, Resolution::Unresolved);
+
+    let manifest = dir.join("packages/searcher/Cargo.toml");
+    fs::write(
+        &manifest,
+        "[package]\nname = 'renamed-lib'\nversion = '1.0.0'\n",
+    )
+    .unwrap();
+    let relative = PathBuf::from("packages/searcher/Cargo.toml");
+    index
+        .reindex_paths(&registry(), std::slice::from_ref(&relative))
+        .unwrap();
+    assert_eq!(call_of(&index, "main").resolution, Resolution::Resolved);
+    fs::remove_file(&manifest).unwrap();
+    index.reindex_paths(&registry(), &[relative]).unwrap();
+    assert_eq!(call_of(&index, "main").resolution, Resolution::Unresolved);
+}
+
+#[test]
+fn cargo_library_evidence_does_not_cross_nested_packages() {
+    let (_, index) = index_of(&[
+        (
+            "outer/Cargo.toml",
+            "[package]\nname = 'outer-lib'\nversion = '1'\n",
+        ),
+        (
+            "outer/nested/Cargo.toml",
+            "[package]\nname = 'nested'\nversion = '1'\n",
+        ),
+        ("outer/nested/src/lib.rs", "def Searcher\n"),
+        (
+            "consumer/main.rs",
+            "def main calls Searcher mod=outer_lib\n",
+        ),
+    ]);
+    assert_eq!(call_of(&index, "main").resolution, Resolution::Unresolved);
+}
+
+#[test]
+fn duplicate_cargo_library_names_remain_ambiguous() {
+    let (_, index) = index_of(&[
+        (
+            "first/Cargo.toml",
+            "[package]\nname = 'first'\n[lib]\nname = 'shared'\n",
+        ),
+        (
+            "second/Cargo.toml",
+            "[package]\nname = 'second'\n[lib]\nname = 'shared'\n",
+        ),
+        ("first/src/lib.rs", "def Searcher\n"),
+        ("second/src/lib.rs", "def Searcher\n"),
+        ("consumer/main.rs", "def main calls Searcher mod=shared\n"),
+    ]);
+    let hit = call_of(&index, "main");
+    assert_eq!(hit.resolution, Resolution::Ambiguous);
+    assert_eq!(candidates(&index, &hit).len(), 2);
 }
 
 fn tempdir() -> PathBuf {
