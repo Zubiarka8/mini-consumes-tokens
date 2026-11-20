@@ -1,5 +1,6 @@
-//! HTTP join points (ADR-038): `fetch` and `axios` calls with a literal path
-//! use an endpoint, and an Express `app.get("/path", handler)` declares one.
+//! HTTP join points (ADR-038): `fetch`, `axios`, jQuery and `XMLHttpRequest`
+//! calls with a literal path use
+//! an endpoint, and an Express `app.get("/path", handler)` declares one.
 //! A path that is built at run time gives nothing.
 
 use mct_core::{http_use_endpoint, JoinKind, JoinPoint, JoinRole, SymbolId, SymbolKind};
@@ -69,17 +70,15 @@ fn arguments(call: Node) -> Vec<Node> {
         .unwrap_or_default()
 }
 
-/// The `method` of a `fetch` options object: `GET` without one, `None` when
-/// it is not a literal or the object has a spread that could set it.
-fn fetch_method(options: Option<&Node>, source: &str) -> Option<String> {
-    let Some(options) = options else {
-        return Some("GET".to_string());
-    };
+/// The `key: value` pairs of an options object whose keys are all literal.
+/// `None` when it is not an object or has a spread, shorthand or computed key
+/// that could set any of them.
+fn literal_pairs<'a>(options: Node<'a>, source: &str) -> Option<Vec<(String, Node<'a>)>> {
     if options.kind() != "object" {
         return None;
     }
     let mut cursor = options.walk();
-    let mut found = None;
+    let mut pairs = Vec::new();
     for pair in options.named_children(&mut cursor) {
         match pair.kind() {
             "pair" => {
@@ -89,20 +88,75 @@ fn fetch_method(options: Option<&Node>, source: &str) -> Option<String> {
                     "string" => literal_path(key, source)?,
                     _ => return None,
                 };
-                if key == "method" {
-                    let value = pair.child_by_field_name("value")?;
-                    found = Some(literal_path(value, source)?.to_ascii_uppercase());
-                }
+                pairs.push((key, pair.child_by_field_name("value")?));
             }
             "comment" => {}
-            // A spread, shorthand or computed key might set the method.
             _ => return None,
         }
+    }
+    Some(pairs)
+}
+
+/// The last literal value among `keys`: the upper-cased HTTP method, `GET`
+/// when none is set. `None` when the value is not a literal.
+fn options_method(pairs: &[(String, Node)], keys: &[&str], source: &str) -> Option<String> {
+    let mut found = None;
+    for (_, value) in pairs.iter().filter(|(key, _)| keys.contains(&key.as_str())) {
+        found = Some(literal_path(*value, source)?.to_ascii_uppercase());
     }
     Some(found.unwrap_or_else(|| "GET".to_string()))
 }
 
-/// The endpoint a `fetch(..)` or `axios.<method>(..)` call uses.
+/// The `method` of a `fetch` options object: `GET` without one, `None` when
+/// it is not a literal or the object has a spread that could set it.
+fn fetch_method(options: Option<&Node>, source: &str) -> Option<String> {
+    let Some(options) = options else {
+        return Some("GET".to_string());
+    };
+    options_method(&literal_pairs(*options, source)?, &["method"], source)
+}
+
+/// jQuery's `$.ajax({ url, method | type })`: the method and the path.
+fn ajax_request(options: Node, source: &str) -> Option<(String, String)> {
+    let pairs = literal_pairs(options, source)?;
+    let url = pairs.iter().rfind(|(key, _)| key == "url")?.1;
+    Some((
+        options_method(&pairs, &["method", "type"], source)?,
+        literal_path(url, source)?,
+    ))
+}
+
+/// A request a jQuery or `XMLHttpRequest` call makes: `$.get("/x")`,
+/// `$.ajax({ .. })`, `xhr.open("GET", "/x")`. `open` needs a literal method
+/// as its first argument, so `window.open("/x")` is never read.
+fn legacy_request(
+    object: Node,
+    property: &str,
+    args: &[Node],
+    source: &str,
+) -> Option<(String, String)> {
+    let object = text(object, source);
+    if matches!(object, "$" | "jQuery") {
+        return match property {
+            "ajax" => ajax_request(*args.first()?, source),
+            "get" | "getJSON" => Some(("GET".to_string(), literal_path(*args.first()?, source)?)),
+            "post" => Some(("POST".to_string(), literal_path(*args.first()?, source)?)),
+            _ => None,
+        };
+    }
+    if property != "open" {
+        return None;
+    }
+    let http_method = literal_path(*args.first()?, source)?.to_ascii_uppercase();
+    METHODS
+        .iter()
+        .any(|(_, upper)| *upper == http_method)
+        .then_some(())?;
+    Some((http_method, literal_path(*args.get(1)?, source)?))
+}
+
+/// The endpoint a `fetch(..)`, `axios.<method>(..)`, jQuery or
+/// `XMLHttpRequest` call uses.
 pub(super) fn use_of(
     call: Node,
     function: Node,
@@ -118,13 +172,14 @@ pub(super) fn use_of(
         "member_expression" => {
             let object = function.child_by_field_name("object")?;
             let property = function.child_by_field_name("property")?;
-            if object.kind() != "identifier" || text(object, source) != "axios" {
-                return None;
+            if object.kind() == "identifier" && text(object, source) == "axios" {
+                (
+                    method(text(property, source))?.to_string(),
+                    literal_path(*args.first()?, source)?,
+                )
+            } else {
+                legacy_request(object, text(property, source), &args, source)?
             }
-            (
-                method(text(property, source))?.to_string(),
-                literal_path(*args.first()?, source)?,
-            )
         }
         _ => return None,
     };
