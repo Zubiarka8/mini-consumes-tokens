@@ -729,3 +729,27 @@ fn lua_resty_http_requests_to_this_machine_use_an_endpoint() {
     ]);
     assert_eq!(only(&project.callers("list_orders")).from_symbol, "list");
 }
+
+#[test]
+fn crow_routes_are_declared() {
+    let project = Project::new(&[
+        (
+            "server.cpp",
+            "#include \"crow.h\"\nvoid list_orders() {}\nvoid create_order() {}\nvoid show_order() {}\n\
+             void setup(crow::SimpleApp& app) {\n\
+             \x20 CROW_ROUTE(app, \"/api/orders\")(list_orders);\n\
+             \x20 CROW_ROUTE(app, \"/api/orders\").methods(crow::HTTPMethod::Post)(create_order);\n\
+             \x20 CROW_ROUTE(app, \"/api/orders/<int>\")(show_order);\n\
+             \x20 CROW_ROUTE(app, \"/api/anon\")([]() { return 1; });\n}\n",
+        ),
+        (
+            "web/app.js",
+            "function a() { return fetch('/api/orders'); }\n\
+             function b() { return fetch('/api/orders', { method: 'POST' }); }\n\
+             function c(id) { return fetch(`/api/orders/${id}`); }\n",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("list_orders")).from_symbol, "a");
+    assert_eq!(only(&project.callers("create_order")).from_symbol, "b");
+    assert_eq!(only(&project.callers("show_order")).from_symbol, "c");
+}

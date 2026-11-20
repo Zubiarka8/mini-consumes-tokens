@@ -215,6 +215,7 @@ struct Walker<'a> {
     /// (see `http_routes`).
     join_points: Vec<mct_core::JoinPoint>,
     routes: Vec<http_routes::Route>,
+    crow: bool,
     httplib: bool,
 }
 
@@ -238,6 +239,7 @@ impl<'a> Walker<'a> {
             join_points: Vec::new(),
             routes: Vec::new(),
             httplib: http_routes::mentions_httplib(source),
+            crow: http_routes::mentions_crow(source),
         }
     }
 
@@ -577,6 +579,10 @@ impl<'a> Walker<'a> {
                         ));
                         self.routes
                             .extend(http_routes::route_of(node, function, self.source));
+                    }
+                    if self.crow {
+                        self.routes
+                            .extend(http_routes::crow_route_of(node, function, self.source));
                     }
                     if let Some(name_node) = callee_identifier(function) {
                         // location(name_node), not location(node): a chained
