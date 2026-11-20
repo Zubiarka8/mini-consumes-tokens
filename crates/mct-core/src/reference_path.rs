@@ -18,18 +18,51 @@
 ///   climbs above the repository root gives `None`.
 /// - Bare specifiers (`three`, `@/components/X`) give `None`.
 pub fn resolve_reference_path(from_file: &str, spec: &str) -> Option<String> {
+    match classify(from_file, spec) {
+        Lexical::Inside(path) => Some(path),
+        Lexical::Outside | Lexical::Unproven => None,
+    }
+}
+
+/// Whether `spec`, a `./` or `../` path written in `from_file`, climbs
+/// above the repository root (`../../other-repo/x.css` from `web/a.html`).
+/// Such a reference is `external`: it names a file, but none this index
+/// may store a path for (issue #567). A root-relative `/…` never leaves:
+/// a browser clamps `..` at the web root.
+pub fn reference_leaves_repository(from_file: &str, spec: &str) -> bool {
+    matches!(classify(from_file, spec), Lexical::Outside)
+}
+
+/// [`reference_leaves_repository`] with the URL reading of
+/// [`resolve_url_reference_path`].
+pub fn url_reference_leaves_repository(from_file: &str, spec: &str) -> bool {
+    reference_leaves_repository(from_file, &url_spec(spec))
+}
+
+/// What a written path lexically proves.
+enum Lexical {
+    /// A repository-relative path.
+    Inside(String),
+    /// A relative path whose `..` climbs above the repository root.
+    Outside,
+    /// No local path this module can prove.
+    Unproven,
+}
+
+fn classify(from_file: &str, spec: &str) -> Lexical {
     let spec = spec.split(['?', '#']).next().unwrap_or_default();
     let first_segment = spec.split('/').next().unwrap_or_default();
     if spec.is_empty() || spec.contains('\\') || first_segment.contains(':') {
-        return None;
+        return Lexical::Unproven;
     }
     let dir: Vec<&str> = match from_file.rsplit_once('/') {
         Some((dir, _)) => dir.split('/').collect(),
         None => Vec::new(),
     };
+    let root_relative = spec.starts_with('/');
     let (mut base, rest) = if let Some(rest) = spec.strip_prefix('/') {
         if rest.starts_with('/') {
-            return None;
+            return Lexical::Unproven;
         }
         let mut base: Vec<&str> = match dir.iter().position(|s| *s == "src") {
             Some(i) => dir[..i].to_vec(),
@@ -40,19 +73,29 @@ pub fn resolve_reference_path(from_file: &str, spec: &str) -> Option<String> {
     } else if first_segment == "." || first_segment == ".." {
         (dir, spec)
     } else {
-        return None;
+        return Lexical::Unproven;
     };
     for segment in rest.split('/') {
         match segment {
             "" | "." => {}
             ".." => {
-                base.pop()?;
+                if base.pop().is_none() {
+                    return if root_relative {
+                        Lexical::Unproven
+                    } else {
+                        Lexical::Outside
+                    };
+                }
             }
             s => base.push(s),
         }
     }
     let resolved = base.join("/");
-    (!resolved.is_empty()).then_some(resolved)
+    if resolved.is_empty() {
+        Lexical::Unproven
+    } else {
+        Lexical::Inside(resolved)
+    }
 }
 
 /// [`resolve_reference_path`] for a spec that is a URL reference (an HTML
@@ -63,8 +106,13 @@ pub fn resolve_reference_path(from_file: &str, spec: &str) -> Option<String> {
 /// rules: there `\` and `%` are literal file-name characters or escapes of
 /// that language.
 pub fn resolve_url_reference_path(from_file: &str, spec: &str) -> Option<String> {
+    resolve_reference_path(from_file, &url_spec(spec))
+}
+
+/// A URL spec as a plain path: suffix dropped, `\` as `/`, `%XX` decoded once.
+fn url_spec(spec: &str) -> String {
     let spec = spec.split(['?', '#']).next().unwrap_or_default();
-    resolve_reference_path(from_file, &percent_decode(&spec.replace('\\', "/")))
+    percent_decode(&spec.replace('\\', "/"))
 }
 
 /// Decodes each `%XX` (two hex digits) once; any other `%` is kept, and a
@@ -190,6 +238,34 @@ mod tests {
         ] {
             assert_eq!(r("src/x.tsx", spec), None, "{spec}");
         }
+    }
+
+    #[test]
+    fn only_a_relative_path_climbing_above_the_root_leaves_the_repository() {
+        use super::{reference_leaves_repository as leaves, url_reference_leaves_repository};
+        assert!(leaves("web/a.html", "../../other-repo/x.css"));
+        assert!(leaves("a.html", "../x.css"));
+        assert!(url_reference_leaves_repository(
+            "web/a.html",
+            "..\\..\\other\\x.css"
+        ));
+        assert!(url_reference_leaves_repository(
+            "web/a.html",
+            "..%2F..%2Fx.css"
+        ));
+        // Inside the repository, root-relative (clamped at the web root),
+        // bare, scheme and home paths do not leave it.
+        for spec in [
+            "../x.css",
+            "./x.css",
+            "/../../x.css",
+            "x.css",
+            "https://h/x",
+            "~/x.css",
+        ] {
+            assert!(!leaves("web/a.html", spec), "{spec}");
+        }
+        assert_eq!(r("web/a.html", "../../other-repo/x.css"), None);
     }
 
     #[test]
