@@ -1052,7 +1052,7 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 - [~] Kotlin: Spring mappings with the class prefix; Ktor `get("/x") { }` has no named handler
 - [~] C#: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`; `[controller]` tokens skipped
 - [~] C++: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow and Drogon not read
-- [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`
+- [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
 - [~] PHP: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
 - [~] Lua: Lapis `app:get("/x", handler)` and `ngx.location.capture`
 - [~] Bash: `curl` to this machine (use only)

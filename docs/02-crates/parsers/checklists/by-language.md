@@ -614,7 +614,7 @@ Done 18 · Partial 6 · Not done 6 · Not verified 0 · Not applicable 23
 - [ ] RE06 Implements interface / trait: structural; no relation
 - [x] RE07 Interface extends interface / supertrait: an embedded interface gives `extends`
 - [x] RE09 Struct / type embedding: embedded `P_Embedded` gives `extends`
-- [~] RE10 Cross-language HTTP link: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`
+- [~] RE10 Cross-language HTTP link: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
