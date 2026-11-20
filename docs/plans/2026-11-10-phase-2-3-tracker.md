@@ -150,6 +150,11 @@ From `rules.md` and the two messages:
         `reindex` call in a test went resolved → ambiguous. Dead code is
         unchanged (124). Test: `mct-lang-rust/tests/import_evidence.rs`.
         A package whose directory has another name loses the edge: #374.
+        Fixed by ADR-043 (migration 26): `cargo_packages` maps each
+        `[lib]`/`[package]` name to its directory, and a module equal to it
+        matches symbols under that directory, not under a nested package.
+        Tests: `relation_resolution.rs` (`cargo_library_*`). Repository
+        snapshot: 44 packages, no relation changes state.
   - [x] Lua: a call through a module a literal `require` bound
         (`a.render(1)` after `local a = require("a")`, a dotted path
         `require("lib.c")`, or `render(3)` after
