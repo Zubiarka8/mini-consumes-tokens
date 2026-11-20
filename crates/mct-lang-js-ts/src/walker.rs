@@ -382,6 +382,30 @@ impl<'a> Walker<'a> {
         mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
+    /// Marks relation `relation` as naming its target with no receiver
+    /// (`top_level`, issue #395), when it was recorded: a deduplicated push
+    /// leaves `relation` past the end and marks nothing. Targets are pushed
+    /// in relation order, so the search stops at the first earlier one.
+    pub(super) fn mark_top_level(&mut self, relation: usize) {
+        if relation >= self.relations.len() {
+            return;
+        }
+        let existing = self
+            .relation_targets
+            .iter_mut()
+            .rev()
+            .take_while(|t| t.relation >= relation)
+            .find(|t| t.relation == relation);
+        match existing {
+            Some(target) => target.top_level = true,
+            None => self.relation_targets.push(RelationTarget {
+                relation,
+                top_level: true,
+                ..Default::default()
+            }),
+        }
+    }
+
     /// `owner` is the innermost enclosing function/method/module (calls and
     /// imports attach to it); `type_name` is the innermost enclosing
     /// class/interface name, used as the `parent` of members declared
@@ -925,12 +949,16 @@ impl<'a> Walker<'a> {
                 if let Some(constructor) = node.child_by_field_name("constructor") {
                     if let Some(name_node) = rightmost_name(constructor) {
                         self.mark_global(constructor, false);
+                        let relation = self.relations.len();
                         self.push_relation(
                             owner,
                             RelationKind::Calls,
                             text(name_node, self.source).to_string(),
                             location(name_node),
                         );
+                        if constructor.kind() == "identifier" {
+                            self.mark_top_level(relation);
+                        }
                     }
                     if constructor.kind() != "identifier" {
                         self.visit(constructor, owner, type_name, depth + 1);
@@ -973,12 +1001,16 @@ impl<'a> Walker<'a> {
                     if is_component {
                         // Retain qualification: UI.Button must not resolve
                         // to an unrelated local Button by discarding UI.
+                        let relation = self.relations.len();
                         self.push_relation(
                             owner,
                             RelationKind::References,
                             component.to_string(),
                             location(name),
                         );
+                        if name.kind() == "identifier" {
+                            self.mark_top_level(relation);
+                        }
                     }
                 }
                 // Attribute expressions still contain ordinary calls and
@@ -1018,9 +1050,14 @@ impl<'a> Walker<'a> {
                         location(node),
                     );
                     if self.relations.len() > relation {
+                        // `Paid` in `State.Paid` names a member of `State`.
+                        let qualified = node
+                            .parent()
+                            .is_some_and(|p| p.kind() == "nested_type_identifier");
                         self.relation_targets.push(RelationTarget {
                             relation,
                             not_field: true,
+                            top_level: !qualified,
                             ..Default::default()
                         });
                     }
@@ -1046,12 +1083,16 @@ impl<'a> Walker<'a> {
                     if let Some(class) = node.child_by_field_name("right") {
                         let name = rightmost_name(class).map(|n| text(n, self.source));
                         if let Some(name) = name.filter(|n| !self.bound.contains(*n)) {
+                            let relation = self.relations.len();
                             self.push_relation(
                                 owner,
                                 RelationKind::References,
                                 name.to_string(),
                                 location(class),
                             );
+                            if class.kind() == "identifier" {
+                                self.mark_top_level(relation);
+                            }
                         }
                     }
                 }
@@ -1084,12 +1125,16 @@ impl<'a> Walker<'a> {
             return;
         }
         match self.relation_targets.get_mut(evidence) {
-            Some(target) => target.not_field = true,
+            Some(target) => {
+                target.not_field = true;
+                target.top_level = true;
+            }
             None => {
                 self.bare_calls.push((index, self.bound.contains(written)));
                 self.relation_targets.push(RelationTarget {
                     relation: index,
                     not_field: true,
+                    top_level: true,
                     ..Default::default()
                 });
             }
@@ -1351,6 +1396,7 @@ impl<'a> Walker<'a> {
                     relation,
                     path,
                     not_field: true,
+                    top_level: true,
                     ..Default::default()
                 }),
             }

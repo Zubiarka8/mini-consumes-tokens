@@ -1447,8 +1447,9 @@ fn write_parsed_file(
         tx.execute(
             "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len,
                                     qualifier, target_path, target_language, external, targets_parsed,
-                                    target_kind, target_module, module, member, not_field)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15)",
+                                    target_kind, target_module, module, member, not_field,
+                                    top_level)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 from_row_id,
                 relation_kind_str(relation.kind),
@@ -1465,6 +1466,7 @@ fn write_parsed_file(
                 target.and_then(|t| t.module.as_deref()),
                 target.is_some_and(|t| t.member),
                 target.is_some_and(|t| t.not_field),
+                target.is_some_and(|t| t.top_level),
             ],
         )?;
     }

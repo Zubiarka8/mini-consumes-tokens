@@ -102,6 +102,8 @@ impl Walker<'_> {
                 ..Default::default()
             });
         }
+        // An import binding names an export: never a member of a type.
+        self.mark_top_level(index);
     }
 }
 
