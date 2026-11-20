@@ -1348,10 +1348,12 @@ fn write_parsed_file(
 
     // Local symbol id -> database row id, to resolve relations below.
     let mut id_map: HashMap<u32, i64> = HashMap::with_capacity(parsed.symbols.len());
+    let file_scoped: std::collections::HashSet<u32> = parsed.file_scoped.iter().copied().collect();
     for symbol in &parsed.symbols {
         tx.execute(
-            "INSERT INTO symbols (file_id, name, kind, parent, line, column, byte_len, end_line, level)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO symbols (file_id, name, kind, parent, line, column, byte_len, end_line, level,
+                                  file_scoped)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 file_id,
                 symbol.name,
@@ -1362,6 +1364,7 @@ fn write_parsed_file(
                 symbol.location.byte_len,
                 symbol.location.end_line,
                 symbol.level,
+                file_scoped.contains(&symbol.id),
             ],
         )?;
         id_map.insert(symbol.id, tx.last_insert_rowid());

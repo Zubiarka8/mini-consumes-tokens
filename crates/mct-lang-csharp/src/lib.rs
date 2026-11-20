@@ -100,6 +100,8 @@ struct Walker<'a> {
     source: &'a str,
     /// `using Alias = Target;` aliases this file declares: alias → target.
     aliases: HashMap<String, String>,
+    /// Symbols only this file can name: its `using` aliases (issue #446).
+    file_scoped: Vec<SymbolId>,
     file_end: u32,
     symbols: Vec<SymbolRecord>,
     relations: Vec<SymbolRelation>,
@@ -134,6 +136,7 @@ impl<'a> Walker<'a> {
         Self {
             source,
             aliases: HashMap::new(),
+            file_scoped: Vec::new(),
             file_end,
             symbols: Vec::new(),
             relations: Vec::new(),
@@ -476,7 +479,7 @@ impl<'a> Walker<'a> {
             }
             "using_directive" => {
                 self.record_static_using(node);
-                self.record_using_alias(node);
+                self.record_using_alias(node, type_name);
                 self.push_namespace_import(owner, node);
                 // `using Alias = A.B;` names no imported `Alias`: only the
                 // namespace import above records it.
@@ -1100,6 +1103,7 @@ impl<'a> Walker<'a> {
             symbol_details: self.details,
             join_points: self.join_points,
             entry_points: self.entry_points,
+            file_scoped: self.file_scoped,
             ..Default::default()
         }
     }

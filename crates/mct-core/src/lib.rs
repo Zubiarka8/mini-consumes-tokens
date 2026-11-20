@@ -97,6 +97,10 @@ pub struct ParsedFile {
     /// without an entry has no known details. An entry naming an unknown
     /// symbol is ignored, and so is every entry after the first for a symbol.
     pub symbol_details: Vec<SymbolDetail>,
+    /// Symbols of this file that only this file can name (a C# `using
+    /// Alias = T;`): a relation from another file never gets one as a
+    /// candidate (issue #446). An id naming no symbol is ignored.
+    pub file_scoped: Vec<SymbolId>,
 }
 
 /// Parser-declared evidence that a framework **may** load a symbol by

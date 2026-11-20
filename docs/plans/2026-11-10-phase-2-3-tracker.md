@@ -1157,6 +1157,19 @@ From `rules.md` and the two messages:
           `List`, external). Repository snapshot (C#, with `init
           --force`): 767 -> 764, the same 3 edges plus the depgraph
           fixture's `imports M`; no new resolution. Dead code 123 -> 123.
+      - [x] The alias is a `type_alias` symbol (#446, ADR-042): a parser
+            lists symbols only its own file can name in
+            `ParsedFile::file_scoped`, stored as `symbols.file_scoped`
+            (migration 25), and `relation_candidates` offers them only to
+            relations of that file. A `global using` alias stays no symbol.
+            Test: `tests/using_alias.rs`
+            (`an_alias_is_a_file_scoped_symbol_other_files_never_match`:
+            another file's `new Money()` stays resolved to the class).
+            Corpus 476 -> 478 symbols. Repository snapshot (C#, with
+            `init --force`): 3 alias symbols; 4 same-file `Table` type
+            uses go from unresolved to resolved to the alias, and a
+            same-file `Money` reference gains its alias as a candidate. No
+            other file's relation changed.
     - [x] Go aliased imports: an aliased domain-rooted import (`db
           "example.com/app/database"`) proves the package lives under the
           path's last directory, whatever its `package` clause says. So

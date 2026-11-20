@@ -4,8 +4,9 @@
 //! the alias later in the same file is a use of the target: `new Alias()`
 //! constructs it (external under `System`), and `Alias.M()` is qualified by
 //! it and references it. `new M.Alias()` is no use of the alias, and a
-//! `global using` alias, visible project-wide, changes nothing here. The
-//! alias is no symbol yet (#446).
+//! `global using` alias, visible project-wide, changes nothing here. A
+//! non-global alias is a `type_alias` symbol only its own file can name
+//! (#446).
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -132,4 +133,47 @@ fn an_alias_name_never_reaches_a_symbol_of_that_name() {
         .collect();
     std::fs::remove_dir_all(root).unwrap();
     assert!(hits.is_empty(), "{hits:?}");
+}
+
+/// Issue #446: a non-global alias is a `type_alias` symbol that only its own
+/// file can name. Another file's `new Money()` keeps resolving to the class.
+#[test]
+fn an_alias_is_a_file_scoped_symbol_other_files_never_match() {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!(
+        "mct-lang-csharp-alias-{}-{unique}",
+        std::process::id()
+    ));
+    let files = [
+        (
+            "Aliases.cs",
+            "using Money = System.Decimal;\nclass Ledger { }\n",
+        ),
+        ("Money.cs", "namespace Shop { class Money { } }\n"),
+        (
+            "Program.cs",
+            "namespace Shop { class P { void Run() { var m = new Money(); } } }\n",
+        ),
+    ];
+    for (name, contents) in files {
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join(name), contents).unwrap();
+    }
+    let index = mct_corpus::open_fixture_indexed(&root, Arc::new(CSharpParser));
+    let defs = index.find_symbol("Money").unwrap();
+    assert!(
+        defs.iter()
+            .any(|d| d.relative_path == "Aliases.cs" && d.kind == "type_alias"),
+        "{defs:?}"
+    );
+    let hit = index
+        .find_references("Money")
+        .unwrap()
+        .into_iter()
+        .find(|h| h.relative_path == "Program.cs")
+        .unwrap();
+    assert_eq!(hit.resolution, mct_index::Resolution::Resolved, "{hit:?}");
+    assert_eq!(hit.candidates[0].relative_path, "Money.cs");
+    std::fs::remove_dir_all(root).ok();
 }

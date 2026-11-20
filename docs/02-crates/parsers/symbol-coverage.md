@@ -181,7 +181,7 @@ round to the nearest whole percent, with halves rounded up.
 | JS/TS | 89% | 33 | 100% | 10 | 1 |
 | Java | 87% | 27 | 85% | 10 | 0 |
 | Kotlin | 83% | 35 | 85% | 10 | 0 |
-| C# | 90% | 34 | 90% | 10 | 0 |
+| C# | 91% | 34 | 90% | 10 | 0 |
 | C++ | 89% | 28 | 70% | 10 | 0 |
 | Go | 78% | 18 | 90% | 10 | 0 |
 | PHP | 88% | 30 | 95% | 10 | 0 |
@@ -277,7 +277,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | JS/TS | 94% | 90% | 67% | 100% | 100% | 100% | 100% |
 | Java | 80% | 95% | 50% | 100% | 100% | 75% | 67% |
 | Kotlin | 83% | 92% | 58% | 88% | 100% | 100% | 50% |
-| C# | 100% | 96% | 60% | 88% | 90% | 75% | 100% |
+| C# | 100% | 100% | 60% | 88% | 90% | 75% | 100% |
 | C++ | 100% | 94% | 67% | 90% | 80% | 75% | 50% |
 | Go | 83% | 90% | 60% | 80% | 90% | 100% | 83% |
 | PHP | 93% | 89% | 67% | 100% | 100% | 100% | 83% |
@@ -514,7 +514,6 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | Base list split by naming | By design | C# syntax does not separate base class from interfaces; the [documented heuristic](../../../crates/mct-lang-csharp/src/lib.rs#L420) uses the `IFoo` convention |
 | A struct used as a qualifier (`Sku.Parse()`) gets an unresolved reference | Model limit | a target has one kind, and a capitalized qualifier is far more often a static class; a method named like the type (its constructor) must never be the target |
 | Unnamed lambdas, plain locals | Not implemented | a lambda passed as an argument and a local with any other value declare no symbol; their calls belong to the enclosing member |
-| `using Alias = Type` symbol | Model limit (#446) | an alias is visible only in its own file, and a symbol cannot be kept out of other files' name matching, so a `type_alias` would make same-named targets elsewhere ambiguous. The alias names its target instead: it imports no symbol called like the alias, `new Alias()` constructs the target and `Alias.M()` is qualified by it |
 | `.csproj`/NuGet dependencies | By design | explicitly excluded in [Dependency detection](../../../internal/checklist.md#dependency-manifest-detection) |
 
 ### C++
@@ -1135,7 +1134,7 @@ percentages and denominators; these checklists provide the scored evidence.
 - [x] Record / data class: `record` is a `class`; positional parameters and body properties are `field`s
 - [x] Nested / inner class: parent is the outer class
 - [x] Partial class (several declarations): one `class` row per declaration, members keep the class as parent
-- [~] Type alias: `delegate` becomes `type_alias`; `using Alias = System.String` is no symbol (#446): it emits the namespace import only, and a use of the alias in its file (`new Alias()`, `Alias.M()`) is a use of the target
+- [x] Type alias: `delegate` becomes `type_alias`; a non-global `using Alias = System.String` is a `type_alias` symbol only its own file can name (`ParsedFile::file_scoped`, #446). It emits the namespace import only, and a use of the alias in its file (`new Alias()`, `Alias.M()`) is a use of the target. A `global using` alias is no symbol
 - [x] Module / namespace / package: file `module` plus block and file-scoped `namespace`; types get `Ns::` in their parent
 
 **Fields, constants and variables**
