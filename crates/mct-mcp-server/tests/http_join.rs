@@ -598,3 +598,22 @@ fn jaxrs_resources_declare_and_retrofit_interfaces_use() {
     assert_eq!(only(&project.callers("show")).from_symbol, "one");
     assert!(project.callers("both").is_empty());
 }
+
+#[test]
+fn kotlin_retrofit_functions_use_an_endpoint() {
+    let project = Project::new(&[
+        (
+            "server/OrderController.kt",
+            "import org.springframework.web.bind.annotation.*\n\
+             @RestController\nclass OrderController {\n\
+             \x20 @GetMapping(\"/api/orders\") fun list(): String = \"\"\n}\n",
+        ),
+        (
+            "client/OrderApi.kt",
+            "import retrofit2.http.GET\ninterface OrderApi {\n\
+             \x20 @GET(\"/api/orders\") suspend fun all(): String\n\
+             \x20 @GET(\"api/orders\") suspend fun relative(): String\n}\n",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("list")).from_symbol, "all");
+}
