@@ -113,6 +113,33 @@ struct Walker<'a> {
     path: &'a str,
     next_id: SymbolId,
     join_points: Vec<mct_core::JoinPoint>,
+    /// The first `<base href>` seen, the base of every relative link after it.
+    base: Option<Base>,
+}
+
+/// A document's `<base href>` (issue #567).
+enum Base {
+    /// The directory part of a local base, as written (`../`, `/app/`).
+    Local(String),
+    /// A base on another host: a relative link names no repository file.
+    Foreign,
+}
+
+impl Base {
+    fn parse(href: &str) -> Self {
+        let href = href
+            .split(['?', '#'])
+            .next()
+            .unwrap_or_default()
+            .replace('\\', "/");
+        if href.starts_with("//") || href.contains(':') {
+            return Base::Foreign;
+        }
+        Base::Local(
+            href.rsplit_once('/')
+                .map_or(String::new(), |(dir, _)| format!("{dir}/")),
+        )
+    }
 }
 
 impl<'a> Walker<'a> {
@@ -268,6 +295,10 @@ impl<'a> Walker<'a> {
                 .extend(form_use(new_owner, attr("action"), attr("method")));
         }
 
+        if tag_name.eq_ignore_ascii_case("base") && self.base.is_none() {
+            self.base = attr("href").map(|(href, _)| Base::parse(href));
+        }
+
         if tag_name.eq_ignore_ascii_case("link")
             && attr("rel").is_some_and(|(r, _)| r.eq_ignore_ascii_case("stylesheet"))
         {
@@ -310,15 +341,21 @@ impl<'a> Walker<'a> {
             }
             return;
         }
-        let Some((name, language)) = asset_module(spec) else {
-            return;
+        let relative = !(spec.starts_with('/') || spec.starts_with('\\'));
+        let spec = match &self.base {
+            Some(Base::Foreign) if relative => return,
+            Some(Base::Local(dir)) if relative => format!("{dir}{spec}"),
+            _ => spec.to_string(),
         };
         let local = if spec.starts_with('/') || spec.starts_with("./") || spec.starts_with("../") {
-            spec.to_string()
+            spec
         } else {
             format!("./{spec}")
         };
-        let Some(resolved) = mct_core::resolve_reference_path(self.path, &local) else {
+        let Some(resolved) = mct_core::resolve_url_reference_path(self.path, &local) else {
+            return;
+        };
+        let Some((name, language)) = asset_module(&resolved) else {
             return;
         };
         let relation = self.relations.len();

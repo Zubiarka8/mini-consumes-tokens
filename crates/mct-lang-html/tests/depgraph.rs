@@ -63,3 +63,66 @@ fn evidence_is_set_only_where_the_source_proves_it() {
     assert!(evidence("data.json").is_none());
     assert!(evidence("data").is_none());
 }
+
+fn evidence_in(path: &str, html: &str, name: &str) -> Option<mct_core::RelationTarget> {
+    let parsed = HtmlParser
+        .parse(&SourceFile {
+            relative_path: path.to_string(),
+            contents: html.to_string(),
+        })
+        .unwrap();
+    mct_corpus::optional_import_evidence(&parsed, name)
+}
+
+/// Issue #567: a link is a URL, so `\` is a separator and `%XX` is decoded
+/// once before the path resolves.
+#[test]
+fn a_link_with_backslashes_or_escapes_resolves_like_a_url() {
+    let css = evidence_in(
+        "site/pages/index.html",
+        r#"<link rel="stylesheet" href="..\css\site.css">"#,
+        "site",
+    )
+    .unwrap();
+    assert_eq!(css.path.as_deref(), Some("site/css/site.css"));
+    let js = evidence_in(
+        "site/index.html",
+        r#"<script src="my%20app.js"></script>"#,
+        "my app",
+    )
+    .unwrap();
+    assert_eq!(js.path.as_deref(), Some("site/my app.js"));
+}
+
+/// Issue #567: `<base href>` is the base of every relative link after it;
+/// a root-relative or absolute link ignores it, and a base on another host
+/// leaves relative links with no local file.
+#[test]
+fn a_relative_link_resolves_against_the_base_href() {
+    let page = |base: &str| {
+        format!(
+            r#"<html><head><base href="{base}"><link rel="stylesheet" href="css/a.css"><link rel="stylesheet" href="./b.css"></head></html>"#
+        )
+    };
+    let path = |base: &str, name: &str| {
+        evidence_in("site/docs/index.html", &page(base), name).and_then(|e| e.path)
+    };
+    assert_eq!(path("../", "a").as_deref(), Some("site/css/a.css"));
+    assert_eq!(
+        path("shared/", "b").as_deref(),
+        Some("site/docs/shared/b.css")
+    );
+    // A base file name is not a directory: `x/index.html` bases `x/`.
+    assert_eq!(
+        path("x/index.html", "a").as_deref(),
+        Some("site/docs/x/css/a.css")
+    );
+    assert_eq!(path("https://cdn.example.com/app/", "a"), None);
+    let root = evidence_in(
+        "site/docs/index.html",
+        r#"<base href="../"><link rel="stylesheet" href="https://cdn.example.com/c.css">"#,
+        "https://cdn.example.com/c.css",
+    )
+    .unwrap();
+    assert!(root.external, "an absolute link ignores the base");
+}

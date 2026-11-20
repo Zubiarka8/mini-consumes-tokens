@@ -51,3 +51,20 @@ fn includes_found_only_through_an_include_path_stay_unresolved() {
     let hits = import_hit(&index, "vector", "src/main.cpp");
     assert_eq!(hits, [(Resolution::Unresolved, None)]);
 }
+
+/// Issue #567: a quoted include written with Windows separators names the
+/// same header (MSVC reads `\` as a separator).
+#[test]
+fn a_quoted_include_with_backslashes_resolves_to_the_header() {
+    let index = open_indexed();
+    let hits = import_hit(&index, "math", "src/windows.cpp");
+    assert_eq!(
+        hits,
+        [(Resolution::Resolved, Some("src/util/math.h".to_string()))]
+    );
+    let hits = import_hit(&index, "config", "src/windows.cpp");
+    assert_eq!(
+        hits,
+        [(Resolution::Resolved, Some("include/config.h".to_string()))]
+    );
+}
