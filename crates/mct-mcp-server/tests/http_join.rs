@@ -543,3 +543,35 @@ fn reqwest_requests_to_this_machine_use_an_endpoint() {
     from.sort_unstable();
     assert_eq!(from, ["direct", "ping"]);
 }
+
+#[test]
+fn jquery_and_xmlhttprequest_use_an_endpoint() {
+    let project = Project::new(&[
+        (
+            "server/app.js",
+            "const express = require('express');\nconst app = express();\n\
+             function list(req, res) {}\nfunction create(req, res) {}\n\
+             app.get('/api/items', list);\napp.post('/api/items', create);\n",
+        ),
+        (
+            "web/legacy.js",
+            "function a() { return $.ajax({ url: '/api/items', type: 'GET' }); }\n\
+             function b() { return $.post('/api/items', {}); }\n\
+             function c() { var x = new XMLHttpRequest(); x.open('GET', '/api/items'); }\n\
+             function d() { window.open('/api/items'); }\n\
+             function e(u) { return $.ajax({ url: u }); }\n\
+             function f() { return $.ajax({ url: '/api/items', ...extra }); }\n",
+        ),
+    ]);
+    let names = |handler| {
+        let mut from: Vec<_> = project
+            .callers(handler)
+            .iter()
+            .map(|h| h.from_symbol.clone())
+            .collect();
+        from.sort_unstable();
+        from
+    };
+    assert_eq!(names("list"), ["a", "c"]);
+    assert_eq!(names("create"), ["b"]);
+}

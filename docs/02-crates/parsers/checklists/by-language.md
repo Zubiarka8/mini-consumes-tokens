@@ -243,7 +243,7 @@ Done 32 · Partial 6 · Not done 6 · Not verified 0 · Not applicable 9
 - [x] RE06 Implements interface / trait: `P_Sub` implements `P_Iface`
 - [x] RE07 Interface extends interface / supertrait: `P_Iface` extends `P_Ext`
 - [x] RE08 Decorator / annotation / attribute: `@f`, `@x.f` and `@f(…)` give `calls f` from the decorated class, field or method (a parameter's from its method)
-- [~] RE10 Cross-language HTTP link: `fetch`, `axios.<method>` and Express routes; `$.ajax`, `XMLHttpRequest` and other frameworks are not read
+- [~] RE10 Cross-language HTTP link: `fetch`, `axios.<method>`, `$.ajax`/`$.get`/`$.post`, `xhr.open("GET", "/x")` and Express routes; other frameworks are not read
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
