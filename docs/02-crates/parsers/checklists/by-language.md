@@ -161,7 +161,7 @@ Done 27 · Partial 8 · Not done 4 · Not verified 0 · Not applicable 14
 - [x] RE04 Imports: `from sibling import imported` → `imports`
 - [x] RE05 Class extends class: `Child` extends `Base`
 - [x] RE08 Decorator / annotation / attribute: `@abc.abstractmethod` and `@login_required` → `references`
-- [~] RE10 Cross-language HTTP link: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client` calls with a literal path
+- [~] RE10 Cross-language HTTP link: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client`/`self.client` calls with a literal path; `urlopen` with an absolute URL to this machine
 **Search and lookup**
 
 - [x] SE01 Find a definition: `find_symbol`

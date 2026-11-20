@@ -124,18 +124,36 @@ pub(super) fn declarations(decorator: Node, source: &str, symbol: SymbolId) -> V
         .collect()
 }
 
-/// `requests.get("/x")`, `client.post("/x")`: a client call with a literal path.
+/// `requests.get("/x")`, `self.client.post("/x")`: a client call with a literal
+/// path, or `urlopen("http://localhost/x")`.
 pub(super) fn use_of(
     call: Node,
     function: Node,
     owner: SymbolId,
     source: &str,
 ) -> Option<JoinPoint> {
+    if function.kind() == "identifier" && text(function, source) == "urlopen" {
+        let url = plain_string(*arguments(call).first()?, source)?;
+        return JoinPoint::http_uses(
+            owner,
+            "GET",
+            url.starts_with("http").then_some(url)?,
+            location(call),
+        );
+    }
     if function.kind() != "attribute" {
         return None;
     }
     let object = function.child_by_field_name("object")?;
-    if object.kind() != "identifier" || !CLIENTS.contains(&text(object, source)) {
+    // `requests.get(..)`, or `self.client.get(..)` of a test case.
+    let client = match object.kind() {
+        "identifier" => text(object, source),
+        "attribute" if text(object.child_by_field_name("object")?, source) == "self" => {
+            text(object.child_by_field_name("attribute")?, source)
+        }
+        _ => return None,
+    };
+    if !CLIENTS.contains(&client) {
         return None;
     }
     let method = method(text(function.child_by_field_name("attribute")?, source))?;
