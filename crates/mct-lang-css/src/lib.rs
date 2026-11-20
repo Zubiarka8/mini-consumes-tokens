@@ -681,6 +681,18 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// Marks the plain relation at `relation` as provably outside the
+    /// repository: another host, or a path above its root (issue #567).
+    fn push_external(&mut self, relation: Option<usize>) {
+        if let Some(relation) = relation {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                external: true,
+                ..Default::default()
+            });
+        }
+    }
+
     /// `@import "x.css"`: the path as written (external for an absolute
     /// URL), plus an `Imports` relation to the imported stylesheet's
     /// `Module` symbol, pinned to its exact path. A CSS import path is
@@ -691,13 +703,7 @@ impl<'a> Walker<'a> {
         self.push_relation(owner, RelationKind::Imports, spec.clone(), loc);
         let plain = self.relations.len().checked_sub(1);
         if spec.starts_with("//") || spec.contains("://") {
-            if let Some(relation) = plain {
-                self.relation_targets.push(RelationTarget {
-                    relation,
-                    external: true,
-                    ..Default::default()
-                });
-            }
+            self.push_external(plain);
             return;
         }
         let file = spec.split(['?', '#']).next().unwrap_or_default();
@@ -715,6 +721,9 @@ impl<'a> Walker<'a> {
             format!("./{file}")
         };
         let Some(resolved) = mct_core::resolve_reference_path(self.path, &local) else {
+            if mct_core::reference_leaves_repository(self.path, &local) {
+                self.push_external(plain);
+            }
             return;
         };
         let relation = self.relations.len();
