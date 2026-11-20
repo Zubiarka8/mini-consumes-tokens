@@ -57,6 +57,8 @@ pub(crate) fn run(index: &Index, args: FindDeadCodeArgs, toon: bool) -> Result<S
     } else {
         actionable
     };
+    let declared_total = scan.declared_entry_points.len();
+    let mut declared_shown = declared_total.min(20);
     loop {
         let returned = page.len();
         let next = offset.saturating_add(returned);
@@ -109,7 +111,7 @@ pub(crate) fn run(index: &Index, args: FindDeadCodeArgs, toon: bool) -> Result<S
         if with_possible {
             columns.push("possible_entry_point");
         }
-        let body = if toon {
+        let mut body = if toon {
             format!(
                 "{}\n{}{}{}",
                 if findings.is_empty() {
@@ -148,9 +150,45 @@ pub(crate) fn run(index: &Index, args: FindDeadCodeArgs, toon: bool) -> Result<S
                     .collect::<String>()
             )
         };
-        if EstimatedCounter.count(&body).value <= budget || page.is_empty() {
+        if declared_total != 0 {
+            body.push_str(&format!("declared_entry_points_total: {declared_total}\n"));
+            let declarations = &scan.declared_entry_points[..declared_shown];
+            if toon {
+                let rows: Vec<_> = declarations
+                    .iter()
+                    .map(|(id, reason)| {
+                        let entry = &scan.symbols[*id];
+                        vec![
+                            entry.name.clone(),
+                            entry.relative_path.clone(),
+                            entry.line.to_string(),
+                            reason.clone(),
+                        ]
+                    })
+                    .collect();
+                body.push_str(&encode_table(
+                    "declared_entry_points",
+                    &["name", "path", "line", "reason"],
+                    &rows,
+                ));
+            } else {
+                for (id, reason) in declarations {
+                    let entry = &scan.symbols[*id];
+                    body.push_str(&format!(
+                        "{} ({}:{}): {reason}\n",
+                        entry.name, entry.relative_path, entry.line
+                    ));
+                }
+            }
+        }
+        if EstimatedCounter.count(&body).value <= budget || (page.is_empty() && declared_shown == 0)
+        {
             return Ok(body);
         }
-        page.truncate(page.len() / 2);
+        if declared_shown > 1 || (declared_shown == 1 && page.len() <= 1) {
+            declared_shown /= 2;
+        } else {
+            page.truncate(page.len() / 2);
+        }
     }
 }

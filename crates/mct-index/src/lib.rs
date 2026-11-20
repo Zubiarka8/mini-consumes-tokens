@@ -1216,7 +1216,12 @@ impl Index {
             }
             return Ok(all);
         };
-        queries::list_symbols(&self.conn, path, self.resolve_is_file(path), kind, language)
+        Ok(
+            queries::list_symbols(&self.conn, path, self.resolve_is_file(path), kind, language)?
+                .into_iter()
+                .map(|(_, symbol)| symbol)
+                .collect(),
+        )
     }
 
     /// [`Index::list_symbols`], but `path` is optional: `None` lists every
@@ -1236,8 +1241,26 @@ impl Index {
         path: Option<&str>,
         language: Option<&str>,
     ) -> Result<Vec<SymbolListEntry>> {
+        Ok(self
+            .list_symbols_with_ids(path, language)?
+            .into_iter()
+            .map(|(_, symbol)| symbol)
+            .collect())
+    }
+
+    fn list_symbols_with_ids(
+        &self,
+        path: Option<&str>,
+        language: Option<&str>,
+    ) -> Result<Vec<(i64, SymbolListEntry)>> {
         if let Some(path) = path.and_then(queries::scope_path) {
-            return self.list_symbols(path, None, language);
+            return queries::list_symbols(
+                &self.conn,
+                path,
+                self.resolve_is_file(path),
+                None,
+                language,
+            );
         }
         let mut top_level: Vec<String> = std::fs::read_dir(&self.root)
             .map_err(|source| IndexError::Io {
@@ -1254,7 +1277,13 @@ impl Index {
 
         let mut entries = Vec::new();
         for name in &top_level {
-            entries.extend(self.list_symbols(name, None, language)?);
+            entries.extend(queries::list_symbols(
+                &self.conn,
+                name,
+                self.resolve_is_file(name),
+                None,
+                language,
+            )?);
         }
         Ok(entries)
     }

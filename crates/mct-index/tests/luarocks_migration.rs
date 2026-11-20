@@ -20,9 +20,9 @@ fn user_version(database: &std::path::Path) -> i64 {
 
 /// Rewinds a synthetic test database to the state an index had before
 /// `rockspec_items` existed (schema version 11). Migrations added after it
-/// (the module-shadowing view, `symbol_entry_points`, the declaration
-/// details tables and the `not_field` column, whose view goes first and is
-/// recreated by the module-shadowing migration) are undone too, so the
+/// (the module-shadowing view, `symbol_entry_points`, declaration details,
+/// the `not_field` column and inherited-member view, plus join points) are
+/// undone too, so the
 /// upgrade replays them; the final assertions check that the latest version is
 /// reached rather than trusting this rewind.
 fn rewind_before_rockspec_items(database: &std::path::Path, latest: i64) {
@@ -35,6 +35,7 @@ fn rewind_before_rockspec_items(database: &std::path::Path, latest: i64) {
         .execute_batch(
             "DROP TABLE rockspec_items; DROP TABLE symbol_entry_points;
              DROP TABLE symbol_parameters; DROP TABLE symbol_details;
+             DROP TABLE join_points;
              DROP VIEW relation_candidates; ALTER TABLE relations DROP COLUMN not_field;
              CREATE VIEW relation_candidates AS SELECT NULL AS relation_id, NULL AS symbol_id;",
         )
