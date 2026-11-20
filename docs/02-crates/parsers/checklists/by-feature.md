@@ -51,7 +51,7 @@ Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 7
 
 - [x] Rust: nested function is indexed with the enclosing function as `parent`
 - [~] Python: file skeleton shows `nested` indented, but the parser test confirms `parent` is `None`
-- [~] JS/TS: nested function is indexed, but parser test confirms `parent` is `None`
+- [~] JS/TS: `fetch`, `axios.<method>`, `$.ajax`/`$.get`/`$.post`, `xhr.open("GET", "/x")` and Express routes; other frameworks are not read
 - — Java: no nested named functions
 - [~] Kotlin: local `inner` function is indexed without a parent association
 - [~] C#: local function → `function`, parent not checked
