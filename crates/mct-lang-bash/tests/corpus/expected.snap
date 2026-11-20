@@ -1,4 +1,4 @@
-# language=bash files=5 symbols=176 relations=596 name_matched_across_files=172
+# language=bash files=5 symbols=176 relations=595 name_matched_across_files=172
 
 == bin/backup.sh (303 lines)
 S 1-303 module backup
@@ -308,7 +308,7 @@ S 186-203 function fs::restore_archive
 S 206-208 function fs::disk_free_mb
 S 211-217 function fs::ensure_space
 S 220-222 function fs::du_summary
-S 225-227 function fs::hash_many
+S 225-236 function fs::hash_many
 S 239-244 function fs::source_fingerprint
 S 246-253 function fs::changed_since_last_run
 S 256-266 function fs::pick_archive
@@ -437,13 +437,12 @@ R 215:9 calls fs::ensure_space -> die (name-matched: lib/log.sh)
 R 221:5 calls fs::du_summary -> du
 R 221:33 calls fs::du_summary -> sort
 R 221:44 calls fs::du_summary -> head
-R 227:5 calls fs::hash_many -> coproc
-R 229:9 calls fs -> printf
-R 231:5 calls fs -> exec
-R 232:11 calls fs -> read
-R 233:9 calls fs -> printf
-R 235:5 calls fs -> wait
-R 236:1 calls fs -> }
+R 227:21 calls fs::hash_many -> xargs
+R 229:9 calls fs::hash_many -> printf
+R 231:5 calls fs::hash_many -> exec
+R 232:11 calls fs::hash_many -> read
+R 233:9 calls fs::hash_many -> printf
+R 235:5 calls fs::hash_many -> wait
 R 241:11 calls fs::source_fingerprint -> read
 R 242:9 calls fs::source_fingerprint -> find
 R 243:14 calls fs::source_fingerprint -> config_list (name-matched: lib/config.sh)
