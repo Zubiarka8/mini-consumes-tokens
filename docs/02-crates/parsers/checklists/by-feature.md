@@ -536,7 +536,7 @@ Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 - — Rust: Rust has no anonymous class
 - — Python: Python has no anonymous class
 - [~] JS/TS: class expression: methods have no parent
-- [~] Java: method inside a method → enclosing class; field initializer → no symbol
+- [~] Java: Spring `@GetMapping` family and `@RequestMapping` (class prefix); JAX-RS `@GET` with `@Path`; Retrofit `@GET("/x")` (a use; a path without a leading slash is skipped); MockMvc `get("/x")`
 - [~] Kotlin: `object : P_Abs()` gives no class; its function has no parent
 - [ ] C#: anonymous type `new { X = 1 }` has no symbol
 - — C++: C++ has no anonymous class
