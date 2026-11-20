@@ -546,7 +546,7 @@ Done 25 · Partial 8 · Not done 6 · Not verified 0 · Not applicable 14
 - [~] RE03 Super / base constructor call: `P_Sub() : P_Base()` gives `calls P_Base` when the class and its base are defined in the same file
 - [x] RE04 Imports: `#include` → `imports`
 - [x] RE05 Class extends class: every base, any access, as `extends`
-- [~] RE10 Cross-language HTTP link: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow and Drogon not read
+- [~] RE10 Cross-language HTTP link: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow `CROW_ROUTE(app, "/x")(handler)` with `.methods(..)`; Drogon not read
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
