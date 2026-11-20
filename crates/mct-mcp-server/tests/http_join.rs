@@ -658,3 +658,28 @@ fn go_http_client_calls_to_this_machine_use_an_endpoint() {
     ]);
     assert_eq!(only(&project.callers("health")).from_symbol, "ping");
 }
+
+#[test]
+fn python_test_clients_and_urlopen_use_an_endpoint() {
+    let project = Project::new(&[
+        (
+            "app/api.py",
+            "from flask import Flask\napp = Flask(__name__)\n\
+             @app.get('/api/health')\ndef health():\n    pass\n",
+        ),
+        (
+            "tests/test_api.py",
+            "class T:\n    def test_client(self):\n        self.client.get('/api/health')\n\
+             \x20   def test_other(self):\n        self.thing.get('/api/health')\n\
+             def probe():\n    urlopen('http://localhost:5000/api/health')\n\
+             def remote():\n    urlopen('https://example.com/api/health')\n",
+        ),
+    ]);
+    let mut from: Vec<_> = project
+        .callers("health")
+        .iter()
+        .map(|h| h.from_symbol.clone())
+        .collect();
+    from.sort_unstable();
+    assert_eq!(from, ["probe", "test_client"]);
+}
