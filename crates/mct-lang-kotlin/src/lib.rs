@@ -586,6 +586,7 @@ fn is_promoted_property(class_parameter: Node) -> bool {
 }
 
 mod details;
+mod http_routes;
 mod literals;
 mod receivers;
 mod tokens;
@@ -619,12 +620,16 @@ struct Walker<'a> {
     supertypes: Vec<Vec<Supertype>>,
     /// Classes and objects holding a JVM `main` (see `main_hint`).
     entry_points: Vec<mct_core::EntryPointHint>,
+    /// HTTP endpoints this file declares (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
+    spring: bool,
 }
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
         Self {
             source,
+            spring: http_routes::mentions_spring(source),
             ..Self::default()
         }
     }
@@ -1002,6 +1007,10 @@ impl<'a> Walker<'a> {
                 self.details
                     .push(details::function_detail(node, id, self.source));
                 self.push_annotations(node, id);
+                if self.spring {
+                    self.join_points
+                        .extend(http_routes::declarations(node, self.source, id));
+                }
                 if has_override_modifier(node, self.source) {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let supertypes = self.supertypes.last().cloned().unwrap_or_default();
@@ -1430,6 +1439,7 @@ impl<'a> Walker<'a> {
             relation_targets: self.relation_targets,
             symbol_details: self.details,
             entry_points: self.entry_points,
+            join_points: self.join_points,
             ..Default::default()
         }
     }

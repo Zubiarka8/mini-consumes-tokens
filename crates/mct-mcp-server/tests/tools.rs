@@ -667,11 +667,11 @@ async fn get_project_overview_truncates_a_real_crates_module_and_reports_the_ove
             .unwrap(),
     );
     // src/lib.rs has 9 functions + 2 structs + `mod details` + `mod
-    // literals` + `mod receivers` + `mod stdlib` + `mod tokens` + 1
-    // synthetic module entry = 17 top-level candidates; the default cap (8)
-    // must truncate and report it.
+    // http_routes` + `mod literals` + `mod receivers` + `mod stdlib` + `mod
+    // tokens` + 1 synthetic module entry = 18 top-level candidates; the
+    // default cap (8) must truncate and report it.
     assert!(text.contains("src/lib.rs:"), "got: {text}");
-    assert!(text.contains("(+9 more)"), "got: {text}");
+    assert!(text.contains("(+10 more)"), "got: {text}");
     let symbol_line_count = text
         .lines()
         .filter(|l| l.trim_start().starts_with('['))

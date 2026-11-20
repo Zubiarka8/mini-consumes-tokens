@@ -578,7 +578,11 @@ const RELATION_SELECT: &str =
             (SELECT MIN(c.symbol_id) FROM relation_candidates c WHERE c.relation_id = r.id),
             r.member,
             (r.qualifier IS NOT NULL OR r.target_path IS NOT NULL
-             OR r.module IS NOT NULL OR r.target_module IS NOT NULL)
+             OR r.module IS NOT NULL OR r.target_module IS NOT NULL),
+            r.join_kind IS NOT NULL AND (SELECT COUNT(*) FROM relations o
+                                         WHERE o.join_kind = r.join_kind
+                                           AND o.from_symbol_id = r.from_symbol_id
+                                           AND o.line = r.line AND o.column = r.column) > 1
          FROM relations r
          JOIN symbols caller ON caller.id = r.from_symbol_id
          JOIN files f ON f.id = caller.file_id
@@ -960,9 +964,14 @@ fn query_relation_rows(
             let only: Option<i64> = row.get(11)?;
             let member: bool = row.get(12)?;
             let declared: bool = row.get(13)?;
+            let shared_use: bool = row.get(14)?;
             let (resolution, target_id, evidence) = match (external, count) {
                 (true, _) => (Resolution::External, None, ResolutionEvidence::Syntax),
                 (false, 0) => (Resolution::Unresolved, None, ResolutionEvidence::None),
+                // One use, several declarers of the same endpoint: none is picked.
+                (false, _) if shared_use => {
+                    (Resolution::Ambiguous, None, ResolutionEvidence::Candidates)
+                }
                 (false, 1) if !member => (
                     Resolution::Resolved,
                     only,

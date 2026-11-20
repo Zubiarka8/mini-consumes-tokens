@@ -21,6 +21,7 @@ use tree_sitter::{Node, Parser};
 use values::{declared_functions, is_shadowed, unwrap_element};
 
 mod details;
+mod http_routes;
 mod literals;
 mod receivers;
 mod stdlib;
@@ -153,12 +154,18 @@ struct Walker<'a> {
     /// The type parameters in scope (`T` of `func F[T any]` or `type
     /// Box[T any]`), which name no declared type.
     type_params: Vec<String>,
+    /// HTTP endpoints this file uses, and routes waiting for their handler
+    /// (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
+    routes: Vec<http_routes::Route>,
+    web_framework: bool,
 }
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
         Self {
             source,
+            web_framework: http_routes::mentions_framework(source),
             ..Self::default()
         }
     }
@@ -339,6 +346,16 @@ impl<'a> Walker<'a> {
             }
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
+                    self.join_points.extend(http_routes::use_of(
+                        node,
+                        function,
+                        owner,
+                        self.source,
+                    ));
+                    if self.web_framework {
+                        self.routes
+                            .extend(http_routes::route_of(node, function, self.source));
+                    }
                     if let Some(name_node) = callee_identifier(function) {
                         if !self.push_std_package(function) {
                             let name = text(name_node, self.source);
@@ -952,12 +969,15 @@ impl<'a> Walker<'a> {
         true
     }
 
-    fn finish(self) -> ParsedFile {
+    fn finish(mut self) -> ParsedFile {
+        self.join_points
+            .extend(http_routes::resolve(self.routes, &self.symbols));
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             ..Default::default()
         }
     }

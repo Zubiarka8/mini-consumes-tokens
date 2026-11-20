@@ -188,6 +188,7 @@ fn reindex_inner(
 
     report.files_removed = remove_missing_files(index, &seen_paths, &unreadable)?;
     remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
+    crate::join_resolution::resolve(&index.conn)?;
     // A change of rules publishes even when it moved no row: responses that
     // read the filesystem through the rules (the file tree) are cached by
     // generation too.
@@ -863,6 +864,7 @@ fn reindex_paths_inner(
     if !created.is_empty() {
         report.files_removed += remove_renamed_away(index, &created)?;
     }
+    crate::join_resolution::resolve(&index.conn)?;
     report.published = publish_if_changed(index, changes_before, false, false)?;
     symbol_changes::finish(&index.conn, &mut report)?;
     Ok(report)
@@ -1415,9 +1417,18 @@ fn write_parsed_file(
             mct_core::JoinRole::Uses => "uses",
         };
         tx.execute(
-            "INSERT INTO join_points (symbol_id, kind, value, role) VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO join_points (symbol_id, kind, value, role, line, column, byte_len)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT DO NOTHING",
-            params![symbol_id, kind, point.value, role],
+            params![
+                symbol_id,
+                kind,
+                point.value,
+                role,
+                point.location.line,
+                point.location.column,
+                point.location.byte_len,
+            ],
         )?;
     }
 

@@ -24,18 +24,18 @@ Every feature the language does not have is named under *Not applicable*, with t
 
 | Language | Done | Partial | Not done | Not verified | Not applicable |
 |---|--:|--:|--:|--:|--:|
-| Rust | 33 | 3 | 0 | 0 | 16 |
-| Python | 27 | 7 | 4 | 0 | 14 |
-| JS/TS | 32 | 5 | 6 | 0 | 9 |
-| Java | 27 | 4 | 6 | 0 | 15 |
-| Kotlin | 30 | 8 | 7 | 0 | 7 |
-| C# | 27 | 10 | 8 | 0 | 7 |
-| C++ | 25 | 7 | 6 | 0 | 14 |
-| Go | 18 | 5 | 6 | 0 | 23 |
-| PHP | 30 | 4 | 6 | 0 | 12 |
-| Lua | 15 | 6 | 3 | 0 | 28 |
-| Bash | 11 | 3 | 3 | 0 | 35 |
-| PowerShell | 11 | 3 | 13 | 0 | 25 |
+| Rust | 33 | 4 | 0 | 0 | 16 |
+| Python | 27 | 8 | 4 | 0 | 14 |
+| JS/TS | 32 | 6 | 6 | 0 | 9 |
+| Java | 27 | 5 | 6 | 0 | 15 |
+| Kotlin | 30 | 9 | 7 | 0 | 7 |
+| C# | 27 | 11 | 8 | 0 | 7 |
+| C++ | 25 | 8 | 6 | 0 | 14 |
+| Go | 18 | 6 | 6 | 0 | 23 |
+| PHP | 30 | 5 | 6 | 0 | 12 |
+| Lua | 15 | 7 | 3 | 0 | 28 |
+| Bash | 11 | 4 | 3 | 0 | 35 |
+| PowerShell | 11 | 4 | 13 | 0 | 25 |
 | HTML | 3 | 1 | 3 | 0 | 0 |
 | CSS | 3 | 1 | 3 | 0 | 0 |
 | XML | 2 | 0 | 5 | 0 | 0 |
@@ -46,7 +46,7 @@ Markup languages use the MK features and their own constructs, at the end.
 
 ## Rust (`rust`)
 
-Done 33 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 16
+Done 33 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 16
 
 **Functions and methods**
 
@@ -82,6 +82,7 @@ Done 33 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 16
 - [~] RE06 Implements interface / trait: `impl Trait for T` → `implements`, but owned by the file module, not by `T`
 - [x] RE07 Interface extends interface / supertrait: `ChildTrait: ParentTrait` produces an `extends` relation
 - [x] RE08 Decorator / annotation / attribute: `#[derive(Clone)]` produces a `references` relation to `Clone`; compiler attributes such as `#[cfg]` are ignored
+- [~] RE10 Cross-language HTTP link: axum and Actix Web routes are declarations; no client call (reqwest, ureq) is a use yet
 **Search and lookup**
 
 - [x] SE01 Find a definition: `find_symbol("top_level")` returns a `function`
@@ -122,7 +123,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Python (`python`)
 
-Done 27 · Partial 7 · Not done 4 · Not verified 0 · Not applicable 14
+Done 27 · Partial 8 · Not done 4 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -160,6 +161,7 @@ Done 27 · Partial 7 · Not done 4 · Not verified 0 · Not applicable 14
 - [x] RE04 Imports: `from sibling import imported` → `imports`
 - [x] RE05 Class extends class: `Child` extends `Base`
 - [x] RE08 Decorator / annotation / attribute: `@abc.abstractmethod` and `@login_required` → `references`
+- [~] RE10 Cross-language HTTP link: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client` calls with a literal path
 **Search and lookup**
 
 - [x] SE01 Find a definition: `find_symbol`
@@ -198,7 +200,7 @@ Markup features (MK) do not apply to code languages.
 
 ## JS/TS (`javascript_typescript`)
 
-Done 32 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 9
+Done 32 · Partial 6 · Not done 6 · Not verified 0 · Not applicable 9
 
 **Functions and methods**
 
@@ -241,6 +243,7 @@ Done 32 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 9
 - [x] RE06 Implements interface / trait: `P_Sub` implements `P_Iface`
 - [x] RE07 Interface extends interface / supertrait: `P_Iface` extends `P_Ext`
 - [x] RE08 Decorator / annotation / attribute: `@f`, `@x.f` and `@f(…)` give `calls f` from the decorated class, field or method (a parameter's from its method)
+- [~] RE10 Cross-language HTTP link: `fetch`, `axios.<method>` and Express routes; `$.ajax`, `XMLHttpRequest` and other frameworks are not read
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -274,7 +277,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Java (`java`)
 
-Done 27 · Partial 4 · Not done 6 · Not verified 0 · Not applicable 15
+Done 27 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 15
 
 **Functions and methods**
 
@@ -311,6 +314,7 @@ Done 27 · Partial 4 · Not done 6 · Not verified 0 · Not applicable 15
 - [x] RE06 Implements interface / trait: `implements P_Iface` (ambiguous: same-name file module)
 - [x] RE07 Interface extends interface / supertrait: `interface B extends A` → `extends`, to an `interface` only
 - [x] RE08 Decorator / annotation / attribute: `@Entity` → `references Entity`, to an annotation type only
+- [~] RE10 Cross-language HTTP link: Spring `@GetMapping` family and `@RequestMapping` (class prefix); MockMvc `get("/x")`; no JAX-RS or client
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -350,7 +354,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Kotlin (`kotlin`)
 
-Done 30 · Partial 8 · Not done 7 · Not verified 0 · Not applicable 7
+Done 30 · Partial 9 · Not done 7 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -395,6 +399,7 @@ Done 30 · Partial 8 · Not done 7 · Not verified 0 · Not applicable 7
 - [x] RE06 Implements interface / trait: `P_Sub` implements `P_Iface`
 - [x] RE07 Interface extends interface / supertrait: `interface B : A` → `extends`, to an `interface` only
 - [x] RE08 Decorator / annotation / attribute: `@Marker` → `references Marker`, to a class only
+- [~] RE10 Cross-language HTTP link: Spring mappings with the class prefix; Ktor `get("/x") { }` has no named handler
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -426,7 +431,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C# (`csharp`)
 
-Done 27 · Partial 10 · Not done 8 · Not verified 0 · Not applicable 7
+Done 27 · Partial 11 · Not done 8 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -471,6 +476,7 @@ Done 27 · Partial 10 · Not done 8 · Not verified 0 · Not applicable 7
 - [~] RE06 Implements interface / trait: heuristic: `IP_Iface` → `implements`
 - [x] RE07 Interface extends interface / supertrait: `IP_Iface2 : IP_Ext2` → `extends`
 - [x] RE08 Decorator / annotation / attribute: `references XAttribute`
+- [~] RE10 Cross-language HTTP link: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`; `[controller]` tokens skipped
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -502,7 +508,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C++ (`cpp`)
 
-Done 25 · Partial 7 · Not done 6 · Not verified 0 · Not applicable 14
+Done 25 · Partial 8 · Not done 6 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -540,6 +546,7 @@ Done 25 · Partial 7 · Not done 6 · Not verified 0 · Not applicable 14
 - [~] RE03 Super / base constructor call: `P_Sub() : P_Base()` gives `calls P_Base` when the class and its base are defined in the same file
 - [x] RE04 Imports: `#include` → `imports`
 - [x] RE05 Class extends class: every base, any access, as `extends`
+- [~] RE10 Cross-language HTTP link: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow and Drogon not read
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -578,7 +585,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Go (`go`)
 
-Done 18 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 23
+Done 18 · Partial 6 · Not done 6 · Not verified 0 · Not applicable 23
 
 **Functions and methods**
 
@@ -607,6 +614,7 @@ Done 18 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 23
 - [ ] RE06 Implements interface / trait: structural; no relation
 - [x] RE07 Interface extends interface / supertrait: an embedded interface gives `extends`
 - [x] RE09 Struct / type embedding: embedded `P_Embedded` gives `extends`
+- [~] RE10 Cross-language HTTP link: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -654,7 +662,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PHP (`php`)
 
-Done 30 · Partial 4 · Not done 6 · Not verified 0 · Not applicable 12
+Done 30 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 12
 
 **Functions and methods**
 
@@ -695,6 +703,7 @@ Done 30 · Partial 4 · Not done 6 · Not verified 0 · Not applicable 12
 - [x] RE06 Implements interface / trait: `implements` for interface and trait
 - [x] RE07 Interface extends interface / supertrait: `ChildContract` extends `Contract` (MCT probe)
 - [x] RE08 Decorator / annotation / attribute: `#[Attr]` → `references`
+- [~] RE10 Cross-language HTTP link: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -730,7 +739,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Lua (`lua`)
 
-Done 15 · Partial 6 · Not done 3 · Not verified 0 · Not applicable 28
+Done 15 · Partial 7 · Not done 3 · Not verified 0 · Not applicable 28
 
 **Functions and methods**
 
@@ -754,6 +763,7 @@ Done 15 · Partial 6 · Not done 3 · Not verified 0 · Not applicable 28
 - [x] RE01 Calls: `p_top` → `p_local`, `p_mod`
 - [x] RE04 Imports: `require("lib")` → edge
 - [x] RE05 Class extends class: `Child` extends `Base` via `setmetatable` (MCT probe)
+- [~] RE10 Cross-language HTTP link: Lapis `app:get("/x", handler)` and `ngx.location.capture`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -806,7 +816,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Bash (`bash`)
 
-Done 11 · Partial 3 · Not done 3 · Not verified 0 · Not applicable 35
+Done 11 · Partial 4 · Not done 3 · Not verified 0 · Not applicable 35
 
 **Functions and methods**
 
@@ -824,6 +834,7 @@ Done 11 · Partial 3 · Not done 3 · Not verified 0 · Not applicable 35
 
 - [x] RE01 Calls: `p_top` → `p_helper`
 - [x] RE04 Imports: `source` → edge
+- [~] RE10 Cross-language HTTP link: `curl` to this machine (use only)
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -882,7 +893,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PowerShell (`powershell`)
 
-Done 11 · Partial 3 · Not done 13 · Not verified 0 · Not applicable 25
+Done 11 · Partial 4 · Not done 13 · Not verified 0 · Not applicable 25
 
 **Functions and methods**
 
@@ -909,6 +920,7 @@ Done 11 · Partial 3 · Not done 13 · Not verified 0 · Not applicable 25
 - [x] RE01 Calls: `p_top` → `p_helper`
 - [x] RE04 Imports: dot-sourcing → edge
 - [ ] RE05 Class extends class: PowerShell classes are not indexed (corpus test)
+- [~] RE10 Cross-language HTTP link: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -987,7 +999,7 @@ Constructs:
 - — Functions and methods: HTML has no code constructs (FN01 Top-level function; FN02 Nested function; FN03 Lambda or closure assigned to a name; FN04 Method; FN05 Constructor; FN06 Destructor / finalizer; FN07 Operator overload; FN08 Abstract / pure virtual method; FN09 Property accessors (get/set); FN10 Overloads kept apart)
 - — Types and object-oriented programming: HTML has no code constructs (TY01 Class; TY02 Abstract class; TY03 Struct; TY04 Union; TY05 Interface / protocol; TY06 Interface members; TY07 Trait / mixin; TY08 Enum; TY09 Enum members; TY10 Record / data class; TY11 Nested / inner class; TY12 Anonymous class; TY13 Partial class; TY14 Singleton / companion object; TY15 Type alias; TY16 Module / namespace / package)
 - — Fields, constants and variables: HTML has no code constructs (DA01 Field / instance attribute; DA02 Constructor-promoted field; DA03 Constant (module or global); DA04 Global / module-level variable; DA05 Local variable; DA06 Parameter; DA07 Macro / preprocessor define)
-- — Relations: HTML has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding)
+- — Relations: HTML has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding; RE10 Cross-language HTTP link)
 
 Search, quality and structure features that apply to markup are the MK features above.
 
@@ -1022,7 +1034,7 @@ Constructs:
 - — Functions and methods: CSS has no code constructs (FN01 Top-level function; FN02 Nested function; FN03 Lambda or closure assigned to a name; FN04 Method; FN05 Constructor; FN06 Destructor / finalizer; FN07 Operator overload; FN08 Abstract / pure virtual method; FN09 Property accessors (get/set); FN10 Overloads kept apart)
 - — Types and object-oriented programming: CSS has no code constructs (TY01 Class; TY02 Abstract class; TY03 Struct; TY04 Union; TY05 Interface / protocol; TY06 Interface members; TY07 Trait / mixin; TY08 Enum; TY09 Enum members; TY10 Record / data class; TY11 Nested / inner class; TY12 Anonymous class; TY13 Partial class; TY14 Singleton / companion object; TY15 Type alias; TY16 Module / namespace / package)
 - — Fields, constants and variables: CSS has no code constructs (DA01 Field / instance attribute; DA02 Constructor-promoted field; DA03 Constant (module or global); DA04 Global / module-level variable; DA05 Local variable; DA06 Parameter; DA07 Macro / preprocessor define)
-- — Relations: CSS has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding)
+- — Relations: CSS has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding; RE10 Cross-language HTTP link)
 
 Search, quality and structure features that apply to markup are the MK features above.
 
@@ -1054,7 +1066,7 @@ Constructs:
 - — Functions and methods: XML has no code constructs (FN01 Top-level function; FN02 Nested function; FN03 Lambda or closure assigned to a name; FN04 Method; FN05 Constructor; FN06 Destructor / finalizer; FN07 Operator overload; FN08 Abstract / pure virtual method; FN09 Property accessors (get/set); FN10 Overloads kept apart)
 - — Types and object-oriented programming: XML has no code constructs (TY01 Class; TY02 Abstract class; TY03 Struct; TY04 Union; TY05 Interface / protocol; TY06 Interface members; TY07 Trait / mixin; TY08 Enum; TY09 Enum members; TY10 Record / data class; TY11 Nested / inner class; TY12 Anonymous class; TY13 Partial class; TY14 Singleton / companion object; TY15 Type alias; TY16 Module / namespace / package)
 - — Fields, constants and variables: XML has no code constructs (DA01 Field / instance attribute; DA02 Constructor-promoted field; DA03 Constant (module or global); DA04 Global / module-level variable; DA05 Local variable; DA06 Parameter; DA07 Macro / preprocessor define)
-- — Relations: XML has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding)
+- — Relations: XML has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding; RE10 Cross-language HTTP link)
 
 Search, quality and structure features that apply to markup are the MK features above.
 
@@ -1088,7 +1100,7 @@ Constructs:
 - — Functions and methods: XAML has no code constructs (FN01 Top-level function; FN02 Nested function; FN03 Lambda or closure assigned to a name; FN04 Method; FN05 Constructor; FN06 Destructor / finalizer; FN07 Operator overload; FN08 Abstract / pure virtual method; FN09 Property accessors (get/set); FN10 Overloads kept apart)
 - — Types and object-oriented programming: XAML has no code constructs (TY01 Class; TY02 Abstract class; TY03 Struct; TY04 Union; TY05 Interface / protocol; TY06 Interface members; TY07 Trait / mixin; TY08 Enum; TY09 Enum members; TY10 Record / data class; TY11 Nested / inner class; TY12 Anonymous class; TY13 Partial class; TY14 Singleton / companion object; TY15 Type alias; TY16 Module / namespace / package)
 - — Fields, constants and variables: XAML has no code constructs (DA01 Field / instance attribute; DA02 Constructor-promoted field; DA03 Constant (module or global); DA04 Global / module-level variable; DA05 Local variable; DA06 Parameter; DA07 Macro / preprocessor define)
-- — Relations: XAML has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding)
+- — Relations: XAML has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding; RE10 Cross-language HTTP link)
 
 Search, quality and structure features that apply to markup are the MK features above.
 
@@ -1123,6 +1135,6 @@ Constructs:
 - — Functions and methods: Markdown has no code constructs (FN01 Top-level function; FN02 Nested function; FN03 Lambda or closure assigned to a name; FN04 Method; FN05 Constructor; FN06 Destructor / finalizer; FN07 Operator overload; FN08 Abstract / pure virtual method; FN09 Property accessors (get/set); FN10 Overloads kept apart)
 - — Types and object-oriented programming: Markdown has no code constructs (TY01 Class; TY02 Abstract class; TY03 Struct; TY04 Union; TY05 Interface / protocol; TY06 Interface members; TY07 Trait / mixin; TY08 Enum; TY09 Enum members; TY10 Record / data class; TY11 Nested / inner class; TY12 Anonymous class; TY13 Partial class; TY14 Singleton / companion object; TY15 Type alias; TY16 Module / namespace / package)
 - — Fields, constants and variables: Markdown has no code constructs (DA01 Field / instance attribute; DA02 Constructor-promoted field; DA03 Constant (module or global); DA04 Global / module-level variable; DA05 Local variable; DA06 Parameter; DA07 Macro / preprocessor define)
-- — Relations: Markdown has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding)
+- — Relations: Markdown has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding; RE10 Cross-language HTTP link)
 
 Search, quality and structure features that apply to markup are the MK features above.

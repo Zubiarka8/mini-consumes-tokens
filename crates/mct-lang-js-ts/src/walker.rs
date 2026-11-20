@@ -11,6 +11,7 @@ use tree_sitter::Node;
 mod details;
 mod exports;
 mod globals;
+mod http;
 mod imports;
 mod receivers;
 
@@ -65,6 +66,12 @@ pub(super) struct Walker<'a> {
     /// The field each class accessor declared so far stands for, by class
     /// and name: `set x()` after `get x()` adds to the same field.
     accessors: HashMap<(String, String), SymbolId>,
+    /// HTTP endpoints this file uses or declares (see `http`).
+    join_points: Vec<mct_core::JoinPoint>,
+    /// Express routes waiting for their handler's symbol.
+    routes: Vec<http::Route>,
+    /// The file mentions Express: the only evidence `app.get(..)` is a route.
+    mentions_express: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -88,6 +95,9 @@ impl<'a> Walker<'a> {
             details: Vec::new(),
             supertypes: Vec::new(),
             accessors: HashMap::new(),
+            join_points: Vec::new(),
+            routes: Vec::new(),
+            mentions_express: source.contains("express"),
         }
     }
 
@@ -848,6 +858,12 @@ impl<'a> Walker<'a> {
             }
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
+                    self.join_points
+                        .extend(http::use_of(node, function, owner, self.source));
+                    if self.mentions_express {
+                        self.routes
+                            .extend(http::route_of(node, function, self.source));
+                    }
                     match function.kind() {
                         // Dynamic `import("./x")`: a literal path is a
                         // static dependency like a `require`.
@@ -1339,11 +1355,14 @@ impl<'a> Walker<'a> {
                 }),
             }
         }
+        self.join_points
+            .extend(http::resolve(self.routes, &self.symbols));
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             entry_points: self
                 .object_methods
                 .into_iter()

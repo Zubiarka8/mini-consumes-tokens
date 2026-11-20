@@ -11,6 +11,7 @@ use tree_sitter::{Node, Parser};
 
 mod aliases;
 mod details;
+mod http_routes;
 mod literals;
 mod receivers;
 mod tokens;
@@ -120,6 +121,11 @@ struct Walker<'a> {
     supertypes: Vec<Vec<Supertype>>,
     /// Classes holding the program's `static Main` (see `main_hint`).
     entry_points: Vec<mct_core::EntryPointHint>,
+    /// HTTP endpoints this file declares or uses, and minimal-API routes
+    /// waiting for their handler (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
+    routes: Vec<http_routes::Route>,
+    web: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -139,6 +145,9 @@ impl<'a> Walker<'a> {
             static_calls: Vec::new(),
             supertypes: Vec::new(),
             entry_points: Vec::new(),
+            join_points: Vec::new(),
+            routes: Vec::new(),
+            web: http_routes::mentions_web(source),
         }
     }
 
@@ -319,6 +328,10 @@ impl<'a> Walker<'a> {
                 let id = self.push_symbol(name, SymbolKind::Method, location(node), parent);
                 self.details
                     .push(details::method_detail(node, id, self.source));
+                if self.web && node.kind() == "method_declaration" {
+                    self.join_points
+                        .extend(http_routes::declarations(node, self.source, id));
+                }
                 if node.kind() == "method_declaration" && has_override_modifier(node, self.source) {
                     if let Some(name_node) = node.child_by_field_name("name") {
                         let supertypes = self.supertypes.last().cloned().unwrap_or_default();
@@ -496,6 +509,16 @@ impl<'a> Walker<'a> {
             }
             "invocation_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
+                    if self.web {
+                        self.join_points.extend(http_routes::use_of(
+                            node,
+                            function,
+                            owner,
+                            self.source,
+                        ));
+                        self.routes
+                            .extend(http_routes::route_of(node, function, self.source));
+                    }
                     if let Some(name_node) = callee_identifier(function) {
                         let name = text(name_node, self.source);
                         // `nameof(x)` is an operator, not a call: the compiler
@@ -1029,6 +1052,10 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(mut self) -> ParsedFile {
+        self.join_points.extend(http_routes::resolve(
+            std::mem::take(&mut self.routes),
+            &self.symbols,
+        ));
         // A bare call reaches the one type a lone `using static` names (or
         // the framework), unless the file declares a method of that name:
         // with several `using static` the type is unknown, and a class with
@@ -1065,6 +1092,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             entry_points: self.entry_points,
             ..Default::default()
         }

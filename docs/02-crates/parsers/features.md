@@ -89,6 +89,7 @@ Links between symbols: calls, imports, inheritance and decorators. Callers, refe
 | RE07 | Interface extends interface / supertrait | Interface inheritance gives `extends`. |
 | RE08 | Decorator / annotation / attribute | Decorator or attribute gives a `references` relation. |
 | RE09 | Struct / type embedding | Embedded field or type gives a relation. |
+| RE10 | Cross-language HTTP link | A literal HTTP endpoint that one side declares (a server route) and another side uses (a client call) gives a `calls` relation from the user to the handler (ADR-038). |
 
 ### Search and lookup
 

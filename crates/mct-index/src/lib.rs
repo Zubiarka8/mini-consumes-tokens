@@ -15,6 +15,7 @@ mod exclude;
 mod file_tree;
 mod incidents;
 mod indexer;
+mod join_resolution;
 pub mod luarocks;
 mod manifests;
 mod queries;

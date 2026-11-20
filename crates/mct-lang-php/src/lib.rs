@@ -107,6 +107,7 @@ use names::{namespace_alias, ImportKind, ResolvedName, Scope};
 
 mod builtins;
 mod details;
+mod http_routes;
 mod libraries;
 mod literals;
 mod names;
@@ -241,6 +242,9 @@ struct Walker<'a> {
     route_controllers: Vec<ResolvedName>,
     /// Classes a framework may load by convention (see `libraries::laravel`).
     entry_points: Vec<mct_core::EntryPointHint>,
+    /// HTTP endpoints this file declares or uses (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
+    web: bool,
     /// The supertypes a method of each enclosing class-like declaration can
     /// override (D8), innermost last.
     supertypes: Vec<Vec<Supertype>>,
@@ -287,6 +291,8 @@ impl<'a> Walker<'a> {
             classes: Vec::new(),
             route_controllers: Vec::new(),
             entry_points: Vec::new(),
+            join_points: Vec::new(),
+            web: http_routes::mentions_web(source),
             supertypes: Vec::new(),
             closure_depth: 0,
             locals: receivers::Types::new(),
@@ -761,7 +767,13 @@ impl<'a> Walker<'a> {
             "function_call_expression" => self.visit_function_call(node, owner, type_name, depth),
             "member_call_expression"
             | "nullsafe_member_call_expression"
-            | "scoped_call_expression" => self.visit_member_call(node, owner, type_name, depth),
+            | "scoped_call_expression" => {
+                if self.web {
+                    self.join_points
+                        .extend(http_routes::use_of(node, owner, self.source));
+                }
+                self.visit_member_call(node, owner, type_name, depth)
+            }
             // `Post::class`, `Post::STATUS`, `Post::$registry`: the class
             // named in the scope position is referenced.
             "class_constant_access_expression" | "scoped_property_access_expression" => {
@@ -972,6 +984,10 @@ impl<'a> Walker<'a> {
             }
         }
         self.visit_attributes(node, id, depth);
+        if self.web && kind == SymbolKind::Method {
+            self.join_points
+                .extend(http_routes::declarations(node, self.source, id));
+        }
         let locals = receivers::locals(node, self.source);
         let outer_locals = std::mem::replace(&mut self.locals, locals);
         for field in ["parameters", "return_type", "body"] {
@@ -1568,6 +1584,7 @@ impl<'a> Walker<'a> {
             relation_targets: self.relation_targets,
             symbol_aliases: aliases,
             entry_points: self.entry_points,
+            join_points: self.join_points,
             symbol_details: self.details,
             ..Default::default()
         }

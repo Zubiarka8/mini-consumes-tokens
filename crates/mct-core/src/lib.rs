@@ -7,6 +7,7 @@
 
 mod detail;
 mod error;
+mod join_point;
 mod literal;
 mod reference_path;
 mod registry;
@@ -18,6 +19,7 @@ pub use detail::{
     MAX_DEFAULT_BYTES, MAX_SIGNATURE_BYTES, MAX_TYPE_BYTES,
 };
 pub use error::ParseError;
+pub use join_point::{http_endpoint, http_use_endpoint, JoinKind, JoinPoint, JoinRole};
 pub use literal::{
     prose_literal, LiteralCollector, StringLiteral, MAX_LITERALS_PER_FILE, MAX_LITERAL_CHARS,
     MIN_LITERAL_CHARS,
@@ -93,25 +95,6 @@ pub struct ParsedFile {
     /// without an entry has no known details. An entry naming an unknown
     /// symbol is ignored, and so is every entry after the first for a symbol.
     pub symbol_details: Vec<SymbolDetail>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JoinPoint {
-    pub symbol: SymbolId,
-    pub kind: JoinKind,
-    pub value: String,
-    pub role: JoinRole,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JoinKind {
-    HttpEndpoint,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JoinRole {
-    Declares,
-    Uses,
 }
 
 /// Parser-declared evidence that a framework **may** load a symbol by
