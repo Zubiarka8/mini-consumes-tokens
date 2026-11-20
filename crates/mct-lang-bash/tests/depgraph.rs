@@ -31,10 +31,10 @@ fn script_relative_and_literal_sources_are_pinned_to_their_file() {
 }
 
 #[test]
-fn a_source_through_a_variable_proves_only_the_file_name() {
+fn a_source_through_a_variable_does_not_guess_a_file() {
     let index = open_indexed();
-    // `$LIB_DIR/fs.sh`: the stem is unique in the repository.
-    assert!(import_hits(&index, "fs").contains(&resolved("lib/fs.sh")));
+    // `$LIB_DIR/fs.sh` can point outside the repository even when the stem is unique.
+    assert!(!import_hits(&index, "fs").contains(&resolved("lib/fs.sh")));
 }
 
 #[test]

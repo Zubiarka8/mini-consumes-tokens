@@ -193,6 +193,14 @@ mod tests {
     }
 
     #[test]
+    fn home_and_environment_variable_paths_are_not_guessed() {
+        for spec in ["~/x.css", "$HOME/x.css", "${HOME}/x.css", "%APPDATA%/x.css"] {
+            assert_eq!(r("web/index.html", spec), None, "{spec}");
+            assert_eq!(url("web/index.html", spec), None, "{spec}");
+        }
+    }
+
+    #[test]
     fn a_url_is_percent_decoded_once() {
         assert_eq!(
             url("site/index.html", "./my%20file.css").as_deref(),

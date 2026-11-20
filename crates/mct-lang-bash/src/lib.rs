@@ -590,8 +590,8 @@ const SCRIPT_DIR_PREFIXES: [&str; 7] = [
 ///   sourcing script's directory (a plain relative `source` is really
 ///   resolved against the working directory and `PATH`; a mismatch leaves it
 ///   unresolved).
-/// - A path through any other variable (`$LIB_DIR/log.sh`) proves only the
-///   file stem and, if literal, its parent directory.
+/// - A path through any other variable (`$LIB_DIR/log.sh`) has no proven
+///   repository target and remains unresolved.
 /// - An absolute or `~` path proves nothing about the repository.
 fn source_target(from_file: &str, spec: &str) -> Option<(String, RelationTarget)> {
     let spec = spec.trim();
@@ -618,31 +618,11 @@ fn source_target(from_file: &str, spec: &str) -> Option<(String, RelationTarget)
             }
         })
     });
-    if let Some(relative) = relative {
-        let resolved = mct_core::resolve_reference_path(from_file, &relative)?;
-        return Some((
-            stem.to_string(),
-            RelationTarget {
-                path: Some(resolved),
-                kind: module_kind,
-                ..Default::default()
-            },
-        ));
-    }
-    if spec.starts_with(['/', '~']) {
-        return None;
-    }
-    let dir = spec
-        .rsplit_once('/')
-        .map(|(dir, _)| dir)
-        .unwrap_or_default();
-    let parent = dir.rsplit('/').next().filter(|d| {
-        !d.is_empty() && !d.contains(['$', '`', '*', '{', '(', '~']) && *d != "." && *d != ".."
-    });
+    let resolved = mct_core::resolve_reference_path(from_file, &relative?)?;
     Some((
         stem.to_string(),
         RelationTarget {
-            module: parent.map(str::to_string),
+            path: Some(resolved),
             kind: module_kind,
             ..Default::default()
         },
