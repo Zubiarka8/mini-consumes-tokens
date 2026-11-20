@@ -715,7 +715,7 @@ Done 3 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 13
 - [x] Go: package-level `const` → `constant`
 - [x] PHP: `const` top-level and in classes
 - — Lua: no `const` keyword
-- [~] Bash: `readonly X=…` → `variable`
+- [~] Bash: `curl` and `wget` to this machine (use only)
 - — PowerShell: PowerShell has no constant (module or global)
 - — HTML: HTML is markup; it has no constant (module or global)
 - — CSS: CSS is markup; it has no constant (module or global)

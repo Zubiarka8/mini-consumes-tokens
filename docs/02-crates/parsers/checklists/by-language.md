@@ -834,7 +834,7 @@ Done 11 · Partial 4 · Not done 3 · Not verified 0 · Not applicable 35
 
 - [x] RE01 Calls: `p_top` → `p_helper`
 - [x] RE04 Imports: `source` → edge
-- [~] RE10 Cross-language HTTP link: `curl` to this machine (use only)
+- [~] RE10 Cross-language HTTP link: `curl` and `wget` to this machine (use only)
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
