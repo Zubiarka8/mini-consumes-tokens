@@ -1,7 +1,7 @@
 //! Join points: a literal value one side declares and another side uses
 //! (ADR-038). Only a literal counts; a value built at run time is no join point.
 
-use crate::{Location, SymbolId};
+use crate::{Location, SymbolId, SymbolRecord};
 
 /// A typed, normalized value tied to one symbol of the parsed file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,6 +60,37 @@ impl JoinPoint {
             location,
         })
     }
+}
+
+/// A route whose handler is still a name: the parser sees `app.get("/x",
+/// handler)` before it knows the handler's symbol. [`resolve_routes`] turns
+/// it into a join point once the file's symbols are known.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamedRoute {
+    pub method: String,
+    pub path: String,
+    pub handler: String,
+    pub location: Location,
+}
+
+/// The `Declares` join points of the routes whose handler is exactly one
+/// symbol of this file for which `is_handler` holds. A handler imported from
+/// elsewhere, or defined twice, is skipped: a name alone does not prove which
+/// function it is.
+pub fn resolve_routes<'a>(
+    routes: Vec<NamedRoute>,
+    symbols: &'a [SymbolRecord],
+    is_handler: impl Fn(&SymbolRecord) -> bool + 'a,
+) -> impl Iterator<Item = JoinPoint> + 'a {
+    routes.into_iter().filter_map(move |route| {
+        let mut handlers = symbols
+            .iter()
+            .filter(|s| s.name == route.handler && is_handler(s));
+        let (Some(handler), None) = (handlers.next(), handlers.next()) else {
+            return None;
+        };
+        JoinPoint::http_declares(handler.id, &route.method, &route.path, route.location)
+    })
 }
 
 const MAX_PATH_BYTES: usize = 512;

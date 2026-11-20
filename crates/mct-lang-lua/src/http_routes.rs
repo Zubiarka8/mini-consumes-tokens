@@ -2,7 +2,7 @@
 //! declares an endpoint, and `ngx.location.capture("/x")` uses one. An
 //! anonymous handler has no symbol, so it declares nothing.
 
-use mct_core::{JoinPoint, Location, SymbolId, SymbolKind, SymbolRecord};
+use mct_core::{JoinPoint, SymbolId, SymbolKind};
 use mct_tree_sitter::location;
 use tree_sitter::Node;
 
@@ -13,13 +13,7 @@ pub(super) fn mentions_lapis(source: &str) -> bool {
     source.contains("lapis")
 }
 
-/// A route whose handler is still a name, resolved by [`resolve`].
-pub(super) struct Route {
-    method: String,
-    path: String,
-    handler: String,
-    location: Location,
-}
+pub(super) use mct_core::NamedRoute as Route;
 
 fn literal<'a>(node: Node, source: &'a str) -> Option<&'a str> {
     if node.kind() != "string" {
@@ -79,15 +73,7 @@ pub(super) fn use_of(call: Node, callee: Node, owner: SymbolId, source: &str) ->
 /// Join points for the routes whose handler is exactly one function of this file.
 pub(super) fn resolve(
     routes: Vec<Route>,
-    symbols: &[SymbolRecord],
+    symbols: &[mct_core::SymbolRecord],
 ) -> impl Iterator<Item = JoinPoint> + '_ {
-    routes.into_iter().filter_map(move |route| {
-        let mut handlers = symbols
-            .iter()
-            .filter(|s| s.name == route.handler && s.kind == SymbolKind::Function);
-        let (Some(handler), None) = (handlers.next(), handlers.next()) else {
-            return None;
-        };
-        JoinPoint::http_declares(handler.id, &route.method, &route.path, route.location)
-    })
+    mct_core::resolve_routes(routes, symbols, |s| s.kind == SymbolKind::Function)
 }
