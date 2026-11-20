@@ -1024,6 +1024,129 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
+        // A function declared inside another function or method is reachable
+        // by name only from its own file (issue #376, ADR-040): another file's
+        // relation does not get it as a candidate. Containment is by span: the
+        // enclosing one starts first and ends on a later line, or both lie on
+        // one line and its bytes cover the inner one (a minified bundle). A
+        // span that ends on the same later line is ambiguous and kept. Stored
+        // rows are unchanged, so nothing is reparsed.
+        M::up(concat!(
+            r#"
+            DROP VIEW relation_candidates;
+            "#,
+            r#"CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                    UNION ALL
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                )
+                CROSS JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<'
+                       OR (EXISTS (SELECT 1 FROM relations sr
+                                       WHERE sr.to_name = s.parent
+                                         AND sr.kind IN ('extends', 'implements'))
+                           AND NOT EXISTS (SELECT 1 FROM symbols own
+                                           JOIN files ownf ON ownf.id = own.file_id
+                                           WHERE own.name = r.to_name
+                                             AND own.parent = r.qualifier
+                                             AND ownf.language = sf.language)
+                           AND s.parent IN (
+                           WITH RECURSIVE ancestors(name, depth) AS (
+                               SELECT r.qualifier, 0
+                               UNION
+                               SELECT ir.to_name, a.depth + 1
+                               FROM ancestors a
+                               JOIN symbols t ON t.name = a.name
+                               JOIN files tf ON tf.id = t.file_id
+                                            AND tf.language = sf.language
+                               JOIN relations ir ON ir.from_symbol_id = t.id
+                                                AND ir.kind IN ('extends', 'implements')
+                               WHERE a.depth < 8
+                           )
+                           SELECT a.name FROM ancestors a
+                           WHERE a.depth > 0
+                             AND NOT EXISTS (SELECT 1 FROM ancestors b
+                                             JOIN symbols own ON own.parent = b.name
+                                                             AND own.name = r.to_name
+                                             JOIN files ownf ON ownf.id = own.file_id
+                                                            AND ownf.language = sf.language
+                                             WHERE b.depth < a.depth))))
+                  AND (r.target_path IS NULL OR sf.relative_path = r.target_path)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR EXISTS (SELECT 1 FROM symbols pt
+                                  WHERE pt.file_id = s.file_id AND pt.name = s.parent
+                                    AND pt.parent = r.module)
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0)
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.not_field = 0 OR s.kind <> 'field')
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module)))
+                       OR (s.parent IS NOT r.qualifier
+                           AND EXISTS (SELECT 1 FROM symbols qt
+                                       JOIN symbols m ON m.file_id = qt.file_id
+                                                     AND m.kind = 'module'
+                                       WHERE qt.name = r.qualifier
+                                         AND qt.parent IS NULL
+                                         AND (m.name = r.target_module
+                                              OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                         WHERE a.symbol_id = m.id
+                                                           AND a.alias = r.target_module)))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module')
+                  AND NOT (r.kind IN ('extends', 'implements')
+                           AND sf.language IN ('csharp', 'cpp')
+                           AND s.kind IN ('method', 'function', 'field', 'variable', 'constant'))
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'variable'
+                       OR s.parent IS NULL
+                       OR NOT EXISTS (SELECT 1 FROM symbols p
+                                      WHERE p.file_id = s.file_id AND p.name = s.parent
+                                        AND p.kind IN ('function', 'method'))
+                       OR EXISTS (SELECT 1 FROM symbols p
+                                  WHERE p.file_id = s.file_id AND p.name = s.parent
+                                    AND p.kind NOT IN ('function', 'method', 'variable',
+                                                       'constant', 'field')))
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'function'
+                       OR s.end_line IS NULL
+                       OR NOT EXISTS (
+                           SELECT 1 FROM symbols p
+                           WHERE p.file_id = s.file_id
+                             AND p.id <> s.id
+                             AND p.kind IN ('function', 'method')
+                             AND (p.line < s.line
+                                  OR (p.line = s.line AND p.column < s.column))
+                             AND (p.end_line > s.end_line
+                                  OR (p.line = s.line AND p.end_line = s.line
+                                      AND s.end_line = s.line
+                                      AND p.column + p.byte_len >= s.column + s.byte_len))))
+                  "#,
+            shadowed_module_predicate!(),
+            ";",
+        )),
     ])
 }
 
@@ -1357,6 +1480,69 @@ mod tests {
     /// type, so a constructor or function spelled like the class is no
     /// candidate. Other languages keep non-type candidates: a JS class may
     /// extend a constructor function, a Python class a variable holding one.
+    #[test]
+    fn nested_function_migration_scopes_candidates_to_their_file(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, 22)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at) VALUES
+                 (1, 'lib.js', 'javascript', 'h1', 0),
+                 (2, 'bundle.js', 'javascript', 'h2', 0),
+                 (3, 'app.js', 'javascript', 'h3', 0);
+             INSERT INTO symbols (id, file_id, name, kind, parent, line, column, byte_len,
+                                  end_line) VALUES
+                 (1, 1, 'outer', 'function', NULL, 1, 1, 100, 10),
+                 (2, 1, 'inner', 'function', NULL, 2, 3, 10, 3),
+                 (3, 1, 'top', 'function', NULL, 12, 1, 30, 14),
+                 (4, 1, 'last', 'function', NULL, 20, 1, 40, 25),
+                 (5, 1, 'tail', 'function', NULL, 24, 3, 9, 25),
+                 (6, 1, 'legacy', 'function', NULL, 5, 3, 9, NULL),
+                 (7, 2, 'wrap', 'function', NULL, 1, 1, 500, 1),
+                 (8, 2, 'em', 'function', NULL, 1, 50, 20, 1),
+                 (9, 2, 'a', 'function', NULL, 1, 600, 10, 1),
+                 (10, 2, 'b', 'function', NULL, 1, 620, 10, 1),
+                 (11, 3, 'main', 'function', NULL, 1, 1, 50, 9);
+             INSERT INTO relations (id, from_symbol_id, kind, to_name, line, column, byte_len,
+                                    targets_parsed) VALUES
+                 (1, 11, 'calls', 'inner', 2, 1, 1, 1),
+                 (2, 11, 'calls', 'em', 3, 1, 1, 1),
+                 (3, 11, 'calls', 'a', 4, 1, 1, 1),
+                 (4, 11, 'calls', 'b', 5, 1, 1, 1),
+                 (5, 11, 'calls', 'top', 6, 1, 1, 1),
+                 (6, 11, 'calls', 'tail', 7, 1, 1, 1),
+                 (7, 11, 'calls', 'legacy', 8, 1, 1, 1),
+                 (8, 1, 'calls', 'inner', 4, 3, 1, 1);",
+        )?;
+        let candidates = |conn: &Connection, relation: i64| -> rusqlite::Result<Vec<i64>> {
+            conn.prepare("SELECT symbol_id FROM relation_candidates WHERE relation_id = ?1")?
+                .query_map([relation], |r| r.get(0))?
+                .collect()
+        };
+        assert_eq!(
+            candidates(&conn, 1)?,
+            [2],
+            "before: a nested function is offered"
+        );
+        migrations().to_version(&mut conn, 23)?;
+        let empty: [i64; 0] = [];
+        assert_eq!(candidates(&conn, 1)?, empty, "nested, from another file");
+        assert_eq!(candidates(&conn, 2)?, empty, "nested on one minified line");
+        assert_eq!(candidates(&conn, 3)?, [9], "a one-line sibling stays");
+        assert_eq!(candidates(&conn, 4)?, [10], "a one-line sibling stays");
+        assert_eq!(candidates(&conn, 5)?, [3], "a top-level function stays");
+        assert_eq!(candidates(&conn, 6)?, [5], "same end line: ambiguous, kept");
+        assert_eq!(candidates(&conn, 7)?, [6], "no end line: kept");
+        assert_eq!(candidates(&conn, 8)?, [2], "its own file keeps it");
+        let hash: String =
+            conn.query_row("SELECT content_hash FROM files WHERE id = 1", [], |r| {
+                r.get(0)
+            })?;
+        assert_eq!(hash, "h1", "no reparse needed");
+        Ok(())
+    }
+
     #[test]
     fn supertype_migration_drops_non_type_candidates_in_csharp_and_cpp(
     ) -> Result<(), Box<dyn std::error::Error>> {
