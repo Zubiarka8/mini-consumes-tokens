@@ -639,3 +639,22 @@ fn html_forms_use_an_endpoint() {
     assert_eq!(only(&project.callers("create")).from_symbol, "order");
     assert_eq!(only(&project.callers("search")).from_symbol, "find");
 }
+
+#[test]
+fn go_http_client_calls_to_this_machine_use_an_endpoint() {
+    let project = Project::new(&[
+        (
+            "server/main.go",
+            "package main\nimport \"net/http\"\nfunc health(w http.ResponseWriter, r *http.Request) {}\n\
+             func serve(mux *http.ServeMux) { mux.HandleFunc(\"GET /api/health\", health) }\n",
+        ),
+        (
+            "client/main.go",
+            "package main\nimport \"net/http\"\n\
+             func ping() { http.Get(\"http://localhost:8080/api/health\") }\n\
+             func remote() { http.Get(\"https://example.com/api/health\") }\n\
+             func relative() { http.Get(\"/api/health\") }\n",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("health")).from_symbol, "ping");
+}
