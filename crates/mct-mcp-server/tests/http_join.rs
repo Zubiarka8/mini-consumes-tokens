@@ -683,3 +683,16 @@ fn python_test_clients_and_urlopen_use_an_endpoint() {
     from.sort_unstable();
     assert_eq!(from, ["probe", "test_client"]);
 }
+
+#[test]
+fn wget_to_this_machine_uses_an_endpoint() {
+    let project = Project::new(&[
+        ("server/api.rs", AXUM),
+        (
+            "scripts/smoke.sh",
+            "#!/usr/bin/env bash\nlist() {\n  wget -qO- http://localhost:3000/api/orders\n}\n\
+             other() {\n  wget -qO- https://example.com/api/orders\n  wget --post-data=a=1 http://localhost:3000/api/orders\n}\n",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("list_orders")).from_symbol, "list");
+}
