@@ -82,7 +82,7 @@ Done 33 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 16
 - [~] RE06 Implements interface / trait: `impl Trait for T` → `implements`, but owned by the file module, not by `T`
 - [x] RE07 Interface extends interface / supertrait: `ChildTrait: ParentTrait` produces an `extends` relation
 - [x] RE08 Decorator / annotation / attribute: `#[derive(Clone)]` produces a `references` relation to `Clone`; compiler attributes such as `#[cfg]` are ignored
-- [~] RE10 Cross-language HTTP link: axum and Actix Web routes are declarations; no client call (reqwest, ureq) is a use yet
+- [~] RE10 Cross-language HTTP link: axum and Actix Web routes are declarations; `reqwest`/`ureq` calls with an absolute URL to this machine are uses
 **Search and lookup**
 
 - [x] SE01 Find a definition: `find_symbol("top_level")` returns a `function`
