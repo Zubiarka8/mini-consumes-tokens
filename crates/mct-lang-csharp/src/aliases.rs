@@ -3,8 +3,8 @@
 //! the target. A C# alias is visible only in the file (or namespace block)
 //! that declares it, so the file's own directives are the evidence; a
 //! `global using` alias is visible project-wide and is not recorded, so its
-//! uses stay as they were. The alias itself is no symbol: the index has no
-//! way to keep a symbol out of other files' name matching (#446).
+//! uses stay as they were. A non-global alias is a `type_alias` symbol that
+//! only this file can name (`ParsedFile::file_scoped`, issue #446).
 
 use tree_sitter::Node;
 
@@ -42,11 +42,21 @@ fn is_global(directive: Node) -> bool {
 impl Walker<'_> {
     /// Records `using Alias = Target;` (outside `global using`) when the
     /// target is a name.
-    pub(crate) fn record_using_alias(&mut self, directive: Node) {
+    pub(crate) fn record_using_alias(&mut self, directive: Node, namespace: Option<&str>) {
         let Some((name, target)) = alias_parts(directive) else {
             return;
         };
-        if is_global(directive) || !is_name(target) {
+        if is_global(directive) {
+            return;
+        }
+        let id = self.push_symbol(
+            text(name, self.source).to_string(),
+            mct_core::SymbolKind::TypeAlias,
+            mct_tree_sitter::location(directive),
+            namespace.map(str::to_string),
+        );
+        self.file_scoped.push(id);
+        if !is_name(target) {
             return;
         }
         let target: String = text(target, self.source).split_whitespace().collect();
