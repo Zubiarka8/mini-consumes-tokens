@@ -2,6 +2,18 @@
 
 use super::ManifestDependency;
 
+pub(crate) fn cargo_library_name(contents: &str) -> Option<String> {
+    let doc = contents.parse::<toml::Table>().ok()?;
+    let package = doc.get("package")?.as_table()?;
+    let name = doc
+        .get("lib")
+        .and_then(toml::Value::as_table)
+        .and_then(|lib| lib.get("name"))
+        .and_then(toml::Value::as_str)
+        .or_else(|| package.get("name").and_then(toml::Value::as_str))?;
+    Some(name.replace('-', "_"))
+}
+
 /// `[dependencies]`/`[dev-dependencies]`/`[build-dependencies]` at the
 /// document root, plus `[workspace.dependencies]` for a workspace root
 /// manifest — not `[target.'cfg(...)'.dependencies]`, a deliberately

@@ -2225,6 +2225,7 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
             out.push_str(&format!("  {}: {}\n", error.relative_path, error.detail));
         }
     }
+    write_alias_sources(&mut out, &status.alias_sources);
     if !status.dependencies.is_empty() {
         if verbose_dependencies {
             out.push_str("Dependencies detected:\n");
@@ -2423,6 +2424,29 @@ pub fn tool_schema(tool: &rmcp::model::Tool) -> String {
         "{}\n\n{description}\n\nInput schema:\n{schema}\n",
         tool.name
     )
+}
+
+/// One line per module-alias source (issue #563): how many alias targets it
+/// records, or why it could not be read.
+fn write_alias_sources(out: &mut String, sources: &[mct_index::AliasSource]) {
+    if sources.is_empty() {
+        return;
+    }
+    out.push_str("Module alias sources:\n");
+    for source in sources {
+        match &source.error {
+            Some(error) => out.push_str(&format!(
+                "  {}: not read ({})\n",
+                printable(&source.manifest_path),
+                printable(error)
+            )),
+            None => out.push_str(&format!(
+                "  {}: {} alias target(s)\n",
+                printable(&source.manifest_path),
+                source.aliases
+            )),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -3042,6 +3066,7 @@ mod index_status_tests {
                 file_count: 2,
                 symbol_count: 10,
             }],
+            alias_sources: Vec::new(),
             total_files: 2,
             total_symbols: 10,
             last_indexed_at: Some(1_700_000_000),

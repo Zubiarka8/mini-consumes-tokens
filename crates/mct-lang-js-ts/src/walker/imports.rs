@@ -147,6 +147,18 @@ fn module_import_target(from_file: &str, spec: &str) -> Option<(String, Relation
             },
         ));
     }
+    if spec.starts_with("@/") {
+        let file = spec.rsplit('/').next()?;
+        let stem = file.split('.').next().filter(|stem| !stem.is_empty())?;
+        return Some((
+            stem.to_string(),
+            RelationTarget {
+                module: Some(spec.to_string()),
+                kind: Some(SymbolKind::Module),
+                ..Default::default()
+            },
+        ));
+    }
     if !(spec.starts_with("./") || spec.starts_with("../")) {
         return None;
     }

@@ -100,9 +100,22 @@ pub struct ManifestDependencies {
     pub dependencies: Vec<DependencyInfo>,
 }
 
+/// One config that may declare module aliases.
+#[derive(Debug, Clone)]
+pub struct AliasSource {
+    pub manifest_path: String,
+    /// Alias targets recorded, after `extends`.
+    pub aliases: usize,
+    /// Why the config could not be read; it then declares no alias.
+    pub error: Option<String>,
+}
+
 #[derive(Debug)]
 pub struct IndexStatus {
     pub languages: Vec<LanguageCoverage>,
+    /// Module-alias sources read (`tsconfig.json`/`jsconfig.json` `paths`,
+    /// issue #563), including those that could not be parsed.
+    pub alias_sources: Vec<AliasSource>,
     pub total_files: usize,
     pub total_symbols: usize,
     /// The last run that changed the index (published a generation).
@@ -412,6 +425,19 @@ fn index_file(
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or_default();
+    if matches!(file_name, "tsconfig.json" | "jsconfig.json") {
+        match crate::read_repository_file(&canonical) {
+            Ok(bytes) => {
+                clear_read_failure(index, &relative_path)?;
+                write_tsconfig(index, &relative_path, &bytes)?;
+            }
+            Err(err) => {
+                record_read_failure(index, report, &relative_path, err.to_string())?;
+                return Ok(Seen::Unreadable(relative_path));
+            }
+        }
+        return Ok(Seen::Manifest(relative_path));
+    }
     if let Some(language) = manifests::manifest_language(file_name) {
         match crate::read_repository_file(&canonical) {
             Ok(bytes) => {
@@ -425,6 +451,24 @@ fn index_file(
                     };
                     write_rockspec(index, &relative_path, language, &analysis)?;
                 } else if let Ok(contents) = String::from_utf8(bytes) {
+                    if file_name == "Cargo.toml" {
+                        let name = manifests::cargo_library_name(&contents);
+                        if let Some(name) = name {
+                            let directory =
+                                relative_path.rsplit_once('/').map_or("", |(dir, _)| dir);
+                            index.conn.execute(
+                                "INSERT INTO cargo_packages (manifest_path, directory, crate_name) VALUES (?1, ?2, ?3)
+                                 ON CONFLICT(manifest_path) DO UPDATE SET directory = excluded.directory, crate_name = excluded.crate_name
+                                 WHERE directory <> excluded.directory OR crate_name <> excluded.crate_name",
+                                params![relative_path, directory, name],
+                            )?;
+                        } else {
+                            index.conn.execute(
+                                "DELETE FROM cargo_packages WHERE manifest_path = ?1",
+                                params![relative_path],
+                            )?;
+                        }
+                    }
                     let deps = manifests::parse_manifest(file_name, &contents);
                     write_manifest_dependencies(index, &relative_path, language, &deps)?;
                 }
@@ -877,7 +921,9 @@ fn has_rows(index: &Index, relative_path: &str) -> Result<bool> {
         "SELECT EXISTS(SELECT 1 FROM files WHERE relative_path = ?1)
              OR EXISTS(SELECT 1 FROM index_issues WHERE relative_path = ?1)
              OR EXISTS(SELECT 1 FROM dependencies WHERE manifest_path = ?1)
-             OR EXISTS(SELECT 1 FROM rockspec_items WHERE manifest_path = ?1)",
+             OR EXISTS(SELECT 1 FROM rockspec_items WHERE manifest_path = ?1)
+             OR EXISTS(SELECT 1 FROM cargo_packages WHERE manifest_path = ?1)
+             OR EXISTS(SELECT 1 FROM ts_configs WHERE manifest_path = ?1)",
         params![relative_path],
         |row| row.get(0),
     )?)
@@ -916,11 +962,13 @@ fn index_noting_created(
     Ok(seen)
 }
 
-const PATH_TABLES: [(&str, &str); 4] = [
+const PATH_TABLES: [(&str, &str); 6] = [
     ("files", "relative_path"),
     ("index_issues", "relative_path"),
     ("dependencies", "manifest_path"),
     ("rockspec_items", "manifest_path"),
+    ("cargo_packages", "manifest_path"),
+    ("ts_configs", "manifest_path"),
 ];
 
 /// The old end of a rename that was reported by its new path only — which
@@ -1040,6 +1088,9 @@ fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
             if table == "files" {
                 removed += deleted;
             }
+            if table == "ts_configs" && deleted > 0 {
+                refresh_extending_tsconfigs(index, path)?;
+            }
         }
     }
     for dir in &old_dirs {
@@ -1107,6 +1158,8 @@ fn remove_under_prefix(
         ("index_issues", "relative_path", &keep),
         ("dependencies", "manifest_path", &keep_manifests),
         ("rockspec_items", "manifest_path", &keep_manifests),
+        ("cargo_packages", "manifest_path", &keep_manifests),
+        ("ts_configs", "manifest_path", &keep_manifests),
     ] {
         let stored: Vec<String> = {
             let mut stmt = tx.prepare(&under_prefix_sql(table, column))?;
@@ -1124,6 +1177,9 @@ fn remove_under_prefix(
             )?;
             if table == "files" {
                 removed += deleted;
+            }
+            if table == "ts_configs" && deleted > 0 {
+                refresh_extending_tsconfigs(index, path)?;
             }
         }
     }
@@ -1284,7 +1340,9 @@ fn remove_missing_manifests(
     // but still has detail rows, and must be swept like any other manifest.
     let mut stmt = tx.prepare(
         "SELECT manifest_path FROM dependencies
-         UNION SELECT manifest_path FROM rockspec_items",
+         UNION SELECT manifest_path FROM rockspec_items
+         UNION SELECT manifest_path FROM cargo_packages
+         UNION SELECT manifest_path FROM ts_configs",
     )?;
     let stored: Vec<String> = stmt
         .query_map([], |row| row.get(0))?
@@ -1302,10 +1360,313 @@ fn remove_missing_manifests(
                 "DELETE FROM rockspec_items WHERE manifest_path = ?1",
                 params![path],
             )?;
+            tx.execute(
+                "DELETE FROM cargo_packages WHERE manifest_path = ?1",
+                params![path],
+            )?;
+            tx.execute(
+                "DELETE FROM ts_configs WHERE manifest_path = ?1",
+                params![path],
+            )?;
         }
     }
 
     Ok(())
+}
+
+fn write_tsconfig(index: &Index, path: &str, bytes: &[u8]) -> Result<()> {
+    let directory = path.rsplit_once('/').map_or("", |(dir, _)| dir);
+    let doc = match serde_json::from_slice::<serde_json::Value>(&jsonc_to_json(bytes)) {
+        Ok(doc) => doc,
+        Err(err) => {
+            // Kept as the nearest config with no aliases, so an unreadable
+            // config never lets an outer one resolve its files, and listed
+            // by `get_indexing_status`.
+            index.conn.execute(
+                "DELETE FROM ts_configs WHERE manifest_path = ?1",
+                params![path],
+            )?;
+            index.conn.execute(
+                "INSERT INTO ts_configs (manifest_path, directory, error) VALUES (?1, ?2, ?3)",
+                params![path, directory, err.to_string()],
+            )?;
+            return refresh_extending_tsconfigs(index, path);
+        }
+    };
+    let mut seen = vec![path.to_string()];
+    let options = tsconfig_options(index.root(), path, &doc, &mut seen);
+    let paths = options.mapped_paths();
+    let parents: Vec<String> = seen.split_off(1);
+    let old: Vec<(String, String)> = index
+        .conn
+        .prepare("SELECT pattern, target FROM ts_paths WHERE manifest_path = ?1 ORDER BY position")?
+        .query_map(params![path], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    let exists: bool = index.conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM ts_configs WHERE manifest_path = ?1 AND error IS NULL)",
+        params![path],
+        |row| row.get(0),
+    )?;
+    let old_parents: Vec<String> = index
+        .conn
+        .prepare("SELECT parent_path FROM ts_config_parents WHERE manifest_path = ?1 ORDER BY parent_path")?
+        .query_map(params![path], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut sorted_parents = parents.clone();
+    sorted_parents.sort();
+    if exists && old == paths && old_parents == sorted_parents {
+        return Ok(());
+    }
+    index.conn.execute(
+        "DELETE FROM ts_configs WHERE manifest_path = ?1",
+        params![path],
+    )?;
+    index.conn.execute(
+        "INSERT INTO ts_configs (manifest_path, directory) VALUES (?1, ?2)",
+        params![path, directory],
+    )?;
+    for (position, (pattern, target)) in paths.iter().enumerate() {
+        index.conn.execute("INSERT INTO ts_paths (manifest_path, position, pattern, target) VALUES (?1, ?2, ?3, ?4)", params![path, position as i64, pattern, target])?;
+    }
+    for parent in &sorted_parents {
+        index.conn.execute(
+            "INSERT OR IGNORE INTO ts_config_parents (manifest_path, parent_path) VALUES (?1, ?2)",
+            params![path, parent],
+        )?;
+    }
+    refresh_extending_tsconfigs(index, path)
+}
+
+/// Re-reads every indexed config that `extends` `path`, so a change to a
+/// base config reaches the configs inheriting its `paths` even when only
+/// the base file changed. A config whose result is unchanged stops the
+/// walk, which also ends an `extends` cycle.
+fn refresh_extending_tsconfigs(index: &Index, path: &str) -> Result<()> {
+    let children: Vec<String> = index
+        .conn
+        .prepare("SELECT manifest_path FROM ts_config_parents WHERE parent_path = ?1 AND manifest_path <> ?1")?
+        .query_map(params![path], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    for child in children {
+        match crate::read_repository_file(&index.root().join(&child)) {
+            Ok(bytes) => write_tsconfig(index, &child, &bytes)?,
+            Err(_) => {
+                index.conn.execute(
+                    "DELETE FROM ts_configs WHERE manifest_path = ?1",
+                    params![child],
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn parse_tsconfig(bytes: &[u8]) -> Option<serde_json::Value> {
+    serde_json::from_slice(&jsonc_to_json(bytes)).ok()
+}
+
+/// The longest `extends` chain followed; TypeScript itself has no limit, but
+/// a deeper chain in one repository is a cycle or generated config.
+const TSCONFIG_EXTENDS_DEPTH: usize = 8;
+
+/// `baseUrl` and `paths` after `extends`, each with the directory that
+/// resolves it: TypeScript resolves both relative to the config that
+/// declares them, and a config's own value replaces an inherited one.
+#[derive(Default)]
+struct TsPathOptions {
+    /// The `baseUrl` directory, repository-relative.
+    base: Option<String>,
+    /// The `paths` object and the directory of the config declaring it.
+    paths: Option<(serde_json::Map<String, serde_json::Value>, String)>,
+}
+
+impl TsPathOptions {
+    /// `(pattern, repository-relative target)` pairs in declaration order.
+    /// Only patterns and targets with exactly one `*` and no absolute
+    /// target are kept; a target climbing above the repository is dropped.
+    fn mapped_paths(&self) -> Vec<(String, String)> {
+        let Some((mapping, owner)) = &self.paths else {
+            return Vec::new();
+        };
+        let base = self.base.as_deref().unwrap_or(owner);
+        let mut out = Vec::new();
+        for (pattern, targets) in mapping {
+            if pattern.matches('*').count() != 1 {
+                continue;
+            }
+            let Some(targets) = targets.as_array() else {
+                continue;
+            };
+            for target in targets.iter().filter_map(serde_json::Value::as_str) {
+                if target.matches('*').count() != 1 || target.starts_with('/') {
+                    continue;
+                }
+                if let Some(target) =
+                    mct_core::resolve_reference_path(&directory_file(base), &format!("./{target}"))
+                {
+                    out.push((pattern.clone(), target));
+                }
+            }
+        }
+        out
+    }
+}
+
+/// A file name inside `directory`, for resolving `./x` against it.
+fn directory_file(directory: &str) -> String {
+    if directory.is_empty() {
+        "tsconfig.json".to_string()
+    } else {
+        format!("{directory}/tsconfig.json")
+    }
+}
+
+/// Reads `baseUrl` and `paths` from `doc` (the config at `path`) and, for
+/// what it does not declare, from its relative `extends` configs in order.
+/// A package `extends` (`@tsconfig/node18`) is skipped: it lives outside
+/// the repository. `seen` breaks cycles.
+fn tsconfig_options(
+    root: &Path,
+    path: &str,
+    doc: &serde_json::Value,
+    seen: &mut Vec<String>,
+) -> TsPathOptions {
+    let directory = path.rsplit_once('/').map_or("", |(dir, _)| dir).to_string();
+    let compiler = &doc["compilerOptions"];
+    let mut options = TsPathOptions {
+        base: compiler["baseUrl"].as_str().and_then(|base| {
+            if base.starts_with('/') {
+                return None;
+            }
+            mct_core::resolve_reference_path(&directory_file(&directory), &format!("./{base}/x"))
+                .map(|file| {
+                    file.rsplit_once('/')
+                        .map_or(String::new(), |(dir, _)| dir.to_string())
+                })
+        }),
+        paths: compiler["paths"]
+            .as_object()
+            .map(|mapping| (mapping.clone(), directory.clone())),
+    };
+    if seen.len() > TSCONFIG_EXTENDS_DEPTH {
+        return options;
+    }
+    let parents: Vec<&str> = match &doc["extends"] {
+        serde_json::Value::String(one) => vec![one.as_str()],
+        serde_json::Value::Array(many) => {
+            many.iter().filter_map(serde_json::Value::as_str).collect()
+        }
+        _ => Vec::new(),
+    };
+    // With several parents, a later one overrides an earlier one, so the
+    // last parent that declares a value wins.
+    for parent in parents.into_iter().rev() {
+        if options.base.is_some() && options.paths.is_some() {
+            break;
+        }
+        if !(parent.starts_with("./") || parent.starts_with("../")) {
+            continue;
+        }
+        let spec = if parent.ends_with(".json") {
+            parent.to_string()
+        } else {
+            format!("{parent}.json")
+        };
+        let Some(parent_path) = mct_core::resolve_reference_path(path, &spec) else {
+            continue;
+        };
+        if seen.contains(&parent_path) {
+            continue;
+        }
+        let Some(parent_doc) = crate::read_repository_file(&root.join(&parent_path))
+            .ok()
+            .and_then(|bytes| parse_tsconfig(&bytes))
+        else {
+            continue;
+        };
+        seen.push(parent_path.clone());
+        let inherited = tsconfig_options(root, &parent_path, &parent_doc, seen);
+        options.base = options.base.or(inherited.base);
+        options.paths = options.paths.or(inherited.paths);
+    }
+    options
+}
+
+/// TypeScript config files allow comments and trailing commas, but strings
+/// must remain byte-for-byte intact (including escaped quotes and URLs).
+fn jsonc_to_json(bytes: &[u8]) -> Vec<u8> {
+    let mut out = bytes.to_vec();
+    let mut i = 0;
+    let mut in_string = false;
+    while i < out.len() {
+        if in_string {
+            if out[i] == b'\\' {
+                i += 2;
+                continue;
+            }
+            if out[i] == b'"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+        if out[i] == b'"' {
+            in_string = true;
+            i += 1;
+            continue;
+        }
+        if out[i] == b'/' && out.get(i + 1) == Some(&b'/') {
+            while i < out.len() && out[i] != b'\n' {
+                out[i] = b' ';
+                i += 1;
+            }
+            continue;
+        }
+        if out[i] == b'/' && out.get(i + 1) == Some(&b'*') {
+            out[i] = b' ';
+            out[i + 1] = b' ';
+            i += 2;
+            while i + 1 < out.len() && !(out[i] == b'*' && out[i + 1] == b'/') {
+                if out[i] != b'\n' {
+                    out[i] = b' ';
+                }
+                i += 1;
+            }
+            if i + 1 >= out.len() {
+                return bytes.to_vec();
+            }
+            out[i] = b' ';
+            out[i + 1] = b' ';
+            i += 2;
+            continue;
+        }
+        i += 1;
+    }
+    in_string = false;
+    i = 0;
+    while i < out.len() {
+        if in_string {
+            if out[i] == b'\\' {
+                i += 2;
+                continue;
+            }
+            if out[i] == b'"' {
+                in_string = false;
+            }
+        } else if out[i] == b'"' {
+            in_string = true;
+        } else if out[i] == b',' {
+            let next = out[i + 1..]
+                .iter()
+                .copied()
+                .find(|byte| !byte.is_ascii_whitespace());
+            if matches!(next, Some(b']' | b'}')) {
+                out[i] = b' ';
+            }
+        }
+        i += 1;
+    }
+    out
 }
 
 fn write_parsed_file(
@@ -1808,8 +2169,26 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         }
     }
 
+    let mut stmt = index.conn.prepare(
+        "SELECT c.manifest_path,
+                (SELECT COUNT(*) FROM ts_paths p WHERE p.manifest_path = c.manifest_path),
+                c.error
+           FROM ts_configs c ORDER BY c.manifest_path",
+    )?;
+    let alias_sources: Vec<AliasSource> = stmt
+        .query_map([], |row| {
+            Ok(AliasSource {
+                manifest_path: row.get(0)?,
+                aliases: row.get::<_, i64>(1)? as usize,
+                error: row.get(2)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+
     Ok(IndexStatus {
         languages,
+        alias_sources,
         total_files: total_files as usize,
         total_symbols: total_symbols as usize,
         last_indexed_at: last_indexed_at.and_then(|v| v.parse().ok()),
