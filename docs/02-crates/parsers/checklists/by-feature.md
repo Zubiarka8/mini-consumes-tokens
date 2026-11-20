@@ -51,9 +51,9 @@ Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 7
 
 - [x] Rust: nested function is indexed with the enclosing function as `parent`
 - [~] Python: file skeleton shows `nested` indented, but the parser test confirms `parent` is `None`
-- [~] JS/TS: `fetch`, `axios.<method>`, `$.ajax`/`$.get`/`$.post`, `xhr.open("GET", "/x")` and Express routes; other frameworks are not read
+- [~] JS/TS: nested function is indexed, but parser test confirms `parent` is `None`
 - — Java: no nested named functions
-- [~] Kotlin: Spring mappings with the class prefix; Retrofit `@GET("/x")` is a use (a path without a leading slash is skipped); Ktor `get("/x") { }` has no named handler
+- [~] Kotlin: local `inner` function is indexed without a parent association
 - [~] C#: local function → `function`, parent not checked
 - — C++: C++ has no nested named functions
 - — Go: Go has no nested function
@@ -536,7 +536,7 @@ Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 - — Rust: Rust has no anonymous class
 - — Python: Python has no anonymous class
 - [~] JS/TS: class expression: methods have no parent
-- [~] Java: Spring `@GetMapping` family and `@RequestMapping` (class prefix); JAX-RS `@GET` with `@Path`; Retrofit `@GET("/x")` (a use; a path without a leading slash is skipped); MockMvc `get("/x")`
+- [~] Java: method inside a method → enclosing class; field initializer → no symbol
 - [~] Kotlin: `object : P_Abs()` gives no class; its function has no parent
 - [ ] C#: anonymous type `new { X = 1 }` has no symbol
 - — C++: C++ has no anonymous class
