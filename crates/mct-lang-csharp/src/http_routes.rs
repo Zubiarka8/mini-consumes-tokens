@@ -4,7 +4,7 @@
 //! case-insensitive in ASP.NET; matching here is exact, so a differently
 //! cased client path gives no link. A `[controller]` token gives none either.
 
-use mct_core::{JoinPoint, Location, SymbolId, SymbolKind, SymbolRecord};
+use mct_core::{JoinPoint, SymbolId, SymbolKind};
 use mct_tree_sitter::location;
 use tree_sitter::Node;
 
@@ -147,13 +147,7 @@ pub(super) fn declarations(method: Node, source: &str, symbol: SymbolId) -> Vec<
     points
 }
 
-/// A minimal-API route whose handler is still a name, resolved by [`resolve`].
-pub(super) struct Route {
-    method: &'static str,
-    path: String,
-    handler: String,
-    location: Location,
-}
+pub(super) use mct_core::NamedRoute as Route;
 
 fn arguments(call: Node) -> Vec<Node> {
     let Some(list) = call.child_by_field_name("arguments") else {
@@ -178,7 +172,7 @@ pub(super) fn route_of(call: Node, function: Node, source: &str) -> Option<Route
     };
     (handler.kind() == "identifier").then_some(())?;
     Some(Route {
-        method,
+        method: method.to_string(),
         path: literal(*path, source)?.to_string(),
         handler: text(*handler, source).to_string(),
         location: location(call),
@@ -210,15 +204,9 @@ pub(super) fn use_of(
 /// function of this file.
 pub(super) fn resolve(
     routes: Vec<Route>,
-    symbols: &[SymbolRecord],
+    symbols: &[mct_core::SymbolRecord],
 ) -> impl Iterator<Item = JoinPoint> + '_ {
-    routes.into_iter().filter_map(move |route| {
-        let mut handlers = symbols.iter().filter(|s| {
-            s.name == route.handler && matches!(s.kind, SymbolKind::Method | SymbolKind::Function)
-        });
-        let (Some(handler), None) = (handlers.next(), handlers.next()) else {
-            return None;
-        };
-        JoinPoint::http_declares(handler.id, route.method, &route.path, route.location)
+    mct_core::resolve_routes(routes, symbols, |s| {
+        matches!(s.kind, SymbolKind::Method | SymbolKind::Function)
     })
 }
