@@ -1,5 +1,6 @@
 //! HTTP route declarations: Actix Web method attributes, which attach
 //! directly to their handler, and axum `.route("/path", get(handler))` calls.
+//! A `reqwest` or `ureq` request to a literal URL on this machine uses one.
 
 use mct_core::{http_endpoint, JoinKind, JoinPoint, JoinRole, SymbolId};
 use mct_tree_sitter::location;
@@ -37,6 +38,32 @@ fn string_contents<'a>(literal: Node, source: &'a str) -> Option<&'a str> {
         }
         _ => None,
     }
+}
+
+/// A `client.get("http://localhost:3000/x")` or `reqwest::get(..)` call. Only
+/// an absolute URL counts: a bare `"/x"` is also what `map.get("/x")` takes.
+pub(super) fn use_of(call: Node, owner: SymbolId, source: &str) -> Option<JoinPoint> {
+    let function = call.child_by_field_name("function")?;
+    let name = match function.kind() {
+        "field_expression" => function.child_by_field_name("field")?,
+        "scoped_identifier" => {
+            let client = text(function.child_by_field_name("path")?, source);
+            if !matches!(client, "reqwest" | "ureq") {
+                return None;
+            }
+            function.child_by_field_name("name")?
+        }
+        _ => return None,
+    };
+    let method = method(text(name, source))?;
+    let arguments = call.child_by_field_name("arguments")?;
+    let mut cursor = arguments.walk();
+    let mut args = arguments.named_children(&mut cursor);
+    let (Some(url), None) = (args.next(), args.next()) else {
+        return None;
+    };
+    let url = string_contents(url, source).filter(|url| url.starts_with("http"))?;
+    JoinPoint::http_uses(owner, method, url, location(call))
 }
 
 pub(super) fn declaration(item: Node, source: &str, symbol: SymbolId) -> Option<JoinPoint> {
