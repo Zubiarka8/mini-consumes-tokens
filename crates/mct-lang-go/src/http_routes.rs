@@ -78,19 +78,29 @@ pub(super) fn route_of(call: Node, function: Node, source: &str) -> Option<Route
     })
 }
 
-/// `httptest.NewRequest("GET", "/x", nil)` or `http.NewRequest(http.MethodGet, "/x", nil)`.
+/// `http.Get("http://localhost/x")`, `httptest.NewRequest("GET", "/x", nil)` or `http.NewRequest(http.MethodGet, "/x", nil)`.
 pub(super) fn use_of(
     call: Node,
     function: Node,
     owner: SymbolId,
     source: &str,
 ) -> Option<JoinPoint> {
-    if function.kind() != "selector_expression"
-        || text(function.child_by_field_name("field")?, source) != "NewRequest"
-    {
+    if function.kind() != "selector_expression" {
         return None;
     }
+    let field = text(function.child_by_field_name("field")?, source);
     let args = arguments(call);
+    if matches!(field, "Get" | "Post" | "Head")
+        && text(function.child_by_field_name("operand")?, source) == "http"
+    {
+        // `http.Get(url)`: only an absolute URL, as a bare string could be
+        // anything.
+        let url = string_contents(*args.first()?, source).filter(|url| url.starts_with("http"))?;
+        return JoinPoint::http_uses(owner, &field.to_ascii_uppercase(), url, location(call));
+    }
+    if field != "NewRequest" {
+        return None;
+    }
     let (method, path) = (args.first()?, args.get(1)?);
     let method = match method.kind() {
         "selector_expression" => {
