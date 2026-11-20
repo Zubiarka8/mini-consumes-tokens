@@ -352,8 +352,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // (issue #566) and 21 stores their location and marks the relations
     // made from matching points (issue #561), 22 drops non-type candidates
     // of C# and C++ supertype relations (issue #388), 23 scopes a nested
-    // function's candidates to its own file (issue #376).
-    assert_eq!(before, 23);
+    // function's candidates to its own file (issue #376), 24 stores
+    // `top_level` and keeps type members from bare JS/TS names (issue #395).
+    assert_eq!(before, 24);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
