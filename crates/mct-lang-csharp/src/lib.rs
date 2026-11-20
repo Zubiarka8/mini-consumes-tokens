@@ -126,6 +126,7 @@ struct Walker<'a> {
     join_points: Vec<mct_core::JoinPoint>,
     routes: Vec<http_routes::Route>,
     web: bool,
+    refit: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -148,6 +149,7 @@ impl<'a> Walker<'a> {
             join_points: Vec::new(),
             routes: Vec::new(),
             web: http_routes::mentions_web(source),
+            refit: http_routes::mentions_refit(source),
         }
     }
 
@@ -331,6 +333,10 @@ impl<'a> Walker<'a> {
                 if self.web && node.kind() == "method_declaration" {
                     self.join_points
                         .extend(http_routes::declarations(node, self.source, id));
+                }
+                if self.refit && node.kind() == "method_declaration" {
+                    self.join_points
+                        .extend(http_routes::refit_use(node, self.source, id));
                 }
                 if node.kind() == "method_declaration" && has_override_modifier(node, self.source) {
                     if let Some(name_node) = node.child_by_field_name("name") {

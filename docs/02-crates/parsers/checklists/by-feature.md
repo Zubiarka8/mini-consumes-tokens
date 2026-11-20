@@ -1050,7 +1050,7 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 - [~] JS/TS: `fetch`, `axios.<method>`, `$.ajax`/`$.get`/`$.post`, `xhr.open("GET", "/x")` and Express routes; other frameworks are not read
 - [~] Java: Spring `@GetMapping` family and `@RequestMapping` (class prefix); JAX-RS `@GET` with `@Path`; Retrofit `@GET("/x")` (a use; a path without a leading slash is skipped); MockMvc `get("/x")`
 - [~] Kotlin: Spring mappings with the class prefix; Retrofit `@GET("/x")` is a use (a path without a leading slash is skipped); Ktor `get("/x") { }` has no named handler
-- [~] C#: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`; `[controller]` tokens skipped
+- [~] C#: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`, Refit `[Get("/x")]` (a path without a leading slash is skipped); `[controller]` tokens skipped
 - [~] C++: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow and Drogon not read
 - [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
 - [~] PHP: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
