@@ -129,8 +129,8 @@ const brief = ({ task, context, information, files, code, validations, verdicts,
   ].join("\n");
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-const reviewLine = (item) =>
-  `- Review state: ${item.state}${item.note ? ` — reviewer's note: ${item.note}` : ""}`;
+const reviewLine = (item, prefix = "") =>
+  `- ${prefix}Review state: ${item.state}${item.previousState && item.previousState !== item.state ? ` — Previous decision: ${item.previousState}` : ""}${item.note ? ` — reviewer's note: ${item.note}` : ""}`;
 
 const DUPLICATE_VALIDATIONS = [
   "Open every file in section 3 and confirm each range still holds the code in section 4.",
@@ -253,6 +253,7 @@ export function symbolBrief(s, data, kind, only) {
           (group) =>
             `- Duplicate group ${group.key}: ${group.verdict}, ${group.lines} lines, ${copies(group)} other copies`,
         ),
+        ...groups.filter((group) => group.state).map((group) => reviewLine(group, `Group ${group.key}: `)),
       ],
       files: [
         `- ${where} — this symbol`,
@@ -274,7 +275,7 @@ export function symbolBrief(s, data, kind, only) {
       "A local code index (mct) found no reference to this symbol by name anywhere in the indexed project.",
       "That misses dynamic, reflective and outside uses, so it must be checked before anything is deleted.",
     ],
-    information: [...symbolLines, data.dead && `- Dead-code candidate: key ${data.dead.key}`],
+    information: [...symbolLines, data.dead && `- Dead-code candidate: key ${data.dead.key}`, data.dead?.state && reviewLine(data.dead)],
     files: [`- ${where} — the candidate`],
     code,
     validations: DEAD_VALIDATIONS,

@@ -8,6 +8,21 @@ const SECTIONS = ['# Task:', '## 1. Context', '## 2. Information', '## 3. Paths 
 const ai = async () => harness({ hash: '#/duplicados' }).load('ai.js');
 const inOrder = (text) => SECTIONS.map(heading => text.indexOf(heading)).every((at, i, all) => at >= 0 && (i === 0 || at > all[i - 1]));
 
+test('all AI briefs include saved review decisions and notes when reevaluation is needed', async () => {
+  const { duplicateBrief, deadBrief, symbolBrief } = await ai();
+  const review = { state: 'needs-reevaluation', previousState: 'false-positive', note: 'Used by the plugin' };
+  const s = { id: 1, name: 'alpha', path: 'src/a.rs', line: 1, endLine: 3, kind: 'function', language: 'rust', refs: 0 };
+  const duplicate = { ...finding, ...review };
+  const dead = { key: 'dead-test', title: 'alpha', kind: 'function', ...review,
+    visibility: 'public', area: 'src', confidence: 'low', detail: { symbol: s } };
+  for (const text of [duplicateBrief(duplicate), deadBrief(dead),
+    symbolBrief(s, { duplicates: [duplicate] }, 'duplicate'), symbolBrief(s, { dead }, 'dead')]) {
+    assert.match(text, /Review state: needs-reevaluation/);
+    assert.match(text, /Previous decision: false-positive/);
+    assert.match(text, /reviewer's note: Used by the plugin/);
+  }
+});
+
 test('a duplicate brief carries every section, its paths, the differences and the report to write', async () => {
   const { duplicateBrief } = await ai();
   const item = {

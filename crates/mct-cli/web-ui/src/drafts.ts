@@ -3,6 +3,8 @@ export interface Draft {
   /** The chosen decision, `reopen`, or "" for none. */
   target: string;
   note: string;
+  /** Revision last seen before the draft was edited or a conflict was shown. */
+  revision: string;
 }
 
 /**
