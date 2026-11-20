@@ -126,3 +126,31 @@ fn a_relative_link_resolves_against_the_base_href() {
     .unwrap();
     assert!(root.external, "an absolute link ignores the base");
 }
+
+/// Issue #567: a link that climbs above the repository root names a file
+/// outside it. It is `external`, with no path stored, not merely unresolved.
+#[test]
+fn a_link_leaving_the_repository_is_external_with_no_path() {
+    let spec = "../../other-repo/x.css";
+    let outside = evidence_in(
+        "web/index.html",
+        &format!(r#"<link rel="stylesheet" href="{spec}">"#),
+        spec,
+    )
+    .unwrap();
+    assert!(outside.external);
+    assert_eq!(outside.path, None);
+    assert!(evidence_in(
+        "web/index.html",
+        &format!(r#"<link rel="stylesheet" href="{spec}">"#),
+        "x"
+    )
+    .is_none());
+    // One level up from `web/` is still the repository root.
+    assert!(evidence_in(
+        "web/index.html",
+        r#"<link rel="stylesheet" href="../x.css">"#,
+        "../x.css"
+    )
+    .is_none());
+}
