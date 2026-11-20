@@ -350,8 +350,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // inherited-member candidates (issue #479) and 19 is the inline-module
     // type-method candidate (issue #478), 20 is ADR-038's `join_points`
     // (issue #566) and 21 stores their location and marks the relations
-    // made from matching points (issue #561).
-    assert_eq!(before, 21);
+    // made from matching points (issue #561), 22 drops non-type candidates
+    // of C# and C++ supertype relations (issue #388).
+    assert_eq!(before, 22);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
