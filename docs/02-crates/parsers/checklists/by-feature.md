@@ -1045,7 +1045,7 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 
 ### RE10 Cross-language HTTP link
 
-- [~] Rust: axum and Actix Web routes are declarations; no client call (reqwest, ureq) is a use yet
+- [~] Rust: axum and Actix Web routes are declarations; `reqwest`/`ureq` calls with an absolute URL to this machine are uses
 - [~] Python: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client` calls with a literal path
 - [~] JS/TS: `fetch`, `axios.<method>` and Express routes; `$.ajax`, `XMLHttpRequest` and other frameworks are not read
 - [~] Java: Spring `@GetMapping` family and `@RequestMapping` (class prefix); MockMvc `get("/x")`; no JAX-RS or client

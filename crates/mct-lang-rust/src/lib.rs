@@ -145,6 +145,8 @@ struct Walker<'a> {
     routes: Vec<http_routes::Route>,
     /// The file mentions axum: the only evidence a `.route(..)` call is its.
     mentions_axum: bool,
+    /// The file names a Rust HTTP client, the evidence for a request use.
+    mentions_http_client: bool,
     /// Each `implements` relation of an `impl Tr for T`, with `T`'s base
     /// name: `finish` makes `T` its owner when this file declares it.
     impl_relations: Vec<(usize, String)>,
@@ -174,6 +176,7 @@ impl<'a> Walker<'a> {
             join_points: Vec::new(),
             routes: Vec::new(),
             mentions_axum: source.contains("axum"),
+            mentions_http_client: source.contains("reqwest") || source.contains("ureq"),
             impl_relations: Vec::new(),
         }
     }
@@ -845,6 +848,10 @@ impl<'a> Walker<'a> {
                 if self.mentions_axum {
                     self.routes
                         .extend(http_routes::axum_routes(node, self.source));
+                }
+                if self.mentions_http_client {
+                    self.join_points
+                        .extend(http_routes::use_of(node, owner, self.source));
                 }
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some((name, name_node)) = call_target(function, self.source) {

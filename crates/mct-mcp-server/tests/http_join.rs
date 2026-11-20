@@ -513,3 +513,33 @@ fn lapis_and_httplib_routes_are_declared() {
     assert_eq!(only(&project.callers("list_orders")).from_symbol, "probe");
     assert_eq!(only(&project.callers("show_order")).from_symbol, "a");
 }
+
+#[test]
+fn reqwest_requests_to_this_machine_use_an_endpoint() {
+    let project = Project::new(&[
+        (
+            "server/main.rs",
+            "use axum::{routing::get, Router};\nasync fn health() {}\n\
+             fn app() -> Router { Router::new().route(\"/api/health\", get(health)) }\n",
+        ),
+        (
+            "client/main.rs",
+            "async fn ping(client: &reqwest::Client) {\n\
+             \x20   client.get(\"http://localhost:3000/api/health\").send().await;\n\
+             \x20   let _ = reqwest::get(\"https://example.com/api/health\").await;\n\
+             \x20   let _ = reqwest::get(\"/api/health\").await;\n}\n\
+             async fn direct() { reqwest::get(\"http://127.0.0.1/api/health\").await; }\n",
+        ),
+        (
+            "other/lookup.rs",
+            "fn f(map: &std::collections::HashMap<String, u8>) { map.get(\"/api/health\"); }\n",
+        ),
+    ]);
+    let mut from: Vec<_> = project
+        .callers("health")
+        .iter()
+        .map(|h| h.from_symbol.clone())
+        .collect();
+    from.sort_unstable();
+    assert_eq!(from, ["direct", "ping"]);
+}
