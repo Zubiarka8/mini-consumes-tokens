@@ -3249,6 +3249,25 @@ impl MctServer {
 // request and serves their fallback descriptions (issue #70).
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for MctServer {
+    async fn list_prompts(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ListPromptsResult, McpError> {
+        Ok(rmcp::model::ListPromptsResult {
+            prompts: crate::prompts::list(),
+            ..rmcp::model::ListPromptsResult::default()
+        })
+    }
+
+    async fn get_prompt(
+        &self,
+        request: rmcp::model::GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::GetPromptResponse, McpError> {
+        crate::prompts::get(&request).map(Into::into)
+    }
+
     async fn list_tools(
         &self,
         _request: Option<rmcp::model::PaginatedRequestParams>,
@@ -3286,7 +3305,9 @@ impl ServerHandler for MctServer {
     }
 
     fn get_info(&self) -> InitializeResult {
-        let tools = ServerCapabilities::builder().enable_tools();
+        let tools = ServerCapabilities::builder()
+            .enable_tools()
+            .enable_prompts();
         let (capabilities, attention) = if self.attention.is_some() {
             (
                 tools.enable_tool_list_changed().build(),
