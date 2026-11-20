@@ -899,6 +899,24 @@ pub fn migrations() -> Migrations<'static> {
             UPDATE files SET content_hash = '';
             "#,
         ),
+        // Matching join points across files (issue #561, ADR-038): a use
+        // keeps where it is written, so the relation made from it points at
+        // the exact line, and a relation made by that pass is marked with
+        // its join kind so the next run can replace it. Every file is
+        // reparsed so parsers that now extract uses and axum or Express
+        // routes can record them.
+        M::up(
+            r#"
+            ALTER TABLE join_points ADD COLUMN line INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE join_points ADD COLUMN column INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE join_points ADD COLUMN byte_len INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE relations ADD COLUMN join_kind TEXT;
+            CREATE INDEX idx_join_points_match ON join_points(kind, value, role);
+            CREATE INDEX idx_relations_join ON relations(join_kind) WHERE join_kind IS NOT NULL;
+
+            UPDATE files SET content_hash = '';
+            "#,
+        ),
     ])
 }
 

@@ -106,6 +106,13 @@ When declarations exist in scope, both formats report
 to the output budget. Candidate pagination applies only to candidates.
 See [ADR-038](adrs/038-declared-join-points.md).
 
+A literal HTTP endpoint that JS/TS code uses (`fetch`, `axios`) and that an
+axum, Actix Web or Express route declares is also a `calls` relation from the
+user to the handler. It appears in `find_callers`, `find_calls`,
+`find_references` and `impact_analysis` like any other `calls` hit, with no
+new parameter or field. Several declarers of one endpoint give `ambiguous`
+hits and no target.
+
 ### Source revision verification
 
 MCP source consumers compare the bytes read with the indexed Git blob hash

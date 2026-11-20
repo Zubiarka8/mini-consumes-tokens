@@ -355,6 +355,8 @@ fn an_index_from_before_the_table_gains_it_and_reparses_on_a_normal_reindex() {
          DROP TABLE symbol_parameters;
          DROP TABLE symbol_details;
          DROP TABLE join_points;
+         DROP INDEX idx_relations_join;
+         ALTER TABLE relations DROP COLUMN join_kind;
          DROP VIEW relation_candidates;
          ALTER TABLE relations DROP COLUMN not_field;
          CREATE VIEW relation_candidates AS SELECT NULL AS relation_id, NULL AS symbol_id;",

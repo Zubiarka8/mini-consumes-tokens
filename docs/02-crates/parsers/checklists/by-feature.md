@@ -1043,6 +1043,30 @@ Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 
 Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 
+### RE10 Cross-language HTTP link
+
+- [~] Rust: axum and Actix Web routes are declarations; no client call (reqwest, ureq) is a use yet
+- [ ] Python: no route declaration or client call is read yet
+- [~] JS/TS: `fetch`, `axios.<method>` and Express routes; `$.ajax`, `XMLHttpRequest` and other frameworks are not read
+- [ ] Java: no route declaration or client call is read yet
+- [ ] Kotlin: no route declaration or client call is read yet
+- [ ] C#: no route declaration or client call is read yet
+- [ ] C++: no route declaration or client call is read yet
+- [ ] Go: no route declaration or client call is read yet
+- [ ] PHP: no route declaration or client call is read yet
+- [ ] Lua: no route declaration or client call is read yet
+- [ ] Bash: no route declaration or client call is read yet
+- [ ] PowerShell: no route declaration or client call is read yet
+- — HTML: HTML is markup; it has no cross-language HTTP link
+- — CSS: CSS is markup; it has no cross-language HTTP link
+- — XML: XML is markup; it has no cross-language HTTP link
+- — XAML: XAML is markup; it has no cross-language HTTP link
+- — Markdown: Markdown is markup; it has no cross-language HTTP link
+
+*Done when:* A literal HTTP endpoint that one side declares (a server route) and another side uses (a client call) gives a `calls` relation from the user to the handler (ADR-038).
+
+Done 0 · Partial 2 · Not done 10 · Not verified 0 · Not applicable 5
+
 ## Search and lookup
 
 What the search and query tools return for a language, checked end to end through the MCP tools. A mark here depends on the symbols and relations above being in place.

@@ -141,6 +141,10 @@ struct Walker<'a> {
     /// Declaration details of the items recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
     join_points: Vec<mct_core::JoinPoint>,
+    /// axum routes waiting for their handler's symbol (see `http_routes`).
+    routes: Vec<http_routes::Route>,
+    /// The file mentions axum: the only evidence a `.route(..)` call is its.
+    mentions_axum: bool,
     /// Each `implements` relation of an `impl Tr for T`, with `T`'s base
     /// name: `finish` makes `T` its owner when this file declares it.
     impl_relations: Vec<(usize, String)>,
@@ -168,6 +172,8 @@ impl<'a> Walker<'a> {
             receivers: HashMap::new(),
             details: Vec::new(),
             join_points: Vec::new(),
+            routes: Vec::new(),
+            mentions_axum: source.contains("axum"),
             impl_relations: Vec::new(),
         }
     }
@@ -836,6 +842,10 @@ impl<'a> Walker<'a> {
                 }
             }
             "call_expression" => {
+                if self.mentions_axum {
+                    self.routes
+                        .extend(http_routes::axum_routes(node, self.source));
+                }
                 if let Some(function) = node.child_by_field_name("function") {
                     if let Some((name, name_node)) = call_target(function, self.source) {
                         let aliased = (function.kind() == "identifier")
@@ -1547,6 +1557,8 @@ impl<'a> Walker<'a> {
                 }
             }
         }
+        self.join_points
+            .extend(http_routes::resolve(self.routes, &self.symbols));
         ParsedFile {
             symbols: self.symbols,
             relations: self.relations,
