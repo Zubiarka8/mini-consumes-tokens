@@ -19,7 +19,9 @@ pub use detail::{
     MAX_DEFAULT_BYTES, MAX_SIGNATURE_BYTES, MAX_TYPE_BYTES,
 };
 pub use error::ParseError;
-pub use join_point::{http_endpoint, http_use_endpoint, JoinKind, JoinPoint, JoinRole};
+pub use join_point::{
+    http_endpoint, http_use_endpoint, resolve_routes, JoinKind, JoinPoint, JoinRole, NamedRoute,
+};
 pub use literal::{
     prose_literal, LiteralCollector, StringLiteral, MAX_LITERALS_PER_FILE, MAX_LITERAL_CHARS,
     MIN_LITERAL_CHARS,

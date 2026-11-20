@@ -1,20 +1,13 @@
 //! HTTP route declarations: Actix Web method attributes, which attach
 //! directly to their handler, and axum `.route("/path", get(handler))` calls.
 
-use mct_core::{http_endpoint, JoinKind, JoinPoint, JoinRole, Location, SymbolId};
+use mct_core::{http_endpoint, JoinKind, JoinPoint, JoinRole, SymbolId};
 use mct_tree_sitter::location;
 use tree_sitter::Node;
 
 use super::text;
 
-/// An axum route whose handler is still a name: [`resolve`] turns it into a
-/// join point once the file's symbols are known.
-pub(super) struct Route {
-    method: &'static str,
-    path: String,
-    handler: String,
-    location: Location,
-}
+pub(super) use mct_core::NamedRoute as Route;
 
 fn method(name: &str) -> Option<&'static str> {
     Some(match name {
@@ -117,7 +110,7 @@ pub(super) fn axum_routes(call: Node, source: &str) -> Vec<Route> {
         if let Some(method) = method(name) {
             if let Some(handler) = sole_identifier(call, source) {
                 routes.push(Route {
-                    method,
+                    method: method.to_string(),
                     path: path.to_string(),
                     handler: handler.to_string(),
                     location,
@@ -140,26 +133,12 @@ fn sole_identifier<'a>(call: Node, source: &'a str) -> Option<&'a str> {
 }
 
 /// Join points for the routes whose handler is exactly one free function of
-/// this file. A handler imported from elsewhere, or defined twice, is skipped.
+/// this file.
 pub(super) fn resolve(
     routes: Vec<Route>,
     symbols: &[mct_core::SymbolRecord],
 ) -> impl Iterator<Item = JoinPoint> + '_ {
-    routes.into_iter().filter_map(move |route| {
-        let mut handlers = symbols.iter().filter(|s| {
-            s.name == route.handler
-                && s.parent.is_none()
-                && s.kind == mct_core::SymbolKind::Function
-        });
-        let (Some(handler), None) = (handlers.next(), handlers.next()) else {
-            return None;
-        };
-        Some(JoinPoint {
-            symbol: handler.id,
-            kind: JoinKind::HttpEndpoint,
-            value: http_endpoint(route.method, &route.path)?,
-            role: JoinRole::Declares,
-            location: route.location,
-        })
+    mct_core::resolve_routes(routes, symbols, |s| {
+        s.parent.is_none() && s.kind == mct_core::SymbolKind::Function
     })
 }

@@ -2,23 +2,13 @@
 //! use an endpoint, and an Express `app.get("/path", handler)` declares one.
 //! A path that is built at run time gives nothing.
 
-use mct_core::{
-    http_endpoint, http_use_endpoint, JoinKind, JoinPoint, JoinRole, Location, SymbolId,
-    SymbolKind, SymbolRecord,
-};
+use mct_core::{http_use_endpoint, JoinKind, JoinPoint, JoinRole, SymbolId, SymbolKind};
 use mct_tree_sitter::location;
 use tree_sitter::Node;
 
 use super::text;
 
-/// An Express route whose handler is still a name, resolved by [`resolve`]
-/// once the file's symbols are known.
-pub(super) struct Route {
-    method: &'static str,
-    path: String,
-    handler: String,
-    location: Location,
-}
+pub(super) use mct_core::NamedRoute as Route;
 
 const METHODS: [(&str, &str); 7] = [
     ("get", "GET"),
@@ -160,7 +150,7 @@ pub(super) fn route_of(call: Node, function: Node, source: &str) -> Option<Route
     };
     (handler.kind() == "identifier").then_some(())?;
     Some(Route {
-        method,
+        method: method.to_string(),
         path: literal_path(*path, source)?,
         handler: text(*handler, source).to_string(),
         location: location(call),
@@ -168,24 +158,12 @@ pub(super) fn route_of(call: Node, function: Node, source: &str) -> Option<Route
 }
 
 /// Join points for the routes whose handler is exactly one function of this
-/// file. A handler imported from elsewhere, or defined twice, is skipped.
+/// file.
 pub(super) fn resolve(
     routes: Vec<Route>,
-    symbols: &[SymbolRecord],
+    symbols: &[mct_core::SymbolRecord],
 ) -> impl Iterator<Item = JoinPoint> + '_ {
-    routes.into_iter().filter_map(move |route| {
-        let mut handlers = symbols.iter().filter(|s| {
-            s.name == route.handler && s.parent.is_none() && s.kind == SymbolKind::Function
-        });
-        let (Some(handler), None) = (handlers.next(), handlers.next()) else {
-            return None;
-        };
-        Some(JoinPoint {
-            symbol: handler.id,
-            kind: JoinKind::HttpEndpoint,
-            value: http_endpoint(route.method, &route.path)?,
-            role: JoinRole::Declares,
-            location: route.location,
-        })
+    mct_core::resolve_routes(routes, symbols, |s| {
+        s.parent.is_none() && s.kind == SymbolKind::Function
     })
 }
