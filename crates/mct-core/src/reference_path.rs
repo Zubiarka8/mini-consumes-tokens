@@ -55,9 +55,48 @@ pub fn resolve_reference_path(from_file: &str, spec: &str) -> Option<String> {
     (!resolved.is_empty()).then_some(resolved)
 }
 
+/// [`resolve_reference_path`] for a spec that is a URL reference (an HTML
+/// `href`/`src`, a CSS `@import`, a JS/TS module specifier, a XAML `Source`):
+/// as a browser or bundler reads it, `\` is a path separator and `%XX`
+/// escapes are decoded once, before the shared rules run. A shell `source`,
+/// a C/PHP `include` or a PowerShell path is not a URL and keeps the strict
+/// rules: there `\` and `%` are literal file-name characters or escapes of
+/// that language.
+pub fn resolve_url_reference_path(from_file: &str, spec: &str) -> Option<String> {
+    let spec = spec.split(['?', '#']).next().unwrap_or_default();
+    resolve_reference_path(from_file, &percent_decode(&spec.replace('\\', "/")))
+}
+
+/// Decodes each `%XX` (two hex digits) once; any other `%` is kept, and a
+/// sequence that decodes to invalid UTF-8 leaves the spec as written.
+fn percent_decode(spec: &str) -> String {
+    let bytes = spec.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = |b: u8| (b as char).to_digit(16);
+        match (
+            bytes[i],
+            bytes.get(i + 1).copied().and_then(hex),
+            bytes.get(i + 2).copied().and_then(hex),
+        ) {
+            (b'%', Some(hi), Some(lo)) => {
+                out.push((hi * 16 + lo) as u8);
+                i += 3;
+            }
+            (b, _, _) => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).unwrap_or_else(|_| spec.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::resolve_reference_path as r;
+    use super::resolve_url_reference_path as url;
 
     #[test]
     fn relative_paths_resolve_from_the_file_directory() {
@@ -151,5 +190,49 @@ mod tests {
         ] {
             assert_eq!(r("src/x.tsx", spec), None, "{spec}");
         }
+    }
+
+    #[test]
+    fn a_url_is_percent_decoded_once() {
+        assert_eq!(
+            url("site/index.html", "./my%20file.css").as_deref(),
+            Some("site/my file.css")
+        );
+        // Decoded once: `%2520` is a literal `%20` in the file name.
+        assert_eq!(
+            url("site/index.html", "./a%2520b.css").as_deref(),
+            Some("site/a%20b.css")
+        );
+        // A `%` with no two hex digits after it is kept as written.
+        assert_eq!(
+            url("site/index.html", "./100%.css").as_deref(),
+            Some("site/100%.css")
+        );
+        // An encoded separator or parent segment never climbs out.
+        assert_eq!(url("index.html", "./%2E%2E/a.css"), None);
+        assert_eq!(url("index.html", "..%2Fa.css"), None);
+    }
+
+    #[test]
+    fn a_url_backslash_is_a_separator() {
+        assert_eq!(
+            url("site/pages/index.html", "..\\css\\site.css").as_deref(),
+            Some("site/css/site.css")
+        );
+        assert_eq!(
+            url("site/index.html", ".\\app.js").as_deref(),
+            Some("site/app.js")
+        );
+        assert_eq!(url("site/index.html", "C:\\a.css"), None);
+        assert_eq!(url("site/index.html", "\\\\host\\a.css"), None);
+    }
+
+    #[test]
+    fn a_plain_path_is_neither_decoded_nor_normalized() {
+        assert_eq!(
+            r("lib/run.sh", "./my%20file.sh").as_deref(),
+            Some("lib/my%20file.sh")
+        );
+        assert_eq!(r("lib/run.sh", ".\\x.sh"), None);
     }
 }
