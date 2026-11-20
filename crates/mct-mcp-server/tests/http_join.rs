@@ -617,3 +617,25 @@ fn kotlin_retrofit_functions_use_an_endpoint() {
     ]);
     assert_eq!(only(&project.callers("list")).from_symbol, "all");
 }
+
+#[test]
+fn html_forms_use_an_endpoint() {
+    let project = Project::new(&[
+        (
+            "server/app.py",
+            "from flask import Flask\napp = Flask(__name__)\n\
+             @app.post('/api/orders')\ndef create():\n    pass\n\
+             @app.get('/api/search')\ndef search():\n    pass\n",
+        ),
+        (
+            "web/index.html",
+            "<html><body>\n<form id=\"order\" action=\"/api/orders\" method=\"POST\"></form>\n\
+             <form id=\"find\" action=\"/api/search\"></form>\n\
+             <form id=\"dialog\" action=\"/api/orders\" method=\"dialog\"></form>\n\
+             <form id=\"other\" action=\"https://example.com/api/search\"></form>\n\
+             </body></html>\n",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("create")).from_symbol, "order");
+    assert_eq!(only(&project.callers("search")).from_symbol, "find");
+}

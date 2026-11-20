@@ -112,6 +112,7 @@ struct Walker<'a> {
     /// This file's repository-relative path, the base of relative links.
     path: &'a str,
     next_id: SymbolId,
+    join_points: Vec<mct_core::JoinPoint>,
 }
 
 impl<'a> Walker<'a> {
@@ -262,6 +263,11 @@ impl<'a> Walker<'a> {
             }
         }
 
+        if tag_name.eq_ignore_ascii_case("form") {
+            self.join_points
+                .extend(form_use(new_owner, attr("action"), attr("method")));
+        }
+
         if tag_name.eq_ignore_ascii_case("link")
             && attr("rel").is_some_and(|(r, _)| r.eq_ignore_ascii_case("stylesheet"))
         {
@@ -282,6 +288,7 @@ impl<'a> Walker<'a> {
             symbols: self.symbols,
             relations: self.relations,
             relation_targets: self.relation_targets,
+            join_points: self.join_points,
             ..Default::default()
         }
     }
@@ -341,6 +348,22 @@ fn asset_module(spec: &str) -> Option<(String, &'static str)> {
 
 /// An event handler content attribute: `on` and an event name (`onclick`,
 /// `onsubmit`). Attribute names arrive lowercased.
+/// A `<form action="/x" method="post">` uses that HTTP endpoint (ADR-038).
+/// Without `method` a form is a `GET`; `dialog` and an unknown method give
+/// nothing, and so does an `action` that is not a literal local path.
+fn form_use(
+    owner: SymbolId,
+    action: Option<(&str, Node)>,
+    method: Option<(&str, Node)>,
+) -> Option<mct_core::JoinPoint> {
+    let (action, action_node) = action?;
+    let method = method.map_or("get", |(method, _)| method);
+    if !method.eq_ignore_ascii_case("get") && !method.eq_ignore_ascii_case("post") {
+        return None;
+    }
+    mct_core::JoinPoint::http_uses(owner, method, action, location(action_node))
+}
+
 fn is_event_handler(name: &str) -> bool {
     name.strip_prefix("on")
         .is_some_and(|event| !event.is_empty() && event.bytes().all(|b| b.is_ascii_lowercase()))

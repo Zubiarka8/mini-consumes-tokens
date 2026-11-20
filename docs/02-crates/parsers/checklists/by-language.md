@@ -989,6 +989,7 @@ Constructs:
 - [ ] inline `<style>` content
 - [x] event attributes such as `onclick`: each function the handler calls by name is a `calls` relation to a JavaScript function
 - [ ] template syntax such as `{% %}`
+- [~] `<form action method>`: a use of that HTTP endpoint (RE10); `<a href>` and `fetch` in `<script>` are not read
 
 **Not applicable:**
 
@@ -999,7 +1000,7 @@ Constructs:
 - — Functions and methods: HTML has no code constructs (FN01 Top-level function; FN02 Nested function; FN03 Lambda or closure assigned to a name; FN04 Method; FN05 Constructor; FN06 Destructor / finalizer; FN07 Operator overload; FN08 Abstract / pure virtual method; FN09 Property accessors (get/set); FN10 Overloads kept apart)
 - — Types and object-oriented programming: HTML has no code constructs (TY01 Class; TY02 Abstract class; TY03 Struct; TY04 Union; TY05 Interface / protocol; TY06 Interface members; TY07 Trait / mixin; TY08 Enum; TY09 Enum members; TY10 Record / data class; TY11 Nested / inner class; TY12 Anonymous class; TY13 Partial class; TY14 Singleton / companion object; TY15 Type alias; TY16 Module / namespace / package)
 - — Fields, constants and variables: HTML has no code constructs (DA01 Field / instance attribute; DA02 Constructor-promoted field; DA03 Constant (module or global); DA04 Global / module-level variable; DA05 Local variable; DA06 Parameter; DA07 Macro / preprocessor define)
-- — Relations: HTML has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding; RE10 Cross-language HTTP link)
+- — Relations: HTML has no code constructs (RE01 Calls; RE02 Constructor call; RE03 Super / base constructor call; RE04 Imports; RE05 Class extends class; RE06 Implements interface / trait; RE07 Interface extends interface / supertrait; RE08 Decorator / annotation / attribute; RE09 Struct / type embedding)
 
 Search, quality and structure features that apply to markup are the MK features above.
 
