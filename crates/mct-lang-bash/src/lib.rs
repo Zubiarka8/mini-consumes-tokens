@@ -371,6 +371,13 @@ impl<'a> Walker<'a> {
                                 self.source,
                             ));
                         }
+                        if cmd_text == "wget" {
+                            self.join_points.extend(http_routes::wget_use(
+                                node,
+                                owner,
+                                self.source,
+                            ));
+                        }
                         match cmd_text {
                             "source" | "." => {
                                 if let Some(path) = first_argument_text(node, self.source) {

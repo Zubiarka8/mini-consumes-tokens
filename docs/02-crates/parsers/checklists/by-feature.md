@@ -1055,7 +1055,7 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 - [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
 - [~] PHP: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
 - [~] Lua: Lapis `app:get("/x", handler)` and `ngx.location.capture`
-- [~] Bash: `curl` to this machine (use only)
+- [~] Bash: `curl` and `wget` to this machine (use only)
 - [~] PowerShell: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
 - [~] HTML: `<form action method>` is a use; `<a href>` and `<script>` calls are not read
 - — CSS: CSS is markup; it has no cross-language HTTP link
