@@ -126,3 +126,42 @@ fn a_relative_link_resolves_against_the_base_href() {
     .unwrap();
     assert!(root.external, "an absolute link ignores the base");
 }
+
+/// A link whose path matches a file only with other letter case works on
+/// macOS and Windows but breaks on Linux: it stays unresolved and the index
+/// status names it (issue #567).
+#[test]
+fn a_case_only_match_is_reported_and_never_resolved() {
+    let dir = std::env::temp_dir().join(format!("mct-html-case-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("index.html"),
+        "<html><head><link rel=\"stylesheet\" href=\"Style.css\"></head></html>\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("style.css"), "body { color: red; }\n").unwrap();
+    let mut registry = LanguageRegistry::new();
+    registry.register(Arc::new(HtmlParser));
+    registry.register(Arc::new(CssParser));
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+    let mismatches = index.status().unwrap().case_mismatches;
+    assert_eq!(
+        mismatches,
+        [mct_index::CaseMismatch {
+            from_path: "index.html".to_string(),
+            line: 1,
+            written: "Style.css".to_string(),
+            actual: "style.css".to_string(),
+        }]
+    );
+    let resolved = index
+        .find_references("Style")
+        .unwrap()
+        .into_iter()
+        .chain(index.find_references("style").unwrap())
+        .any(|h| h.kind == "imports" && h.resolution == Resolution::Resolved);
+    assert!(!resolved, "a case-only match must not resolve");
+    std::fs::remove_dir_all(dir).unwrap();
+}

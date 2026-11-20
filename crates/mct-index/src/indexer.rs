@@ -100,6 +100,19 @@ pub struct ManifestDependencies {
     pub dependencies: Vec<DependencyInfo>,
 }
 
+/// A reference to `written` from `from_path:line`, where only `actual`
+/// exists, with other letter case.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaseMismatch {
+    pub from_path: String,
+    pub line: u32,
+    pub written: String,
+    pub actual: String,
+}
+
+/// How many [`CaseMismatch`]es a status lists.
+const CASE_MISMATCH_LIMIT: usize = 50;
+
 /// One config that may declare module aliases.
 #[derive(Debug, Clone)]
 pub struct AliasSource {
@@ -116,6 +129,10 @@ pub struct IndexStatus {
     /// Module-alias sources read (`tsconfig.json`/`jsconfig.json` `paths`,
     /// issue #563), including those that could not be parsed.
     pub alias_sources: Vec<AliasSource>,
+    /// File references whose written path matches an indexed file only when
+    /// letter case is ignored (issue #567). They stay unresolved: the
+    /// reference works on a case-insensitive file system and breaks on Linux.
+    pub case_mismatches: Vec<CaseMismatch>,
     pub total_files: usize,
     pub total_symbols: usize,
     /// The last run that changed the index (published a generation).
@@ -2186,9 +2203,35 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
 
+    // `COLLATE NOCASE` folds ASCII only, like the file systems that accept
+    // such a reference (APFS and NTFS fold more, which this under-reports).
+    let mut stmt = index.conn.prepare(
+        "SELECT f.relative_path, r.line, r.target_path, t.relative_path
+           FROM relations r
+           JOIN symbols s ON s.id = r.from_symbol_id
+           JOIN files f ON f.id = s.file_id
+           JOIN files t ON t.relative_path = r.target_path COLLATE NOCASE
+          WHERE r.target_path IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM files e WHERE e.relative_path = r.target_path)
+          ORDER BY f.relative_path, r.line, t.relative_path
+          LIMIT ?1",
+    )?;
+    let case_mismatches: Vec<CaseMismatch> = stmt
+        .query_map([CASE_MISMATCH_LIMIT as i64], |row| {
+            Ok(CaseMismatch {
+                from_path: row.get(0)?,
+                line: row.get(1)?,
+                written: row.get(2)?,
+                actual: row.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+
     Ok(IndexStatus {
         languages,
         alias_sources,
+        case_mismatches,
         total_files: total_files as usize,
         total_symbols: total_symbols as usize,
         last_indexed_at: last_indexed_at.and_then(|v| v.parse().ok()),
