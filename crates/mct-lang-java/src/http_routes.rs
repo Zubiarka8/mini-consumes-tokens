@@ -1,6 +1,8 @@
 //! HTTP join points (ADR-038): Spring `@GetMapping`-style annotations declare
 //! an endpoint for their method (with the class's `@RequestMapping` prefix),
-//! and a MockMvc `get("/x")` request builder uses one.
+//! and a MockMvc `get("/x")` request builder uses one. JAX-RS `@GET` with
+//! `@Path` declares one too, and a Retrofit `@GET("/x")` interface method uses
+//! one.
 
 use mct_core::{JoinPoint, SymbolId};
 use mct_tree_sitter::{find_child, location};
@@ -167,4 +169,68 @@ fn capitalize(name: &str) -> String {
         .next()
         .map(|first| first.to_ascii_uppercase().to_string() + chars.as_str())
         .unwrap_or_default()
+}
+
+/// The file imports JAX-RS: the evidence its `@GET` and `@Path` are a route.
+pub(super) fn mentions_jaxrs(source: &str) -> bool {
+    source.contains("javax.ws.rs") || source.contains("jakarta.ws.rs")
+}
+
+/// The file imports Retrofit: the evidence its `@GET("/x")` is a request.
+pub(super) fn mentions_retrofit(source: &str) -> bool {
+    source.contains("retrofit2")
+}
+
+/// The one `@Path("..")` literal on a declaration: `Ok(None)` without one,
+/// `Err` when it is not a single literal.
+fn path_annotation<'a>(declaration: Node, source: &'a str) -> Result<Option<&'a str>, ()> {
+    for annotation in annotations(declaration) {
+        if annotation_name(annotation, source) == "Path" {
+            return mapped_path(annotation, source).map(Some);
+        }
+    }
+    Ok(None)
+}
+
+/// The HTTP method of a JAX-RS or Retrofit annotation (`@GET`, `@POST`..).
+fn verb(annotation: &str) -> Option<&'static str> {
+    ["GET", "POST", "PUT", "PATCH", "DELETE"]
+        .into_iter()
+        .find(|verb| *verb == annotation)
+}
+
+/// The one HTTP method annotation of `method`, with the node it is on.
+fn sole_verb<'a>(method: Node<'a>, source: &str) -> Option<(Node<'a>, &'static str)> {
+    let mut verbs = annotations(method)
+        .into_iter()
+        .filter_map(|a| Some((a, verb(annotation_name(a, source))?)));
+    let (Some(found), None) = (verbs.next(), verbs.next()) else {
+        return None;
+    };
+    Some(found)
+}
+
+/// The endpoint a JAX-RS resource method declares: its HTTP method annotation
+/// with the class `@Path` and its own `@Path`.
+pub(super) fn jaxrs_declaration(method: Node, source: &str, symbol: SymbolId) -> Option<JoinPoint> {
+    let (annotation, verb) = sole_verb(method, source)?;
+    let mut class = method.parent();
+    while let Some(node) =
+        class.filter(|n| !matches!(n.kind(), "class_declaration" | "interface_declaration"))
+    {
+        class = node.parent();
+    }
+    let prefix = path_annotation(class?, source).ok()?.unwrap_or("");
+    let own = path_annotation(method, source).ok()?.unwrap_or("");
+    JoinPoint::http_declares(symbol, verb, &join(prefix, own), location(annotation))
+}
+
+/// A Retrofit interface method `@GET("/x")` uses the endpoint it names. A
+/// path without a leading slash is relative to a base URL the file does not
+/// state, so it gives nothing.
+pub(super) fn retrofit_use(method: Node, source: &str, symbol: SymbolId) -> Option<JoinPoint> {
+    let (annotation, verb) = sole_verb(method, source)?;
+    annotation.child_by_field_name("arguments")?;
+    let path = mapped_path(annotation, source).ok()?;
+    JoinPoint::http_uses(symbol, verb, path, location(annotation))
 }

@@ -314,7 +314,7 @@ Done 27 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 15
 - [x] RE06 Implements interface / trait: `implements P_Iface` (ambiguous: same-name file module)
 - [x] RE07 Interface extends interface / supertrait: `interface B extends A` → `extends`, to an `interface` only
 - [x] RE08 Decorator / annotation / attribute: `@Entity` → `references Entity`, to an annotation type only
-- [~] RE10 Cross-language HTTP link: Spring `@GetMapping` family and `@RequestMapping` (class prefix); MockMvc `get("/x")`; no JAX-RS or client
+- [~] RE10 Cross-language HTTP link: Spring `@GetMapping` family and `@RequestMapping` (class prefix); JAX-RS `@GET` with `@Path`; Retrofit `@GET("/x")` (a use; a path without a leading slash is skipped); MockMvc `get("/x")`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`

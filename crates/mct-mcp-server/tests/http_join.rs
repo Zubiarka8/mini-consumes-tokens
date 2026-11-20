@@ -575,3 +575,26 @@ fn jquery_and_xmlhttprequest_use_an_endpoint() {
     assert_eq!(names("list"), ["a", "c"]);
     assert_eq!(names("create"), ["b"]);
 }
+
+#[test]
+fn jaxrs_resources_declare_and_retrofit_interfaces_use() {
+    let project = Project::new(&[
+        (
+            "server/OrderResource.java",
+            "import jakarta.ws.rs.*;\n@Path(\"/api/orders\")\npublic class OrderResource {\n\
+             \x20 @GET public String list() { return \"\"; }\n\
+             \x20 @GET @Path(\"/{id}\") public String show(@PathParam(\"id\") long id) { return \"\"; }\n\
+             \x20 @POST @DELETE public void both() {}\n}\n",
+        ),
+        (
+            "client/OrderApi.java",
+            "import retrofit2.http.*;\npublic interface OrderApi {\n\
+             \x20 @GET(\"/api/orders\") Call<String> all();\n\
+             \x20 @GET(\"/api/orders/{id}\") Call<String> one(@Path(\"id\") long id);\n\
+             \x20 @GET(\"api/orders\") Call<String> relative();\n}\n",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("list")).from_symbol, "all");
+    assert_eq!(only(&project.callers("show")).from_symbol, "one");
+    assert!(project.callers("both").is_empty());
+}
