@@ -215,6 +215,8 @@ struct Walker<'a> {
     /// HTTP endpoints this file declares or uses (see `http_routes`).
     join_points: Vec<mct_core::JoinPoint>,
     spring: bool,
+    jaxrs: bool,
+    retrofit: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -222,6 +224,8 @@ impl<'a> Walker<'a> {
         Self {
             source,
             spring: http_routes::mentions_spring(source),
+            jaxrs: http_routes::mentions_jaxrs(source),
+            retrofit: http_routes::mentions_retrofit(source),
             ..Self::default()
         }
     }
@@ -598,6 +602,14 @@ impl<'a> Walker<'a> {
                 if self.spring && node.kind() == "method_declaration" {
                     self.join_points
                         .extend(http_routes::declarations(node, self.source, id));
+                }
+                if self.jaxrs && node.kind() == "method_declaration" {
+                    self.join_points
+                        .extend(http_routes::jaxrs_declaration(node, self.source, id));
+                }
+                if self.retrofit && node.kind() == "method_declaration" {
+                    self.join_points
+                        .extend(http_routes::retrofit_use(node, self.source, id));
                 }
                 if node.kind() == "method_declaration" && has_override_annotation(node, self.source)
                 {
