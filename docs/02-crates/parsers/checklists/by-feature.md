@@ -1057,13 +1057,13 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 - [~] Lua: Lapis `app:get("/x", handler)` and `ngx.location.capture`
 - [~] Bash: `curl` to this machine (use only)
 - [~] PowerShell: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
-- — HTML: HTML is markup; it has no cross-language HTTP link
+- [~] HTML: `<form action method>` is a use; `<a href>` and `<script>` calls are not read
 - — CSS: CSS is markup; it has no cross-language HTTP link
 - — XML: XML is markup; it has no cross-language HTTP link
 - — XAML: XAML is markup; it has no cross-language HTTP link
 - — Markdown: Markdown is markup; it has no cross-language HTTP link
 
-*Done 0 · Partial 12 · Not done 0 · Not verified 0 · Not applicable 5
+*Done 0 · Partial 13 · Not done 0 · Not verified 0 · Not applicable 4
 
 Done 0 · Partial 2 · Not done 10 · Not verified 0 · Not applicable 5
 
