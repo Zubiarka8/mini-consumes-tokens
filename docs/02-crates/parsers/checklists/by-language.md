@@ -476,7 +476,7 @@ Done 27 · Partial 11 · Not done 8 · Not verified 0 · Not applicable 7
 - [~] RE06 Implements interface / trait: heuristic: `IP_Iface` → `implements`
 - [x] RE07 Interface extends interface / supertrait: `IP_Iface2 : IP_Ext2` → `extends`
 - [x] RE08 Decorator / annotation / attribute: `references XAttribute`
-- [~] RE10 Cross-language HTTP link: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`; `[controller]` tokens skipped
+- [~] RE10 Cross-language HTTP link: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`, Refit `[Get("/x")]` (a path without a leading slash is skipped); `[controller]` tokens skipped
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
