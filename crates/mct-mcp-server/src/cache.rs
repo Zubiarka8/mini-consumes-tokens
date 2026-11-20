@@ -769,9 +769,15 @@ impl QueryCache {
     /// Whether this session was already sent a response whose
     /// query-independent rendering is `rendered`.
     pub fn was_sent(&self, rendered: &str) -> bool {
+        self.was_sent_at(rendered, Instant::now())
+    }
+
+    /// [`Self::was_sent`] as of `now`; a test moves `now` forward, since an
+    /// `Instant` cannot go back before the machine booted (Windows CI).
+    fn was_sent_at(&self, rendered: &str, now: Instant) -> bool {
         self.sent
             .get(&sha256(rendered.as_bytes()))
-            .is_some_and(|sent| sent.elapsed() < SENT_TTL)
+            .is_some_and(|sent| now.saturating_duration_since(*sent) < SENT_TTL)
     }
 
     pub fn record_sent(&mut self, rendered: &str) {
@@ -811,9 +817,7 @@ mod tests {
         let mut cache = QueryCache::new(CacheConfig::default());
         cache.record_sent("result");
         assert!(cache.was_sent("result"));
-        let digest = sha256(b"result");
-        *cache.sent.get_mut(&digest).unwrap() = Instant::now() - SENT_TTL;
-        assert!(!cache.was_sent("result"));
+        assert!(!cache.was_sent_at("result", Instant::now() + SENT_TTL));
         cache.record_sent("result");
         assert!(cache.was_sent("result"));
     }
