@@ -13,6 +13,7 @@ use mct_tree_sitter::{find_child, first_error, location, module_location, Supert
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod http_routes;
 mod jdk;
 mod literals;
 mod receivers;
@@ -211,12 +212,16 @@ struct Walker<'a> {
     static_calls: Vec<(usize, String)>,
     /// Types declaring the launcher's `main` method (see `main_hint`).
     entry_points: Vec<mct_core::EntryPointHint>,
+    /// HTTP endpoints this file declares or uses (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
+    spring: bool,
 }
 
 impl<'a> Walker<'a> {
     fn new(source: &'a str) -> Self {
         Self {
             source,
+            spring: http_routes::mentions_spring(source),
             ..Self::default()
         }
     }
@@ -590,6 +595,10 @@ impl<'a> Walker<'a> {
                 self.details
                     .push(details::method_detail(node, id, self.source));
                 self.push_annotations(node, id);
+                if self.spring && node.kind() == "method_declaration" {
+                    self.join_points
+                        .extend(http_routes::declarations(node, self.source, id));
+                }
                 if node.kind() == "method_declaration" && has_override_annotation(node, self.source)
                 {
                     self.push_overrides(node, id);
@@ -710,6 +719,10 @@ impl<'a> Walker<'a> {
                 }
             }
             "method_invocation" => {
+                if self.spring {
+                    self.join_points
+                        .extend(http_routes::use_of(node, owner, self.source));
+                }
                 if let Some(name_node) = node.child_by_field_name("name") {
                     // Java can't invoke a field or a variable (a lambda is
                     // called as `f.apply()`), so the target is a method.
@@ -1005,6 +1018,7 @@ impl<'a> Walker<'a> {
             relation_targets: self.relation_targets,
             symbol_details: self.details,
             entry_points: self.entry_points,
+            join_points: self.join_points,
             ..Default::default()
         }
     }

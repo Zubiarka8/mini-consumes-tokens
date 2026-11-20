@@ -274,3 +274,242 @@ fn the_link_follows_reindexing_and_leaves_other_relations_alone() {
         .unwrap();
     assert!(project.callers("list_orders").is_empty());
 }
+
+#[test]
+fn flask_and_fastapi_routes_are_declared_and_clients_use_them() {
+    let project = Project::new(&[
+        (
+            "app/api.py",
+            "from flask import Flask\napp = Flask(__name__)\n\
+             @app.route('/api/orders/<int:order_id>', methods=['GET', 'DELETE'])\n\
+             def order(order_id):\n    pass\n\
+             @app.get(\"/api/health\")\ndef health():\n    pass\n\
+             @app.post(f\"/api/{x}\")\ndef computed():\n    pass\n",
+        ),
+        (
+            "web/app.js",
+            "function a(id) { return fetch(`/api/orders/${id}`); }\n\
+             function b(id) { return fetch(`/api/orders/${id}`, { method: 'DELETE' }); }\n\
+             function c() { return fetch('/api/orders/1', { method: 'POST' }); }\n",
+        ),
+        (
+            "tests/test_api.py",
+            "def test_health(client):\n    client.get('/api/health')\n",
+        ),
+    ]);
+    let mut from: Vec<_> = project
+        .callers("order")
+        .iter()
+        .map(|h| h.from_symbol.clone())
+        .collect();
+    from.sort_unstable();
+    assert_eq!(from, ["a", "b"]);
+    assert_eq!(only(&project.callers("health")).from_symbol, "test_health");
+    assert!(project.callers("computed").is_empty());
+}
+
+#[test]
+fn go_routes_are_declared_and_httptest_requests_use_them() {
+    let project = Project::new(&[
+        (
+            "server/main.go",
+            "package main\nimport (\"net/http\"; \"github.com/gin-gonic/gin\")\n\
+             func listOrders(c *gin.Context) {}\nfunc showOrder(w http.ResponseWriter, r *http.Request) {}\n\
+             func setup(r *gin.Engine, mux *http.ServeMux) {\n\
+             \tr.GET(\"/api/orders\", listOrders)\n\
+             \tmux.HandleFunc(\"GET /api/orders/{id}\", showOrder)\n\
+             \tmux.HandleFunc(\"/api/any\", showOrder)\n}\n",
+        ),
+        (
+            "server/main_test.go",
+            "package main\nimport (\"net/http\"; \"net/http/httptest\")\n\
+             func TestList(t *testing.T) { httptest.NewRequest(\"GET\", \"/api/orders\", nil) }\n\
+             func TestShow(t *testing.T) { httptest.NewRequest(http.MethodGet, \"/api/orders/7\", nil) }\n",
+        ),
+        ("web/app.js", "function a(id) { return fetch(`/api/orders/${id}`); }"),
+    ]);
+    assert_eq!(only(&project.callers("listOrders")).from_symbol, "TestList");
+    let mut from: Vec<_> = project
+        .callers("showOrder")
+        .iter()
+        .map(|h| h.from_symbol.clone())
+        .collect();
+    from.sort_unstable();
+    assert_eq!(from, ["a"]);
+}
+
+#[test]
+fn spring_routes_use_the_class_prefix_and_mockmvc_uses_them() {
+    let project = Project::new(&[
+        (
+            "src/OrderController.java",
+            "import org.springframework.web.bind.annotation.*;\n\
+             @RestController\n@RequestMapping(\"/api/orders\")\npublic class OrderController {\n\
+             @GetMapping\npublic String list() { return \"\"; }\n\
+             @GetMapping(\"/{id}\")\npublic String show() { return \"\"; }\n\
+             @RequestMapping(value = \"/{id}\", method = RequestMethod.DELETE)\npublic void remove() {}\n\
+             @PostMapping(PATH)\npublic void create() {}\n}\n\
+             @RestController\n@RequestMapping(BASE)\nclass Other {\n@GetMapping(\"/x\")\npublic void x() {}\n}\n",
+        ),
+        (
+            "src/OrderTest.java",
+            "import org.springframework.test.web.servlet.MockMvc;\nclass OrderTest {\n\
+             void listWorks() throws Exception { mvc.perform(get(\"/api/orders\")); }\n\
+             void removeWorks() throws Exception { mvc.perform(delete(\"/api/orders/7\")); }\n}\n",
+        ),
+        (
+            "web/app.js",
+            "function a(id) { return fetch(`/api/orders/${id}`); }\n\
+             function b(id) { return fetch(`/api/orders/${id}`, { method: 'DELETE' }); }",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("list")).from_symbol, "listWorks");
+    assert_eq!(only(&project.callers("show")).from_symbol, "a");
+    assert_eq!(only(&project.callers("remove")).from_symbol, "b");
+    assert!(project.callers("create").is_empty());
+    assert!(project.callers("x").is_empty());
+}
+
+#[test]
+fn kotlin_spring_routes_use_the_class_prefix() {
+    let project = Project::new(&[
+        (
+            "src/Orders.kt",
+            "import org.springframework.web.bind.annotation.*\n\
+             @RestController\n@RequestMapping(\"/api/orders\")\nclass Orders {\n\
+             @GetMapping\nfun listAll(): String = \"\"\n\
+             @GetMapping(\"/{id}\")\nfun showOne(): String = \"\"\n\
+             @RequestMapping(value = [\"/{id}\"], method = [RequestMethod.DELETE])\nfun dropOne() {}\n\
+             @PostMapping(path = \"/x\")\nfun makeOne() {}\n}\n",
+        ),
+        (
+            "web/app.js",
+            "function a() { return fetch('/api/orders'); }\n\
+             function b(id) { return fetch(`/api/orders/${id}`); }\n\
+             function c() { return fetch('/api/orders/x', { method: 'POST' }); }",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("listAll")).from_symbol, "a");
+    assert_eq!(only(&project.callers("showOne")).from_symbol, "b");
+    assert_eq!(only(&project.callers("makeOne")).from_symbol, "c");
+}
+
+#[test]
+fn aspnet_controllers_and_minimal_apis_declare_routes() {
+    let project = Project::new(&[
+        (
+            "Api/OrdersController.cs",
+            "using Microsoft.AspNetCore.Mvc;\n[ApiController]\n[Route(\"api/orders\")]\n\
+             public class OrdersController : ControllerBase {\n\
+             [HttpGet]\npublic string ListAll() => \"\";\n\
+             [HttpGet(\"{id:int}\")]\npublic string ShowOne(int id) => \"\";\n\
+             [HttpDelete(\"~/api/gone\")]\npublic void Gone() {}\n}\n\
+             [Route(\"api/[controller]\")]\npublic class TokenController : ControllerBase {\n\
+             [HttpGet]\npublic string Tokened() => \"\";\n}\n",
+        ),
+        (
+            "Api/Program.cs",
+            "using Microsoft.AspNetCore.Builder;\nvar app = WebApplication.Create();\n\
+             app.MapPost(\"/api/ping\", Ping);\n\
+             static string Ping() => \"pong\";\n",
+        ),
+        (
+            "Api.Tests/OrdersTests.cs",
+            "using System.Net.Http;\nclass OrdersTests {\n\
+             async Task ListWorks(HttpClient client) { await client.GetAsync(\"/api/orders\"); }\n\
+             async Task PingWorks(HttpClient client) { await client.PostAsync(\"/api/ping\", null); }\n}\n",
+        ),
+        (
+            "web/app.js",
+            "function a(id) { return fetch(`/api/orders/${id}`); }\n\
+             function b() { return fetch('/api/gone', { method: 'DELETE' }); }\n\
+             function c() { return fetch('/api/token'); }",
+        ),
+    ]);
+    let mut list: Vec<_> = project
+        .callers("ListAll")
+        .iter()
+        .map(|h| h.from_symbol.clone())
+        .collect();
+    list.sort_unstable();
+    assert_eq!(list, ["ListWorks"]);
+    assert_eq!(only(&project.callers("ShowOne")).from_symbol, "a");
+    assert_eq!(only(&project.callers("Gone")).from_symbol, "b");
+    assert_eq!(only(&project.callers("Ping")).from_symbol, "PingWorks");
+    assert!(project.callers("Tokened").is_empty());
+}
+
+#[test]
+fn symfony_routes_are_declared_and_laravel_tests_use_them() {
+    let project = Project::new(&[
+        (
+            "src/OrderController.php",
+            "<?php\nuse Symfony\\Component\\Routing\\Attribute\\Route;\n\
+             #[Route('/api/orders')]\nclass OrderController {\n\
+             #[Route('/', methods: ['GET'])]\npublic function index() {}\n\
+             #[Route('/{id}', methods: ['GET', 'DELETE'])]\npublic function item() {}\n\
+             #[Route('/any')]\npublic function anything() {}\n}\n",
+        ),
+        (
+            "tests/OrderTest.php",
+            "<?php\nuse Illuminate\\Foundation\\Testing\\TestCase;\nclass OrderTest extends TestCase {\n\
+             public function testIndex() { $this->getJson('/api/orders'); }\n\
+             public function testAny() { $this->get('/api/orders/any'); }\n}\n",
+        ),
+        ("web/app.js", "function a(id) { return fetch(`/api/orders/${id}`); }"),
+    ]);
+    assert_eq!(only(&project.callers("index")).from_symbol, "testIndex");
+    assert_eq!(only(&project.callers("item")).from_symbol, "a");
+    assert!(project.callers("anything").is_empty());
+}
+
+#[test]
+fn curl_to_this_machine_uses_an_endpoint() {
+    let project = Project::new(&[
+        ("server/api.rs", AXUM),
+        (
+            "scripts/smoke.sh",
+            "#!/usr/bin/env bash\nlist() {\n  curl -s http://localhost:3000/api/orders\n}\n\
+             other() {\n  curl -s https://example.com/api/orders\n  curl -s -X POST http://localhost:3000/api/orders\n  curl -s \"http://localhost:3000/$path\"\n}\n",
+        ),
+    ]);
+    let hits = project.callers("list_orders");
+    assert_eq!(only(&hits).from_symbol, "list");
+}
+
+#[test]
+fn powershell_requests_to_this_machine_use_an_endpoint() {
+    let project = Project::new(&[
+        ("server/api.rs", AXUM),
+        (
+            "scripts/Smoke.ps1",
+            "function Get-Orders {\n  Invoke-RestMethod -Uri \"http://localhost:3000/api/orders\" -Method Get\n}\n\
+             function Other {\n  Invoke-RestMethod -Uri http://localhost:3000/api/orders -Method Post\n  \
+             Invoke-WebRequest \"https://example.com/api/orders\"\n  Invoke-RestMethod -Uri \"http://localhost:3000/$path\"\n}\n",
+        ),
+    ]);
+    let hits = project.callers("list_orders");
+    assert_eq!(only(&hits).from_symbol, "Get-Orders");
+}
+
+#[test]
+fn lapis_and_httplib_routes_are_declared() {
+    let project = Project::new(&[
+        (
+            "app.lua",
+            "local lapis = require(\"lapis\")\nlocal app = lapis.Application()\n\
+             local function list_orders(self) return {} end\n\
+             app:get(\"/api/orders\", list_orders)\n\
+             app:get(\"/api/anon\", function(self) return {} end)\n",
+        ),
+        (
+            "server.cpp",
+            "#include <httplib.h>\nvoid show_order(const httplib::Request&, httplib::Response&) {}\n\
+             void serve(httplib::Server& svr) { svr.Get(\"/api/orders/:id\", show_order); }\n\
+             void probe(httplib::Client& cli) { cli.Get(\"/api/orders\"); }\n",
+        ),
+        ("web/app.js", "function a(id) { return fetch(`/api/orders/${id}`); }"),
+    ]);
+    assert_eq!(only(&project.callers("list_orders")).from_symbol, "probe");
+    assert_eq!(only(&project.callers("show_order")).from_symbol, "a");
+}

@@ -25,17 +25,17 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Language | Done | Partial | Not done | Not verified | Not applicable |
 |---|--:|--:|--:|--:|--:|
 | Rust | 33 | 4 | 0 | 0 | 16 |
-| Python | 27 | 7 | 5 | 0 | 14 |
+| Python | 27 | 8 | 4 | 0 | 14 |
 | JS/TS | 32 | 6 | 6 | 0 | 9 |
-| Java | 27 | 4 | 7 | 0 | 15 |
-| Kotlin | 30 | 8 | 8 | 0 | 7 |
-| C# | 27 | 10 | 9 | 0 | 7 |
-| C++ | 25 | 7 | 7 | 0 | 14 |
-| Go | 18 | 5 | 7 | 0 | 23 |
-| PHP | 30 | 4 | 7 | 0 | 12 |
-| Lua | 15 | 6 | 4 | 0 | 28 |
-| Bash | 11 | 3 | 4 | 0 | 35 |
-| PowerShell | 11 | 3 | 14 | 0 | 25 |
+| Java | 27 | 5 | 6 | 0 | 15 |
+| Kotlin | 30 | 9 | 7 | 0 | 7 |
+| C# | 27 | 11 | 8 | 0 | 7 |
+| C++ | 25 | 8 | 6 | 0 | 14 |
+| Go | 18 | 6 | 6 | 0 | 23 |
+| PHP | 30 | 5 | 6 | 0 | 12 |
+| Lua | 15 | 7 | 3 | 0 | 28 |
+| Bash | 11 | 4 | 3 | 0 | 35 |
+| PowerShell | 11 | 4 | 13 | 0 | 25 |
 | HTML | 3 | 1 | 3 | 0 | 0 |
 | CSS | 3 | 1 | 3 | 0 | 0 |
 | XML | 2 | 0 | 5 | 0 | 0 |
@@ -123,7 +123,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Python (`python`)
 
-Done 27 · Partial 7 · Not done 5 · Not verified 0 · Not applicable 14
+Done 27 · Partial 8 · Not done 4 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -161,7 +161,7 @@ Done 27 · Partial 7 · Not done 5 · Not verified 0 · Not applicable 14
 - [x] RE04 Imports: `from sibling import imported` → `imports`
 - [x] RE05 Class extends class: `Child` extends `Base`
 - [x] RE08 Decorator / annotation / attribute: `@abc.abstractmethod` and `@login_required` → `references`
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client` calls with a literal path
 **Search and lookup**
 
 - [x] SE01 Find a definition: `find_symbol`
@@ -277,7 +277,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Java (`java`)
 
-Done 27 · Partial 4 · Not done 7 · Not verified 0 · Not applicable 15
+Done 27 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 15
 
 **Functions and methods**
 
@@ -314,7 +314,7 @@ Done 27 · Partial 4 · Not done 7 · Not verified 0 · Not applicable 15
 - [x] RE06 Implements interface / trait: `implements P_Iface` (ambiguous: same-name file module)
 - [x] RE07 Interface extends interface / supertrait: `interface B extends A` → `extends`, to an `interface` only
 - [x] RE08 Decorator / annotation / attribute: `@Entity` → `references Entity`, to an annotation type only
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: Spring `@GetMapping` family and `@RequestMapping` (class prefix); MockMvc `get("/x")`; no JAX-RS or client
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -354,7 +354,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Kotlin (`kotlin`)
 
-Done 30 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 7
+Done 30 · Partial 9 · Not done 7 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -399,7 +399,7 @@ Done 30 · Partial 8 · Not done 8 · Not verified 0 · Not applicable 7
 - [x] RE06 Implements interface / trait: `P_Sub` implements `P_Iface`
 - [x] RE07 Interface extends interface / supertrait: `interface B : A` → `extends`, to an `interface` only
 - [x] RE08 Decorator / annotation / attribute: `@Marker` → `references Marker`, to a class only
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: Spring mappings with the class prefix; Ktor `get("/x") { }` has no named handler
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -431,7 +431,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C# (`csharp`)
 
-Done 27 · Partial 10 · Not done 9 · Not verified 0 · Not applicable 7
+Done 27 · Partial 11 · Not done 8 · Not verified 0 · Not applicable 7
 
 **Functions and methods**
 
@@ -476,7 +476,7 @@ Done 27 · Partial 10 · Not done 9 · Not verified 0 · Not applicable 7
 - [~] RE06 Implements interface / trait: heuristic: `IP_Iface` → `implements`
 - [x] RE07 Interface extends interface / supertrait: `IP_Iface2 : IP_Ext2` → `extends`
 - [x] RE08 Decorator / annotation / attribute: `references XAttribute`
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`; `[controller]` tokens skipped
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -508,7 +508,7 @@ Markup features (MK) do not apply to code languages.
 
 ## C++ (`cpp`)
 
-Done 25 · Partial 7 · Not done 7 · Not verified 0 · Not applicable 14
+Done 25 · Partial 8 · Not done 6 · Not verified 0 · Not applicable 14
 
 **Functions and methods**
 
@@ -546,7 +546,7 @@ Done 25 · Partial 7 · Not done 7 · Not verified 0 · Not applicable 14
 - [~] RE03 Super / base constructor call: `P_Sub() : P_Base()` gives `calls P_Base` when the class and its base are defined in the same file
 - [x] RE04 Imports: `#include` → `imports`
 - [x] RE05 Class extends class: every base, any access, as `extends`
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow and Drogon not read
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -585,7 +585,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Go (`go`)
 
-Done 18 · Partial 5 · Not done 7 · Not verified 0 · Not applicable 23
+Done 18 · Partial 6 · Not done 6 · Not verified 0 · Not applicable 23
 
 **Functions and methods**
 
@@ -614,7 +614,7 @@ Done 18 · Partial 5 · Not done 7 · Not verified 0 · Not applicable 23
 - [ ] RE06 Implements interface / trait: structural; no relation
 - [x] RE07 Interface extends interface / supertrait: an embedded interface gives `extends`
 - [x] RE09 Struct / type embedding: embedded `P_Embedded` gives `extends`
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -662,7 +662,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PHP (`php`)
 
-Done 30 · Partial 4 · Not done 7 · Not verified 0 · Not applicable 12
+Done 30 · Partial 5 · Not done 6 · Not verified 0 · Not applicable 12
 
 **Functions and methods**
 
@@ -703,7 +703,7 @@ Done 30 · Partial 4 · Not done 7 · Not verified 0 · Not applicable 12
 - [x] RE06 Implements interface / trait: `implements` for interface and trait
 - [x] RE07 Interface extends interface / supertrait: `ChildContract` extends `Contract` (MCT probe)
 - [x] RE08 Decorator / annotation / attribute: `#[Attr]` → `references`
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -739,7 +739,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Lua (`lua`)
 
-Done 15 · Partial 6 · Not done 4 · Not verified 0 · Not applicable 28
+Done 15 · Partial 7 · Not done 3 · Not verified 0 · Not applicable 28
 
 **Functions and methods**
 
@@ -763,7 +763,7 @@ Done 15 · Partial 6 · Not done 4 · Not verified 0 · Not applicable 28
 - [x] RE01 Calls: `p_top` → `p_local`, `p_mod`
 - [x] RE04 Imports: `require("lib")` → edge
 - [x] RE05 Class extends class: `Child` extends `Base` via `setmetatable` (MCT probe)
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: Lapis `app:get("/x", handler)` and `ngx.location.capture`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -816,7 +816,7 @@ Markup features (MK) do not apply to code languages.
 
 ## Bash (`bash`)
 
-Done 11 · Partial 3 · Not done 4 · Not verified 0 · Not applicable 35
+Done 11 · Partial 4 · Not done 3 · Not verified 0 · Not applicable 35
 
 **Functions and methods**
 
@@ -834,7 +834,7 @@ Done 11 · Partial 3 · Not done 4 · Not verified 0 · Not applicable 35
 
 - [x] RE01 Calls: `p_top` → `p_helper`
 - [x] RE04 Imports: `source` → edge
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: `curl` to this machine (use only)
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
@@ -893,7 +893,7 @@ Markup features (MK) do not apply to code languages.
 
 ## PowerShell (`powershell`)
 
-Done 11 · Partial 3 · Not done 14 · Not verified 0 · Not applicable 25
+Done 11 · Partial 4 · Not done 13 · Not verified 0 · Not applicable 25
 
 **Functions and methods**
 
@@ -920,7 +920,7 @@ Done 11 · Partial 3 · Not done 14 · Not verified 0 · Not applicable 25
 - [x] RE01 Calls: `p_top` → `p_helper`
 - [x] RE04 Imports: dot-sourcing → edge
 - [ ] RE05 Class extends class: PowerShell classes are not indexed (corpus test)
-- [ ] RE10 Cross-language HTTP link: no route declaration or client call is read yet
+- [~] RE10 Cross-language HTTP link: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`

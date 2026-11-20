@@ -26,6 +26,42 @@ pub enum JoinRole {
     Uses,
 }
 
+impl JoinPoint {
+    /// An HTTP endpoint a route declares for `symbol`, or `None` when the
+    /// method or path is not a literal the normalization accepts.
+    pub fn http_declares(
+        symbol: SymbolId,
+        method: &str,
+        path: &str,
+        location: Location,
+    ) -> Option<Self> {
+        Some(Self {
+            symbol,
+            kind: JoinKind::HttpEndpoint,
+            value: http_endpoint(method, path)?,
+            role: JoinRole::Declares,
+            location,
+        })
+    }
+
+    /// An HTTP endpoint `symbol` calls with a literal path (a query string
+    /// or fragment after it is dropped).
+    pub fn http_uses(
+        symbol: SymbolId,
+        method: &str,
+        path: &str,
+        location: Location,
+    ) -> Option<Self> {
+        Some(Self {
+            symbol,
+            kind: JoinKind::HttpEndpoint,
+            value: http_use_endpoint(method, path)?,
+            role: JoinRole::Uses,
+            location,
+        })
+    }
+}
+
 const MAX_PATH_BYTES: usize = 512;
 const METHODS: [&str; 9] = [
     "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT",
@@ -63,25 +99,55 @@ pub fn http_endpoint(method: &str, path: &str) -> Option<String> {
 }
 
 /// Like [`http_endpoint`] for a client's literal: a query string or fragment
-/// after the path is dropped first (`/api/orders?limit=5`).
+/// after the path is dropped first (`/api/orders?limit=5`), and an absolute
+/// URL to this machine (`http://localhost:3000/api/orders`) is its path. A URL
+/// to any other host names a server this project does not declare: `None`.
 pub fn http_use_endpoint(method: &str, path: &str) -> Option<String> {
+    let path = own_host_path(path).unwrap_or(path);
     let end = path.find(['?', '#']).unwrap_or(path.len());
     http_endpoint(method, &path[..end])
+}
+
+/// The path of an absolute URL whose host is `localhost`, `127.0.0.1` or
+/// `[::1]`, with or without a port.
+fn own_host_path(url: &str) -> Option<&str> {
+    let rest = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("https://"))?;
+    let (authority, path) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
+    let host = match authority.strip_prefix('[') {
+        Some(ipv6) => ipv6.split_once(']')?.0,
+        None => authority.split(':').next()?,
+    };
+    ["localhost", "127.0.0.1", "::1"]
+        .contains(&host)
+        .then_some(if path.is_empty() { "/" } else { path })
 }
 
 fn segment_form(segment: &str) -> Option<String> {
     if segment.is_empty() {
         return None;
     }
-    let parameter = segment
-        .strip_prefix(':')
-        .or_else(|| segment.strip_prefix('{')?.strip_suffix('}'))
-        .or_else(|| segment.strip_prefix('[')?.strip_suffix(']'));
+    let parameter = if let Some(name) = segment.strip_prefix(':') {
+        Some(name)
+    } else if let Some(inner) = segment.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
+        // `{id}`, `{id:int}` (ASP.NET, Django-style converters) and `{}`.
+        Some(inner.split_once(':').map_or(inner, |(name, _)| name))
+            .filter(|name| !name.is_empty() || segment == "{}")
+    } else if let Some(inner) = segment.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        Some(inner)
+    } else {
+        // Flask and Django: `<id>` and `<int:id>`.
+        segment
+            .strip_prefix('<')
+            .and_then(|s| s.strip_suffix('>'))
+            .map(|inner| inner.rsplit_once(':').map_or(inner, |(_, name)| name))
+    };
     match parameter {
         Some("") if segment == "{}" => Some("{}".to_string()),
-        Some(name) if is_parameter_name(name) && !name.is_empty() => Some("{}".to_string()),
+        Some(name) if !name.is_empty() && is_parameter_name(name) => Some("{}".to_string()),
         Some(_) => None,
-        None if segment.contains(['{', '}', '[', ']', ':']) => None,
+        None if segment.contains(['{', '}', '[', ']', ':', '<', '>']) => None,
         None => Some(segment.to_string()),
     }
 }
@@ -134,6 +200,32 @@ mod tests {
             assert_eq!(http_endpoint("GET", path), None, "{path}");
         }
         assert_eq!(http_endpoint("FETCH", "/a"), None);
+    }
+
+    #[test]
+    fn a_use_of_this_machine_is_its_path_and_another_host_is_none() {
+        for url in [
+            "http://localhost:3000/api/orders",
+            "https://127.0.0.1/api/orders?x=1",
+            "http://[::1]:80/api/orders",
+        ] {
+            assert_eq!(
+                http_use_endpoint("GET", url),
+                Some("GET /api/orders".into()),
+                "{url}"
+            );
+        }
+        for url in [
+            "https://example.com/api/orders",
+            "http://localhost.evil.com/api/orders",
+            "http://localhost@evil.com/api/orders",
+        ] {
+            assert_eq!(http_use_endpoint("GET", url), None, "{url}");
+        }
+        assert_eq!(
+            http_use_endpoint("GET", "http://localhost"),
+            Some("GET /".into())
+        );
     }
 
     #[test]
