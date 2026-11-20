@@ -147,6 +147,31 @@ pub(super) fn declarations(method: Node, source: &str, symbol: SymbolId) -> Vec<
     points
 }
 
+/// The file names Refit: the evidence its `[Get("/x")]` is a request.
+pub(super) fn mentions_refit(source: &str) -> bool {
+    source.contains("Refit")
+}
+
+/// A Refit interface method `[Get("/x")]` uses the endpoint it names. A path
+/// without a leading slash is relative to a base URL the file does not state,
+/// so it gives nothing.
+pub(super) fn refit_use(method: Node, source: &str, symbol: SymbolId) -> Option<JoinPoint> {
+    let in_interface = std::iter::successors(method.parent(), |n| n.parent())
+        .any(|n| n.kind() == "interface_declaration");
+    if !in_interface {
+        return None;
+    }
+    let attributes = attributes(method, source);
+    let mut verbs = attributes
+        .iter()
+        .filter(|(name, _)| !name.starts_with("Http"))
+        .filter_map(|(name, argument)| Some((http_method(name)?, (*argument)?)));
+    let (Some((verb, argument)), None) = (verbs.next(), verbs.next()) else {
+        return None;
+    };
+    JoinPoint::http_uses(symbol, verb, literal(argument, source)?, location(method))
+}
+
 pub(super) use mct_core::NamedRoute as Route;
 
 fn arguments(call: Node) -> Vec<Node> {

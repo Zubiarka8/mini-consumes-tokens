@@ -696,3 +696,21 @@ fn wget_to_this_machine_uses_an_endpoint() {
     ]);
     assert_eq!(only(&project.callers("list_orders")).from_symbol, "list");
 }
+
+#[test]
+fn csharp_refit_interface_methods_use_an_endpoint() {
+    let project = Project::new(&[
+        (
+            "Server/OrdersController.cs",
+            "using Microsoft.AspNetCore.Mvc;\n[Route(\"api/orders\")]\npublic class OrdersController : ControllerBase {\n\
+             \x20 [HttpGet] public string List() => \"\";\n}\n",
+        ),
+        (
+            "Client/IOrdersApi.cs",
+            "using Refit;\npublic interface IOrdersApi {\n\
+             \x20 [Get(\"/api/orders\")] Task<string> All();\n\
+             \x20 [Get(\"api/orders\")] Task<string> Relative();\n}\n",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("List")).from_symbol, "All");
+}
