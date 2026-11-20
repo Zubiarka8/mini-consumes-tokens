@@ -296,7 +296,7 @@ Only Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash and PowerShe
 - **Frameworks:** OpenResty has a test-only module under `src/libraries/openresty/`, written after the repository's own gateway corpus. It documents what the generic parser records (module tables, `ngx.*` calls, `resty.*` imports); it does not model the framework, and nginx.conf phase bindings are not indexed. No other Lua framework was analyzed.
 
 ### Bash
-- A named `coproc` truncates the enclosing function. See issue #79 (open).
+- `coproc [NAME] { … }` keeps its enclosing function (issue #79, fixed by a same-offset reparse). The coprocess name is no symbol.
 - `Variable` symbols are top-level only.
 - `Calls` only for literal command names. Dynamic command names record nothing.
 - `source "$VAR/x.sh"` proves only the file stem, so it resolves weakly.

@@ -233,7 +233,6 @@ fn index_answers_cross_file_queries() {
 }
 
 #[test]
-#[ignore = "#79: tree-sitter-bash 0.25 misparses `coproc NAME { ... }`"]
 fn named_coproc_keeps_the_enclosing_function_intact() {
     let c = corpus();
     assert_eq!(

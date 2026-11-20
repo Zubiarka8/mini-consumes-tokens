@@ -667,7 +667,7 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 |---|---|---|
 | Variables inside functions (`local`) | By design | explicit noise/scope decision in [crate docs](../../../crates/mct-lang-bash/src/lib.rs#L20) |
 | Commands through a variable (`$CMD arg`) | By design | explicit static-name decision in [crate docs](../../../crates/mct-lang-bash/src/lib.rs#L24) |
-| `coproc NAME { … }` | Grammar | truncates the enclosing function, issue #79 |
+| `coproc NAME { … }` | Grammar | tree-sitter-bash 0.25 reads it as one plain command that closes the enclosing function. The parser reparses with `coproc [NAME]` blanked, so the body is a brace group of that function (issue #79); the coprocess name is not recorded |
 | Some quoted `${a:+…}` semicolon forms | Grammar | `"${name:+before;after}"` still fails. The ERR-001 form `"${stale:+$stale; }"` is accepted by the parser's [targeted recovery](../../../crates/mct-lang-bash/src/lib.rs#L111), preserving original text and locations |
 | Heredoc text, exact-text search | Grammar | the grammar leaves a heredoc's text before its first expansion outside any node, and a quoted heredoc (`<<'EOT'`) has no children, so heredoc bodies give no literals |
 

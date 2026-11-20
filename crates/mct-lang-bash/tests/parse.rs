@@ -136,3 +136,57 @@ fn alternative_workaround_preserves_legitimate_syntax_errors() {
         );
     }
 }
+
+/// Issue #79: tree-sitter-bash 0.25 reads `coproc [NAME] { …; }` as one
+/// plain command whose `;` and `}` close the enclosing function. The parser
+/// reparses with `coproc [NAME]` blanked, so the body is a brace group.
+#[test]
+fn a_brace_coproc_keeps_the_enclosing_function_intact() {
+    for coproc in ["coproc HASHER", "coproc"] {
+        let src = format!(
+            "hash_many() {{\n    local file\n    {coproc} {{ xargs -0 sha256sum; }}\n    printf x\n    wait \"$HASHER_PID\"\n}}\nafter\n"
+        );
+        let parsed = parse(&src);
+        let f = parsed
+            .symbols
+            .iter()
+            .find(|s| s.name == "hash_many")
+            .unwrap();
+        assert_eq!(
+            (f.location.line, f.location.end_line),
+            (1, Some(6)),
+            "{coproc}"
+        );
+        let calls_of = |id| {
+            parsed
+                .relations
+                .iter()
+                .filter(|r| r.from == id && r.kind == RelationKind::Calls)
+                .map(|r| (r.to_name.as_str(), r.location.line, r.location.column))
+                .collect::<Vec<_>>()
+        };
+        let calls = calls_of(f.id);
+        // 4 spaces of indent, the prefix, then ` { ` before `xargs`.
+        let column = coproc.len() as u32 + 8;
+        assert!(calls.contains(&("xargs", 3, column)), "{coproc}: {calls:?}");
+        for callee in ["printf", "wait"] {
+            assert!(
+                calls.iter().any(|c| c.0 == callee),
+                "{coproc}: {callee} {calls:?}"
+            );
+        }
+        assert!(calls.iter().all(|c| c.0 != "coproc"), "{coproc}: {calls:?}");
+        assert!(
+            parsed.relations.iter().all(|r| r.to_name != "}"),
+            "{coproc}"
+        );
+    }
+}
+
+/// A coproc of a simple command (`coproc cat file`) is unaffected.
+#[test]
+fn a_simple_command_coproc_parses_as_before() {
+    let parsed = parse("run() {\n    coproc cat file\n    wait\n}\n");
+    let f = parsed.symbols.iter().find(|s| s.name == "run").unwrap();
+    assert_eq!(f.location.end_line, Some(4));
+}
