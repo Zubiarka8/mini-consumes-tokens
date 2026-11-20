@@ -714,3 +714,18 @@ fn csharp_refit_interface_methods_use_an_endpoint() {
     ]);
     assert_eq!(only(&project.callers("List")).from_symbol, "All");
 }
+
+#[test]
+fn lua_resty_http_requests_to_this_machine_use_an_endpoint() {
+    let project = Project::new(&[
+        ("server/api.rs", AXUM),
+        (
+            "client.lua",
+            "local http = require(\"resty.http\")\n\
+             local function list()\n  local c = http.new()\n  return c:request_uri(\"http://localhost:3000/api/orders\")\nend\n\
+             local function create()\n  local c = http.new()\n  return c:request_uri(\"http://localhost:3000/api/orders\", { method = \"POST\" })\nend\n\
+             local function remote()\n  local c = http.new()\n  return c:request_uri(\"https://example.com/api/orders\")\nend\n",
+        ),
+    ]);
+    assert_eq!(only(&project.callers("list_orders")).from_symbol, "list");
+}

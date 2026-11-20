@@ -58,7 +58,7 @@ Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 7
 - — C++: C++ has no nested named functions
 - — Go: Go has no nested function
 - [~] PHP: named `nestedNamed` function is indexed without a parent association
-- [~] Lua: local `nested` function is indexed without a parent association
+- [~] Lua: Lapis `app:get("/x", handler)`, `ngx.location.capture` and lua-resty-http `request_uri("http://localhost/x")`
 - [x] Bash: parent is the outer function
 - [x] PowerShell: parent is the outer function
 - — HTML: HTML is markup; it has no nested function
