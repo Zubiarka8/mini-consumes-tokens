@@ -1128,7 +1128,9 @@ impl<'a> Walker<'a> {
     /// header is never confused with its same-named source file. A quoted
     /// include found only through an include path (`-I`) resolves to no
     /// file here and stays unresolved; an `<angle>` include proves nothing.
+    /// MSVC also reads `\` as a separator (`#include "util\math.h"`).
     fn push_include_target(&mut self, owner: SymbolId, spec: &str, loc: Location) {
+        let spec = spec.replace('\\', "/");
         let Some(resolved) = mct_core::resolve_reference_path(self.path, &format!("./{spec}"))
         else {
             return;
