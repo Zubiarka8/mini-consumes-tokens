@@ -1780,18 +1780,21 @@ From `rules.md` and the two messages:
 
 ## Block 4: quality, fixtures and performance
 
-- [~] Index pollution from `duplicate-app`, `omni-app`, `portfolio-3d-app`
+- [x] Index pollution from `duplicate-app`, `omni-app`, `portfolio-3d-app`
       and other fixture projects.
   - [x] Rust: an imported crate's item is never resolved to a same-named
         fixture item (`crates/mct-eval` `#[derive(Serialize)]` →
         `mct-lang-rust/tests/fixtures/depgraph/src/other.rs`); see D6.
-  - [!] Production relations whose only candidate is in a fixture, in the
-        other languages. Most are a function local to another function
+  - [x] Production relations whose only candidate is in a fixture, in the
+        other languages. Most were a function local to another function
         (JS/TS `matchMedia` → a `const` inside `tests/dashboard/harness.mjs`'s
-        setup, `vi` → a nested function of the minified `notes-dist/notes.js`):
-        155 such resolutions on this repository (154 JS/TS, 1 Python). The
-        fix is a predicate in the `relation_candidates` view (a migration):
-        #376. Waiting for the maintainer.
+        setup, `vi` → a nested function of the minified `notes-dist/notes.js`).
+        Decided by the maintainer (#376, ADR-040): migration 23 adds a view
+        predicate, so a function that a function or method of its own file
+        encloses (by stored span) is no candidate from another file. Test:
+        `schema::tests::nested_function_migration_scopes_candidates_to_their_file`.
+        Repository snapshot: 2,923 relations lose candidates; 118 ambiguous
+        -> resolved, 112 false resolutions -> unresolved.
 - [x] Path filter with a trailing slash. A scope path is normalized once in
       `mct-index` (`queries::scope_path`): `src/`, `./src`, `./src/` and
       `src//` are `src`, and `.`/`./` is the whole project. Before, any of
