@@ -179,10 +179,9 @@ async fn an_identical_repeat_is_an_exact_hit_answered_by_reference() {
     assert_eq!(first, uncached_search(&root, search_args("invoice")).await);
 
     let second = search(&server, search_args("invoice")).await;
-    assert_eq!(
-        second,
-        "cache: unchanged since your identical earlier call (cache:false resends)"
-    );
+    assert!(second.contains("cache:false"), "{second}");
+    assert!(second.contains("src/billing.rs:"), "{second}");
+    assert!(second.contains("hits"), "{second}");
     // Whitespace-only differences normalise to the same key.
     let spaced = search(&server, search_args("  invoice ")).await;
     assert!(is_reference(&spaced), "got: {spaced}");
@@ -190,6 +189,26 @@ async fn an_identical_repeat_is_an_exact_hit_answered_by_reference() {
     let stats = server.cache_stats();
     assert_eq!((stats.exact_hit, stats.exact_miss), (2, 1), "{stats:?}");
     assert_eq!(stats.reference_responses, 2);
+}
+
+#[tokio::test]
+async fn a_file_saved_before_the_reindex_gets_the_full_result_not_a_reference() {
+    let root = project("saved-not-reindexed");
+    let server = server(&root);
+    let first = search(&server, search_args("invoice")).await;
+    assert!(is_reference(&search(&server, search_args("invoice")).await));
+    // Saved on disk, not yet reindexed: the index (and so the cache's own
+    // validation) still describes the old bytes.
+    let file = root.join("src/billing.rs");
+    let mut source = std::fs::read_to_string(&file).unwrap();
+    source.push_str("// edited\n");
+    std::fs::write(&file, source).unwrap();
+    let third = search(&server, search_args("invoice")).await;
+    assert!(
+        !is_reference(&third),
+        "a reference would hide the edit: {third}"
+    );
+    assert_eq!(third, first, "the index has not seen the edit yet");
 }
 
 #[tokio::test]
@@ -207,6 +226,38 @@ async fn cache_false_resends_the_full_result() {
     .await;
     assert_eq!(resent, first);
     assert_eq!(server.cache_stats().exact_hit, 0);
+}
+
+#[tokio::test]
+async fn cache_false_after_a_reference_is_counted_once() {
+    let root = project("reference-recovery");
+    let server = server(&root);
+    let first = search(&server, search_args("invoice")).await;
+    assert!(is_reference(&search(&server, search_args("invoice")).await));
+    let bypass = || SearchSymbolsArgs {
+        cache: Some(false),
+        ..search_args("invoice")
+    };
+    assert_eq!(search(&server, bypass()).await, first);
+    assert_eq!(server.cache_stats().reference_recoveries, 1);
+    search(&server, bypass()).await;
+    assert_eq!(server.cache_stats().reference_recoveries, 1);
+}
+
+#[tokio::test]
+async fn hybrid_cache_false_after_a_reference_is_counted() {
+    let root = project("hybrid-reference-recovery");
+    let server = server(&root);
+    let first = hybrid(&server, hybrid_args("create invoice")).await;
+    assert!(is_reference(
+        &hybrid(&server, hybrid_args("create invoice")).await
+    ));
+    let args = HybridSearchArgs {
+        cache: Some(false),
+        ..hybrid_args("create invoice")
+    };
+    assert_eq!(hybrid(&server, args).await, first);
+    assert_eq!(server.cache_stats().reference_recoveries, 1);
 }
 
 #[tokio::test]
@@ -296,10 +347,11 @@ async fn an_equivalent_query_is_a_validated_semantic_hit() {
     assert!(original.contains("create_invoice"), "got: {original}");
 
     let paraphrase = hybrid(&server, hybrid_args("make a new invoice")).await;
-    assert_eq!(
-        paraphrase,
-        "cache: same as your earlier `create invoice` (sim 0.990); cache:false resends"
+    assert!(
+        paraphrase.contains("`create invoice` 0.990"),
+        "{paraphrase}"
     );
+    assert!(paraphrase.contains("cache:false"), "{paraphrase}");
     let stats = server.cache_stats();
     assert_eq!(
         (

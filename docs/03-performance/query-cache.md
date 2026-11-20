@@ -112,11 +112,16 @@ the embedding, the expensive part) and comparing is the honest check.
 | Situation | Reply |
 |---|---|
 | Miss | the tool's normal output, unchanged |
-| Hit, response already sent this session (`reference` mode) | `cache: unchanged since your identical earlier call (cache:false resends)` or `cache: same as your earlier \`<query>\` (sim 0.990); cache:false resends` |
+| Hit, response already sent within 15 minutes (`reference` mode) | A `cache:` line with the hit count, `cache:false`, and up to three locations. Semantic hits also name the reused query and similarity. |
 | Hit, not sent yet, or `full` mode | the full re-rendered output; a semantic hit adds a last line naming the query whose ranking it reuses and its similarity |
 
 `cache: false` on the tool call bypasses the lookup and always returns the
 full text — for an agent whose context no longer holds the earlier response.
+Locations are limited to the requested page and may be omitted to keep a
+large reference reply within one tenth of the full response's character count.
+The `reference_recoveries` metric counts explicit `cache: false` requests whose
+rendered result matches an outstanding reference; it is an estimate, because
+different queries can render the same result.
 
 ## Configuration
 
@@ -192,7 +197,12 @@ reference line is sent in full.
   skips the query embedding.
 - **A reference reply assumes the agent still has the earlier response.** If
   its context was compacted, `cache: false` (or `MCT_CACHE_RESPONSE=full`)
-  gets the full text.
+  gets the full text. Sent responses expire after 15 minutes; this limits the
+  window but cannot detect a context clear or compaction.
+- A file saved but not yet reindexed never gets a reference reply. Before
+  answering by reference, the server compares the bytes on disk of every
+  file on the requested page with the revision the index read. If one
+  differs, or cannot be read, the full result is sent instead (#188).
 - **Unrelated changes cost one recomputation** per surviving entry (lexical
   ranking + stored-vector semantic ranking), and on a small repository every
   file tends to be referenced by an unscoped `hybrid_search_like` result, so any

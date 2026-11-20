@@ -236,13 +236,16 @@ async fn the_query_cache_never_replays_a_response_in_the_other_format() {
     assert!(is_toon(&first), "{first}");
     // The same default call again is a cache hit: the one-line note.
     let again = run(None).await;
-    assert!(again.starts_with("cache: unchanged"), "{again}");
+    assert!(
+        again.starts_with("cache:") && again.contains("cache:false"),
+        "{again}"
+    );
     // The same ranking asked for as text is a different rendering: full text,
     // not the note about the TOON reply.
     let text = run(Some("text")).await;
     assert!(!text.starts_with("cache:") && !is_toon(&text), "{text}");
     // Asking for text again is its own cache hit, and explicit toon shares the
     // default's.
-    assert!(run(Some("text")).await.starts_with("cache: unchanged"));
-    assert!(run(Some("toon")).await.starts_with("cache: unchanged"));
+    assert!(run(Some("text")).await.starts_with("cache:"));
+    assert!(run(Some("toon")).await.starts_with("cache:"));
 }
