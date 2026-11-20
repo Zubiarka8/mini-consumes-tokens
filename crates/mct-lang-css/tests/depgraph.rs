@@ -52,3 +52,20 @@ fn evidence_is_set_only_where_the_source_proves_it() {
     // A bare package name is neither external nor a file path.
     assert!(evidence("tailwindcss").is_none());
 }
+
+/// Issue #567: an `@import` that climbs above the repository root is
+/// `external`, with no path stored.
+#[test]
+fn an_import_leaving_the_repository_is_external_with_no_path() {
+    let spec = "../../vendor/x.css";
+    let parsed = CssParser
+        .parse(&SourceFile {
+            relative_path: "styles/app.css".to_string(),
+            contents: format!("@import \"{spec}\";\n"),
+        })
+        .unwrap();
+    let outside = mct_corpus::optional_import_evidence(&parsed, spec).unwrap();
+    assert!(outside.external);
+    assert_eq!(outside.path, None);
+    assert!(mct_corpus::optional_import_evidence(&parsed, "x").is_none());
+}
