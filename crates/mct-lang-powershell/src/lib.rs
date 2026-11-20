@@ -47,6 +47,7 @@ use mct_tree_sitter::{find_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod http_routes;
 mod literals;
 mod tokens;
 
@@ -440,6 +441,8 @@ struct Walker<'a> {
     /// owner, `T` and where. `finish` keeps those naming one class or enum
     /// of this file.
     type_uses: Vec<(SymbolId, String, Location)>,
+    /// HTTP endpoints this script calls (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
 }
 
 impl<'a> Walker<'a> {
@@ -561,6 +564,15 @@ impl<'a> Walker<'a> {
                     if let Some((cmd_text, name_node)) =
                         command_literal_name(name_field, self.source)
                     {
+                        if cmd_text.eq_ignore_ascii_case("Invoke-RestMethod")
+                            || cmd_text.eq_ignore_ascii_case("Invoke-WebRequest")
+                        {
+                            self.join_points.extend(http_routes::request_use(
+                                node,
+                                owner,
+                                self.source,
+                            ));
+                        }
                         let is_dot_source = find_child(node, "command_invokation_operator")
                             .map(|op| text(op, self.source) == ".")
                             .unwrap_or(false);
@@ -821,6 +833,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             ..Default::default()
         }
     }

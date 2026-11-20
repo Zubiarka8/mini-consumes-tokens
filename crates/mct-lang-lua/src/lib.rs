@@ -13,6 +13,7 @@
 
 mod details;
 mod globals;
+mod http_routes;
 mod libraries;
 mod literals;
 mod tokens;
@@ -158,6 +159,11 @@ struct Walker<'a> {
     globals: HashSet<String>,
     /// Which Lua standard globals this file can only mean as the host's.
     std_globals: globals::StdGlobals,
+    /// HTTP endpoints this file uses, and routes waiting for their handler
+    /// (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
+    routes: Vec<http_routes::Route>,
+    lapis: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -167,6 +173,9 @@ impl<'a> Walker<'a> {
             source,
             path,
             qualifier_uses: Vec::new(),
+            join_points: Vec::new(),
+            routes: Vec::new(),
+            lapis: http_routes::mentions_lapis(source),
             symbols: Vec::new(),
             relations: Vec::new(),
             relation_targets: Vec::new(),
@@ -351,6 +360,12 @@ impl<'a> Walker<'a> {
             "for_statement" => self.visit_for(node, owner, depth),
             "function_call" => {
                 if let Some(callee) = node.child_by_field_name("name") {
+                    self.join_points
+                        .extend(http_routes::use_of(node, callee, owner, self.source));
+                    if self.lapis {
+                        self.routes
+                            .extend(http_routes::route_of(node, callee, self.source));
+                    }
                     let (name, name_node) = call_target_name(callee, self.source);
                     if let Some((kind, path)) = self.file_loader(callee, &name, node) {
                         self.push_relation(owner, kind, path, location(node));
@@ -1513,6 +1528,10 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(mut self) -> ParsedFile {
+        self.join_points.extend(http_routes::resolve(
+            std::mem::take(&mut self.routes),
+            &self.symbols,
+        ));
         // A qualifier references the class it names only when this file
         // declares that class: `Animal` a file-level class, `W.Widget` the
         // class `Widget` of `W`. The target is that class, never a function
@@ -1544,6 +1563,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             ..Default::default()
         }
     }

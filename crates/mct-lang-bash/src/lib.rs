@@ -33,6 +33,7 @@ use mct_tree_sitter::{first_error, location};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod http_routes;
 mod literals;
 mod tokens;
 
@@ -239,6 +240,8 @@ struct Walker<'a> {
     /// Relations that call a shell builtin by name, decided in `finish`
     /// once every function the file defines is known.
     builtin_calls: Vec<usize>,
+    /// HTTP endpoints this script calls with `curl` (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
 }
 
 impl<'a> Walker<'a> {
@@ -361,6 +364,13 @@ impl<'a> Walker<'a> {
                 if let Some(name_field) = node.child_by_field_name("name") {
                     if let Some(word_node) = literal_word_child(name_field) {
                         let cmd_text = text(word_node, self.source);
+                        if cmd_text == "curl" {
+                            self.join_points.extend(http_routes::curl_use(
+                                node,
+                                owner,
+                                self.source,
+                            ));
+                        }
                         match cmd_text {
                             "source" | "." => {
                                 if let Some(path) = first_argument_text(node, self.source) {
@@ -442,6 +452,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             ..Default::default()
         }
     }

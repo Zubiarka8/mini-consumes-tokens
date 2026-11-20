@@ -1043,6 +1043,30 @@ Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 
 Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 
+### RE10 Cross-language HTTP link
+
+- [~] Rust: axum and Actix Web routes are declarations; no client call (reqwest, ureq) is a use yet
+- [~] Python: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client` calls with a literal path
+- [~] JS/TS: `fetch`, `axios.<method>` and Express routes; `$.ajax`, `XMLHttpRequest` and other frameworks are not read
+- [~] Java: Spring `@GetMapping` family and `@RequestMapping` (class prefix); MockMvc `get("/x")`; no JAX-RS or client
+- [~] Kotlin: Spring mappings with the class prefix; Ktor `get("/x") { }` has no named handler
+- [~] C#: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`; `[controller]` tokens skipped
+- [~] C++: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow and Drogon not read
+- [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`
+- [~] PHP: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
+- [~] Lua: Lapis `app:get("/x", handler)` and `ngx.location.capture`
+- [~] Bash: `curl` to this machine (use only)
+- [~] PowerShell: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
+- — HTML: HTML is markup; it has no cross-language HTTP link
+- — CSS: CSS is markup; it has no cross-language HTTP link
+- — XML: XML is markup; it has no cross-language HTTP link
+- — XAML: XAML is markup; it has no cross-language HTTP link
+- — Markdown: Markdown is markup; it has no cross-language HTTP link
+
+*Done 0 · Partial 12 · Not done 0 · Not verified 0 · Not applicable 5
+
+Done 0 · Partial 2 · Not done 10 · Not verified 0 · Not applicable 5
+
 ## Search and lookup
 
 What the search and query tools return for a language, checked end to end through the MCP tools. A mark here depends on the symbols and relations above being in place.

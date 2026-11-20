@@ -13,6 +13,7 @@ use mct_tree_sitter::{first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod http_routes;
 #[cfg(test)]
 mod libraries;
 mod literals;
@@ -132,6 +133,10 @@ struct Walker<'a> {
     /// The properties each class of this file declares, `(class, name)`
     /// to its `field`: what `@name.setter` adds an accessor to.
     properties: HashMap<(String, String), SymbolId>,
+    /// HTTP endpoints this file declares or uses (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
+    /// The file names a web framework: the evidence a decorator is a route.
+    web_framework: bool,
 }
 
 /// What a decorated `def` is to a property (see `Walker::property_role`).
@@ -174,6 +179,7 @@ impl<'a> Walker<'a> {
         Self {
             source,
             path,
+            web_framework: http_routes::mentions_framework(source),
             ..Self::default()
         }
     }
@@ -260,6 +266,15 @@ impl<'a> Walker<'a> {
                 }
                 let mut cursor = node.walk();
                 for decorator in node.children(&mut cursor) {
+                    if let (true, Some(id), "decorator") =
+                        (self.web_framework, target_id, decorator.kind())
+                    {
+                        self.join_points.extend(http_routes::declarations(
+                            decorator,
+                            self.source,
+                            id,
+                        ));
+                    }
                     if decorator.kind() == "decorator"
                         && !self.is_accessor_decorator(decorator, role)
                     {
@@ -355,6 +370,12 @@ impl<'a> Walker<'a> {
             }
             "call" => {
                 if let Some(function) = node.child_by_field_name("function") {
+                    self.join_points.extend(http_routes::use_of(
+                        node,
+                        function,
+                        owner,
+                        self.source,
+                    ));
                     if let Some((name, name_node)) = expr_name_node(function, self.source) {
                         if !self.push_receiver_evidence(function) {
                             self.push_use_evidence(function);
@@ -1174,6 +1195,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             ..Default::default()
         }
     }

@@ -22,6 +22,7 @@ use mct_tree_sitter::{find_child, first_error, location, Supertype};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod http_routes;
 mod literals;
 mod receivers;
 mod tokens;
@@ -210,6 +211,11 @@ struct Walker<'a> {
     /// Declared types of a function's variables, by the function node, for
     /// the receivers of its calls (see `receivers`).
     receiver_types: HashMap<usize, receivers::Types>,
+    /// HTTP endpoints this file uses, and routes waiting for their handler
+    /// (see `http_routes`).
+    join_points: Vec<mct_core::JoinPoint>,
+    routes: Vec<http_routes::Route>,
+    httplib: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -229,6 +235,9 @@ impl<'a> Walker<'a> {
             type_uses: Vec::new(),
             template_params: Vec::new(),
             receiver_types: HashMap::new(),
+            join_points: Vec::new(),
+            routes: Vec::new(),
+            httplib: http_routes::mentions_httplib(source),
         }
     }
 
@@ -559,6 +568,16 @@ impl<'a> Walker<'a> {
             }
             "call_expression" => {
                 if let Some(function) = node.child_by_field_name("function") {
+                    if self.httplib {
+                        self.join_points.extend(http_routes::use_of(
+                            node,
+                            function,
+                            ctx.owner,
+                            self.source,
+                        ));
+                        self.routes
+                            .extend(http_routes::route_of(node, function, self.source));
+                    }
                     if let Some(name_node) = callee_identifier(function) {
                         // location(name_node), not location(node): a chained
                         // call (`a.f(x).f(y)`) has its outer and inner
@@ -1039,6 +1058,10 @@ impl<'a> Walker<'a> {
     }
 
     fn finish(mut self) -> ParsedFile {
+        self.join_points.extend(http_routes::resolve(
+            std::mem::take(&mut self.routes),
+            &self.symbols,
+        ));
         // A type this file declares once is the one a declaration here
         // names: the target is pinned to this file and to that kind, never
         // a constructor or function of the same name. A `std::` type is the
@@ -1088,6 +1111,7 @@ impl<'a> Walker<'a> {
             relations: self.relations,
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             ..Default::default()
         }
     }
