@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Bash: `coproc NAME { …; }` and `coproc { …; }` no longer end the enclosing function at the `coproc` line. tree-sitter-bash 0.25 misreads them with no error; the parser now reparses with the `coproc [NAME]` prefix blanked, so the body's calls belong to the function and its closing `}` is no call (#79).
+
 - `mct-cli duplicates` now applies the rules of nested `.gitignore` files that `.mctignore` imports, as the dashboard and the other commands do. A path excluded by such a rule after indexing is no longer reported, and its cached report is not reused.
 
 ## [0.3.2] - 2026-11-13

@@ -70,6 +70,16 @@ impl LanguageParser for BashParser {
                 message: "tree-sitter produced no parse tree".to_string(),
             })?;
 
+        // tree-sitter-bash 0.25 reads `coproc [NAME] { …; }` as one plain
+        // command whose `;` and `}` close the enclosing block, with no error
+        // node (issue #79). Reparse with `coproc [NAME]` blanked: the body is
+        // then a brace group, at the same byte offsets.
+        if let Some(contents) = coproc_parse_buffer(tree.root_node(), &file.contents) {
+            if let Some(reparsed) = parser.parse(&contents, None) {
+                tree = reparsed;
+            }
+        }
+
         // tree-sitter-bash rejects literal semicolons in double-quoted
         // ${name:+word}. Reparse that precise grammar gap with same-width
         // word characters, retaining original source for extraction.
@@ -156,6 +166,59 @@ fn quoted_alternative_parse_buffer(root: Node, source: &str) -> Option<String> {
         }
     }
     changed.then(|| String::from_utf8(bytes).ok()).flatten()
+}
+
+/// `source` with every misparsed brace coprocess's `coproc [NAME]` prefix
+/// replaced by spaces, or `None` when there is none. A misparsed one is a
+/// `command` named `coproc` whose first argument, or second after a name,
+/// is the word `{`. Only bytes inside that command change, so every node of
+/// the reparsed tree keeps its offsets and its text in `source`.
+fn coproc_parse_buffer(root: Node, source: &str) -> Option<String> {
+    let mut bytes = source.as_bytes().to_vec();
+    let mut changed = false;
+    let mut pending = vec![(root, 0)];
+    while let Some((node, depth)) = pending.pop() {
+        if depth >= MAX_TRAVERSAL_DEPTH {
+            continue;
+        }
+        if node.kind() == "command" {
+            if let Some(brace) = coproc_brace(node, source) {
+                for byte in &mut bytes[node.start_byte()..brace.start_byte()] {
+                    if !byte.is_ascii_whitespace() {
+                        *byte = b' ';
+                        changed = true;
+                    }
+                }
+            }
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            pending.push((child, depth + 1));
+        }
+    }
+    changed.then(|| String::from_utf8(bytes).ok()).flatten()
+}
+
+/// The `{` word that opens a misparsed brace coprocess's body in `command`.
+fn coproc_brace<'t>(command: Node<'t>, source: &str) -> Option<Node<'t>> {
+    let name = command.child_by_field_name("name")?;
+    if text(name, source) != "coproc" {
+        return None;
+    }
+    let mut cursor = command.walk();
+    let mut args = command
+        .children_by_field_name("argument", &mut cursor)
+        .filter(|arg| arg.start_byte() > name.end_byte());
+    let first = args.next()?;
+    let is_brace = |n: Node| n.kind() == "word" && text(n, source) == "{";
+    if is_brace(first) {
+        return Some(first);
+    }
+    let named = first.kind() == "word"
+        && text(first, source)
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_');
+    args.next().filter(|second| named && is_brace(*second))
 }
 
 /// Bash builtins a call can name (`source`/`.` are imports, not calls).
