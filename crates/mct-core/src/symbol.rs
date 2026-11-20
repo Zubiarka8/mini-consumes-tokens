@@ -144,6 +144,11 @@ pub struct RelationTarget {
     /// receiver of unproven type, where a same-named field elsewhere is only
     /// a name coincidence). Any other kind stays a candidate.
     pub not_field: bool,
+    /// The source names the target with no receiver (`f()`, `new Repo()`,
+    /// `<Button />`, a type `Paid`, `import { f }`), in a language where such
+    /// a name never reaches a member of a type. A method or field is then no
+    /// candidate (issue #395). Any other kind stays one.
+    pub top_level: bool,
     /// Language id the target is declared in, when the source names another
     /// language explicitly (an HTML `class` naming a CSS rule). `None` means
     /// the source file's own language — spelling alone never links two
