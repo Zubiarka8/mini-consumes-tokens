@@ -1693,15 +1693,15 @@ From `rules.md` and the two messages:
       were already clean, so its index is unchanged. Each reparse pass costs
       one parse, and a 12 KB file of 400 one-line classes takes 32 ms against
       3 ms for its multi-line spelling (release build, 20 runs).
-- [!] C++ supertypes: `struct Mid : public Base` is ambiguous between the
-      class `Base` and its constructor `Base(int)` (probe: 1 candidate pair
-      per base, e.g. `Mid -> Base` "L1, L1 in Base"). Java, Kotlin and C#
-      restrict a supertype to a type kind, but a C++ base can be a `class` or
-      a `struct`, and `RelationTarget.kind` holds one kind. A same-file base
-      could use its declared kind, which leaves every cross-file base
-      ambiguous. The full fix lists several kinds on `RelationTarget`, a
-      cross-cutting change in `mct-core` that needs an issue first. Waiting
-      for the maintainer.
+- [x] C++ supertypes: `struct Mid : public Base` was ambiguous between the
+      class `Base` and its constructor `Base(int)`. Decided by the
+      maintainer (#388, ADR-039): instead of a multi-kind `RelationTarget`,
+      migration 22 adds a view predicate. A C# or C++ `extends`/`implements`
+      relation has no `method`, `function`, `field`, `variable` or `constant`
+      candidate. Test:
+      `schema::tests::supertype_migration_drops_non_type_candidates_in_csharp_and_cpp`.
+      Repository snapshot: C++ extends 4 ambiguous + 1 resolved -> 5
+      resolved; C# 30 resolved before and after.
 - [ ] C++: a member declared in the class and defined out of line
       (`Product::describe`) is two symbols, so a relation to it, an
       `overrides` or a qualified call, has two candidates and stays
