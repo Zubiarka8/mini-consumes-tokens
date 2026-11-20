@@ -7,6 +7,7 @@ use mct_languages::build_registry;
 
 mod duplicates;
 mod ignore_preset;
+mod impact;
 mod reviewed;
 mod web;
 
@@ -96,6 +97,19 @@ enum Command {
         /// Do not write the Obsidian vault in `.mct-index/obsidian/`.
         #[arg(long)]
         no_obsidian: bool,
+        /// Print changed files, their symbols, and graph-linked tests.
+        #[arg(long)]
+        summary: bool,
+    },
+    /// Report symbols and candidate tests affected by a Git commit range.
+    #[command(after_help = "Example:\n  mct-cli --root . impact --base origin/main --head HEAD")]
+    Impact {
+        /// Base commit or reference.
+        #[arg(long)]
+        base: String,
+        /// Head commit or reference.
+        #[arg(long, default_value = "HEAD")]
+        head: String,
     },
     /// Regenerate the Obsidian vault from the existing index.
     ///
@@ -333,6 +347,7 @@ impl Command {
         match self {
             Command::Init { .. } => "init",
             Command::Reindex { .. } => "reindex",
+            Command::Impact { .. } => "impact",
             Command::Obsidian => "obsidian",
             Command::Web { .. } => "web",
             Command::Call { .. } => "call",
@@ -445,17 +460,56 @@ fn run_single(root: PathBuf, command: Command) -> anyhow::Result<()> {
     let mut index = Index::open(&root, &db_path, exclude)?;
 
     match command {
-        Command::Reindex { force, no_obsidian } => {
+        Command::Reindex {
+            force,
+            no_obsidian,
+            summary,
+        } => {
             if !no_obsidian {
                 mct_obsidian::register(&mut index);
             }
+            let previous = if summary {
+                Some(
+                    index
+                        .indexed_files()?
+                        .into_iter()
+                        .map(|file| (file.relative_path, file.content_hash))
+                        .collect::<std::collections::HashMap<_, _>>(),
+                )
+            } else {
+                None
+            };
             let report = index.reindex(&registry, force)?;
+            let changed = if let Some(previous) = previous {
+                let current: std::collections::HashMap<_, _> = index
+                    .indexed_files()?
+                    .into_iter()
+                    .map(|file| (file.relative_path, file.content_hash))
+                    .collect();
+                previous
+                    .iter()
+                    .filter(|(path, hash)| current.get(*path) != Some(*hash))
+                    .map(|(path, _)| path.clone())
+                    .chain(
+                        current
+                            .iter()
+                            .filter(|(path, hash)| previous.get(*path) != Some(*hash))
+                            .map(|(path, _)| path.clone()),
+                    )
+                    .collect()
+            } else {
+                Vec::new()
+            };
             let vault_ok = !no_obsidian && report.warnings.is_empty();
             print_reindex(report);
+            if summary {
+                impact::print_summary(&index, changed)?;
+            }
             if vault_ok {
                 print_vault_location(index.root());
             }
         }
+        Command::Impact { base, head } => impact::run(&root, &mut index, &registry, &base, &head)?,
         Command::Obsidian => obsidian_vault(&index)?,
         Command::Status => print_status(index.status()?),
         Command::DeadCode {
