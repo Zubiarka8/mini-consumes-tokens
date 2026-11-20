@@ -1,4 +1,4 @@
-# language=csharp files=6 symbols=476 relations=1180 name_matched_across_files=268
+# language=csharp files=6 symbols=478 relations=1180 name_matched_across_files=268
 
 == Warehouse/Errors.cs (379 lines)
 S 1-379 module Errors
@@ -250,6 +250,7 @@ R 376:29 references QuotaExceededException::Code -> ErrorCode
 
 == Warehouse/Models.cs (391 lines)
 S 1-391 module Models
+S 10-10 type_alias Money
 S 12-391 module Warehouse.Models
 S 14-20 enum Warehouse.Models::Unit
 S 16-16 constant Unit::Piece
@@ -807,6 +808,7 @@ R 299:49 references CommandRegistry::Describe -> Summary
 
 == Warehouse/Reports.cs (319 lines)
 S 1-319 module Reports
+S 15-15 type_alias Table
 S 17-319 module Warehouse.Reporting
 S 20-26 class Warehouse.Reporting::ColumnAttribute
 S 23-23 field ColumnAttribute::Header

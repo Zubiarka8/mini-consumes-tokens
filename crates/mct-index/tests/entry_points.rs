@@ -359,7 +359,7 @@ fn an_index_from_before_the_table_gains_it_and_reparses_on_a_normal_reindex() {
          ALTER TABLE relations DROP COLUMN join_kind;
          DROP VIEW relation_candidates;
          ALTER TABLE relations DROP COLUMN not_field;
-         ALTER TABLE relations DROP COLUMN top_level;
+         ALTER TABLE relations DROP COLUMN top_level; ALTER TABLE symbols DROP COLUMN file_scoped;
          CREATE VIEW relation_candidates AS SELECT NULL AS relation_id, NULL AS symbol_id;",
     )
     .unwrap();
