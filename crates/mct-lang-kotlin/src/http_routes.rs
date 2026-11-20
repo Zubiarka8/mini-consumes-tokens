@@ -1,6 +1,7 @@
 //! HTTP join points (ADR-038): Spring `@GetMapping`-style annotations declare
 //! an endpoint for their function, with the class's `@RequestMapping` prefix.
-//! Ktor's `get("/x") { .. }` has no named handler, so it declares nothing.
+//! Ktor's `get("/x") { .. }` has no named handler, so it declares nothing. A
+//! Retrofit `@GET("/x")` interface function uses an endpoint.
 
 use mct_core::{JoinPoint, SymbolId};
 use mct_tree_sitter::{find_child, location};
@@ -162,4 +163,26 @@ pub(super) fn declarations(function: Node, source: &str, symbol: SymbolId) -> Ve
         }
     }
     points
+}
+
+/// The file imports Retrofit: the evidence its `@GET("/x")` is a request.
+pub(super) fn mentions_retrofit(source: &str) -> bool {
+    source.contains("retrofit2")
+}
+
+/// A Retrofit interface function `@GET("/x")` uses the endpoint it names. A
+/// path without a leading slash is relative to a base URL the file does not
+/// state, so it gives nothing.
+pub(super) fn retrofit_use(function: Node, source: &str, symbol: SymbolId) -> Option<JoinPoint> {
+    let mut verbs = annotations(function).into_iter().filter_map(|annotation| {
+        let verb = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+            .into_iter()
+            .find(|verb| *verb == annotation_name(annotation, source))?;
+        Some((annotation, verb))
+    });
+    let (Some((annotation, verb)), None) = (verbs.next(), verbs.next()) else {
+        return None;
+    };
+    let path = mapped_path(annotation, source).ok()?;
+    JoinPoint::http_uses(symbol, verb, path, location(annotation))
 }

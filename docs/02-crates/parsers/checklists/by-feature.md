@@ -53,7 +53,7 @@ Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 7
 - [~] Python: file skeleton shows `nested` indented, but the parser test confirms `parent` is `None`
 - [~] JS/TS: `fetch`, `axios.<method>`, `$.ajax`/`$.get`/`$.post`, `xhr.open("GET", "/x")` and Express routes; other frameworks are not read
 - — Java: no nested named functions
-- [~] Kotlin: local `inner` function is indexed without a parent association
+- [~] Kotlin: Spring mappings with the class prefix; Retrofit `@GET("/x")` is a use (a path without a leading slash is skipped); Ktor `get("/x") { }` has no named handler
 - [~] C#: local function → `function`, parent not checked
 - — C++: C++ has no nested named functions
 - — Go: Go has no nested function
