@@ -623,6 +623,7 @@ struct Walker<'a> {
     /// HTTP endpoints this file declares (see `http_routes`).
     join_points: Vec<mct_core::JoinPoint>,
     spring: bool,
+    retrofit: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -630,6 +631,7 @@ impl<'a> Walker<'a> {
         Self {
             source,
             spring: http_routes::mentions_spring(source),
+            retrofit: http_routes::mentions_retrofit(source),
             ..Self::default()
         }
     }
@@ -1010,6 +1012,10 @@ impl<'a> Walker<'a> {
                 if self.spring {
                     self.join_points
                         .extend(http_routes::declarations(node, self.source, id));
+                }
+                if self.retrofit {
+                    self.join_points
+                        .extend(http_routes::retrofit_use(node, self.source, id));
                 }
                 if has_override_modifier(node, self.source) {
                     if let Some(name_node) = node.child_by_field_name("name") {

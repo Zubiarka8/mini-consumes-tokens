@@ -399,7 +399,7 @@ Done 30 · Partial 9 · Not done 7 · Not verified 0 · Not applicable 7
 - [x] RE06 Implements interface / trait: `P_Sub` implements `P_Iface`
 - [x] RE07 Interface extends interface / supertrait: `interface B : A` → `extends`, to an `interface` only
 - [x] RE08 Decorator / annotation / attribute: `@Marker` → `references Marker`, to a class only
-- [~] RE10 Cross-language HTTP link: Spring mappings with the class prefix; Ktor `get("/x") { }` has no named handler
+- [~] RE10 Cross-language HTTP link: Spring mappings with the class prefix; Retrofit `@GET("/x")` is a use (a path without a leading slash is skipped); Ktor `get("/x") { }` has no named handler
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
