@@ -1054,7 +1054,7 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 - [~] C++: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow and Drogon not read
 - [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
 - [~] PHP: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
-- [~] Lua: Lapis `app:get("/x", handler)` and `ngx.location.capture`
+- [~] Lua: Lapis `app:get("/x", handler)`, `ngx.location.capture` and lua-resty-http `request_uri("http://localhost/x")`
 - [~] Bash: `curl` and `wget` to this machine (use only)
 - [~] PowerShell: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
 - [~] HTML: `<form action method>` is a use; `<a href>` and `<script>` calls are not read

@@ -56,12 +56,44 @@ pub(super) fn route_of(call: Node, callee: Node, source: &str) -> Option<Route> 
     })
 }
 
-/// `ngx.location.capture("/x")`.
+/// The literal `method = ".."` of an options table: `GET` without one, `None`
+/// when the table sets it to something that is not a string literal.
+fn table_method(table: Option<&Node>, source: &str) -> Option<String> {
+    let Some(table) = table else {
+        return Some("GET".to_string());
+    };
+    if table.kind() != "table_constructor" {
+        return None;
+    }
+    let mut cursor = table.walk();
+    let mut method = None;
+    for field in table.named_children(&mut cursor) {
+        let Some(name) = field.child_by_field_name("name") else {
+            // A positional or computed entry cannot be told from `method`.
+            return None;
+        };
+        if text(name, source) == "method" {
+            let value = field.child_by_field_name("value")?;
+            method = Some(literal(value, source)?.to_ascii_uppercase());
+        }
+    }
+    Some(method.unwrap_or_else(|| "GET".to_string()))
+}
+
+/// `ngx.location.capture("/x")`, or lua-resty-http's
+/// `httpc:request_uri("http://localhost/x", { method = "POST" })`.
 pub(super) fn use_of(call: Node, callee: Node, owner: SymbolId, source: &str) -> Option<JoinPoint> {
+    let args = arguments(call);
+    if callee.kind() == "method_index_expression"
+        && text(callee.child_by_field_name("method")?, source) == "request_uri"
+    {
+        let url = literal(*args.first()?, source).filter(|url| url.starts_with("http"))?;
+        let method = table_method(args.get(1), source)?;
+        return JoinPoint::http_uses(owner, &method, url, location(call));
+    }
     if text(callee, source) != "ngx.location.capture" {
         return None;
     }
-    let args = arguments(call);
     JoinPoint::http_uses(
         owner,
         "GET",

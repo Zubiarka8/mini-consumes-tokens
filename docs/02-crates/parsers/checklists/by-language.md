@@ -763,7 +763,7 @@ Done 15 · Partial 7 · Not done 3 · Not verified 0 · Not applicable 28
 - [x] RE01 Calls: `p_top` → `p_local`, `p_mod`
 - [x] RE04 Imports: `require("lib")` → edge
 - [x] RE05 Class extends class: `Child` extends `Base` via `setmetatable` (MCT probe)
-- [~] RE10 Cross-language HTTP link: Lapis `app:get("/x", handler)` and `ngx.location.capture`
+- [~] RE10 Cross-language HTTP link: Lapis `app:get("/x", handler)`, `ngx.location.capture` and lua-resty-http `request_uri("http://localhost/x")`
 **Search and lookup**
 
 - [x] SE01 Find a definition: `list_symbols`
