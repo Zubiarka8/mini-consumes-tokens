@@ -1046,10 +1046,10 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 ### RE10 Cross-language HTTP link
 
 - [~] Rust: axum and Actix Web routes are declarations; `reqwest`/`ureq` calls with an absolute URL to this machine are uses
-- [~] Python: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client` calls with a literal path
-- [~] JS/TS: `fetch`, `axios.<method>` and Express routes; `$.ajax`, `XMLHttpRequest` and other frameworks are not read
-- [~] Java: Spring `@GetMapping` family and `@RequestMapping` (class prefix); MockMvc `get("/x")`; no JAX-RS or client
-- [~] Kotlin: Spring mappings with the class prefix; Ktor `get("/x") { }` has no named handler
+- [~] Python: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client`/`self.client` calls with a literal path; `urlopen` with an absolute URL to this machine
+- [~] JS/TS: `fetch`, `axios.<method>`, `$.ajax`/`$.get`/`$.post`, `xhr.open("GET", "/x")` and Express routes; other frameworks are not read
+- [~] Java: Spring `@GetMapping` family and `@RequestMapping` (class prefix); JAX-RS `@GET` with `@Path`; Retrofit `@GET("/x")` (a use; a path without a leading slash is skipped); MockMvc `get("/x")`
+- [~] Kotlin: Spring mappings with the class prefix; Retrofit `@GET("/x")` is a use (a path without a leading slash is skipped); Ktor `get("/x") { }` has no named handler
 - [~] C#: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`; `[controller]` tokens skipped
 - [~] C++: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow and Drogon not read
 - [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
