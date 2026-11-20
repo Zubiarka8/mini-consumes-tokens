@@ -349,7 +349,7 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // `not_field` relation target (issue #412) and 18 is ADR-037's
     // inherited-member candidates (issue #479) and 19 is the inline-module
     // type-method candidate (issue #478).
-    assert_eq!(before, 19);
+    assert_eq!(before, 20);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();

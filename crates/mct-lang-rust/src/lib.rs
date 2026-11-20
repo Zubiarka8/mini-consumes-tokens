@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use tree_sitter::{Node, Parser};
 
 mod details;
+mod http_routes;
 mod receivers;
 mod tokens;
 
@@ -139,6 +140,7 @@ struct Walker<'a> {
     receivers: HashMap<String, (String, Option<String>)>,
     /// Declaration details of the items recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
+    join_points: Vec<mct_core::JoinPoint>,
     /// Each `implements` relation of an `impl Tr for T`, with `T`'s base
     /// name: `finish` makes `T` its owner when this file declares it.
     impl_relations: Vec<(usize, String)>,
@@ -165,6 +167,7 @@ impl<'a> Walker<'a> {
             self_type: None,
             receivers: HashMap::new(),
             details: Vec::new(),
+            join_points: Vec::new(),
             impl_relations: Vec::new(),
         }
     }
@@ -263,6 +266,13 @@ impl<'a> Walker<'a> {
             ) {
                 if let Some(target) = self.symbols.get(before).map(|s| s.id) {
                     for attribute in attributes.drain(..) {
+                        if child.kind() == "function_item" {
+                            if let Some(point) =
+                                http_routes::declaration(attribute, self.source, target)
+                            {
+                                self.join_points.push(point);
+                            }
+                        }
                         self.visit_attribute_references(attribute, target);
                     }
                 } else {
@@ -1543,6 +1553,7 @@ impl<'a> Walker<'a> {
             literals: self.literals.finish(),
             relation_targets: self.relation_targets,
             symbol_details: self.details,
+            join_points: self.join_points,
             ..Default::default()
         }
     }

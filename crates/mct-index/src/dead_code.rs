@@ -107,12 +107,11 @@ pub fn find_dead_code_candidates(
     path: Option<&str>,
     language: Option<&str>,
 ) -> Result<Vec<SymbolListEntry>> {
-    let all_entries = index.list_symbols_all(path, language)?;
-    let referenced = index.referenced_symbols(DEAD_CODE_KIND_ALLOWLIST)?;
-
-    Ok(all_entries
+    let scan = scan_dead_code(index, path, language)?;
+    Ok(scan
+        .candidates
         .into_iter()
-        .filter(|e| is_candidate(e, &referenced))
+        .map(|id| scan.symbols[id].clone())
         .collect())
 }
 
@@ -157,6 +156,8 @@ pub struct DeadCodeScan {
     /// Possible entry points of the candidates, by index into `symbols`.
     /// Empty unless a parser declared hints whose project requirement holds.
     pub entry_points: HashMap<usize, Vec<EntryPointNote>>,
+    /// Declared entry points in scan order, with the symbol position and reason.
+    pub declared_entry_points: Vec<(usize, String)>,
 }
 
 impl DeadCodeScan {
@@ -245,19 +246,44 @@ pub fn scan_dead_code(
     path: Option<&str>,
     language: Option<&str>,
 ) -> Result<DeadCodeScan> {
-    let symbols = index.list_symbols_all(path, language)?;
+    let (ids, symbols): (Vec<_>, Vec<_>) = index
+        .list_symbols_with_ids(path, language)?
+        .into_iter()
+        .unzip();
+    let mut stmt = index.conn.prepare_cached(
+        "SELECT symbol_id, kind, value FROM join_points WHERE role = 'declares'
+         ORDER BY symbol_id, kind, value",
+    )?;
+    let mut declarations = HashMap::<i64, Vec<String>>::new();
+    for row in stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })? {
+        let (id, kind, value) = row?;
+        declarations
+            .entry(id)
+            .or_default()
+            .push(format!("possible entry point: {kind} {value}"));
+    }
     let referenced = index.referenced_symbols(DEAD_CODE_KIND_ALLOWLIST)?;
-    let candidates: Vec<usize> = symbols
-        .iter()
-        .enumerate()
-        .filter(|(_, entry)| is_candidate(entry, &referenced))
-        .map(|(id, _)| id)
-        .collect();
+    let mut candidates = Vec::new();
+    let mut declared_entry_points = Vec::new();
+    for (position, (id, symbol)) in ids.into_iter().zip(&symbols).enumerate() {
+        if let Some(reasons) = declarations.remove(&id) {
+            declared_entry_points.extend(reasons.into_iter().map(|reason| (position, reason)));
+        } else if is_candidate(symbol, &referenced) {
+            candidates.push(position);
+        }
+    }
     let entry_points = entry_point_notes(index, &symbols, &candidates)?;
     Ok(DeadCodeScan {
         symbols,
         candidates,
         entry_points,
+        declared_entry_points,
     })
 }
 
