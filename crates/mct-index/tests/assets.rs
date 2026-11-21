@@ -360,8 +360,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // 28 stores package.json `imports` maps (ADR-045, #563), and 29 stores
     // renamed Cargo path dependencies (ADR-046, #563), and 30 stores CMake
     // include directories (ADR-047, #563), and 31 names workspace packages
-    // for bare JS/TS imports (ADR-048, #563).
-    assert_eq!(before, 31);
+    // for bare JS/TS imports (ADR-048, #563), and 32 reads Vite `@` aliases
+    // (ADR-050, #563).
+    assert_eq!(before, 32);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
