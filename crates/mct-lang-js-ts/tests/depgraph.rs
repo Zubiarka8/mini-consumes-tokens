@@ -261,3 +261,45 @@ fn evidence_is_set_only_where_the_source_proves_it() {
     assert!(!parsed.relations.iter().any(|r| r.to_name == "react"));
     assert!(!parsed.relations.iter().any(|r| r.to_name == "data"));
 }
+
+/// Issue #563 (Node): a `#…` specifier resolves through the nearest
+/// `package.json` `imports` map. A wildcard key, an exact key and a
+/// condition object all count. A `.js` target also finds its `.ts` source.
+/// A nested package.json without `imports` governs its own files, so the
+/// outer map does not leak into it.
+#[test]
+fn package_json_imports_resolve_through_the_nearest_package() {
+    let (root, mut index, registry) = index_files(
+        "pkg-imports",
+        &[
+            (
+                "package.json",
+                r##"{"name":"app","imports":{"#lib/*":"./src/lib/*.js","#db":{"node":"./src/database.ts","default":"./src/missing.ts"}}}"##,
+            ),
+            (
+                "src/main.ts",
+                "import { util } from '#lib/util';\nimport { db } from '#db';\n",
+            ),
+            ("src/lib/util.ts", "export function util() {}\n"),
+            ("src/database.ts", "export const db = 1;\n"),
+            ("nested/package.json", r#"{"name":"nested"}"#),
+            ("nested/use.ts", "import { util } from '#lib/util';\n"),
+        ],
+    );
+    assert_eq!(
+        import_target(&index, "util", "src/main.ts").as_deref(),
+        Some("src/lib/util.ts")
+    );
+    assert_eq!(
+        import_target(&index, "db", "src/main.ts").as_deref(),
+        Some("src/database.ts")
+    );
+    assert_eq!(import_target(&index, "util", "nested/use.ts"), None);
+
+    std::fs::write(root.join("package.json"), r#"{"name":"app"}"#).unwrap();
+    index
+        .reindex_paths(&registry, &["package.json".into()])
+        .unwrap();
+    assert_eq!(import_target(&index, "util", "src/main.ts"), None);
+    std::fs::remove_dir_all(root).unwrap();
+}
