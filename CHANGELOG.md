@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A Rust `use alias::…` resolves through a renamed path dependency (`alias = { package = "real", path = "../real" }`) to that crate's files, only inside the declaring package (#563, ADR-046). Schema migration 29.
+
 - A `#…` import resolves through the nearest `package.json` `imports` map (wildcard, exact and condition keys; a `.js` target also finds its `.ts` source) (#563, ADR-045). Schema migration 28 reparses JS/TS files.
 
 - A root-relative HTML link or CSS `@import` (`/site.css`) resolves under the web root its app declares: `static/` next to a `svelte.config.*`, `wwwroot/` for an ASP.NET web SDK `.csproj`, else `public/` as before (#567, ADR-044). Schema migration 27 reparses HTML and CSS files.

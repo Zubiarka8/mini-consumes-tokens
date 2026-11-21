@@ -357,8 +357,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // file-scoped symbols (issue #446), 26 stores Cargo package names and
     // TypeScript path aliases (issues #374 and #563), 27 stores each
     // root-relative URL's app and the framework web roots (ADR-044, #567),
-    // and 28 stores package.json `imports` maps (ADR-045, #563).
-    assert_eq!(before, 28);
+    // 28 stores package.json `imports` maps (ADR-045, #563), and 29 stores
+    // renamed Cargo path dependencies (ADR-046, #563).
+    assert_eq!(before, 29);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
