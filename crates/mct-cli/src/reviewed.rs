@@ -19,10 +19,14 @@ pub(crate) enum Reviewed {
 
 impl Reviewed {
     pub(crate) fn keeps(self, resolution: &Resolution) -> bool {
+        self.keeps_visibility(resolution.visibility())
+    }
+
+    pub(crate) fn keeps_visibility(self, visibility: Visibility) -> bool {
         match self {
             Self::Show => true,
-            Self::Hide => resolution.visibility() == Visibility::Actionable,
-            Self::Only => resolution.visibility() == Visibility::Suppressed,
+            Self::Hide => visibility == Visibility::Actionable,
+            Self::Only => visibility == Visibility::Suppressed,
         }
     }
 }
@@ -44,10 +48,24 @@ pub(crate) fn load(root: &Path) -> Reviews {
 /// `"k hidden by review (false-positive a, dismissed b)"`, or `None` when
 /// nothing is hidden.
 pub(crate) fn hidden_summary(resolutions: &[Resolution]) -> Option<String> {
-    let count = |state: State| {
+    hidden_summary_of(
         resolutions
             .iter()
-            .filter(|r| r.visibility() == Visibility::Suppressed && r.state() == state)
+            .map(|r| (r.visibility(), r.state().value())),
+    )
+}
+
+/// [`hidden_summary`] over `(visibility, label)` pairs, such as the
+/// [`mct_index::reviews::GroupSummary`] of duplicate groups.
+pub(crate) fn hidden_summary_of<'a>(
+    items: impl Iterator<Item = (Visibility, &'a str)> + Clone,
+) -> Option<String> {
+    let count = |state: State| {
+        items
+            .clone()
+            .filter(|(visibility, label)| {
+                *visibility == Visibility::Suppressed && *label == state.value()
+            })
             .count()
     };
     let (false_positive, dismissed) = (count(State::FalsePositive), count(State::Dismissed));

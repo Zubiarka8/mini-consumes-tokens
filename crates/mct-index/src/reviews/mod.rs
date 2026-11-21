@@ -3,7 +3,8 @@
 //! decision means the same thing everywhere.
 //!
 //! Decisions are local preference state in `.mct-index`, never index data.
-//! The only file this module writes is `review-decisions.toon` (format `C3`).
+//! The only file this module writes is `review-decisions.toon` (format `C3`,
+//! version 4 only once it holds a per-member decision, ADR-049).
 //! Older files are read where they are and never modified:
 //! `duplicate-reviews.toon` (`A1` version 1 and `A2` version 2) and the
 //! dashboard draft's `reviews.toon` (`B2`). Every read resolves the current
@@ -23,8 +24,10 @@ mod resolve;
 mod store;
 
 pub use format::valid_key as is_review_key;
-pub use identity::{dead_code_findings, duplicate_findings, FindingKeys};
-pub use resolve::{Candidate, Diagnostics, HistoryEvent, Resolution};
+pub use identity::{
+    dead_code_findings, duplicate_findings, duplicate_member_findings, FindingKeys,
+};
+pub use resolve::{summarize, Candidate, Diagnostics, GroupSummary, HistoryEvent, Resolution};
 pub use store::{Change, ReviewError, Reviews, SourceProblem, CANONICAL_FILE};
 
 /// What a finding is.
@@ -32,6 +35,9 @@ pub use store::{Change, ReviewError, Reviews, SourceProblem, CANONICAL_FILE};
 pub enum Kind {
     Duplicate,
     DeadCode,
+    /// One member (file) of a duplicate group, reviewed on its own. Its
+    /// rows need `C3` version 4 (ADR-049).
+    DuplicateMember,
 }
 
 impl Kind {
@@ -39,11 +45,12 @@ impl Kind {
         match self {
             Self::Duplicate => "duplicate",
             Self::DeadCode => "dead-code",
+            Self::DuplicateMember => "duplicate-member",
         }
     }
 
     pub fn parse(value: &str) -> Option<Self> {
-        [Self::Duplicate, Self::DeadCode]
+        [Self::Duplicate, Self::DeadCode, Self::DuplicateMember]
             .into_iter()
             .find(|kind| kind.value() == value)
     }
@@ -124,5 +131,7 @@ pub enum Visibility {
     Suppressed,
 }
 
+#[cfg(test)]
+mod member_tests;
 #[cfg(test)]
 mod tests;

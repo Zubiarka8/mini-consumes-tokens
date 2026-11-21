@@ -11,7 +11,10 @@ mod presentation;
 
 use mct_index::reviews::FindingKeys;
 
-use mct_index::reviews::{duplicate_findings, Resolution, Reviews, Visibility};
+use mct_index::reviews::{
+    duplicate_findings, duplicate_member_findings, summarize, GroupSummary, Resolution, Reviews,
+    Visibility,
+};
 use mct_index::{DuplicateGroup, DuplicateOptions, Index};
 use rmcp::ErrorData as McpError;
 
@@ -120,11 +123,16 @@ struct Row<'a> {
     group: &'a DuplicateGroup,
     finding: &'a FindingKeys,
     resolution: &'a Resolution,
+    /// Each member's resolution, in member order (ADR-049).
+    members: &'a [Resolution],
+    summary: GroupSummary,
 }
 
 impl Row<'_> {
+    /// Hidden only when every member is: a member decision of its own, or
+    /// the group decision it takes.
     fn actionable(&self) -> bool {
-        self.resolution.visibility() == Visibility::Actionable
+        self.summary.visibility == Visibility::Actionable
     }
 }
 
@@ -158,19 +166,29 @@ pub(crate) fn run(index: &Index, args: FindDuplicateCodeArgs) -> Result<String, 
     let file_hashes = index
         .file_hashes()
         .map_err(|_| McpError::internal_error("cannot read indexed file hashes", None))?;
-    let findings = duplicate_findings(&report.groups, report.options.normalization, &file_hashes);
+    let mut findings =
+        duplicate_findings(&report.groups, report.options.normalization, &file_hashes);
+    let groups = findings.len();
+    findings.extend(duplicate_member_findings(&report.groups, &findings));
     // Never fails: an unreadable review file leaves every group actionable.
     let reviews = Reviews::load(index.root());
     let resolutions = reviews.resolve(&findings);
+    let mut member_resolutions = &resolutions[groups..];
     let rows: Vec<Row> = report
         .groups
         .iter()
         .zip(&findings)
         .zip(&resolutions)
-        .map(|((group, finding), resolution): (_, &Resolution)| Row {
-            group,
-            finding,
-            resolution,
+        .map(|((group, finding), resolution): (_, &Resolution)| {
+            let (members, rest) = member_resolutions.split_at(group.members.len());
+            member_resolutions = rest;
+            Row {
+                group,
+                finding,
+                resolution,
+                members,
+                summary: summarize(members),
+            }
         })
         .collect();
     let generation = index

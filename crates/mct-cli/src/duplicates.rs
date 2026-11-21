@@ -260,18 +260,36 @@ fn reviewed_report(
     options.limit = None;
     let mut report = find_duplicate_groups(index, &build_token_sources(), options)
         .context("cannot query the index for duplicate candidates")?;
-    let findings = mct_index::reviews::duplicate_findings(
+    let mut findings = mct_index::reviews::duplicate_findings(
         &report.groups,
         report.options.normalization,
         &index.file_hashes()?,
     );
-    let resolutions = crate::reviewed::load(root).resolve(&findings);
-    let hidden = crate::reviewed::hidden_summary(&resolutions);
+    let group_count = findings.len();
+    findings.extend(mct_index::reviews::duplicate_member_findings(
+        &report.groups,
+        &findings,
+    ));
+    let mut resolutions = crate::reviewed::load(root).resolve(&findings);
+    // A group is hidden only when every member is (ADR-049).
+    let mut members = &resolutions[group_count..];
+    let summaries: Vec<_> = report
+        .groups
+        .iter()
+        .map(|group| {
+            let (own, rest) = members.split_at(group.members.len());
+            members = rest;
+            mct_index::reviews::summarize(own)
+        })
+        .collect();
+    resolutions.truncate(group_count);
+    let hidden =
+        crate::reviewed::hidden_summary_of(summaries.iter().map(|s| (s.visibility, s.label)));
     let kept: Vec<(DuplicateGroup, &'static str)> = std::mem::take(&mut report.groups)
         .into_iter()
-        .zip(&resolutions)
-        .filter(|(_, resolution)| mode.keeps(resolution))
-        .map(|(group, resolution)| (group, resolution.effective_label()))
+        .zip(&summaries)
+        .filter(|(_, summary)| mode.keeps_visibility(summary.visibility))
+        .map(|(group, summary)| (group, summary.label))
         .collect();
     report.total_groups = kept.len();
     report.split_groups = kept
@@ -300,7 +318,9 @@ fn reviewed_report(
     let states: Vec<&str> = page.iter().map(|(_, state)| *state).collect();
     let validity: Vec<_> = resolutions
         .iter()
-        .filter(|resolution| mode.keeps(resolution))
+        .zip(&summaries)
+        .filter(|(_, summary)| mode.keeps_visibility(summary.visibility))
+        .map(|(resolution, _)| resolution)
         .skip(offset)
         .take(limit.unwrap_or(usize::MAX))
         .collect();
