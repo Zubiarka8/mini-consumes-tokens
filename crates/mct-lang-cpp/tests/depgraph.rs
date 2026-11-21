@@ -128,3 +128,72 @@ fn a_cmake_include_directory_resolves_a_quoted_include() {
     );
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+/// Issue #563 (C/C++): `-I` and `-iquote` flags of a `compile_commands.json`
+/// entry, relative to its `directory` or absolute inside the repository,
+/// resolve a quoted include for files in the compiled file's directory.
+/// Both `arguments` and `command` forms count; a flag outside the
+/// repository is dropped.
+#[test]
+fn a_compile_commands_include_flag_resolves_a_quoted_include() {
+    let dir = std::env::temp_dir().join(format!("mct-cpp-ccdb-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let dir = dir.canonicalize().unwrap();
+    let write = |path: &str, text: &str| {
+        let path = dir.join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    let root = dir.to_str().unwrap();
+    write(
+        "build/compile_commands.json",
+        &format!(
+            r#"[
+  {{"directory": "{root}/build", "file": "../app/main.cpp",
+    "arguments": ["c++", "-I../lib/include", "-iquote", "/usr/include/outside", "-c", "../app/main.cpp"]}},
+  {{"directory": "{root}/build", "file": "{root}/tools/tool.cpp",
+    "command": "c++ -I {root}/lib/include -c {root}/tools/tool.cpp"}}
+]"#
+        ),
+    );
+    write("lib/include/core/api.h", "int api();\n");
+    write(
+        "app/main.cpp",
+        "#include \"core/api.h\"\nint main() { return 0; }\n",
+    );
+    write(
+        "tools/tool.cpp",
+        "#include \"core/api.h\"\nint tool() { return 0; }\n",
+    );
+    write(
+        "other/x.cpp",
+        "#include \"core/api.h\"\nint x() { return 0; }\n",
+    );
+
+    let mut registry = mct_core::LanguageRegistry::new();
+    registry.register(Arc::new(CppParser));
+    let mut index = Index::open_in_memory(&dir, mct_index::ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+    let api = || Some("lib/include/core/api.h".to_string());
+    assert_eq!(
+        import_hit(&index, "api", "app/main.cpp"),
+        [(Resolution::Resolved, api())]
+    );
+    assert_eq!(
+        import_hit(&index, "api", "tools/tool.cpp"),
+        [(Resolution::Resolved, api())]
+    );
+    assert_eq!(
+        import_hit(&index, "api", "other/x.cpp"),
+        [(Resolution::Unresolved, None)]
+    );
+
+    write("build/compile_commands.json", "[]");
+    index.reindex(&registry, false).unwrap();
+    assert_eq!(
+        import_hit(&index, "api", "app/main.cpp"),
+        [(Resolution::Unresolved, None)]
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}

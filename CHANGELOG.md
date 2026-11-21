@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A quoted C/C++ `#include` found only through an include directory a `CMakeLists.txt` declares literally (`include_directories`, `target_include_directories`) resolves there; a header next to the includer still wins (#563, ADR-047). Schema migration 30 reparses C/C++ files.
+- A quoted C/C++ `#include` found only through an include directory a `CMakeLists.txt` declares literally (`include_directories`, `target_include_directories`) resolves there; a header next to the includer still wins (#563, ADR-047). So do `-I`/`-iquote` flags of a `compile_commands.json`, for files in the compiled file's directory. Schema migration 30 reparses C/C++ files.
 
 - A Rust `use alias::…` resolves through a renamed path dependency (`alias = { package = "real", path = "../real" }`) to that crate's files, only inside the declaring package (#563, ADR-046). Schema migration 29.
 
