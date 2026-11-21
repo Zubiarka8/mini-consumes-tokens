@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A JS/TS import binding from a bare specifier that names a workspace package (`import { Button } from '@acme/ui'` with `"name": "@acme/ui"` in a `package.json`) resolves only inside that package. Packages the repository does not hold keep the module-name rule (#563, ADR-048). Schema migration 31 reparses JS/TS files.
+- A JS/TS import binding from a bare specifier that names a workspace package (`import { Button } from '@acme/ui'` with `"name": "@acme/ui"` in a `package.json`) resolves only inside that package. A destructured CommonJS `const { Button } = require('@acme/ui')` binds the same way. Packages the repository does not hold keep the module-name rule (#563, ADR-048). Schema migration 31 reparses JS/TS files.
 
 - A quoted C/C++ `#include` found only through an include directory a `CMakeLists.txt` declares literally (`include_directories`, `target_include_directories`) resolves there; a header next to the includer still wins (#563, ADR-047). So do `-I`/`-iquote` flags of a `compile_commands.json`, for files in the compiled file's directory. Schema migration 30 reparses C/C++ files.
 

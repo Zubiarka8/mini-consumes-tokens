@@ -364,3 +364,54 @@ fn a_workspace_package_import_resolves_inside_that_package() {
     );
     std::fs::remove_dir_all(root).unwrap();
 }
+
+/// A CommonJS `const { Button } = require('@acme/ui')` binds `Button` like
+/// the ES import does: it resolves inside the workspace package only, and
+/// a renamed (`{ Button: Btn }`) binding is named by its local name.
+#[test]
+fn a_destructured_require_of_a_workspace_package_resolves_inside_that_package() {
+    let (root, index, _registry) = index_files(
+        "workspace-require",
+        &[
+            (
+                "packages/design-system/package.json",
+                r#"{"name":"@acme/ui"}"#,
+            ),
+            (
+                "packages/design-system/src/index.js",
+                "function Button() {}\nfunction Card() {}\nmodule.exports = { Button, Card };\n",
+            ),
+            (
+                "packages/other/src/widgets.js",
+                "function Button() {}\nfunction Card() {}\n",
+            ),
+            (
+                "apps/web/src/main.js",
+                "const { Button, Card: Tile } = require('@acme/ui');\nButton();\nTile();\n",
+            ),
+        ],
+    );
+    let binding = |name: &str| {
+        index
+            .find_references(name)
+            .unwrap()
+            .into_iter()
+            .find(|hit| hit.kind == "imports" && hit.relative_path == "apps/web/src/main.js")
+            .unwrap_or_else(|| panic!("no import binding for {name}"))
+    };
+    for name in ["Button", "Tile"] {
+        let hit = binding(name);
+        assert_eq!(hit.relative_path, "apps/web/src/main.js");
+        assert!(
+            hit.candidates
+                .iter()
+                .all(|c| c.relative_path == "packages/design-system/src/index.js"),
+            "{name}: {hit:?}"
+        );
+    }
+    assert_eq!(
+        binding("Button").resolution,
+        mct_index::Resolution::Resolved
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}

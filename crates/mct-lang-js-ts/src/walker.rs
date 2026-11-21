@@ -839,6 +839,9 @@ impl<'a> Walker<'a> {
             "variable_declarator" => {
                 self.visit_part(node, "type", owner, depth);
                 let value = node.child_by_field_name("value");
+                if let Some(value) = value {
+                    self.push_require_bindings(node, value, owner);
+                }
                 if !value
                     .is_some_and(|v| matches!(v.kind(), "arrow_function" | "function_expression"))
                 {
