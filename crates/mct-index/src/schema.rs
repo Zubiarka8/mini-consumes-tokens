@@ -2507,6 +2507,112 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
+        // 32: `@` alias of a Vite or webpack config's `resolve.alias`, merged with
+        // tsconfig `paths` (a tsconfig mapping of the same pattern wins;
+        // #563, ADR-050). Vite configs are reparsed to fill the table.
+        M::up(
+            r#"
+            CREATE TABLE vite_aliases (
+                file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+                directory TEXT NOT NULL,
+                pattern TEXT NOT NULL,
+                target TEXT NOT NULL,
+                PRIMARY KEY (file_id, pattern)
+            );
+            UPDATE files SET content_hash = '' WHERE language = 'javascript_typescript'
+                AND (relative_path LIKE 'vite.config.%' OR relative_path LIKE '%/vite.config.%'
+                     OR relative_path LIKE 'webpack.config.%' OR relative_path LIKE '%/webpack.config.%');
+            DROP VIEW ts_alias_candidates;
+            CREATE VIEW ts_alias_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id AND cf.language = 'javascript_typescript'
+                JOIN ts_configs config ON (config.directory = '' OR substr(cf.relative_path, 1, length(config.directory) + 1) = config.directory || '/')
+                JOIN ts_paths mapping ON mapping.manifest_path = config.manifest_path
+                JOIN files sf ON sf.language = 'javascript_typescript'
+                JOIN symbols s ON s.file_id = sf.id AND s.kind = 'module'
+                WHERE r.targets_parsed = 1 AND r.external = 0 AND r.kind = 'imports'
+                  AND r.target_kind = 'module' AND substr(r.module, 1, 2) = '@/'
+                  AND NOT EXISTS (SELECT 1 FROM ts_configs nearer
+                      WHERE length(nearer.directory) > length(config.directory)
+                        AND (config.directory = '' OR substr(nearer.directory, 1, length(config.directory) + 1) = config.directory || '/')
+                        AND substr(cf.relative_path, 1, length(nearer.directory) + 1) = nearer.directory || '/')
+                  AND substr(r.module, 1, instr(mapping.pattern, '*') - 1) = substr(mapping.pattern, 1, instr(mapping.pattern, '*') - 1)
+                  AND substr(r.module, length(r.module) - length(mapping.pattern) + instr(mapping.pattern, '*') + 1) = substr(mapping.pattern, instr(mapping.pattern, '*') + 1)
+                  AND length(r.module) >= length(mapping.pattern) - 1
+                  AND sf.relative_path IN (
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)),
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '.ts',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '.tsx',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '.js',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '.jsx',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '/index.ts',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '/index.js'
+                  )
+                UNION ALL
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id AND cf.language = 'javascript_typescript'
+                JOIN package_manifests package ON (package.directory = '' OR substr(cf.relative_path, 1, length(package.directory) + 1) = package.directory || '/')
+                JOIN package_imports mapping ON mapping.manifest_path = package.manifest_path
+                JOIN files sf ON sf.language = 'javascript_typescript'
+                JOIN symbols s ON s.file_id = sf.id AND s.kind = 'module'
+                WHERE r.targets_parsed = 1 AND r.external = 0 AND r.kind = 'imports'
+                  AND r.target_kind = 'module' AND substr(r.module, 1, 1) = '#'
+                  AND NOT EXISTS (SELECT 1 FROM package_manifests nearer
+                      WHERE length(nearer.directory) > length(package.directory)
+                        AND (package.directory = '' OR substr(nearer.directory, 1, length(package.directory) + 1) = package.directory || '/')
+                        AND substr(cf.relative_path, 1, length(nearer.directory) + 1) = nearer.directory || '/')
+                  AND ((instr(mapping.pattern, '*') = 0 AND r.module = mapping.pattern)
+                       OR (instr(mapping.pattern, '*') > 0
+                           AND substr(r.module, 1, instr(mapping.pattern, '*') - 1) = substr(mapping.pattern, 1, instr(mapping.pattern, '*') - 1)
+                           AND substr(r.module, length(r.module) - length(mapping.pattern) + instr(mapping.pattern, '*') + 1) = substr(mapping.pattern, instr(mapping.pattern, '*') + 1)
+                           AND length(r.module) >= length(mapping.pattern)))
+                  AND sf.relative_path IN (
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END),
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '.ts',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '.tsx',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '.js',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '.jsx',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '/index.ts',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '/index.js'
+                  )
+                UNION ALL
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id AND cf.language = 'javascript_typescript'
+                JOIN vite_aliases mapping ON (mapping.directory = '' OR substr(cf.relative_path, 1, length(mapping.directory) + 1) = mapping.directory || '/')
+                JOIN files sf ON sf.language = 'javascript_typescript'
+                JOIN symbols s ON s.file_id = sf.id AND s.kind = 'module'
+                WHERE r.targets_parsed = 1 AND r.external = 0 AND r.kind = 'imports'
+                  AND r.target_kind = 'module' AND substr(r.module, 1, 2) = '@/'
+                  AND NOT EXISTS (SELECT 1 FROM vite_aliases nearer
+                      WHERE length(nearer.directory) > length(mapping.directory)
+                        AND (mapping.directory = '' OR substr(nearer.directory, 1, length(mapping.directory) + 1) = mapping.directory || '/')
+                        AND substr(cf.relative_path, 1, length(nearer.directory) + 1) = nearer.directory || '/')
+                  AND NOT EXISTS (SELECT 1 FROM ts_configs config
+                      JOIN ts_paths same ON same.manifest_path = config.manifest_path AND same.pattern = mapping.pattern
+                      WHERE (config.directory = '' OR substr(cf.relative_path, 1, length(config.directory) + 1) = config.directory || '/')
+                        AND NOT EXISTS (SELECT 1 FROM ts_configs nearer
+                            WHERE length(nearer.directory) > length(config.directory)
+                              AND (config.directory = '' OR substr(nearer.directory, 1, length(config.directory) + 1) = config.directory || '/')
+                              AND substr(cf.relative_path, 1, length(nearer.directory) + 1) = nearer.directory || '/'))
+                  AND substr(r.module, 1, instr(mapping.pattern, '*') - 1) = substr(mapping.pattern, 1, instr(mapping.pattern, '*') - 1)
+                  AND length(r.module) >= length(mapping.pattern)
+                  AND sf.relative_path IN (
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))),
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '.ts',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '.tsx',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '.js',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '.jsx',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '/index.ts',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '/index.js'
+                  );
+            "#,
+        ),
     ])
 }
 

@@ -654,6 +654,9 @@ fn index_file(
             let language = parser.language_id();
             let symbols_written =
                 write_parsed_file(index, &relative_path, language, &content_hash, &parsed)?;
+            if crate::vite::is_vite_config(file_name) {
+                write_vite_alias(index, &relative_path, &source.contents)?;
+            }
             report.files_parsed += 1;
             report.symbols_written += symbols_written;
         }
@@ -1800,6 +1803,40 @@ fn write_web_root(index: &Index, path: &str, root: Option<&str>) -> Result<()> {
                 params![path],
             )?;
         }
+    }
+    Ok(())
+}
+
+/// Records the `@` alias of the Vite config at `path` (just written as a
+/// source file) for files under its directory, or clears it (issue #563,
+/// ADR-050). Its rows go with the file's `files` row.
+fn write_vite_alias(index: &Index, path: &str, contents: &str) -> Result<()> {
+    let directory = path.rsplit_once('/').map_or("", |(dir, _)| dir);
+    let file_id: i64 = index.conn.query_row(
+        "SELECT id FROM files WHERE relative_path = ?1",
+        params![path],
+        |row| row.get(0),
+    )?;
+    index.conn.execute(
+        "DELETE FROM vite_aliases WHERE file_id = ?1",
+        params![file_id],
+    )?;
+    let target = crate::vite::at_alias(contents).and_then(|dir| {
+        if dir.is_empty() {
+            return Some(directory.to_string());
+        }
+        mct_core::resolve_reference_path(path, &format!("./{dir}"))
+    });
+    if let Some(target) = target {
+        let target = if target.is_empty() {
+            "*".to_string()
+        } else {
+            format!("{target}/*")
+        };
+        index.conn.execute(
+            "INSERT INTO vite_aliases (file_id, directory, pattern, target) VALUES (?1, ?2, '@/*', ?3)",
+            params![file_id, directory, target],
+        )?;
     }
     Ok(())
 }
