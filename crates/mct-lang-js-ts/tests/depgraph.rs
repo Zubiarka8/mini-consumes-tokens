@@ -303,3 +303,64 @@ fn package_json_imports_resolve_through_the_nearest_package() {
     assert_eq!(import_target(&index, "util", "src/main.ts"), None);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+/// Issue #563 (npm workspaces): a named import from a bare specifier that
+/// names a workspace package (`"name": "@acme/ui"` in a folder called
+/// `design-system`) resolves to that package's files only, even against a
+/// file whose path holds the module name. A bare import of
+/// a package the repository does not hold (`react`) gains nothing, and
+/// renaming the package drops it from the candidates.
+#[test]
+fn a_workspace_package_import_resolves_inside_that_package() {
+    let (root, mut index, registry) = index_files(
+        "workspace",
+        &[
+            ("packages/design-system/package.json", r#"{"name":"@acme/ui"}"#),
+            ("packages/design-system/src/index.ts", "export function Button() {}\n"),
+            ("packages/other/src/widgets.ts", "export function Button() {}\n"),
+            // Its path holds `/ui/`, the module name: still not the package.
+            ("apps/web/src/ui/button.ts", "export function Button() {}\n"),
+            (
+                "apps/web/src/main.ts",
+                "import { Button } from '@acme/ui';\nimport { useState } from 'react';\nButton();\n",
+            ),
+        ],
+    );
+    let binding = |index: &Index, name: &str| {
+        index
+            .find_references(name)
+            .unwrap()
+            .into_iter()
+            .find(|hit| hit.kind == "imports" && hit.relative_path == "apps/web/src/main.ts")
+            .unwrap()
+    };
+    let hit = binding(&index, "Button");
+    assert_eq!(hit.resolution, mct_index::Resolution::Resolved, "{hit:?}");
+    assert_eq!(
+        hit.candidates[0].relative_path,
+        "packages/design-system/src/index.ts"
+    );
+    assert_ne!(
+        binding(&index, "useState").resolution,
+        mct_index::Resolution::Resolved
+    );
+
+    std::fs::write(
+        root.join("packages/design-system/package.json"),
+        r#"{"name":"@acme/design"}"#,
+    )
+    .unwrap();
+    index
+        .reindex_paths(&registry, &["packages/design-system/package.json".into()])
+        .unwrap();
+    // Back to the module-name rule, which knows no package.
+    let after = binding(&index, "Button");
+    assert!(
+        after
+            .candidates
+            .iter()
+            .all(|c| !c.relative_path.starts_with("packages/design-system/")),
+        "{after:?}"
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}

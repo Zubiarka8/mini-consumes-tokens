@@ -175,4 +175,8 @@ pub struct RelationTarget {
     /// at `path` (next to the includer), the index tries it under each
     /// include directory a `CMakeLists.txt` declares (issue #563).
     pub include_spec: Option<String>,
+    /// For a JS/TS import binding from a bare specifier: the npm package it
+    /// names (`@acme/ui` for `@acme/ui/button`). The index matches it to a
+    /// workspace `package.json` of that name (issue #563).
+    pub package: Option<String>,
 }

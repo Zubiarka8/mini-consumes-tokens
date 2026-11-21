@@ -49,14 +49,23 @@ impl Walker<'_> {
         clause: Node,
         owner: SymbolId,
         module: Option<&str>,
+        package: Option<&str>,
     ) {
         let mut cursor = clause.walk();
         for child in clause.named_children(&mut cursor) {
             match child.kind() {
-                "identifier" => self.push_import_binding(owner, child, location(child), module),
+                "identifier" => {
+                    self.push_import_binding(owner, child, location(child), module, package)
+                }
                 "namespace_import" => {
                     if let Some(name_node) = child.named_child(0) {
-                        self.push_import_binding(owner, name_node, location(child), module);
+                        self.push_import_binding(
+                            owner,
+                            name_node,
+                            location(child),
+                            module,
+                            package,
+                        );
                     }
                 }
                 "named_imports" => {
@@ -72,7 +81,13 @@ impl Walker<'_> {
                             if target.kind() == "default" {
                                 continue;
                             }
-                            self.push_import_binding(owner, target, location(spec), module);
+                            self.push_import_binding(
+                                owner,
+                                target,
+                                location(spec),
+                                module,
+                                package,
+                            );
                         }
                     }
                 }
@@ -87,6 +102,7 @@ impl Walker<'_> {
         name: Node,
         loc: mct_core::Location,
         module: Option<&str>,
+        package: Option<&str>,
     ) {
         let index = self.relations.len();
         self.push_relation(
@@ -99,11 +115,33 @@ impl Walker<'_> {
             self.relation_targets.push(RelationTarget {
                 relation: index,
                 module: Some(module.to_string()),
+                package: package.map(str::to_string),
                 ..Default::default()
             });
         }
         // An import binding names an export: never a member of a type.
         self.mark_top_level(index);
+    }
+}
+
+/// The npm package a bare specifier names: `@scope/name` or `name`, without
+/// any subpath. `None` for a relative, absolute, aliased (`@/`, `#`) or
+/// protocol (`node:`, `https:`) specifier.
+pub(super) fn bare_package(spec: &str) -> Option<String> {
+    if spec.is_empty()
+        || spec.starts_with(['.', '/', '#'])
+        || spec.starts_with("@/")
+        || spec.contains(':')
+    {
+        return None;
+    }
+    let mut segments = spec.split('/');
+    let first = segments.next().filter(|s| !s.is_empty())?;
+    if first.starts_with('@') {
+        let name = segments.next().filter(|s| !s.is_empty())?;
+        Some(format!("{first}/{name}"))
+    } else {
+        Some(first.to_string())
     }
 }
 
@@ -237,4 +275,30 @@ pub(super) fn string_value(node: Node, source: &str) -> Option<String> {
         .named_children(&mut cursor)
         .find(|c| c.kind() == "string_fragment");
     fragment.map(|c| text(c, source).to_string())
+}
+
+#[cfg(test)]
+mod bare_package_tests {
+    use super::bare_package;
+
+    #[test]
+    fn a_bare_specifier_names_its_package_without_the_subpath() {
+        assert_eq!(bare_package("react").as_deref(), Some("react"));
+        assert_eq!(bare_package("lodash/fp").as_deref(), Some("lodash"));
+        assert_eq!(bare_package("@acme/ui").as_deref(), Some("@acme/ui"));
+        assert_eq!(bare_package("@acme/ui/button").as_deref(), Some("@acme/ui"));
+        for spec in [
+            "./x",
+            "../x",
+            "/abs",
+            "@/lib",
+            "#internal",
+            "node:fs",
+            "https://x",
+            "@scope",
+            "",
+        ] {
+            assert_eq!(bare_package(spec), None, "{spec}");
+        }
+    }
 }
