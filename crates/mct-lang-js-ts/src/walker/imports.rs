@@ -96,6 +96,49 @@ impl Walker<'_> {
         }
     }
 
+    /// `const { a, b: c } = require('spec')`: each destructured name binds
+    /// an export of `spec`, as `import { a, b as c }` does, under its local
+    /// name. Any other pattern or a non-literal `require` binds nothing.
+    pub(super) fn push_require_bindings(&mut self, declarator: Node, value: Node, owner: SymbolId) {
+        let Some(pattern) = declarator
+            .child_by_field_name("name")
+            .filter(|n| n.kind() == "object_pattern")
+        else {
+            return;
+        };
+        let is_require = value.kind() == "call_expression"
+            && value
+                .child_by_field_name("function")
+                .is_some_and(|f| f.kind() == "identifier" && text(f, self.source) == "require");
+        let Some(spec) = is_require
+            .then(|| require_argument(value, self.source))
+            .flatten()
+        else {
+            return;
+        };
+        let module = super::globals::module_name(&spec);
+        let package = bare_package(&spec);
+        let mut cursor = pattern.walk();
+        for property in pattern.named_children(&mut cursor) {
+            let local = match property.kind() {
+                "shorthand_property_identifier_pattern" => Some(property),
+                "pair_pattern" => property
+                    .child_by_field_name("value")
+                    .filter(|v| v.kind() == "identifier"),
+                _ => None,
+            };
+            if let Some(local) = local {
+                self.push_import_binding(
+                    owner,
+                    local,
+                    location(local),
+                    module.as_deref(),
+                    package.as_deref(),
+                );
+            }
+        }
+    }
+
     fn push_import_binding(
         &mut self,
         owner: SymbolId,

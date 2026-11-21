@@ -16,12 +16,17 @@ Proposed (2026-11-21). Issue: [#563](https://github.com/Zubiarka8/mini-consumes-
   - This is the maintainer's choice of 2026-11-21: workspace names only; external packages are not modelled.
 - Migration 31 reparses JS/TS files to fill `package`.
 
+## CommonJS
+- `const { a, b: c } = require('spec')` binds `a` and `c` like `import { a, b as c } from 'spec'`: same module name, same package, same view rules.
+- Any other pattern (`const x = require(…)`, a computed argument) binds nothing, as before.
+
 ## Not done
 - `exports`/`main` entry points of the package. Any file in the package counts, so a name defined twice inside the package stays ambiguous.
 - Vite/webpack `resolve.alias` and HTML import maps.
-- `require('@acme/ui')` and dynamic `import()`.
+- Dynamic `import('@acme/ui')` bindings (`const { x } = await import(…)`).
 
 ## Verification
+- `mct-lang-js-ts/tests/depgraph.rs` › `a_destructured_require_of_a_workspace_package_resolves_inside_that_package`. It failed before the change.
 - `mct-lang-js-ts/tests/depgraph.rs` › `a_workspace_package_import_resolves_inside_that_package`.
   - Before the change it failed with `left: Unresolved`.
   - Without the exclusive clause it fails with `left: Ambiguous`, because `apps/web/src/ui/button.ts` also matches. The test file is kept as that trap.
