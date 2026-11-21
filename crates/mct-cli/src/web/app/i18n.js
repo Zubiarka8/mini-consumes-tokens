@@ -12,7 +12,11 @@ const es = {
   "dup.selectFile": "Seleccionar {path}",
   "dup.lineRange": "Líneas {from}–{to}",
   "dup.groupDecision":
-    "La decisión se guarda para el duplicado completo: se aplica a sus {n} ubicaciones, no a cada uno por separado.",
+    "Guardar aquí aplica a las {n} ubicaciones y sustituye las decisiones tomadas para un archivo.",
+  "dup.reviewScope": "Revisar el duplicado entero o un archivo",
+  "dup.reviewAll": "Todos los archivos",
+  "dup.reviewFile": "Solo el archivo {letter}",
+  "dup.memberDecision": "El estado y las notas son solo del archivo {letter}; los demás conservan los suyos.",
   "dup.meta": "{locations} · {files} · {lines} líneas · {tokens} tokens",
   "dup.fileListLabel": "Archivos del duplicado",
   // espacio de revisión (review.js)
@@ -20,7 +24,7 @@ const es = {
   "rw.file": "Archivo",
   "rw.hideFile": "Quitar {path} de la comparación",
   "dup.fileLetter": "Archivo {letter}",
-  "dup.decisionTarget": "El estado y las notas son del grupo entero:",
+  "dup.decisionTarget": "El estado y las notas se aplican a todos los archivos del grupo:",
   "rw.fileOpen": "(abierto en la comparación)",
   "rw.fileClosed": "(cerrado, no está en la comparación)",
   "rw.matchLegend": "Código coincidente",
