@@ -61,9 +61,11 @@ async fn omitting_the_new_arguments_keeps_the_pack_unchanged() {
             json!({ "symbol": "place_order", "format": format }),
         )
         .await;
+        // `cache: false`: compared as rendered, not as the reference reply
+        // an identical repeat gets (#188).
         let nulls = pack(
             &server,
-            json!({ "symbol": "place_order", "format": format, "detail": null, "max_tokens": null }),
+            json!({ "symbol": "place_order", "format": format, "detail": null, "max_tokens": null, "cache": false }),
         )
         .await;
         assert_eq!(old, nulls);

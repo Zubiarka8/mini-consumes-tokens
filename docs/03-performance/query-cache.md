@@ -112,11 +112,16 @@ the embedding, the expensive part) and comparing is the honest check.
 | Situation | Reply |
 |---|---|
 | Miss | the tool's normal output, unchanged |
-| Hit, response already sent this session (`reference` mode) | `cache: unchanged since your identical earlier call (cache:false resends)` or `cache: same as your earlier \`<query>\` (sim 0.990); cache:false resends` |
+| Hit, response already sent within 15 minutes (`reference` mode) | A `cache:` line with the hit count, `cache:false`, and up to three locations. Semantic hits also name the reused query and similarity. |
 | Hit, not sent yet, or `full` mode | the full re-rendered output; a semantic hit adds a last line naming the query whose ranking it reuses and its similarity |
 
 `cache: false` on the tool call bypasses the lookup and always returns the
 full text — for an agent whose context no longer holds the earlier response.
+Locations are limited to the requested page and may be omitted to keep a
+large reference reply within one tenth of the full response's character count.
+The `reference_recoveries` metric counts explicit `cache: false` requests whose
+rendered result matches an outstanding reference; it is an estimate, because
+different queries can render the same result.
 
 ## Configuration
 
@@ -184,15 +189,37 @@ reference line is sent in full.
 - **Per session, in memory.** The cache lives in the server process — one MCP
   session — and is never persisted: no schema migration, no stale state
   across restarts, but also no hits across sessions.
-- **Search tools only.** The graph tools (`find_*`, `impact_analysis`,
-  `build_context_pack`…) are not cached; they are single indexed queries
-  already.
+- **Search tools, plus repeats of `build_context_pack`.** The pack is exact,
+  not ranked, so nothing about it is cached. It is rendered afresh every
+  time, from the index and the files on disk. A pack byte-identical to one
+  this session already received gets a one-line reply instead: `cache:
+  unchanged since your identical earlier call; cache:false`, then up to 3
+  definition locations. A file saved but not yet reindexed changes the
+  pack's text, because its stale source is withheld, so it goes out in full.
+  `cache: false` resends the pack and counts as a recovery, and `detail` or
+  `max_tokens` bypass the cache, as `detail` does for the search tools (#188). The
+  other graph tools (`find_*`, `impact_analysis`) are not cached.
 - **Latency gain is modest for lexical search** (already sub-millisecond on
   this repo); the win there is tokens. For `hybrid_search_like` an exact hit also
   skips the query embedding.
 - **A reference reply assumes the agent still has the earlier response.** If
   its context was compacted, `cache: false` (or `MCT_CACHE_RESPONSE=full`)
-  gets the full text.
+  gets the full text. Sent responses expire after 15 minutes; this limits the
+  window but cannot detect a context clear or compaction.
+- **Subagents share the parent's cache.** Measured on 2026-11-21 with Claude
+  Code 2.1.330. A headless session with one `mct` server spawned a
+  general-purpose subagent, and the subagent called `get_indexing_status`.
+  `ps` showed one `mct-mcp-server` process, with the same PID and the same
+  parent `claude` PID, before and during the subagent's call. No second
+  server started. So a subagent can get a reference reply for a response
+  only its parent received. MCP carries no caller identity to tell them
+  apart. The reply therefore names the hit count and up to 3 `path:line`
+  locations, so the subagent can continue or resend with `cache: false`
+  (#188).
+- A file saved but not yet reindexed never gets a reference reply. Before
+  answering by reference, the server compares the bytes on disk of every
+  file on the requested page with the revision the index read. If one
+  differs, or cannot be read, the full result is sent instead (#188).
 - **Unrelated changes cost one recomputation** per surviving entry (lexical
   ranking + stored-vector semantic ranking), and on a small repository every
   file tends to be referenced by an unscoped `hybrid_search_like` result, so any
