@@ -171,4 +171,8 @@ pub struct RelationTarget {
     /// then swaps the default `public/` web root for the one the app's
     /// framework declares (`static/`, `wwwroot/`; issue #567).
     pub web_app: Option<String>,
+    /// For a quoted C/C++ `#include`: the spec as written. When no file sits
+    /// at `path` (next to the includer), the index tries it under each
+    /// include directory a `CMakeLists.txt` declares (issue #563).
+    pub include_spec: Option<String>,
 }
