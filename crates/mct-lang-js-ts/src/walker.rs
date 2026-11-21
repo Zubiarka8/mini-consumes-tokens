@@ -979,10 +979,19 @@ impl<'a> Walker<'a> {
                 let module = node
                     .child_by_field_name("source")
                     .and_then(|source| globals::module_name(text(source, self.source)));
+                let package = node
+                    .child_by_field_name("source")
+                    .and_then(|source| string_value(source, self.source))
+                    .and_then(|spec| imports::bare_package(&spec));
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
                     if child.kind() == "import_clause" {
-                        self.visit_import_clause(child, owner, module.as_deref());
+                        self.visit_import_clause(
+                            child,
+                            owner,
+                            module.as_deref(),
+                            package.as_deref(),
+                        );
                     }
                 }
             }
