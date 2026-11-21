@@ -365,6 +365,7 @@ impl<'a> Walker<'a> {
             path: Some(resolved),
             kind: Some(SymbolKind::Module),
             language: Some(language.to_string()),
+            web_app: mct_core::url_web_root_app(self.path, &local),
             ..Default::default()
         });
     }

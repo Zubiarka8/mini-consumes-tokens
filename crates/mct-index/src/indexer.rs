@@ -469,6 +469,9 @@ fn index_file(
                             )?;
                         }
                     }
+                    if manifests::is_csproj(file_name) {
+                        write_web_root(index, &relative_path, web_project_root(&contents))?;
+                    }
                     let deps = manifests::parse_manifest(file_name, &contents);
                     write_manifest_dependencies(index, &relative_path, language, &deps)?;
                 }
@@ -1342,7 +1345,8 @@ fn remove_missing_manifests(
         "SELECT manifest_path FROM dependencies
          UNION SELECT manifest_path FROM rockspec_items
          UNION SELECT manifest_path FROM cargo_packages
-         UNION SELECT manifest_path FROM ts_configs",
+         UNION SELECT manifest_path FROM ts_configs
+         UNION SELECT manifest_path FROM web_roots",
     )?;
     let stored: Vec<String> = stmt
         .query_map([], |row| row.get(0))?
@@ -1368,9 +1372,49 @@ fn remove_missing_manifests(
                 "DELETE FROM ts_configs WHERE manifest_path = ?1",
                 params![path],
             )?;
+            tx.execute(
+                "DELETE FROM web_roots WHERE manifest_path = ?1",
+                params![path],
+            )?;
         }
     }
 
+    Ok(())
+}
+
+/// The web root an ASP.NET project serves `/…` URLs from: `wwwroot` for a
+/// web, Razor or Blazor WebAssembly SDK project, else none (issue #567).
+fn web_project_root(csproj: &str) -> Option<&'static str> {
+    [
+        "Microsoft.NET.Sdk.Web",
+        "Microsoft.NET.Sdk.Razor",
+        "Microsoft.NET.Sdk.BlazorWebAssembly",
+    ]
+    .iter()
+    .any(|sdk| csproj.contains(&format!("\"{sdk}\"")))
+    .then_some("wwwroot")
+}
+
+/// Records (or clears) the web root a project file at `path` declares for
+/// its directory; `relation_candidates` reads it for root-relative URLs.
+fn write_web_root(index: &Index, path: &str, root: Option<&str>) -> Result<()> {
+    match root {
+        Some(root) => {
+            let directory = path.rsplit_once('/').map_or("", |(dir, _)| dir);
+            index.conn.execute(
+                "INSERT INTO web_roots (manifest_path, directory, root) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(manifest_path) DO UPDATE SET directory = excluded.directory, root = excluded.root
+                 WHERE directory <> excluded.directory OR root <> excluded.root",
+                params![path, directory, root],
+            )?;
+        }
+        None => {
+            index.conn.execute(
+                "DELETE FROM web_roots WHERE manifest_path = ?1",
+                params![path],
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -1812,8 +1856,8 @@ fn write_parsed_file(
             "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len,
                                     qualifier, target_path, target_language, external, targets_parsed,
                                     target_kind, target_module, module, member, not_field,
-                                    top_level)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15, ?16)",
+                                    top_level, web_app)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 from_row_id,
                 relation_kind_str(relation.kind),
@@ -1831,6 +1875,7 @@ fn write_parsed_file(
                 target.is_some_and(|t| t.member),
                 target.is_some_and(|t| t.not_field),
                 target.is_some_and(|t| t.top_level),
+                target.and_then(|t| t.web_app.as_deref()),
             ],
         )?;
     }

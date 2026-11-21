@@ -13,7 +13,9 @@
 ///   (`C:/`) and protocol-relative `//host` give `None`.
 /// - A leading `/` is relative to `<app root>/public/`, where the app root is
 ///   the prefix before `from_file`'s first `src` segment, or else
-///   `from_file`'s own directory (Astro/Vite default `publicDir`).
+///   `from_file`'s own directory (Astro/Vite default `publicDir`). The index
+///   swaps `public/` for a framework's declared web root through
+///   [`web_root_app`] (ADR-044).
 /// - `./` and `../` are relative to `from_file`'s directory; a `..` that
 ///   climbs above the repository root gives `None`.
 /// - Bare specifiers (`three`, `@/components/X`) give `None`.
@@ -31,10 +33,7 @@ pub fn resolve_reference_path(from_file: &str, spec: &str) -> Option<String> {
         if rest.starts_with('/') {
             return None;
         }
-        let mut base: Vec<&str> = match dir.iter().position(|s| *s == "src") {
-            Some(i) => dir[..i].to_vec(),
-            None => dir,
-        };
+        let mut base = app_root(&dir).to_vec();
         base.push("public");
         (base, rest)
     } else if first_segment == "." || first_segment == ".." {
@@ -55,6 +54,36 @@ pub fn resolve_reference_path(from_file: &str, spec: &str) -> Option<String> {
     (!resolved.is_empty()).then_some(resolved)
 }
 
+/// The app root of a file's directory: the prefix before its first `src`
+/// segment, or else the directory itself.
+fn app_root<'a, 'b>(dir: &'a [&'b str]) -> &'a [&'b str] {
+    match dir.iter().position(|s| *s == "src") {
+        Some(i) => &dir[..i],
+        None => dir,
+    }
+}
+
+/// For a root-relative URL `spec` (`/assets/x.css`) written in `from_file`,
+/// the app directory whose web root it is resolved under (`""` for the
+/// repository root); `None` for any other spec. See
+/// [`crate::RelationTarget::web_app`].
+pub fn web_root_app(from_file: &str, spec: &str) -> Option<String> {
+    let spec = spec.split(['?', '#']).next().unwrap_or_default();
+    if !spec.starts_with('/') || spec.starts_with("//") {
+        return None;
+    }
+    let dir: Vec<&str> = match from_file.rsplit_once('/') {
+        Some((dir, _)) => dir.split('/').collect(),
+        None => Vec::new(),
+    };
+    Some(app_root(&dir).join("/"))
+}
+
+/// [`web_root_app`] with the URL reading of [`resolve_url_reference_path`].
+pub fn url_web_root_app(from_file: &str, spec: &str) -> Option<String> {
+    web_root_app(from_file, &url_spec(spec))
+}
+
 /// [`resolve_reference_path`] for a spec that is a URL reference (an HTML
 /// `href`/`src`, a CSS `@import`, a JS/TS module specifier, a XAML `Source`):
 /// as a browser or bundler reads it, `\` is a path separator and `%XX`
@@ -63,8 +92,13 @@ pub fn resolve_reference_path(from_file: &str, spec: &str) -> Option<String> {
 /// rules: there `\` and `%` are literal file-name characters or escapes of
 /// that language.
 pub fn resolve_url_reference_path(from_file: &str, spec: &str) -> Option<String> {
+    resolve_reference_path(from_file, &url_spec(spec))
+}
+
+/// A URL spec as a plain path: suffix dropped, `\` as `/`, `%XX` decoded once.
+fn url_spec(spec: &str) -> String {
     let spec = spec.split(['?', '#']).next().unwrap_or_default();
-    resolve_reference_path(from_file, &percent_decode(&spec.replace('\\', "/")))
+    percent_decode(&spec.replace('\\', "/"))
 }
 
 /// Decodes each `%XX` (two hex digits) once; any other `%` is kept, and a
@@ -189,6 +223,30 @@ mod tests {
             ".hidden/a",
         ] {
             assert_eq!(r("src/x.tsx", spec), None, "{spec}");
+        }
+    }
+
+    #[test]
+    fn a_root_relative_url_names_its_app_directory() {
+        use super::{url_web_root_app, web_root_app};
+        assert_eq!(
+            web_root_app("apps/web/src/c/R.tsx", "/m/x.glb").as_deref(),
+            Some("apps/web")
+        );
+        assert_eq!(
+            web_root_app("index.html", "/x.css?v=1").as_deref(),
+            Some("")
+        );
+        assert_eq!(
+            web_root_app("site/index.html", "/x.css").as_deref(),
+            Some("site")
+        );
+        assert_eq!(
+            url_web_root_app("site/index.html", "\\x.css").as_deref(),
+            Some("site")
+        );
+        for spec in ["./x.css", "x.css", "//cdn/x.css", "https://h/x"] {
+            assert_eq!(web_root_app("site/index.html", spec), None, "{spec}");
         }
     }
 

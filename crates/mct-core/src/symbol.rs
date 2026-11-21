@@ -166,4 +166,9 @@ pub struct RelationTarget {
     /// repository (e.g. Rust's `std::`). Never set merely because no
     /// definition matched.
     pub external: bool,
+    /// For a root-relative web URL (`/assets/x.css`): the app directory its
+    /// `path` was resolved under (`""` for the repository root). The index
+    /// then swaps the default `public/` web root for the one the app's
+    /// framework declares (`static/`, `wwwroot/`; issue #567).
+    pub web_app: Option<String>,
 }
