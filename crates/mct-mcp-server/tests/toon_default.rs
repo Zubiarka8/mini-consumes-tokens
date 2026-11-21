@@ -66,7 +66,10 @@ fn calls() -> Vec<(&'static str, Value)> {
         ("find_callers", json!({ "function": "target" })),
         ("impact_analysis", json!({ "symbol": "target" })),
         ("find_dead_code", json!({})),
-        ("build_context_pack", json!({ "symbol": "target" })),
+        (
+            "build_context_pack",
+            json!({ "symbol": "target", "cache": false }),
+        ),
     ]
 }
 

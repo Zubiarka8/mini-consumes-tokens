@@ -680,7 +680,8 @@ pub struct BuildContextPackArgs {
     #[serde(default)]
     pub max_tokens: Option<usize>,
     /// `false` always returns the full pack; otherwise a byte-identical
-    /// repeat this session received gets a one-line reply.
+    /// repeat this session received gets a one-line reply. `detail` and
+    /// `max_tokens` bypass the cache.
     #[serde(default)]
     pub cache: Option<bool>,
 }
@@ -2918,6 +2919,11 @@ impl MctServer {
             (None, OutputFormat::Text) => format::context_pack(&pack, limit),
             (None, OutputFormat::Toon) => format::context_pack_toon(&pack, limit),
         };
+        // A `detail`/`max_tokens` pack bypasses the cache, like the search
+        // tools' `detail`: the agent chose that rendering on purpose.
+        if pack_request.is_some() {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+        }
         Ok(self.repeat_reply(cache, text, &locations))
     }
 

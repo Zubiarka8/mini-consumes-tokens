@@ -196,7 +196,8 @@ reference line is sent in full.
   unchanged since your identical earlier call; cache:false`, then up to 3
   definition locations. A file saved but not yet reindexed changes the
   pack's text, because its stale source is withheld, so it goes out in full.
-  `cache: false` resends the pack and counts as a recovery (#188). The
+  `cache: false` resends the pack and counts as a recovery, and `detail` or
+  `max_tokens` bypass the cache, as `detail` does for the search tools (#188). The
   other graph tools (`find_*`, `impact_analysis`) are not cached.
 - **Latency gain is modest for lexical search** (already sub-millisecond on
   this repo); the win there is tokens. For `hybrid_search_like` an exact hit also

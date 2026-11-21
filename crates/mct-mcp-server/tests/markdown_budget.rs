@@ -221,12 +221,10 @@ async fn cyclic_note_links_terminate_at_depth() {
     )
     .await;
     assert!(text.contains("x.md:L"), "{text}");
-    // `cache: false`: the repeat is compared as rendered, not as the
-    // one-line reference reply an identical pack gets (#188).
     assert_eq!(text, call(
         &v.server,
         "build_context_pack",
-        json!({"symbol": "x", "path": "x.md", "depth": 8, "format": "text", "detail": "summary", "max_tokens": 500, "cache": false}),
+        json!({"symbol": "x", "path": "x.md", "depth": 8, "format": "text", "detail": "summary", "max_tokens": 500}),
     )
     .await, "reproducible");
     fs::remove_dir_all(&dir).unwrap();
