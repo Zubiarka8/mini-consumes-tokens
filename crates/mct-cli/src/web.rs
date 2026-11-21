@@ -94,6 +94,9 @@ struct Site {
     groups: BTreeMap<String, Vec<usize>>,
     duplicates: DuplicateReport,
     review_keys: Vec<String>,
+    /// Review key of each member of each duplicate group, by group id
+    /// (ADR-049).
+    member_keys: Vec<Vec<String>>,
     /// Readable number of each finding, by review key.
     numbers: numbers::Numbers,
     dead: Vec<DeadCandidate>,
@@ -212,6 +215,15 @@ impl Site {
             &file_hashes,
         );
         let review_keys = findings.iter().map(|f| f.identity.clone()).collect();
+        let members = mct_index::reviews::duplicate_member_findings(&duplicates.groups, &findings);
+        let mut member_keys: Vec<Vec<String>> = vec![Vec::new(); duplicates.groups.len()];
+        for member in &members {
+            if let Some(group) = member.group {
+                member_keys[group].push(member.identity.clone());
+            }
+        }
+        // After the groups, which member keys point at by position.
+        findings.extend(members);
         for (id, group) in duplicates.groups.iter().enumerate() {
             for member in &group.members {
                 let ids = groups.entry(member.path.clone()).or_default();
@@ -225,7 +237,14 @@ impl Site {
         let dead_code_ms = dead_started.elapsed().as_millis();
         findings.extend(dead_findings);
         let reviews = reviews::Reviews::load(root, findings);
-        let numbers = numbers::Numbers::load(root, reviews.findings(), &reviews.reviewed_keys());
+        // Members have no readable number: a person opens their group.
+        let numbered: Vec<_> = reviews
+            .findings()
+            .iter()
+            .filter(|f| f.kind != mct_index::reviews::Kind::DuplicateMember)
+            .cloned()
+            .collect();
+        let numbers = numbers::Numbers::load(root, &numbered, &reviews.reviewed_keys());
         if let Some(reason) = reviews.read_only_reason() {
             eprintln!("warning: review decisions are read-only until this is fixed: {reason}");
         }
@@ -270,6 +289,7 @@ impl Site {
             groups,
             duplicates,
             review_keys,
+            member_keys,
             numbers,
             dead,
             references,

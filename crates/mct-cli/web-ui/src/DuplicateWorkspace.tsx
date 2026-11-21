@@ -8,10 +8,10 @@ import { useSource } from "./hooks";
 import { cn } from "./lib/cn";
 import { copyText } from "./notify";
 import { ActionGroup, Caution, LoadState } from "./ui/actions";
-import { Badge } from "./ui/badge";
+import { Badge, stateTone } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Section } from "./ui/section";
-import type { Bridge, Difference, DuplicateFinding, Member, WorkspaceProps } from "./types";
+import type { Bridge, Difference, DuplicateFinding, Member, Review, WorkspaceProps } from "./types";
 
 /** Lines shown above and below each fragment, so the duplicate is seen in its place. */
 export const CONTEXT = 5;
@@ -247,6 +247,13 @@ export function DuplicateWorkspace(props: WorkspaceProps & { item: DuplicateFind
   const visible = item.members.map((_, index) => index).filter((index) => !hidden.includes(index));
   const names = item.members.map((member) => basename(member.path));
   const ambiguous = (name: string) => names.filter((other) => other === name).length > 1;
+  // Whose decision the review edits: the whole group (null) or one file.
+  const [scope, setScope] = useState<number | null>(null);
+  const member = scope === null ? undefined : item.members[scope];
+  const memberReview = member?.review;
+  const reviewed = memberReview ? { ...item, ...memberReview, history: memberReview.history } : item;
+  const memberSaved = (index: number) => (review: Review) =>
+    onSaved({ members: item.members.map((m, i) => (i === index ? { ...m, review } : m)) });
 
   const select = (index: number) => {
     setHidden(hidden.filter((other) => other !== index));
@@ -328,23 +335,63 @@ export function DuplicateWorkspace(props: WorkspaceProps & { item: DuplicateFind
   const review = (
     <PaneBody as="aside" label={t("rw.review")}>
       <div className="flex flex-col gap-3 px-3 pb-3">
-        <ReviewPanel item={item} bridge={bridge} onSaved={onSaved}>
-          <div className="flex flex-col gap-1.5 rounded-ui border border-line bg-elevated p-2">
-            <span className="text-xs font-semibold text-fg">{t("dup.decisionTarget")}</span>
-            <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
-              {item.members.map((member, index) => (
-                <li
-                  key={`${member.path}:${member.start}`}
-                  title={`${member.path}:${range(member)}`}
-                  className="flex items-center gap-1 text-xs"
-                >
-                  <Letter index={index} bridge={bridge} />
-                  <span className="max-w-[120px] truncate text-fg-2">{basename(member.path)}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="m-0 text-xs text-fg-2">{t("dup.groupDecision", { n: item.members.length })}</p>
-          </div>
+        <div role="radiogroup" aria-label={t("dup.reviewScope")} className="flex flex-wrap items-center gap-1">
+          <Button
+            size="sm"
+            role="radio"
+            aria-checked={scope === null}
+            className={cn(scope === null && "outline-2 -outline-offset-2 outline-topbar")}
+            onClick={() => setScope(null)}
+          >
+            {t("dup.reviewAll")}
+          </Button>
+          {item.members.map((m, index) =>
+            m.review ? (
+              <Button
+                key={`${m.path}:${m.start}`}
+                size="sm"
+                role="radio"
+                aria-checked={scope === index}
+                aria-label={t("dup.reviewFile", { letter: fileLetter(index) })}
+                title={`${m.path}:${range(m)} · ${bridge.stateLabel(m.review.state, "duplicate")}`}
+                className={cn(scope === index && "outline-2 -outline-offset-2 outline-topbar")}
+                onClick={() => setScope(index)}
+              >
+                {fileLetter(index)}
+              </Button>
+            ) : null,
+          )}
+        </div>
+        <ReviewPanel
+          item={reviewed}
+          bridge={bridge}
+          onSaved={scope !== null && memberReview ? memberSaved(scope) : onSaved}
+        >
+          {scope !== null && member ? (
+            <div className="flex flex-col gap-1.5 rounded-ui border border-line bg-elevated p-2">
+              <span className="flex items-center gap-1 text-xs font-semibold text-fg">
+                <Letter index={scope} bridge={bridge} />
+                {basename(member.path)}
+              </span>
+              <p className="m-0 text-xs text-fg-2">{t("dup.memberDecision", { letter: fileLetter(scope) })}</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5 rounded-ui border border-line bg-elevated p-2">
+              <span className="text-xs font-semibold text-fg">{t("dup.decisionTarget")}</span>
+              <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
+                {item.members.map((m, index) => (
+                  <li key={`${m.path}:${m.start}`} title={`${m.path}:${range(m)}`} className="flex items-center gap-1 text-xs">
+                    <Letter index={index} bridge={bridge} />
+                    <span className="max-w-[120px] truncate text-fg-2">{basename(m.path)}</span>
+                    {m.review && (
+                      <Badge tone={stateTone(m.review.state)}>{bridge.stateLabel(m.review.state, "duplicate")}</Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="m-0 text-xs text-fg-2">{t("dup.groupDecision", { n: item.members.length })}</p>
+            </div>
+          )}
         </ReviewPanel>
         <ActionGroup label={t("rw.aiTools")}>
           <Button size="sm" onClick={() => copyText(bridge.aiBrief(item), t("ai.copied"), t("common.copyFailed"))}>
@@ -388,8 +435,8 @@ export function DuplicateWorkspace(props: WorkspaceProps & { item: DuplicateFind
               </details>
             )}
           </Section>
-          <Section title={`${t("review.history")} (${item.history?.length ?? 0})`}>
-            <History events={item.history} bridge={bridge} />
+          <Section title={`${t("review.history")} (${reviewed.history?.length ?? 0})`}>
+            <History events={reviewed.history} bridge={bridge} />
           </Section>
         </div>
       </div>

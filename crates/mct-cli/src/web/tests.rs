@@ -2098,3 +2098,52 @@ fn notes_graph_edges_are_pairs_of_node_positions() {
         [("a.md", "b.md"), ("a.md", "c.md"), ("b.md", "c.md")]
     );
 }
+
+/// Issue #263: one member is decided alone; its group shows the most
+/// pending member, a state filter finds the group through any member, the
+/// summary counts the group once, and the detail carries each member's
+/// review.
+#[test]
+fn one_member_of_a_group_is_reviewed_alone() {
+    let root = project();
+    let server = Server::start(root.path(), true);
+    let (group, members) = {
+        let site = server.site.borrow();
+        (site.review_keys[0].clone(), site.member_keys[0].clone())
+    };
+    assert!(members.len() >= 2, "{members:?}");
+    let csrf = server.site.borrow().csrf.clone();
+    let revision = server.json(&format!("api/finding?key={group}"))["members"][1]["review"]
+        ["revision"]
+        .clone();
+    let body = serde_json::json!({ "csrf": csrf, "key": members[1], "state": "confirmed",
+                                   "note": "the real copy", "revision": revision })
+    .to_string();
+    let response = server.post_review(&body, "Origin: http://127.0.0.1:8787\r\n");
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    let saved: serde_json::Value = serde_json::from_str(Server::body(&response)).unwrap();
+    assert_eq!(saved["key"], members[1].as_str());
+    assert_eq!(saved["state"], "confirmed");
+
+    let row = &server.json("api/findings?type=duplicate")["items"][0];
+    assert_eq!(row["key"], group.as_str());
+    assert_eq!(row["state"], "unreviewed");
+    assert_eq!(row["reviewedMembers"], 1);
+    let listed = server.json("api/findings?type=duplicate&state=confirmed");
+    assert_eq!(listed["total"], 1, "any member matches the filter");
+    assert_eq!(
+        server.json("api/summary")["findings"]["states"]["confirmed"],
+        serde_json::Value::Null,
+        "the group counts once, as its most pending member"
+    );
+    assert_eq!(
+        server.json("api/summary")["recent"][0]["finding"]["key"],
+        group.as_str()
+    );
+
+    let detail = server.json(&format!("api/finding?key={group}"));
+    assert_eq!(detail["members"][1]["review"]["state"], "confirmed");
+    assert_eq!(detail["members"][1]["review"]["note"], "the real copy");
+    assert_eq!(detail["members"][0]["review"]["state"], "unreviewed");
+    assert_eq!(detail["state"], "unreviewed");
+}

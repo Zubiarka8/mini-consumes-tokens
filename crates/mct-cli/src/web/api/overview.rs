@@ -121,13 +121,11 @@ pub(super) fn meta(site: &Site) -> Value {
 }
 
 fn finding_label(site: &Site, key: &str) -> Value {
-    if let Some(id) = site
-        .review_keys
-        .iter()
-        .position(|candidate| candidate == key)
-    {
+    if let Some(id) = super::findings::group_of_key(site, key) {
         let group = &site.duplicates.groups[id];
         let title = super::findings::duplicate_title(group);
+        // A member's event opens its group.
+        let key = &site.review_keys[id];
         return json!({ "key": key, "type": "duplicate", "title": title, "path": group.members[0].path });
     }
     site.dead
@@ -164,11 +162,15 @@ pub(super) fn summary(site: &Site) -> Value {
         .iter()
         .map(|key| ("duplicate", key))
         .chain(site.dead.iter().map(|d| ("dead-code", &d.key)));
-    for (kind, key) in all_keys {
-        let state = site
-            .reviews
-            .resolution(key)
-            .map_or("unreviewed", Resolution::effective_label);
+    for (position, (kind, key)) in all_keys.enumerate() {
+        let state = match site.member_keys.get(position) {
+            // A group counts once, as its most pending member (ADR-049).
+            Some(members) if kind == "duplicate" => site.reviews.summary(members).label,
+            _ => site
+                .reviews
+                .resolution(key)
+                .map_or("unreviewed", Resolution::effective_label),
+        };
         *states.entry(state).or_default() += 1;
         *by_type.entry(kind).or_default().entry(state).or_default() += 1;
     }

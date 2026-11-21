@@ -37,6 +37,8 @@ export interface Member {
   /** The full body when it fit the server's budget. */
   code?: string[] | null;
   codeTruncated?: boolean;
+  /** This file's own review (detail only): its decision, or the group's it takes. */
+  review?: Review;
 }
 
 export interface Difference {
@@ -69,6 +71,8 @@ export interface DuplicateFinding extends Review {
   /** Locations in the complete group, including any omitted preview members. */
   memberCount: number;
   membersOmitted?: number;
+  /** Members with a final decision; `state` is the most pending member's. */
+  reviewedMembers?: number;
   reasons?: string[];
   method?: { normalization?: string };
   analysis?: string;
@@ -140,6 +144,6 @@ export interface WorkspaceProps {
   onBack(): void;
   onSelectFile(index: number): void;
   onContext(lines: number): void;
-  /** A decision was saved (or a conflict returned the current one). */
-  onSaved(review: Review): void;
+  /** A decision was saved (or a conflict returned the current one); for one file of a duplicate, its members. */
+  onSaved(review: Review | { members: Member[] }): void;
 }

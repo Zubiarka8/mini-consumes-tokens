@@ -8,7 +8,11 @@ export const en = {
   "dup.selectFile": "Select {path}",
   "dup.lineRange": "Lines {from}–{to}",
   "dup.groupDecision":
-    "The decision is saved for the whole duplicate: it applies to its {n} locations, not to each one separately.",
+    "Saving here applies to all {n} locations and replaces any decision taken for one file.",
+  "dup.reviewScope": "Review the whole duplicate or one file",
+  "dup.reviewAll": "All files",
+  "dup.reviewFile": "File {letter} only",
+  "dup.memberDecision": "The state and notes belong to file {letter} only; the other files keep theirs.",
   "dup.meta": "{locations} · {files} · {lines} lines · {tokens} tokens",
   "dup.fileListLabel": "Files of the duplicate",
   // review workspace (review.js)
@@ -16,7 +20,7 @@ export const en = {
   "rw.file": "File",
   "rw.hideFile": "Remove {path} from the comparison",
   "dup.fileLetter": "File {letter}",
-  "dup.decisionTarget": "The state and notes belong to the whole group:",
+  "dup.decisionTarget": "The state and notes apply to every file of the group:",
   "rw.fileOpen": "(open in the comparison)",
   "rw.fileClosed": "(closed, not in the comparison)",
   "rw.matchLegend": "Matching code",
