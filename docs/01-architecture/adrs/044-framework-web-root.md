@@ -20,7 +20,7 @@ Proposed (2026-11-21). Issue: [#567](https://github.com/Zubiarka8/mini-consumes-
 - **Stale data:** both sources are read at query time, so adding or deleting a config changes the answer without reparsing the page. Migration 27 reparses HTML and CSS files to fill `web_app`.
 
 ## Not done
-- **Keep the `public/` default.** The issue asks for "unresolved rather than guessing" when no config names a web root. That would undo ADR-003's documented default, which the asset tests and the `portfolio-3d` eval rely on, so it is left to the maintainer.
+- **Unresolved when no config names a web root.** The issue asked for this. The maintainer decided on 2026-11-21 to keep ADR-003's `public/` default instead.
 - A web root set in code: Vite `publicDir`, SvelteKit `kit.files.assets`, `UseStaticFiles` options. These need evaluating JavaScript or C#.
 - `dist/`: it holds build output, not the source of a link.
 - JS/TS string asset loaders (`useGLTF("/m.glb")`) do not record `web_app`. Only HTML links and CSS `@import`s do.
