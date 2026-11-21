@@ -38,6 +38,7 @@ pub(super) fn group_text(row: &Row, range: Range<usize>, details: bool) -> Strin
             "tokens",
             "review",
             "actionable",
+            "reviewed_members",
             "verdict",
             "priority",
             "review_validity",
@@ -48,8 +49,9 @@ pub(super) fn group_text(row: &Row, range: Range<usize>, details: bool) -> Strin
             g.members.len().to_string(),
             g.line_count.to_string(),
             g.token_count.to_string(),
-            row.resolution.effective_label().into(),
+            row.summary.label.into(),
             row.actionable().to_string(),
+            row.summary.reviewed.to_string(),
             g.verdict.level.as_str().into(),
             g.priority.level.as_str().into(),
             validity(row).into(),
@@ -67,6 +69,7 @@ pub(super) fn group_text(row: &Row, range: Range<usize>, details: bool) -> Strin
             "end",
             "subgroup",
             "symbol_truncated",
+            "review",
         ],
         g.members[range.clone()]
             .iter()
@@ -85,6 +88,10 @@ pub(super) fn group_text(row: &Row, range: Range<usize>, details: bool) -> Strin
                         .get(range.start + i)
                         .map_or("unknown".into(), usize::to_string),
                     (m.symbol_name.chars().count() > 160).to_string(),
+                    row.members
+                        .get(range.start + i)
+                        .map_or("unreviewed", |r| r.effective_label())
+                        .into(),
                 ]
             })
             .collect(),
