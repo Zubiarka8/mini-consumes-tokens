@@ -1449,8 +1449,17 @@ fn compile_commands_include_rows(root: &Path, bytes: &[u8]) -> Vec<(String, Stri
     let Ok(serde_json::Value::Array(entries)) = serde_json::from_slice(bytes) else {
         return Vec::new();
     };
+    // Build tools write plain paths; the root may be canonical, which on
+    // Windows carries the `\\?\` verbatim prefix.
     let roots: Vec<PathBuf> = std::iter::once(root.to_path_buf())
         .chain(root.canonicalize().ok())
+        .flat_map(|r| {
+            let plain = r
+                .to_str()
+                .and_then(|s| s.strip_prefix(r"\\?\"))
+                .map(PathBuf::from);
+            std::iter::once(r).chain(plain)
+        })
         .collect();
     let inside = |base: &Path, path: &str| -> Option<String> {
         let mut normal = PathBuf::new();

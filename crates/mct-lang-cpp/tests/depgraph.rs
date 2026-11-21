@@ -145,7 +145,11 @@ fn a_compile_commands_include_flag_resolves_a_quoted_include() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
     };
-    let root = dir.to_str().unwrap();
+    // As a build tool writes it: no `\\?\` verbatim prefix (Windows), and
+    // JSON-escaped.
+    let plain = dir.to_str().unwrap();
+    let plain = plain.strip_prefix(r"\\?\").unwrap_or(plain);
+    let root = plain.replace('\\', "\\\\");
     write(
         "build/compile_commands.json",
         &format!(
