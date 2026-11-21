@@ -425,6 +425,24 @@ fn index_file(
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or_default();
+    if matches!(file_name, "CMakeLists.txt" | "compile_commands.json") {
+        match crate::read_repository_file(&canonical) {
+            Ok(bytes) => {
+                clear_read_failure(index, &relative_path)?;
+                let rows = if file_name == "CMakeLists.txt" {
+                    cmake_include_rows(&relative_path, &String::from_utf8_lossy(&bytes))
+                } else {
+                    compile_commands_include_rows(index.root(), &bytes)
+                };
+                store_include_dirs(index, &relative_path, rows)?;
+            }
+            Err(err) => {
+                record_read_failure(index, report, &relative_path, err.to_string())?;
+                return Ok(Seen::Unreadable(relative_path));
+            }
+        }
+        return Ok(Seen::Manifest(relative_path));
+    }
     if matches!(file_name, "tsconfig.json" | "jsconfig.json") {
         match crate::read_repository_file(&canonical) {
             Ok(bytes) => {
@@ -1352,7 +1370,8 @@ fn remove_missing_manifests(
          UNION SELECT manifest_path FROM ts_configs
          UNION SELECT manifest_path FROM web_roots
          UNION SELECT manifest_path FROM package_manifests
-         UNION SELECT manifest_path FROM cargo_renames",
+         UNION SELECT manifest_path FROM cargo_renames
+         UNION SELECT manifest_path FROM include_dirs",
     )?;
     let stored: Vec<String> = stmt
         .query_map([], |row| row.get(0))?
@@ -1394,10 +1413,219 @@ fn remove_missing_manifests(
                 "DELETE FROM cargo_renames WHERE manifest_path = ?1",
                 params![path],
             )?;
+            tx.execute(
+                "DELETE FROM include_dirs WHERE manifest_path = ?1",
+                params![path],
+            )?;
         }
     }
 
     Ok(())
+}
+
+/// The include directories a `CMakeLists.txt` declares, as `(scope,
+/// include)` repository paths: each applies to files under the
+/// CMakeLists' directory (issue #563, ADR-047).
+fn cmake_include_rows(path: &str, contents: &str) -> Vec<(String, String)> {
+    let directory = path.rsplit_once('/').map_or("", |(dir, _)| dir);
+    cmake_include_dirs(contents)
+        .into_iter()
+        .filter_map(|dir| {
+            let spec = format!("./{}", dir.trim_end_matches('/'));
+            let resolved = mct_core::resolve_reference_path(path, &spec)?;
+            // `./.` names the CMakeLists' own directory.
+            let include = resolved.strip_suffix("/.").unwrap_or(&resolved);
+            Some((directory.to_string(), include.to_string()))
+        })
+        .collect()
+}
+
+/// The `-I`/`-iquote` directories of each `compile_commands.json` entry, as
+/// `(scope, include)` repository paths: each applies to files in the
+/// compiled file's directory. Relative paths are taken from the entry's
+/// `directory`; a path outside the repository, or an unparsable file,
+/// gives nothing (issue #563, ADR-047).
+fn compile_commands_include_rows(root: &Path, bytes: &[u8]) -> Vec<(String, String)> {
+    let Ok(serde_json::Value::Array(entries)) = serde_json::from_slice(bytes) else {
+        return Vec::new();
+    };
+    // Build tools write plain paths; the root may be canonical, which on
+    // Windows carries the `\\?\` verbatim prefix.
+    let roots: Vec<PathBuf> = std::iter::once(root.to_path_buf())
+        .chain(root.canonicalize().ok())
+        .flat_map(|r| {
+            let plain = r
+                .to_str()
+                .and_then(|s| s.strip_prefix(r"\\?\"))
+                .map(PathBuf::from);
+            std::iter::once(r).chain(plain)
+        })
+        .collect();
+    let inside = |base: &Path, path: &str| -> Option<String> {
+        let mut normal = PathBuf::new();
+        for part in base.join(path).components() {
+            match part {
+                std::path::Component::ParentDir => {
+                    normal.pop();
+                }
+                std::path::Component::CurDir => {}
+                other => normal.push(other),
+            }
+        }
+        let relative = roots.iter().find_map(|r| normal.strip_prefix(r).ok())?;
+        Some(relative.to_string_lossy().replace('\\', "/"))
+    };
+    let mut rows = Vec::new();
+    for entry in &entries {
+        let field = |name: &str| entry.get(name).and_then(serde_json::Value::as_str);
+        let (Some(directory), Some(file)) = (field("directory"), field("file")) else {
+            continue;
+        };
+        let base = Path::new(directory);
+        let Some(file) = inside(base, file) else {
+            continue;
+        };
+        let scope = file.rsplit_once('/').map_or("", |(dir, _)| dir).to_string();
+        let words: Vec<&str> = match (entry.get("arguments"), field("command")) {
+            (Some(serde_json::Value::Array(arguments)), _) => arguments
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .collect(),
+            (_, Some(command)) => command.split_whitespace().collect(),
+            _ => continue,
+        };
+        let mut words = words.iter();
+        while let Some(&word) = words.next() {
+            let dir = match word {
+                "-I" | "-iquote" => words.next().copied(),
+                w => w.strip_prefix("-I").filter(|d| !d.is_empty()),
+            };
+            if let Some(include) = dir.and_then(|d| inside(base, d.trim_matches('"'))) {
+                rows.push((scope.clone(), include));
+            }
+        }
+    }
+    rows
+}
+
+/// Stores `rows` as `path`'s include directories, first occurrence of each
+/// kept, leaving the table untouched when nothing changed.
+fn store_include_dirs(index: &Index, path: &str, rows: Vec<(String, String)>) -> Result<()> {
+    let rows = rows.into_iter().fold(Vec::new(), |mut rows, row| {
+        if !rows.contains(&row) {
+            rows.push(row);
+        }
+        rows
+    });
+    let stored: Vec<(String, String)> = {
+        let mut stmt = index.conn.prepare(
+            "SELECT directory, include_path FROM include_dirs WHERE manifest_path = ?1 ORDER BY position",
+        )?;
+        let found = stmt.query_map(params![path], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        found.collect::<rusqlite::Result<_>>()?
+    };
+    if stored == rows {
+        return Ok(());
+    }
+    index.conn.execute(
+        "DELETE FROM include_dirs WHERE manifest_path = ?1",
+        params![path],
+    )?;
+    for (position, (directory, include_path)) in rows.iter().enumerate() {
+        index.conn.execute(
+            "INSERT INTO include_dirs (manifest_path, directory, position, include_path) VALUES (?1, ?2, ?3, ?4)",
+            params![path, directory, position as i64, include_path],
+        )?;
+    }
+    Ok(())
+}
+
+/// The literal directories of `include_directories(…)` and
+/// `target_include_directories(<target> …)` calls, relative to the
+/// CMakeLists' directory. Kept: plain relative paths,
+/// `${CMAKE_CURRENT_SOURCE_DIR}/x` and `$<BUILD_INTERFACE:…>` around
+/// either. Dropped: keywords, absolute paths, `$<INSTALL_INTERFACE:…>` and
+/// anything holding another variable or generator expression.
+fn cmake_include_dirs(contents: &str) -> Vec<String> {
+    const KEYWORDS: [&str; 6] = [
+        "PUBLIC",
+        "PRIVATE",
+        "INTERFACE",
+        "SYSTEM",
+        "BEFORE",
+        "AFTER",
+    ];
+    let text: String = contents
+        .lines()
+        .map(|line| line.split('#').next().unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let lower = text.to_ascii_lowercase();
+    let mut out = Vec::new();
+    for (command, skip_target) in [
+        ("target_include_directories", true),
+        ("include_directories", false),
+    ] {
+        let mut from = 0;
+        while let Some(at) = lower[from..].find(command) {
+            let start = from + at;
+            from = start + command.len();
+            let before = lower[..start].chars().next_back();
+            if before.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_') {
+                continue;
+            }
+            let rest = lower[from..].trim_start();
+            if !rest.starts_with('(') {
+                continue;
+            }
+            let open = text.len() - rest.len();
+            let Some(close) = text[open..].find(')') else {
+                break;
+            };
+            // A `)` inside `$<…>` or `${…}` ends nothing: find the call's own.
+            let mut depth = 0i32;
+            let mut end = None;
+            for (i, c) in text[open..].char_indices() {
+                match c {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = Some(open + i);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let end = end.unwrap_or(open + close);
+            let args = &text[open + 1..end];
+            for (i, arg) in args.split_whitespace().enumerate() {
+                if (skip_target && i == 0) || KEYWORDS.contains(&arg) {
+                    continue;
+                }
+                let arg = arg.trim_matches('"');
+                let arg = arg
+                    .strip_prefix("$<BUILD_INTERFACE:")
+                    .and_then(|a| a.strip_suffix('>'))
+                    .unwrap_or(arg);
+                let arg = arg
+                    .strip_prefix("${CMAKE_CURRENT_SOURCE_DIR}")
+                    .map(|a| a.trim_start_matches('/'))
+                    .map(|a| if a.is_empty() { "." } else { a })
+                    .unwrap_or(arg);
+                if arg.is_empty() || arg.starts_with('/') || arg.contains('$') || arg.contains(':')
+                {
+                    continue;
+                }
+                if !out.iter().any(|d: &String| d == arg) {
+                    out.push(arg.to_string());
+                }
+            }
+            from = end;
+        }
+    }
+    out
 }
 
 /// Records the renamed path dependencies a `Cargo.toml` declares, each
@@ -2010,8 +2238,8 @@ fn write_parsed_file(
             "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len,
                                     qualifier, target_path, target_language, external, targets_parsed,
                                     target_kind, target_module, module, member, not_field,
-                                    top_level, web_app)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                                    top_level, web_app, include_spec)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 from_row_id,
                 relation_kind_str(relation.kind),
@@ -2030,6 +2258,7 @@ fn write_parsed_file(
                 target.is_some_and(|t| t.not_field),
                 target.is_some_and(|t| t.top_level),
                 target.and_then(|t| t.web_app.as_deref()),
+                target.and_then(|t| t.include_spec.as_deref()),
             ],
         )?;
     }
@@ -2577,5 +2806,19 @@ mod package_import_tests {
         );
         assert!(package_import_mappings("", "{not json").is_empty());
         assert!(package_import_mappings("", r#"{"name":"x"}"#).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod cmake_include_tests {
+    use super::cmake_include_dirs;
+
+    #[test]
+    fn only_literal_include_directories_are_kept() {
+        let cmake = "# include_directories(commented)\n\
+            include_directories(inc \"quoted\" /abs ${VAR}/x)\n\
+            target_include_directories(core SYSTEM PUBLIC\n  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/api>\n  $<INSTALL_INTERFACE:include>\n  ${CMAKE_CURRENT_SOURCE_DIR})\n\
+            my_include_directories(not_this)\n";
+        assert_eq!(cmake_include_dirs(cmake), ["api", ".", "inc", "quoted"]);
     }
 }
