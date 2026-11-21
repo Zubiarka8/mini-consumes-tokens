@@ -363,6 +363,7 @@ fn an_index_from_before_the_table_gains_it_and_reparses_on_a_normal_reindex() {
          DROP TABLE ts_configs;
          DROP TABLE cargo_packages;
          DROP TABLE web_roots; ALTER TABLE relations DROP COLUMN web_app;
+         DROP TABLE package_imports; DROP TABLE package_manifests;
          ALTER TABLE relations DROP COLUMN not_field;
          ALTER TABLE relations DROP COLUMN top_level; ALTER TABLE symbols DROP COLUMN file_scoped;
          CREATE VIEW relation_candidates AS SELECT NULL AS relation_id, NULL AS symbol_id;",

@@ -147,8 +147,10 @@ fn module_import_target(from_file: &str, spec: &str) -> Option<(String, Relation
             },
         ));
     }
-    if spec.starts_with("@/") {
-        let file = spec.rsplit('/').next()?;
+    // `@/…` (tsconfig `paths`) and `#…` (package.json `imports`) name a
+    // file through config the index reads (ADR-043, ADR-045).
+    if spec.starts_with("@/") || (spec.len() > 1 && spec.starts_with('#')) {
+        let file = spec.trim_start_matches('#').rsplit('/').next()?;
         let stem = file.split('.').next().filter(|stem| !stem.is_empty())?;
         return Some((
             stem.to_string(),
