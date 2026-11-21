@@ -468,3 +468,24 @@ fn a_vite_at_alias_resolves_and_a_tsconfig_mapping_wins() {
     assert_eq!(import_target(&index, "format", "web/src/main.ts"), None);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+/// The same `resolve.alias` in a `webpack.config.js` resolves `@/…` too.
+#[test]
+fn a_webpack_at_alias_resolves() {
+    let (root, index, _registry) = index_files(
+        "webpack-alias",
+        &[
+            (
+                "webpack.config.js",
+                "const path = require('path');\nmodule.exports = { resolve: { alias: { '@': path.resolve(__dirname, 'src') } } };\n",
+            ),
+            ("src/lib/format.ts", "export function format() {}\n"),
+            ("src/main.ts", "import { format } from '@/lib/format';\n"),
+        ],
+    );
+    assert_eq!(
+        import_target(&index, "format", "src/main.ts").as_deref(),
+        Some("src/lib/format.ts")
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}

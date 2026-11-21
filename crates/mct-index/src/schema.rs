@@ -2507,7 +2507,7 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
-        // 32: `@` alias of a Vite config's `resolve.alias`, merged with
+        // 32: `@` alias of a Vite or webpack config's `resolve.alias`, merged with
         // tsconfig `paths` (a tsconfig mapping of the same pattern wins;
         // #563, ADR-050). Vite configs are reparsed to fill the table.
         M::up(
@@ -2520,7 +2520,8 @@ pub fn migrations() -> Migrations<'static> {
                 PRIMARY KEY (file_id, pattern)
             );
             UPDATE files SET content_hash = '' WHERE language = 'javascript_typescript'
-                AND (relative_path LIKE 'vite.config.%' OR relative_path LIKE '%/vite.config.%');
+                AND (relative_path LIKE 'vite.config.%' OR relative_path LIKE '%/vite.config.%'
+                     OR relative_path LIKE 'webpack.config.%' OR relative_path LIKE '%/webpack.config.%');
             DROP VIEW ts_alias_candidates;
             CREATE VIEW ts_alias_candidates AS
                 SELECT r.id AS relation_id, s.id AS symbol_id
