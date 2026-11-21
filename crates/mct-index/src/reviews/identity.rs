@@ -25,6 +25,10 @@ pub struct FindingKeys {
     pub legacy_key: Option<String>,
     /// Identity in the dashboard draft's `reviews.toon` (`B2`).
     pub draft_identity: String,
+    /// For a [`Kind::DuplicateMember`]: the position of its group's finding
+    /// in the same slice. A member without a decision of its own takes the
+    /// group's, so group decisions apply to every member (ADR-049).
+    pub group: Option<usize>,
 }
 
 pub(super) fn digest(fields: &[&str]) -> String {
@@ -122,6 +126,7 @@ pub fn duplicate_findings(
             fingerprint,
             content_known,
             draft_identity,
+            group: None,
         });
     }
     for siblings in same_members.values_mut() {
@@ -257,7 +262,101 @@ pub fn dead_code_findings(
                     ])
                 }),
                 draft_identity,
+                group: None,
             }
         })
+        .collect()
+}
+
+/// Group position, language, path, symbol name, symbol kind, start line and
+/// end line of one member.
+pub(super) type MemberRow<'a> = (usize, &'a str, &'a str, &'a str, &'a str, u32, u32);
+
+/// Keys of every member of `groups`, group by group in member order.
+/// `group_findings` is [`duplicate_findings`] for the same groups, and must
+/// come first in the slice the members are resolved with: each member's
+/// [`FindingKeys::group`] is its group's position.
+pub fn duplicate_member_findings(
+    groups: &[DuplicateGroup],
+    group_findings: &[FindingKeys],
+) -> Vec<FindingKeys> {
+    let rows: Vec<MemberRow<'_>> = groups
+        .iter()
+        .enumerate()
+        .flat_map(|(position, group)| {
+            group.members.iter().map(move |m| {
+                (
+                    position,
+                    group.language.as_str(),
+                    m.path.as_str(),
+                    m.symbol_name.as_str(),
+                    m.symbol_kind.as_str(),
+                    m.start_line,
+                    m.end_line,
+                )
+            })
+        })
+        .collect();
+    member_findings(&rows, group_findings)
+}
+
+/// `duplicate-member-id-v1` names the member alone (language, path, symbol
+/// and its ordinal among same-named members of the file), so it survives a
+/// change of the group. `duplicate-member-fp-v1` adds the group's
+/// fingerprint: any change of the group, its code or its members shows the
+/// member's decision for re-evaluation instead of applying it.
+pub(super) fn member_findings(
+    rows: &[MemberRow<'_>],
+    group_findings: &[FindingKeys],
+) -> Vec<FindingKeys> {
+    // (language, path, name, kind) -> (start, end, row position) of each member.
+    type SameName<'a> = BTreeMap<(&'a str, &'a str, &'a str, &'a str), Vec<(u32, u32, usize)>>;
+    let mut same_name: SameName<'_> = BTreeMap::new();
+    for (position, row) in rows.iter().enumerate() {
+        same_name
+            .entry((row.1, row.2, row.3, row.4))
+            .or_default()
+            .push((row.5, row.6, position));
+    }
+    let mut ordinal = vec![0_usize; rows.len()];
+    for members in same_name.values_mut() {
+        members.sort_unstable();
+        for (n, (_, _, position)) in members.iter().enumerate() {
+            ordinal[*position] = n;
+        }
+    }
+    rows.iter()
+        .zip(ordinal)
+        .map(
+            |(&(group, language, path, name, kind, start, end), ordinal)| {
+                let owner = &group_findings[group];
+                let identity = digest(&[
+                    "duplicate-member-id-v1",
+                    language,
+                    path,
+                    name,
+                    kind,
+                    &ordinal.to_string(),
+                ]);
+                FindingKeys {
+                    kind: Kind::DuplicateMember,
+                    fingerprint: digest(&[
+                        "duplicate-member-fp-v1",
+                        &owner.fingerprint,
+                        path,
+                        name,
+                        kind,
+                        &start.to_string(),
+                        &end.to_string(),
+                    ]),
+                    content_known: owner.content_known,
+                    legacy_key: None,
+                    // No draft ever held members: a key no draft row can match.
+                    draft_identity: identity.clone(),
+                    identity,
+                    group: Some(group),
+                }
+            },
+        )
         .collect()
 }

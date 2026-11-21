@@ -43,10 +43,11 @@ fn snapshot(
             row.finding.identity.clone(),
             row.finding.fingerprint.clone(),
             row.resolution.revision(),
-            row.resolution.effective_label().into(),
+            row.summary.label.into(),
             row.actionable().to_string(),
             row.resolution.conflict.to_string(),
         ]);
+        fields.extend(row.members.iter().map(|m| m.revision()));
     }
     for skip in &report.skipped {
         fields.extend([

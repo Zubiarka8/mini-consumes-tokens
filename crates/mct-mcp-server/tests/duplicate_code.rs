@@ -10,7 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use mct_index::reviews::{duplicate_findings, Change, Reviews, State};
+use mct_index::reviews::{duplicate_findings, duplicate_member_findings, Change, Reviews, State};
 use mct_index::{DuplicateOptions, ExcludeSet, Index, TokenCounter};
 use mct_mcp_server::server::{FindDuplicateCodeArgs, MctServer};
 use rmcp::handler::server::wrapper::Parameters;
@@ -87,6 +87,41 @@ impl Project {
                     expected_revision: revision,
                 },
                 1_700_000_000_000,
+            )
+            .unwrap();
+    }
+}
+
+impl Project {
+    /// Saves `state` for member `member` (0-based) of group 0 alone.
+    fn decide_member(&self, member: usize, state: State, at: u64) {
+        let index = self.index();
+        let report = mct_index::find_duplicate_groups(
+            &index,
+            &mct_languages::build_token_sources(),
+            DuplicateOptions::default(),
+        )
+        .unwrap();
+        let mut findings = duplicate_findings(
+            &report.groups,
+            report.options.normalization,
+            &index.file_hashes().unwrap(),
+        );
+        let groups = findings.len();
+        findings.extend(duplicate_member_findings(&report.groups, &findings));
+        let target = groups + member;
+        let mut reviews = Reviews::load(&self.0);
+        let revision = reviews.resolve(&findings)[target].revision();
+        reviews
+            .save(
+                &findings,
+                target,
+                &Change {
+                    state,
+                    note: String::new(),
+                    expected_revision: revision,
+                },
+                at,
             )
             .unwrap();
     }
@@ -706,4 +741,26 @@ async fn a_member_continuation_always_advances_or_stops() {
             ..args()
         };
     }
+}
+
+/// Issue #263: a group is hidden only when every member is, its row says
+/// how many members are reviewed, and each member row carries its state.
+#[tokio::test]
+async fn a_group_is_hidden_only_when_every_member_is() {
+    let p = Project::new(1, 3);
+    let server = p.server();
+    p.decide_member(0, State::FalsePositive, 1_700_000_000_000);
+    p.decide_member(1, State::Dismissed, 1_700_000_000_001);
+    let text = query(&server, args()).await;
+    assert!(text.contains("status: groups"), "{text}");
+    assert!(text.contains("unreviewed"), "{text}");
+    assert!(text.contains("reviewed_members"), "{text}");
+    assert!(
+        text.contains("false-positive") && text.contains("dismissed"),
+        "{text}"
+    );
+
+    p.decide_member(2, State::FalsePositive, 1_700_000_000_002);
+    let text = query(&server, args()).await;
+    assert!(text.contains("status: all_suppressed"), "{text}");
 }

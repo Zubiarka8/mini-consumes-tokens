@@ -30,6 +30,7 @@ fn finding(
         content_known: true,
         legacy_key: Some(hex(legacy)),
         draft_identity: hex(draft),
+        group: None,
     }
 }
 
@@ -240,7 +241,7 @@ fn a_newer_canonical_version_is_reported_as_such() {
     write(
         root.path(),
         "review-decisions.toon",
-        "version: 4\nanything\n",
+        "version: 5\nanything\n",
     );
     let reviews = Reviews::load(root.path());
     assert!(reviews.problems()[0].newer_format);

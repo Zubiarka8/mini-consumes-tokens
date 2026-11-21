@@ -45,6 +45,7 @@ fn finding() -> FindingKeys {
         content_known: true,
         legacy_key: None,
         draft_identity: "c".repeat(64),
+        group: None,
     }
 }
 

@@ -131,6 +131,56 @@ impl Resolution {
     }
 }
 
+/// What the list row of a duplicate group shows about its members.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GroupSummary {
+    /// The [`Resolution::effective_label`] of the most pending member.
+    pub label: &'static str,
+    /// Members with a final decision: neither pending nor in review.
+    pub reviewed: usize,
+    pub members: usize,
+    /// `Suppressed` only when every member is.
+    pub visibility: Visibility,
+}
+
+/// Most pending first; the group shows the first label any member has.
+const PENDING_ORDER: [&str; 7] = [
+    "needs-reevaluation",
+    "unreviewed",
+    "in-review",
+    "resolved-but-detected",
+    "confirmed",
+    "dismissed",
+    "false-positive",
+];
+
+/// The summary of a group from its members' resolutions.
+pub fn summarize(members: &[Resolution]) -> GroupSummary {
+    let rank = |label: &str| PENDING_ORDER.iter().position(|l| *l == label).unwrap_or(0);
+    let label = members
+        .iter()
+        .map(Resolution::effective_label)
+        .min_by_key(|label| rank(label))
+        .unwrap_or("unreviewed");
+    GroupSummary {
+        label,
+        reviewed: members
+            .iter()
+            .filter(|m| rank(m.effective_label()) > rank("in-review"))
+            .count(),
+        members: members.len(),
+        visibility: if !members.is_empty()
+            && members
+                .iter()
+                .all(|m| m.visibility() == Visibility::Suppressed)
+        {
+            Visibility::Suppressed
+        } else {
+            Visibility::Actionable
+        },
+    }
+}
+
 /// One transition in a finding's history, from any source.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HistoryEvent {
@@ -162,6 +212,8 @@ pub struct Diagnostics {
 /// Lookups over the sources for one set of current findings.
 pub(super) struct Resolver<'a> {
     sources: &'a Sources,
+    /// The findings resolved together: a member's group is found here.
+    findings: &'a [FindingKeys],
     draft_history: HashMap<(Kind, &'a str), Vec<usize>>,
     legacy_history: HashMap<&'a str, Vec<usize>>,
     canonical_history: HashMap<(Kind, &'a str), Vec<usize>>,
@@ -210,6 +262,7 @@ impl<'a> Resolver<'a> {
         }
         Self {
             sources,
+            findings,
             draft_history,
             legacy_history,
             canonical_history,
@@ -236,8 +289,27 @@ impl<'a> Resolver<'a> {
                 .contains(&(finding.kind, finding.draft_identity.as_str()))
     }
 
-    /// Every source's candidate for `finding`, unordered.
-    fn candidates(&self, finding: &FindingKeys) -> Vec<Candidate> {
+    /// The group whose decisions a member takes when it has none newer.
+    fn group_of(&self, finding: &FindingKeys) -> Option<&'a FindingKeys> {
+        let group = self.findings.get(finding.group?)?;
+        (group.kind == Kind::Duplicate).then_some(group)
+    }
+
+    /// Every candidate for `finding`, unordered: its own, then (for a
+    /// member) its group's, each flagged `true` when inherited.
+    fn candidates(&self, finding: &FindingKeys) -> Vec<(Candidate, bool)> {
+        let own = self.own_candidates(finding).into_iter().map(|c| (c, false));
+        let inherited = self
+            .group_of(finding)
+            .map(|group| self.own_candidates(group))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|c| (c, true));
+        own.chain(inherited).collect()
+    }
+
+    /// Every source's candidate for `finding` itself, unordered.
+    fn own_candidates(&self, finding: &FindingKeys) -> Vec<Candidate> {
         let mut candidates = Vec::with_capacity(3);
         let known = finding.content_known;
         if let Some(row) = self
@@ -310,12 +382,15 @@ impl<'a> Resolver<'a> {
 
     pub(super) fn resolve(&self, finding: &FindingKeys) -> Resolution {
         let mut candidates = self.candidates(finding);
-        candidates.sort_by_key(Candidate::precedence);
+        candidates.sort_by_key(|(candidate, _)| candidate.precedence());
         let mut candidates = candidates.into_iter();
-        let Some(winner) = candidates.next() else {
+        let Some((winner, inherited)) = candidates.next() else {
             return Resolution::default();
         };
-        let conflict = candidates.any(|loser| loser.state != winner.state);
+        // A member deciding otherwise than its group is no conflict: only
+        // sources disagreeing at the winner's own level are.
+        let conflict =
+            candidates.any(|(loser, level)| level == inherited && loser.state != winner.state);
         Resolution {
             winner: Some(winner),
             conflict,
@@ -327,6 +402,15 @@ impl<'a> Resolver<'a> {
     /// then format, then position in its file. Rows from different sources
     /// are distinct events and are all kept.
     pub(super) fn history(&self, finding: &FindingKeys) -> Vec<HistoryEvent> {
+        let mut events = self.own_history(finding);
+        if let Some(group) = self.group_of(finding) {
+            events.extend(self.own_history(group));
+            events.sort_by(|a, b| a.at.cmp(&b.at).then(a.format.cmp(&b.format)));
+        }
+        events
+    }
+
+    fn own_history(&self, finding: &FindingKeys) -> Vec<HistoryEvent> {
         let mut events: Vec<(HistoryEvent, usize)> = Vec::new();
         let canonical = &self.sources.canonical.history;
         for &position in self
@@ -394,7 +478,7 @@ impl<'a> Resolver<'a> {
 
     /// The greatest time recorded anywhere for `finding`.
     pub(super) fn latest_time(&self, finding: &FindingKeys) -> u64 {
-        let candidates = self.candidates(finding).into_iter().map(|c| c.at);
+        let candidates = self.candidates(finding).into_iter().map(|(c, _)| c.at);
         let history = self.history(finding).into_iter().map(|e| e.at);
         candidates.chain(history).max().unwrap_or(0)
     }

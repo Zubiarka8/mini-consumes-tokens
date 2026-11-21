@@ -213,11 +213,20 @@ fn fields<const N: usize>(number: usize, text: &str) -> Parsed<[&str; N]> {
     }
 }
 
-fn keys<'a>(number: usize, kind: &str, identity: &'a str, fingerprint: &'a str) -> Parsed<Kind> {
-    let kind = Kind::parse(kind).ok_or(FormatError {
-        line: number,
-        reason: "unknown kind",
-    })?;
+/// `version` 3 knows no per-member rows, as the readers of that version do not.
+fn keys<'a>(
+    number: usize,
+    version: u64,
+    kind: &str,
+    identity: &'a str,
+    fingerprint: &'a str,
+) -> Parsed<Kind> {
+    let kind = Kind::parse(kind)
+        .filter(|kind| version >= 4 || *kind != Kind::DuplicateMember)
+        .ok_or(FormatError {
+            line: number,
+            reason: "unknown kind",
+        })?;
     check(
         valid_key(identity) && valid_key(fingerprint),
         number,
@@ -254,13 +263,14 @@ pub(super) fn parse_canonical(content: &str) -> Parsed<Canonical> {
 /// Parses a `C3` file as it is read, one line at a time.
 pub(super) fn read_canonical(source: impl BufRead) -> Parsed<Canonical> {
     let mut lines = Lines::new(source);
-    match lines.next()? {
-        Some((_, "version: 3")) => (),
+    let version = match lines.next()? {
+        Some((_, "version: 3")) => 3,
+        Some((_, "version: 4")) => 4,
         Some((number, text)) => {
             let newer = text
                 .strip_prefix("version: ")
                 .and_then(|version| version.parse::<u64>().ok())
-                .is_some_and(|version| version > 3);
+                .is_some_and(|version| version > 4);
             return fail(
                 number,
                 if newer {
@@ -271,7 +281,7 @@ pub(super) fn read_canonical(source: impl BufRead) -> Parsed<Canonical> {
             );
         }
         None => return fail(1, "empty file"),
-    }
+    };
     let count = header(
         lines.require("missing reviews table")?,
         "reviews",
@@ -283,7 +293,7 @@ pub(super) fn read_canonical(source: impl BufRead) -> Parsed<Canonical> {
         let (number, text) = row(lines.require("missing review row")?)?;
         let [kind, identity, fingerprint, state_text, updated, encoded] =
             fields::<6>(number, text)?;
-        let kind = keys(number, kind, identity, fingerprint)?;
+        let kind = keys(number, version, kind, identity, fingerprint)?;
         let row = Row {
             kind,
             fingerprint: fingerprint.to_string(),
@@ -308,7 +318,7 @@ pub(super) fn read_canonical(source: impl BufRead) -> Parsed<Canonical> {
         let (number, text) = row(lines.require("missing history row")?)?;
         let [kind, identity, fingerprint, from, to, at, encoded] = fields::<7>(number, text)?;
         history.push(Event {
-            kind: keys(number, kind, identity, fingerprint)?,
+            kind: keys(number, version, kind, identity, fingerprint)?,
             identity: identity.to_string(),
             fingerprint: fingerprint.to_string(),
             from: state(number, from)?,
@@ -324,7 +334,21 @@ pub(super) fn read_canonical(source: impl BufRead) -> Parsed<Canonical> {
 }
 
 pub(super) fn render_canonical(store: &Canonical) -> String {
-    let mut out = format!("version: 3\nreviews[{}]{C3_REVIEWS}\n", store.reviews.len());
+    // Version 3 while no per-member row exists, so older versions still read
+    // a store that uses only group decisions.
+    let members = store
+        .reviews
+        .keys()
+        .any(|(kind, _)| *kind == Kind::DuplicateMember)
+        || store
+            .history
+            .iter()
+            .any(|event| event.kind == Kind::DuplicateMember);
+    let version = if members { 4 } else { 3 };
+    let mut out = format!(
+        "version: {version}\nreviews[{}]{C3_REVIEWS}\n",
+        store.reviews.len()
+    );
     for ((_, identity), row) in &store.reviews {
         out.push_str(&format!(
             "  {},{},{},{},{},{}\n",
