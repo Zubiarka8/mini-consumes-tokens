@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A `#…` import resolves through the nearest `package.json` `imports` map (wildcard, exact and condition keys; a `.js` target also finds its `.ts` source) (#563, ADR-045). Schema migration 28 reparses JS/TS files.
+
 - A root-relative HTML link or CSS `@import` (`/site.css`) resolves under the web root its app declares: `static/` next to a `svelte.config.*`, `wwwroot/` for an ASP.NET web SDK `.csproj`, else `public/` as before (#567, ADR-044). Schema migration 27 reparses HTML and CSS files.
 
 - Index: a Rust import of a package whose directory has another name (`use grep_searcher::X` for `crates/searcher/`) now resolves through the package's `Cargo.toml` name (#374). A TypeScript/JavaScript `@/` import resolves through the nearest `tsconfig.json`/`jsconfig.json` `paths`, following relative `extends`. `get_indexing_status` lists each config read and any it could not parse (#563, ADR-043). Schema migration 26 reparses JS/TS files.

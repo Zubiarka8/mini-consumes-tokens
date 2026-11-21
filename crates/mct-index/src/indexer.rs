@@ -469,6 +469,9 @@ fn index_file(
                             )?;
                         }
                     }
+                    if file_name == "package.json" {
+                        write_package_imports(index, &relative_path, &contents)?;
+                    }
                     if manifests::is_csproj(file_name) {
                         write_web_root(index, &relative_path, web_project_root(&contents))?;
                     }
@@ -1346,7 +1349,8 @@ fn remove_missing_manifests(
          UNION SELECT manifest_path FROM rockspec_items
          UNION SELECT manifest_path FROM cargo_packages
          UNION SELECT manifest_path FROM ts_configs
-         UNION SELECT manifest_path FROM web_roots",
+         UNION SELECT manifest_path FROM web_roots
+         UNION SELECT manifest_path FROM package_manifests",
     )?;
     let stored: Vec<String> = stmt
         .query_map([], |row| row.get(0))?
@@ -1376,10 +1380,113 @@ fn remove_missing_manifests(
                 "DELETE FROM web_roots WHERE manifest_path = ?1",
                 params![path],
             )?;
+            tx.execute(
+                "DELETE FROM package_manifests WHERE manifest_path = ?1",
+                params![path],
+            )?;
+            tx.execute(
+                "DELETE FROM package_imports WHERE manifest_path = ?1",
+                params![path],
+            )?;
         }
     }
 
     Ok(())
+}
+
+/// Records a `package.json` as the package scope of the files under its
+/// directory, with its literal `imports` map resolved to repository paths
+/// (issue #563, ADR-045). An unparsable file keeps the scope with no map, so
+/// an outer package never resolves files it does not govern.
+fn write_package_imports(index: &Index, path: &str, contents: &str) -> Result<()> {
+    let directory = path.rsplit_once('/').map_or("", |(dir, _)| dir);
+    let mappings = package_import_mappings(directory, contents);
+    index.conn.execute(
+        "INSERT INTO package_manifests (manifest_path, directory) VALUES (?1, ?2)
+         ON CONFLICT(manifest_path) DO UPDATE SET directory = excluded.directory
+         WHERE directory <> excluded.directory",
+        params![path, directory],
+    )?;
+    let stored: Vec<(String, String)> = {
+        let mut stmt = index.conn.prepare(
+            "SELECT pattern, target FROM package_imports WHERE manifest_path = ?1 ORDER BY position",
+        )?;
+        let rows = stmt.query_map(params![path], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    if stored == mappings {
+        return Ok(());
+    }
+    index.conn.execute(
+        "DELETE FROM package_imports WHERE manifest_path = ?1",
+        params![path],
+    )?;
+    for (position, (pattern, target)) in mappings.iter().enumerate() {
+        index.conn.execute(
+            "INSERT INTO package_imports (manifest_path, position, pattern, target) VALUES (?1, ?2, ?3, ?4)",
+            params![path, position as i64, pattern, target],
+        )?;
+    }
+    Ok(())
+}
+
+/// `(pattern, repository target)` pairs of a package.json `imports` map.
+/// Order carries no meaning: every target that exists stays a candidate,
+/// as with tsconfig `paths` fallbacks. A key must start with `#` and hold at most one `*`, and each
+/// target needs as many. String targets, condition objects (every string
+/// leaf, in order) and arrays count. A target must be `./`-relative and stay
+/// inside the package. A `.js`/`.mjs`/`.cjs` target is also kept without
+/// its extension, so the TypeScript source it is emitted from matches.
+fn package_import_mappings(directory: &str, contents: &str) -> Vec<(String, String)> {
+    fn leaves<'a>(value: &'a serde_json::Value, out: &mut Vec<&'a str>) {
+        match value {
+            serde_json::Value::String(s) => out.push(s),
+            serde_json::Value::Array(items) => items.iter().for_each(|v| leaves(v, out)),
+            serde_json::Value::Object(map) => map.values().for_each(|v| leaves(v, out)),
+            _ => {}
+        }
+    }
+    let Ok(doc) = serde_json::from_str::<serde_json::Value>(contents) else {
+        return Vec::new();
+    };
+    let Some(imports) = doc.get("imports").and_then(|v| v.as_object()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for (pattern, value) in imports {
+        let stars = pattern.matches('*').count();
+        if !pattern.starts_with('#') || pattern.len() < 2 || stars > 1 {
+            continue;
+        }
+        let mut targets = Vec::new();
+        leaves(value, &mut targets);
+        for target in targets {
+            let Some(rest) = target.strip_prefix("./") else {
+                continue;
+            };
+            if target.matches('*').count() != stars
+                || rest.split('/').any(|seg| seg == ".." || seg == ".")
+            {
+                continue;
+            }
+            let full = if directory.is_empty() {
+                rest.to_string()
+            } else {
+                format!("{directory}/{rest}")
+            };
+            let stripped = [".js", ".mjs", ".cjs"]
+                .iter()
+                .find_map(|ext| full.strip_suffix(ext))
+                .map(str::to_string);
+            for candidate in std::iter::once(full).chain(stripped) {
+                let pair = (pattern.clone(), candidate);
+                if !out.contains(&pair) {
+                    out.push(pair);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The web root an ASP.NET project serves `/…` URLs from: `wwwroot` for a
@@ -2390,5 +2497,38 @@ mod prefix_query_tests {
                 "{table} children: {plan:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod package_import_tests {
+    use super::package_import_mappings;
+
+    #[test]
+    fn only_literal_package_relative_imports_are_kept() {
+        let json = r##"{"imports":{
+            "#a/*":"./src/a/*.js",
+            "#b":["./b.ts", "../outside.ts", "src/no-dot.ts"],
+            "#c/*":"./c.ts",
+            "#d/*/*":"./d/*/*.ts",
+            "plain":"./p.ts",
+            "#e":{"types":"./e.d.ts","default":"./e/../x.ts"}
+        }}"##;
+        let pairs = package_import_mappings("web", json);
+        let pairs: Vec<(&str, &str)> = pairs
+            .iter()
+            .map(|(p, t)| (p.as_str(), t.as_str()))
+            .collect();
+        assert_eq!(
+            pairs,
+            [
+                ("#a/*", "web/src/a/*.js"),
+                ("#a/*", "web/src/a/*"),
+                ("#b", "web/b.ts"),
+                ("#e", "web/e.d.ts"),
+            ]
+        );
+        assert!(package_import_mappings("", "{not json").is_empty());
+        assert!(package_import_mappings("", r#"{"name":"x"}"#).is_empty());
     }
 }

@@ -355,9 +355,10 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // function's candidates to its own file (issue #376), 24 stores
     // `top_level` and keeps type members from bare JS/TS names (issue #395), 25 stores
     // file-scoped symbols (issue #446), 26 stores Cargo package names and
-    // TypeScript path aliases (issues #374 and #563), and 27 stores each
-    // root-relative URL's app and the framework web roots (ADR-044, #567).
-    assert_eq!(before, 27);
+    // TypeScript path aliases (issues #374 and #563), 27 stores each
+    // root-relative URL's app and the framework web roots (ADR-044, #567),
+    // and 28 stores package.json `imports` maps (ADR-045, #563).
+    assert_eq!(before, 28);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
