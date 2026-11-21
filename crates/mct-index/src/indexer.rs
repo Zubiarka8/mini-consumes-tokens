@@ -1676,11 +1676,15 @@ fn write_cargo_renames(index: &Index, path: &str, contents: &str) -> Result<()> 
 fn write_package_imports(index: &Index, path: &str, contents: &str) -> Result<()> {
     let directory = path.rsplit_once('/').map_or("", |(dir, _)| dir);
     let mappings = package_import_mappings(directory, contents);
+    let name = serde_json::from_str::<serde_json::Value>(contents)
+        .ok()
+        .and_then(|doc| doc.get("name")?.as_str().map(str::to_string))
+        .filter(|name| !name.is_empty());
     index.conn.execute(
-        "INSERT INTO package_manifests (manifest_path, directory) VALUES (?1, ?2)
-         ON CONFLICT(manifest_path) DO UPDATE SET directory = excluded.directory
-         WHERE directory <> excluded.directory",
-        params![path, directory],
+        "INSERT INTO package_manifests (manifest_path, directory, name) VALUES (?1, ?2, ?3)
+         ON CONFLICT(manifest_path) DO UPDATE SET directory = excluded.directory, name = excluded.name
+         WHERE directory <> excluded.directory OR name IS NOT excluded.name",
+        params![path, directory, name],
     )?;
     let stored: Vec<(String, String)> = {
         let mut stmt = index.conn.prepare(
@@ -2238,8 +2242,8 @@ fn write_parsed_file(
             "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len,
                                     qualifier, target_path, target_language, external, targets_parsed,
                                     target_kind, target_module, module, member, not_field,
-                                    top_level, web_app, include_spec)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+                                    top_level, web_app, include_spec, package)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
             params![
                 from_row_id,
                 relation_kind_str(relation.kind),
@@ -2259,6 +2263,7 @@ fn write_parsed_file(
                 target.is_some_and(|t| t.top_level),
                 target.and_then(|t| t.web_app.as_deref()),
                 target.and_then(|t| t.include_spec.as_deref()),
+                target.and_then(|t| t.package.as_deref()),
             ],
         )?;
     }

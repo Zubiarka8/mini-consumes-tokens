@@ -839,6 +839,9 @@ impl<'a> Walker<'a> {
             "variable_declarator" => {
                 self.visit_part(node, "type", owner, depth);
                 let value = node.child_by_field_name("value");
+                if let Some(value) = value {
+                    self.push_require_bindings(node, value, owner);
+                }
                 if !value
                     .is_some_and(|v| matches!(v.kind(), "arrow_function" | "function_expression"))
                 {
@@ -979,10 +982,19 @@ impl<'a> Walker<'a> {
                 let module = node
                     .child_by_field_name("source")
                     .and_then(|source| globals::module_name(text(source, self.source)));
+                let package = node
+                    .child_by_field_name("source")
+                    .and_then(|source| string_value(source, self.source))
+                    .and_then(|spec| imports::bare_package(&spec));
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
                     if child.kind() == "import_clause" {
-                        self.visit_import_clause(child, owner, module.as_deref());
+                        self.visit_import_clause(
+                            child,
+                            owner,
+                            module.as_deref(),
+                            package.as_deref(),
+                        );
                     }
                 }
             }

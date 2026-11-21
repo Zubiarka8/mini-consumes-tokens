@@ -1,4 +1,4 @@
-# language=javascript_typescript files=7 symbols=402 relations=1056 name_matched_across_files=210
+# language=javascript_typescript files=7 symbols=402 relations=1059 name_matched_across_files=210
 
 == scripts/seed.cjs (302 lines)
 S 1-302 module seed
@@ -20,8 +20,11 @@ S 259-262 function writeReport
 S 268-287 function main
 R 13:12 imports seed -> node:fs
 R 14:14 imports seed -> node:path
+R 15:21 imports seed -> delay
 R 15:31 imports seed -> node:timers/promises
+R 16:9 imports seed -> randomUUID
 R 16:24 imports seed -> node:crypto
+R 17:9 imports seed -> version
 R 17:21 imports seed -> ../package.json
 R 91:33 calls parseArgs -> parseInt
 R 105:9 calls parseArgs -> printHelp
