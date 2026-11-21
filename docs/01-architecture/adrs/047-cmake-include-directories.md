@@ -20,12 +20,19 @@ Proposed (2026-11-21). Issue: [#563](https://github.com/Zubiarka8/mini-consumes-
   - Several matching include dirs give several candidates, so the include is ambiguous rather than guessed.
 - Migration 30 reparses C/C++ files to fill `include_spec`.
 
+## compile_commands.json
+- Each entry's `-I dir`, `-Idir` and `-iquote dir` flags are read from `arguments`, or from `command` split on whitespace.
+- A relative flag is resolved from the entry's `directory`; an absolute one must lie inside the repository; any other is dropped.
+- A flag applies to files in the compiled file's own directory, stored in the same `include_dirs` table with that directory as the scope.
+- The file is a manifest like `CMakeLists.txt`: re-read on every reindex, swept when it disappears. No migration beyond 30.
+- Not read: quoted arguments in `command` holding spaces, `-isystem` (angle-bracket includes are external), response files (`@file`).
+
 ## Not done
-- `compile_commands.json` `-I` flags.
 - Include dirs inherited through `target_link_libraries`, or from a parent target outside the file's directory tree.
 - `get_indexing_status` does not list the include dirs read.
 
 ## Verification
+- `mct-lang-cpp/tests/depgraph.rs` › `a_compile_commands_include_flag_resolves_a_quoted_include` (new; before this change the file was not read).
 - `mct-lang-cpp/tests/depgraph.rs` › `a_cmake_include_directory_resolves_a_quoted_include`. It covers:
   - `$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>` resolves `core/api.h`;
   - a header next to the includer beats one in the include dir;
