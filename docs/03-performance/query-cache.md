@@ -199,6 +199,16 @@ reference line is sent in full.
   its context was compacted, `cache: false` (or `MCT_CACHE_RESPONSE=full`)
   gets the full text. Sent responses expire after 15 minutes; this limits the
   window but cannot detect a context clear or compaction.
+- **Subagents share the parent's cache.** Measured on 2026-11-21 with Claude
+  Code 2.1.330. A headless session with one `mct` server spawned a
+  general-purpose subagent, and the subagent called `get_indexing_status`.
+  `ps` showed one `mct-mcp-server` process, with the same PID and the same
+  parent `claude` PID, before and during the subagent's call. No second
+  server started. So a subagent can get a reference reply for a response
+  only its parent received. MCP carries no caller identity to tell them
+  apart. The reply therefore names the hit count and up to 3 `path:line`
+  locations, so the subagent can continue or resend with `cache: false`
+  (#188).
 - A file saved but not yet reindexed never gets a reference reply. Before
   answering by reference, the server compares the bytes on disk of every
   file on the requested page with the revision the index read. If one
