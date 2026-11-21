@@ -358,8 +358,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // TypeScript path aliases (issues #374 and #563), 27 stores each
     // root-relative URL's app and the framework web roots (ADR-044, #567),
     // 28 stores package.json `imports` maps (ADR-045, #563), and 29 stores
-    // renamed Cargo path dependencies (ADR-046, #563).
-    assert_eq!(before, 29);
+    // renamed Cargo path dependencies (ADR-046, #563), and 30 stores CMake
+    // include directories (ADR-047, #563).
+    assert_eq!(before, 30);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();
