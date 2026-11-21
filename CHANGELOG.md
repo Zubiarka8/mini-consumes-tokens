@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- An `@/…` import resolves through the `@` alias of the nearest `vite.config.*` (`resolve.alias`, a literal path or `path.resolve(__dirname, …)`); a tsconfig `paths` entry for `@/*` wins over it (#563, ADR-050). Schema migration 32 reparses Vite configs.
+- An `@/…` import resolves through the `@` alias of the nearest `vite.config.*` or `webpack.config.*` (`resolve.alias`, a literal path or `path.resolve(__dirname, …)`); a tsconfig `paths` entry for `@/*` wins over it (#563, ADR-050). Schema migration 32 reparses those configs.
 
 - A JS/TS import binding from a bare specifier that names a workspace package (`import { Button } from '@acme/ui'` with `"name": "@acme/ui"` in a `package.json`) resolves only inside that package. A destructured CommonJS `const { Button } = require('@acme/ui')` binds the same way. Packages the repository does not hold keep the module-name rule (#563, ADR-048). Schema migration 31 reparses JS/TS files.
 

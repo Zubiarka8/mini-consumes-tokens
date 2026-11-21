@@ -1,4 +1,4 @@
-//! `resolve.alias` of a Vite config, read literally (issue #563, ADR-050).
+//! `resolve.alias` of a Vite or webpack config, read literally (issue #563, ADR-050).
 //!
 //! Only the `@` alias is read, since `@/…` is the one alias form the
 //! JS/TS plugin records. Its replacement must be a single relative path
@@ -6,11 +6,14 @@
 //! `path.join(__dirname, …)` or `fileURLToPath(new URL(…, import.meta.url))`.
 //! Anything computed is skipped.
 
-/// File names Vite loads its config from.
+/// File names Vite or webpack loads its config from. Both spell
+/// `resolve.alias` the same way.
 pub(crate) fn is_vite_config(file_name: &str) -> bool {
-    file_name
-        .strip_prefix("vite.config.")
-        .is_some_and(|ext| matches!(ext, "js" | "ts" | "mjs" | "mts" | "cjs" | "cts"))
+    ["vite.config.", "webpack.config."].iter().any(|prefix| {
+        file_name
+            .strip_prefix(prefix)
+            .is_some_and(|ext| matches!(ext, "js" | "ts" | "mjs" | "mts" | "cjs" | "cts"))
+    })
 }
 
 /// Identifiers allowed around the replacement literal.
@@ -333,6 +336,10 @@ mod tests {
             ("resolve: { alias: [{ find: '@', replacement: path.join(__dirname, 'lib') }] }", "lib"),
             ("resolve: { alias: { '~': './x', '@/': './web' } }", "web"),
             ("resolve: { alias: { '@': '.' } }", ""),
+            (
+                "module.exports = { resolve: { alias: { '@': path.resolve(__dirname, 'src/') } } };",
+                "src",
+            ),
         ] {
             assert_eq!(at_alias(config).as_deref(), Some(expected), "{config}");
         }
@@ -358,5 +365,7 @@ mod tests {
         assert!(is_vite_config("vite.config.mjs"));
         assert!(!is_vite_config("vitest.config.ts"));
         assert!(!is_vite_config("vite.config.json"));
+        assert!(is_vite_config("webpack.config.js"));
+        assert!(!is_vite_config("webpack.common.js"));
     }
 }
