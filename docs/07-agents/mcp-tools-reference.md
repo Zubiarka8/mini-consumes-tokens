@@ -21,8 +21,8 @@ while OpenCode documents `.agents/skills` as a
 
 `mct-cli mcp-register` detects clients and merges their MCP configuration.
 `--agent` selects clients, `--dry-run` previews changes, and Codex registration
-requires `--global` because its configuration is user-level. OpenCode's
-current `mcp.servers` format and existing legacy `mcp` maps are supported.
+requires `--global` because its configuration is user-level. OpenCode gets
+`mcp.<name>` with `type: local` and the command as one array.
 The MCP server also advertises named prompts for clients without skills. These
 describe workflows and do not run queries; the tools remain callable under
 Tool Attention even when hidden from `tools/list`.
@@ -31,8 +31,16 @@ How clients show them: Claude Code loads a skill when its description
 matches the task, also offers it as `/mct-find`, and lists MCP prompts as
 `/mcp__<server>__<prompt>`. VS Code Copilot loads skills from
 `.github/skills` on demand and lists MCP prompts as `/mcp.<server>.<prompt>`.
-The menus of Codex, Cursor and OpenCode were not verified here; see each
-client's documentation.
+Verified on 2026-11-21 with codex-cli 0.170.0 and opencode v2.0.26, each run with
+an isolated home directory:
+- **Codex:** `codex mcp list` shows the registered server as `enabled`.
+- **OpenCode:** `opencode mcp list` shows `✓ mct connected`.
+- **OpenCode's on-disk format:** `opencode mcp list` shows nothing for a
+  server written under `mcp.servers.<name>`. `opencode debug config` prints
+  `mcp.servers`, but that is its own parsed form, not the file format.
+- **Codex skills:** the Codex binary names `.agents/skills`.
+- **Not verified:** how Codex and OpenCode show skills and prompts in their
+  menus, and anything about Cursor, which has no CLI here.
 
 | Question | Tool and parameters |
 |---|---|
