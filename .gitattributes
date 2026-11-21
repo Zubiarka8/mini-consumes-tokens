@@ -17,3 +17,8 @@ crates/mct-lang-xml/tests/corpus/** text eol=lf
 # checkout on Windows must not change the rendered output.
 crates/mct-obsidian/tests/snapshots/* text eol=lf
 crates/mct-lang-md/tests/fixtures/vault/** text eol=lf
+
+# The bundled mct-* skills are embedded with include_str! and parsed as
+# "---\n" front matter; a CRLF checkout on Windows breaks that parse and
+# would install CRLF copies.
+crates/mct-cli/skills/**/SKILL.md text eol=lf
