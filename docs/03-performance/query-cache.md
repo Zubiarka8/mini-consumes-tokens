@@ -189,9 +189,15 @@ reference line is sent in full.
 - **Per session, in memory.** The cache lives in the server process — one MCP
   session — and is never persisted: no schema migration, no stale state
   across restarts, but also no hits across sessions.
-- **Search tools only.** The graph tools (`find_*`, `impact_analysis`,
-  `build_context_pack`…) are not cached; they are single indexed queries
-  already.
+- **Search tools, plus repeats of `build_context_pack`.** The pack is exact,
+  not ranked, so nothing about it is cached. It is rendered afresh every
+  time, from the index and the files on disk. A pack byte-identical to one
+  this session already received gets a one-line reply instead: `cache:
+  unchanged since your identical earlier call; cache:false`, then up to 3
+  definition locations. A file saved but not yet reindexed changes the
+  pack's text, because its stale source is withheld, so it goes out in full.
+  `cache: false` resends the pack and counts as a recovery (#188). The
+  other graph tools (`find_*`, `impact_analysis`) are not cached.
 - **Latency gain is modest for lexical search** (already sub-millisecond on
   this repo); the win there is tokens. For `hybrid_search_like` an exact hit also
   skips the query embedding.
