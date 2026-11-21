@@ -452,6 +452,7 @@ fn index_file(
                     write_rockspec(index, &relative_path, language, &analysis)?;
                 } else if let Ok(contents) = String::from_utf8(bytes) {
                     if file_name == "Cargo.toml" {
+                        write_cargo_renames(index, &relative_path, &contents)?;
                         let name = manifests::cargo_library_name(&contents);
                         if let Some(name) = name {
                             let directory =
@@ -1350,7 +1351,8 @@ fn remove_missing_manifests(
          UNION SELECT manifest_path FROM cargo_packages
          UNION SELECT manifest_path FROM ts_configs
          UNION SELECT manifest_path FROM web_roots
-         UNION SELECT manifest_path FROM package_manifests",
+         UNION SELECT manifest_path FROM package_manifests
+         UNION SELECT manifest_path FROM cargo_renames",
     )?;
     let stored: Vec<String> = stmt
         .query_map([], |row| row.get(0))?
@@ -1388,9 +1390,54 @@ fn remove_missing_manifests(
                 "DELETE FROM package_imports WHERE manifest_path = ?1",
                 params![path],
             )?;
+            tx.execute(
+                "DELETE FROM cargo_renames WHERE manifest_path = ?1",
+                params![path],
+            )?;
         }
     }
 
+    Ok(())
+}
+
+/// Records the renamed path dependencies a `Cargo.toml` declares, each
+/// resolved to the repository directory it names; a path leaving the
+/// repository is dropped (issue #563, ADR-046).
+fn write_cargo_renames(index: &Index, path: &str, contents: &str) -> Result<()> {
+    let directory = path.rsplit_once('/').map_or("", |(dir, _)| dir);
+    let rows: Vec<(String, String)> = manifests::cargo_path_renames(contents)
+        .into_iter()
+        .filter_map(|(alias, target)| {
+            let spec = if target.starts_with("../") || target.starts_with("./") {
+                target
+            } else {
+                format!("./{target}")
+            };
+            let resolved = mct_core::resolve_reference_path(path, spec.trim_end_matches('/'))?;
+            Some((alias, resolved))
+        })
+        .collect();
+    let stored: Vec<(String, String)> = {
+        let mut stmt = index.conn.prepare(
+            "SELECT alias, target_directory FROM cargo_renames WHERE manifest_path = ?1 ORDER BY rowid",
+        )?;
+        let found = stmt.query_map(params![path], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        found.collect::<rusqlite::Result<_>>()?
+    };
+    if stored == rows {
+        return Ok(());
+    }
+    index.conn.execute(
+        "DELETE FROM cargo_renames WHERE manifest_path = ?1",
+        params![path],
+    )?;
+    for (alias, target) in &rows {
+        index.conn.execute(
+            "INSERT OR IGNORE INTO cargo_renames (manifest_path, directory, alias, target_directory)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![path, directory, alias, target],
+        )?;
+    }
     Ok(())
 }
 
