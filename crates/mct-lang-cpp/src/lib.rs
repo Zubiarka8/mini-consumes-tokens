@@ -1140,12 +1140,20 @@ impl<'a> Walker<'a> {
         if name.is_empty() {
             return;
         }
+        // Tried under include directories only as written: a spec climbing
+        // with `..` or absolute is left to the file-relative path alone.
+        let include_spec = (!spec.starts_with('/')
+            && spec
+                .split('/')
+                .all(|seg| !seg.is_empty() && seg != "." && seg != ".."))
+        .then(|| spec.clone());
         let relation = self.relations.len();
         self.push_relation(owner, RelationKind::Imports, name, loc);
         self.relation_targets.push(RelationTarget {
             relation,
             path: Some(resolved),
             kind: Some(SymbolKind::Module),
+            include_spec,
             ..Default::default()
         });
     }
