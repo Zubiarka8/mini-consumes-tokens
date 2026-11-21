@@ -126,3 +126,66 @@ fn a_relative_link_resolves_against_the_base_href() {
     .unwrap();
     assert!(root.external, "an absolute link ignores the base");
 }
+
+/// Issue #567: a root-relative URL resolves under the web root its app's
+/// framework declares: `static/` for SvelteKit, `wwwroot/` for an ASP.NET
+/// web project, else Vite's default `public/`. Removing the config brings
+/// the default back without reparsing the page.
+#[test]
+fn a_root_relative_link_uses_the_framework_web_root() {
+    let dir = std::env::temp_dir().join(format!("mct-html-webroot-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let write = |path: &str, text: &str| {
+        let path = dir.join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    let link = r#"<html><head><link rel="stylesheet" href="/site.css"></head></html>"#;
+    write("kit/svelte.config.js", "export default {};\n");
+    write("kit/src/app.html", link);
+    write("kit/static/site.css", "a {}\n");
+    write("kit/public/site.css", "a {}\n");
+    write(
+        "dotnet/Web.csproj",
+        r#"<Project Sdk="Microsoft.NET.Sdk.Web"></Project>"#,
+    );
+    write("dotnet/index.html", link);
+    write("dotnet/wwwroot/site.css", "a {}\n");
+    write(
+        "lib/Lib.csproj",
+        r#"<Project Sdk="Microsoft.NET.Sdk"></Project>"#,
+    );
+    write("lib/index.html", link);
+    write("lib/public/site.css", "a {}\n");
+    write("vite/index.html", link);
+    write("vite/public/site.css", "a {}\n");
+
+    let mut registry = LanguageRegistry::new();
+    registry.register(Arc::new(HtmlParser));
+    registry.register(Arc::new(CssParser));
+    registry.register(Arc::new(mct_lang_js_ts::JsTsParser));
+    let mut index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+    let target = |index: &Index, page: &str| {
+        let hit = index
+            .find_references("site")
+            .unwrap()
+            .into_iter()
+            .find(|h| h.kind == "imports" && h.relative_path == page)
+            .unwrap();
+        assert_eq!(hit.resolution, Resolution::Resolved, "{page}: {hit:?}");
+        hit.candidates[0].relative_path.clone()
+    };
+    assert_eq!(target(&index, "kit/src/app.html"), "kit/static/site.css");
+    assert_eq!(
+        target(&index, "dotnet/index.html"),
+        "dotnet/wwwroot/site.css"
+    );
+    assert_eq!(target(&index, "lib/index.html"), "lib/public/site.css");
+    assert_eq!(target(&index, "vite/index.html"), "vite/public/site.css");
+
+    std::fs::remove_file(dir.join("kit/svelte.config.js")).unwrap();
+    index.reindex(&registry, false).unwrap();
+    assert_eq!(target(&index, "kit/src/app.html"), "kit/public/site.css");
+    std::fs::remove_dir_all(dir).unwrap();
+}
