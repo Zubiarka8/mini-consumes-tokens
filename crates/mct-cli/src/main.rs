@@ -1311,6 +1311,30 @@ fn print_status(status: mct_index::IndexStatus) {
             println!("  {}: {}", error.relative_path, error.detail);
         }
     }
+    if !status.case_mismatches.is_empty() {
+        println!(
+            "{} file reference(s) match a file only with other letter case (unresolved; breaks on Linux):",
+            status.case_mismatches.len()
+        );
+        for m in &status.case_mismatches {
+            println!(
+                "  {}:{}: `{}` is `{}`",
+                m.from_path, m.line, m.written, m.actual
+            );
+        }
+    }
+    if !status.alias_sources.is_empty() {
+        println!("Module alias sources:");
+        for source in &status.alias_sources {
+            match &source.error {
+                Some(error) => println!("  {}: not read ({error})", source.manifest_path),
+                None => println!(
+                    "  {}: {} alias target(s)",
+                    source.manifest_path, source.aliases
+                ),
+            }
+        }
+    }
     if !status.dependencies.is_empty() {
         println!("Dependencies detected:");
         for manifest in &status.dependencies {
