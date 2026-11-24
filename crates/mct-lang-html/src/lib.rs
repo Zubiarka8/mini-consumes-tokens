@@ -328,17 +328,23 @@ impl<'a> Walker<'a> {
     /// path relation, marked external for an absolute URL, plus — for a local
     /// `.css`/`.js` file — an `Imports` relation to that file's `Module`
     /// symbol, pinned to its exact path and language.
+    /// Marks the plain relation at `relation` as provably outside the
+    /// repository: another host, or a path above its root (issue #567).
+    fn push_external(&mut self, relation: Option<usize>) {
+        if let Some(relation) = relation {
+            self.relation_targets.push(RelationTarget {
+                relation,
+                external: true,
+                ..Default::default()
+            });
+        }
+    }
+
     fn push_asset_import(&mut self, owner: SymbolId, spec: &str, loc: Location) {
         self.push_relation(owner, RelationKind::Imports, spec.to_string(), loc);
         let plain = self.relations.len().checked_sub(1);
         if spec.starts_with("//") || spec.contains("://") {
-            if let Some(relation) = plain {
-                self.relation_targets.push(RelationTarget {
-                    relation,
-                    external: true,
-                    ..Default::default()
-                });
-            }
+            self.push_external(plain);
             return;
         }
         let relative = !(spec.starts_with('/') || spec.starts_with('\\'));
@@ -353,6 +359,9 @@ impl<'a> Walker<'a> {
             format!("./{spec}")
         };
         let Some(resolved) = mct_core::resolve_url_reference_path(self.path, &local) else {
+            if mct_core::url_reference_leaves_repository(self.path, &local) {
+                self.push_external(plain);
+            }
             return;
         };
         let Some((name, language)) = asset_module(&resolved) else {

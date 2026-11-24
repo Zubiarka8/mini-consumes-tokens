@@ -26,7 +26,10 @@ pub use literal::{
     prose_literal, LiteralCollector, StringLiteral, MAX_LITERALS_PER_FILE, MAX_LITERAL_CHARS,
     MIN_LITERAL_CHARS,
 };
-pub use reference_path::{resolve_reference_path, resolve_url_reference_path};
+pub use reference_path::{
+    reference_leaves_repository, resolve_reference_path, resolve_url_reference_path,
+    url_reference_leaves_repository,
+};
 pub use registry::LanguageRegistry;
 pub use symbol::{
     Location, RelationKind, RelationTarget, SymbolId, SymbolKind, SymbolRecord, SymbolRelation,
