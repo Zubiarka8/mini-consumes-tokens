@@ -732,6 +732,7 @@ impl<'a> Walker<'a> {
             relation,
             path: Some(resolved),
             kind: Some(SymbolKind::Module),
+            web_app: mct_core::web_root_app(self.path, &local),
             ..Default::default()
         });
     }
