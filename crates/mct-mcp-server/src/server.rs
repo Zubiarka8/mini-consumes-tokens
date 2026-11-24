@@ -644,7 +644,7 @@ const CONTEXT_PACK_MAX_DEFINITIONS: usize = 3;
 /// symbol's transitive callers can't turn one call into thousands of rows.
 const CONTEXT_PACK_MAX_RELATIONS: usize = 500;
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
 pub struct BuildContextPackArgs {
     /// Exact name of the symbol to build the pack around.
     pub symbol: String,
@@ -679,6 +679,11 @@ pub struct BuildContextPackArgs {
     /// model limit); least relevant parts are lowered, then dropped.
     #[serde(default)]
     pub max_tokens: Option<usize>,
+    /// `false` always returns the full pack; otherwise a byte-identical
+    /// repeat this session received gets a one-line reply. `detail` and
+    /// `max_tokens` bypass the cache.
+    #[serde(default)]
+    pub cache: Option<bool>,
 }
 
 /// Groups this server's registered tool names for `discover_tool_categories`.
@@ -813,20 +818,57 @@ fn search_config() -> String {
     )
 }
 
+/// Whether every file of the hits on this page still holds the bytes the
+/// index read. Between a save and the debounced reindex the index, and so
+/// the cache's validation, still describe the old file: a reference reply
+/// would then say "unchanged" for a result the agent should re-read
+/// (issue #188). An unreadable file counts as changed.
+fn page_matches_disk(index: &Index, hits: &[mct_index::SymbolHit], page: (usize, usize)) -> bool {
+    let mut paths: Vec<&str> = hits
+        .iter()
+        .skip(page.0)
+        .take(page.1)
+        .map(|hit| hit.relative_path.as_str())
+        .collect();
+    paths.sort_unstable();
+    paths.dedup();
+    paths.into_iter().all(|path| {
+        mct_index::read_repository_file(&index.root().join(path))
+            .ok()
+            .is_some_and(|bytes| index.source_matches_index(path, &bytes).unwrap_or(false))
+    })
+}
+
 /// The reply for a cache hit this session already received in full — kept
 /// to one short line, since it is the whole point of the token saving.
-fn reference_reply(kind: &HitKind) -> String {
+fn reference_reply(
+    kind: &HitKind,
+    hits: &[mct_index::SymbolHit],
+    offset: usize,
+    limit: usize,
+    full: &str,
+) -> String {
+    let mut message = format!("cache: {} hits; cache:false", hits.len());
     match kind {
-        HitKind::Exact => {
-            "cache: unchanged since your identical earlier call (cache:false resends)".to_string()
-        }
+        HitKind::Exact => {}
         HitKind::Semantic {
             similarity,
             source_query,
-        } => format!(
-            "cache: same as your earlier `{source_query}` (sim {similarity:.3}); cache:false resends"
-        ),
+        } => message.push_str(&format!("; `{source_query}` {similarity:.3}")),
     }
+    let budget = if full.chars().count() >= 500 {
+        full.chars().count() / 10
+    } else {
+        usize::MAX
+    };
+    for hit in hits.iter().skip(offset).take(limit.min(3)) {
+        let location = format!("; {}:{}", hit.relative_path, hit.line);
+        if message.chars().count() + location.chars().count() > budget {
+            break;
+        }
+        message.push_str(&location);
+    }
+    message
 }
 
 #[derive(Clone)]
@@ -1484,25 +1526,35 @@ impl MctServer {
     /// query-independent rendering `digest_view` this session already
     /// received — the one-line reference reply. A semantic hit shown in full
     /// says whose ranking it reuses.
+    /// `cache` is the call's `cache` argument: `Some(false)` is an explicit
+    /// bypass, counted as a recovery when it follows a reference reply.
     fn cached_reply(
         &self,
-        cache_on: bool,
+        cache: Option<bool>,
         full: String,
         digest_view: &str,
         hit: Option<&CachedResult>,
+        page: (usize, usize),
+        index: &Index,
     ) -> CallToolResult {
-        if !cache_on {
+        if !self.cache_on(cache) {
+            if cache == Some(false) {
+                self.cache_guard().record_recovery(digest_view);
+            }
             return CallToolResult::success(vec![ContentBlock::text(full)]);
         }
         let mut cache = self.cache_guard();
+        let mut sent_reference = false;
         let text = match hit {
             Some(hit)
                 if cache.config().response == cache::ResponseMode::Reference
-                    && cache.was_sent(digest_view) =>
+                    && cache.was_sent(digest_view)
+                    && page_matches_disk(index, &hit.hits, page) =>
             {
-                let reply = reference_reply(&hit.kind);
+                let reply = reference_reply(&hit.kind, &hit.hits, page.0, page.1, &full);
                 if reply.len() < full.len() {
-                    cache.record_reference();
+                    cache.record_reference(digest_view);
+                    sent_reference = true;
                     reply
                 } else {
                     full
@@ -1521,8 +1573,44 @@ impl MctServer {
             ),
             _ => full,
         };
-        cache.record_sent(digest_view);
+        if !sent_reference {
+            cache.record_sent(digest_view);
+        }
         CallToolResult::success(vec![ContentBlock::text(text)])
+    }
+
+    /// The response for an exact (unranked) tool such as
+    /// `build_context_pack`: `full`, or a one-line reference reply when this
+    /// session already received the byte-identical text. The text is
+    /// rendered afresh from the index and the files on disk, so equal text
+    /// means the agent's earlier copy is still current (issue #188).
+    fn repeat_reply(
+        &self,
+        cache: Option<bool>,
+        full: String,
+        locations: &[String],
+    ) -> CallToolResult {
+        if !self.cache_on(cache) {
+            if cache == Some(false) {
+                self.cache_guard().record_recovery(&full);
+            }
+            return CallToolResult::success(vec![ContentBlock::text(full)]);
+        }
+        let mut cache = self.cache_guard();
+        if cache.config().response == cache::ResponseMode::Reference && cache.was_sent(&full) {
+            let mut reply =
+                String::from("cache: unchanged since your identical earlier call; cache:false");
+            for location in locations {
+                reply.push_str("; ");
+                reply.push_str(location);
+            }
+            if reply.len() < full.len() {
+                cache.record_reference(&full);
+                return CallToolResult::success(vec![ContentBlock::text(reply)]);
+            }
+        }
+        cache.record_sent(&full);
+        CallToolResult::success(vec![ContentBlock::text(full)])
     }
 
     /// The tool catalog as it will be sent to an MCP client: names,
@@ -1975,12 +2063,19 @@ impl MctServer {
             OutputFormat::Toon => format::search_hits_toon(query, &hits, offset, limit, &snippets),
         };
         let text = render(query);
-        let digest_view = if cache_on {
+        let digest_view = if cache_on || cache == Some(false) {
             render(QUERY_PLACEHOLDER)
         } else {
             String::new()
         };
-        Ok(self.cached_reply(cache_on, text, &digest_view, hit.as_ref()))
+        Ok(self.cached_reply(
+            cache,
+            text,
+            &digest_view,
+            hit.as_ref(),
+            (offset, limit),
+            &index,
+        ))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
@@ -2263,16 +2358,18 @@ impl MctServer {
                 text = format!("{}\n{literal_section}", text.trim_end());
             }
         }
-        let digest_view = if cache_on {
+        let digest_view = if cache_on || cache == Some(false) {
             format!("{note}\n{}\n{literal_section}", render(QUERY_PLACEHOLDER))
         } else {
             String::new()
         };
         Ok(self.cached_reply(
-            cache_on,
+            cache,
             format!("{note}\n{text}"),
             &digest_view,
             hit.as_ref(),
+            (offset, limit),
+            &index,
         ))
     }
 
@@ -2574,6 +2671,7 @@ impl MctServer {
             format,
             detail,
             max_tokens,
+            cache,
         }): Parameters<BuildContextPackArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
@@ -2800,6 +2898,11 @@ impl MctServer {
             });
         }
 
+        let locations: Vec<String> = packed_definitions
+            .iter()
+            .take(3)
+            .map(|d| format!("{}:{}", d.hit.relative_path, d.hit.line))
+            .collect();
         let pack = ContextPack {
             symbol: symbol.to_string(),
             depth,
@@ -2816,7 +2919,12 @@ impl MctServer {
             (None, OutputFormat::Text) => format::context_pack(&pack, limit),
             (None, OutputFormat::Toon) => format::context_pack_toon(&pack, limit),
         };
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+        // A `detail`/`max_tokens` pack bypasses the cache, like the search
+        // tools' `detail`: the agent chose that rendering on purpose.
+        if pack_request.is_some() {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+        }
+        Ok(self.repeat_reply(cache, text, &locations))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.
