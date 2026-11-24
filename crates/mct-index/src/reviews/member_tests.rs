@@ -236,3 +236,18 @@ fn a_legacy_group_decision_applies_to_every_member() {
         Visibility::Suppressed
     );
 }
+
+#[test]
+fn applying_to_the_group_overrides_every_member_even_in_the_same_state() {
+    let root = project();
+    let all = findings('f', &["a.rs", "b.rs"]);
+    save(root.path(), &all, 0, State::Dismissed, NOW);
+    // A member decided later, with a clock that went back for the group.
+    save(root.path(), &all, 1, State::Confirmed, NOW + 50);
+    save(root.path(), &all, 0, State::Dismissed, NOW + 10);
+    let resolutions = Reviews::load(root.path()).resolve(&all);
+    assert!(
+        resolutions.iter().all(|r| r.state() == State::Dismissed),
+        "{resolutions:?}"
+    );
+}

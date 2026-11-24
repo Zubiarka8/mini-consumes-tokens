@@ -63,12 +63,21 @@ pub(in crate::web) fn review_json(site: &Site, key: &str) -> Value {
     value
 }
 
-pub(in crate::web) fn review_sources_current(site: &Site, key: &str) -> bool {
-    if let Some(id) = site
-        .review_keys
+/// The duplicate group a review key names: the group's own key or one of
+/// its members' (ADR-049).
+pub(in crate::web) fn group_of_key(site: &Site, key: &str) -> Option<usize> {
+    site.review_keys
         .iter()
         .position(|candidate| candidate == key)
-    {
+        .or_else(|| {
+            site.member_keys
+                .iter()
+                .position(|members| members.iter().any(|member| member == key))
+        })
+}
+
+pub(in crate::web) fn review_sources_current(site: &Site, key: &str) -> bool {
+    if let Some(id) = group_of_key(site, key) {
         return site.duplicates.groups[id]
             .members
             .iter()
@@ -133,6 +142,19 @@ pub(super) fn duplicate_row(site: &Site, id: usize) -> Value {
         .map(|m| json!({ "path": m.path, "start": m.start_line, "end": m.end_line, "name": m.symbol_name, "kind": m.symbol_kind }))
         .collect();
     let mut row = review_fields(site, key);
+    // The group shows its most pending member; a state filter matches a
+    // group when any member has the state (ADR-049).
+    let summary = site.reviews.summary(&site.member_keys[id]);
+    row["state"] = json!(summary.label);
+    row["reviewedMembers"] = json!(summary.reviewed);
+    row["memberStates"] = site.member_keys[id]
+        .iter()
+        .map(|member| {
+            site.reviews
+                .resolution(member)
+                .map_or(UNREVIEWED, Resolution::effective_label)
+        })
+        .collect();
     row["type"] = json!("duplicate");
     row["rank"] = json!(id);
     row["group"] = json!(id);
@@ -270,7 +292,15 @@ pub(super) fn list(site: &Site, params: &Params) -> Value {
     for field in FILTER_FIELDS {
         let allowed = csv(params, field);
         if !allowed.is_empty() {
-            rows.retain(|row| allowed.contains(&row[field].as_str().unwrap_or("")));
+            rows.retain(|row| {
+                allowed.contains(&row[field].as_str().unwrap_or(""))
+                    || (field == "state"
+                        && row["memberStates"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .any(|state| allowed.contains(&state.as_str().unwrap_or(""))))
+            });
         }
     }
     let sort = match text(params, "sort") {
@@ -321,7 +351,8 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
         row["members"] = group
             .members
             .iter()
-            .map(|m| {
+            .zip(&site.member_keys[id])
+            .map(|(m, member_key)| {
                 // The full body, so an assistant can compare the copies; `excerpt` is only the start.
                 // Identical bodies are printed once by the client, so only a new body spends budget.
                 let body = code::read_lines(site, &m.path, m.start_line as usize, m.end_line as usize)
@@ -333,7 +364,8 @@ pub(super) fn detail(site: &Site, params: &Params) -> Result<Value, (u16, &'stat
                 }
                 json!({ "path": m.path, "start": m.start_line, "end": m.end_line, "name": m.symbol_name,
                         "kind": m.symbol_kind, "lines": m.line_count, "tokens": m.token_count, "excerpt": m.excerpt,
-                        "code": body.as_ref().map(|(lines, _)| lines), "codeTruncated": body.as_ref().is_some_and(|(_, cut)| *cut) })
+                        "code": body.as_ref().map(|(lines, _)| lines), "codeTruncated": body.as_ref().is_some_and(|(_, cut)| *cut),
+                        "review": review_json(site, member_key) })
             })
             .collect();
         row["membersOmitted"] = json!(0);

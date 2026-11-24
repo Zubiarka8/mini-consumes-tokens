@@ -382,15 +382,30 @@ impl Reviews {
             *self = current;
             return Err(ReviewError::Conflict);
         }
-        let unchanged = resolution.state() == change.state
-            && (change.state == State::Unreviewed || !resolution.needs_reevaluation());
+        // A group decision applies to all its members (ADR-049): it is a
+        // change while any member resolves otherwise, and it must be later
+        // than every member's own decision.
+        let members: Vec<&FindingKeys> = findings
+            .iter()
+            .filter(|member| member.group == Some(target))
+            .collect();
+        let same = |resolution: &Resolution| {
+            resolution.state() == change.state
+                && (change.state == State::Unreviewed || !resolution.needs_reevaluation())
+        };
+        let unchanged =
+            same(&resolution) && members.iter().all(|member| same(&resolver.resolve(member)));
         if unchanged {
             *self = current;
             return Ok(());
         }
         // Logical time: the new decision is always the latest one for this
         // finding, even if the clock went back or a row has a future time.
-        let at = match resolver.latest_time(finding).checked_add(1) {
+        let latest = members
+            .iter()
+            .map(|member| resolver.latest_time(member))
+            .fold(resolver.latest_time(finding), u64::max);
+        let at = match latest.checked_add(1) {
             Some(after) => after.max(now),
             None => return Err(ReviewError::Full("the latest review time is the maximum")),
         };

@@ -26,8 +26,13 @@ The maintainer answered the issue's open questions on 2026-11-21:
 - **Consumers:** `find_duplicate_code` and `mct duplicates --reviewed` hide a group only when every member is hidden, and show the summary label.
   - `find_duplicate_code` adds `reviewed_members` to the group row and a per-member `review` column.
 
-## Not done here
-- The dashboard's file selector and per-member saves. Until a surface writes member rows, every member takes its group's decision, so every surface still agrees.
+- **Dashboard:** the review panel has a selector, "All files" or one letter.
+  - On a letter, the state, note and history are that file's own, saved under its member key through the same `/api/review` route.
+  - "All files" saves the group decision. That save counts as a change while any member resolves otherwise, and it is timed after every member decision, so it replaces them.
+  - The list row shows the most pending member and `reviewedMembers`.
+  - A state filter keeps a group when any member has the state.
+  - The summary counts each group once, as its most pending member, and its recent events name the group.
+  - Members get no readable number.
 
 ## Verification
 - `reviews::member_tests` (8 tests):
@@ -40,3 +45,5 @@ The maintainer answered the issue's open questions on 2026-11-21:
   - version 3/4/5 handling;
   - an `A1` group decision on every member.
 - `mct-mcp-server/tests/duplicate_code.rs` › `a_group_is_hidden_only_when_every_member_is`. It failed before the change.
+- `reviews::member_tests::applying_to_the_group_overrides_every_member_even_in_the_same_state`. It failed before the change.
+- `web::tests::one_member_of_a_group_is_reviewed_alone`, and vitest `one file is reviewed on its own and saved under its own key`.
