@@ -176,6 +176,44 @@ fn cargo_library_names_resolve_only_inside_the_declaring_package() {
     assert_eq!(call_of(&index, "main").resolution, Resolution::Unresolved);
 }
 
+/// Issue #563 (Rust): `foo = { package = "bar", path = "../bar" }` lets
+/// the dependent write `use foo::…`. The alias resolves only inside the
+/// dependent package, to the files of the path dependency. Another package,
+/// with no such rename, gets nothing from it.
+#[test]
+fn a_renamed_path_dependency_resolves_inside_the_dependent_package() {
+    let (dir, mut index) = index_of(&[
+        (
+            "app/Cargo.toml",
+            "[package]\nname = 'app'\nversion = '1'\n[dependencies]\nstore = { package = 'grep-store', path = '../libs/searcher' }\n",
+        ),
+        ("app/src/main.rs", "def main calls Searcher mod=store\n"),
+        (
+            "libs/searcher/Cargo.toml",
+            "[package]\nname = 'grep-store'\nversion = '1'\n",
+        ),
+        ("libs/searcher/src/lib.rs", "def Searcher\n"),
+        ("libs/other/src/lib.rs", "def Searcher\n"),
+        ("tool/Cargo.toml", "[package]\nname = 'tool'\nversion = '1'\n"),
+        ("tool/src/main.rs", "def run calls Searcher mod=store\n"),
+    ]);
+    let hit = call_of(&index, "main");
+    assert_eq!(hit.resolution, Resolution::Resolved);
+    assert_eq!(
+        candidates(&index, &hit),
+        vec!["libs/searcher/src/lib.rs:1 None"]
+    );
+    assert_eq!(call_of(&index, "run").resolution, Resolution::Unresolved);
+
+    fs::write(
+        dir.join("app/Cargo.toml"),
+        "[package]\nname = 'app'\nversion = '1'\n",
+    )
+    .unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert_eq!(call_of(&index, "main").resolution, Resolution::Unresolved);
+}
+
 #[test]
 fn cargo_library_evidence_does_not_cross_nested_packages() {
     let (_, index) = index_of(&[

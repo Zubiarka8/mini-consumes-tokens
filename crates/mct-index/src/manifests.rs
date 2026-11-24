@@ -21,7 +21,7 @@ pub(crate) mod lua;
 mod python;
 mod rust;
 
-pub(crate) use rust::cargo_library_name;
+pub(crate) use rust::{cargo_library_name, cargo_path_renames};
 
 use composer::parse_composer_json;
 use csproj::parse_csproj;
