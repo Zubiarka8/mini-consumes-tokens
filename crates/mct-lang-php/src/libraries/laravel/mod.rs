@@ -16,17 +16,19 @@
 //!   `app/Listeners/` that event discovery could register, shown by
 //!   `find_dead_code` without hiding the candidate.
 //!
-//! Everything the framework decides at run time stays unknown: string route
-//! actions (`'Controller@method'`), route middleware aliases, policy and
-//! listener auto-discovery (a listener is only ever a possible entry point), `config()` and `route('name')` lookups, model
-//! table names, container bindings made with closures and package view
-//! namespaces. Nothing here is a heuristic over names or folders: a relation
-//! is recorded only for a pattern the framework defines, and every one that
-//! names a file or class is resolved by the index against what it actually
-//! indexed, so a pattern that finds no target stays unresolved.
+//! Additional static extraction includes named routes, middleware aliases,
+//! configuration and translation keys, named commands, explicit bindings,
+//! policy registrations and model table references. Unresolved targets are
+//! retained as such. See docs/01-architecture/library-support.md for coverage
+//! and limits.
 
 pub(crate) mod blade;
+mod console;
+mod container;
+mod eloquent;
+mod keys;
 pub(crate) mod listeners;
+mod macros;
 pub(crate) mod migrations;
 pub(crate) mod routes;
 pub(crate) mod views;
@@ -42,4 +44,38 @@ pub(crate) fn is_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Read a class's direct, resolved base and simple literal property defaults.
+impl crate::Walker<'_> {
+    fn extends_framework(&self, class: tree_sitter::Node, namespace: &str, name: &str) -> bool {
+        self.framework_base(class)
+            .is_some_and(|base| base.namespace == namespace && base.name == name)
+    }
+
+    fn framework_base(&self, class: tree_sitter::Node) -> Option<crate::ResolvedName> {
+        let clause = crate::find_child(class, "base_clause")?;
+        let base = crate::named_children(clause)
+            .into_iter()
+            .find(|node| crate::last_segment(*node).is_some())?;
+        self.scope.resolve_class(crate::text(base, self.source))
+    }
+
+    fn property_default<'tree>(
+        &self,
+        class: tree_sitter::Node<'tree>,
+        name: &str,
+    ) -> Option<tree_sitter::Node<'tree>> {
+        let body = class.child_by_field_name("body")?;
+        crate::named_children(body)
+            .into_iter()
+            .filter(|node| node.kind() == "property_declaration")
+            .flat_map(crate::named_children)
+            .filter(|node| node.kind() == "property_element")
+            .find(|node| {
+                node.child_by_field_name("name")
+                    .is_some_and(|field| crate::text(field, self.source) == name)
+            })?
+            .child_by_field_name("default_value")
+    }
 }

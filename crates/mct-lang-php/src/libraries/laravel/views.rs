@@ -2,7 +2,8 @@
 
 use mct_core::{Location, RelationKind, RelationTarget, SymbolId, SymbolKind};
 
-use crate::{literal_string_text, Walker};
+use crate::{literal_string_text, named_children, Walker};
+use mct_tree_sitter::location;
 
 /// Directories a Laravel application keeps next to `resources/`. The first
 /// one on a path marks the application root that `resources/views` lives
@@ -96,6 +97,57 @@ impl Walker<'_> {
         });
     }
 
+    pub(super) fn push_named_view(
+        &mut self,
+        owner: SymbolId,
+        name: &str,
+        loc: Location,
+        kind: RelationKind,
+    ) {
+        if let Some(path) = view_file(self.path, name) {
+            if kind == RelationKind::Imports {
+                self.push_template_import(owner, path, loc);
+            } else {
+                self.push_template_relation(owner, kind, path, loc);
+            }
+            return;
+        }
+        let Some((package, rest)) = name.split_once("::") else {
+            return;
+        };
+        let Some(root) = application_root(self.path) else {
+            return;
+        };
+        if !package.is_empty()
+            && package
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-'))
+        {
+            if let Some(path) =
+                blade_file(&root, &format!("resources/views/vendor/{package}"), rest)
+            {
+                self.push_template_relation(owner, RelationKind::References, path, loc);
+            }
+        }
+    }
+
+    pub(super) fn laravel_view_candidates(&mut self, owner: SymbolId, argument: tree_sitter::Node) {
+        let candidates = if argument.kind() == "array_creation_expression" {
+            named_children(argument)
+                .into_iter()
+                .filter(|item| item.named_child_count() == 1)
+                .filter_map(|item| item.named_child(0))
+                .collect()
+        } else {
+            vec![argument]
+        };
+        for candidate in candidates {
+            if let Some(name) = literal_string_text(candidate, self.source) {
+                self.push_named_view(owner, &name, location(candidate), RelationKind::References);
+            }
+        }
+    }
+
     /// `view('a.b')`, `View::make('a.b')`, `Route::view('/x', 'a.b')`: the
     /// view named by the string literal `argument`.
     pub(crate) fn push_view_reference(
@@ -107,9 +159,7 @@ impl Walker<'_> {
         let Some(name) = literal_string_text(argument, self.source) else {
             return;
         };
-        if let Some(path) = view_file(self.path, &name) {
-            self.push_template_import(owner, path, loc);
-        }
+        self.push_named_view(owner, &name, loc, RelationKind::Imports);
     }
 }
 

@@ -1,15 +1,15 @@
 //! Blade templates (`*.blade.php`): the dependencies a template declares.
 //!
-//! A template is not PHP, so it is scanned as text for the directives and
-//! tags whose argument is a literal. Raw PHP inside it (`@php`, `<?php`),
-//! `{{ }}` expressions and every directive with a computed argument are not
-//! read: what they depend on is decided when the page renders.
+//! The template scanner reads literal directive arguments and component tags.
+//! Blade echoes and PHP blocks are parsed as PHP fragments for their references.
 
 use mct_core::{Location, ParsedFile, RelationKind, RelationTarget, SourceFile, SymbolKind};
 
+use super::keys::KeyKind;
 use super::views::{application_root, blade_file, module_name_of};
-use crate::names::namespace_alias;
+use crate::names::{namespace_alias, ImportKind};
 use crate::Walker;
+use tree_sitter::Parser;
 
 pub(crate) fn parse(file: &SourceFile) -> ParsedFile {
     let source = file.contents.as_str();
@@ -31,6 +31,7 @@ pub(crate) fn parse(file: &SourceFile) -> ParsedFile {
     let root = application_root(&file.relative_path);
 
     let bytes = source.as_bytes();
+    let mut parser = None;
     let mut i = 0;
     while i < bytes.len() {
         let rest = &source[i..];
@@ -40,13 +41,61 @@ pub(crate) fn parse(file: &SourceFile) -> ParsedFile {
             i += 2;
         } else if rest.starts_with("@verbatim") {
             i += rest.find("@endverbatim").map_or(rest.len(), |at| at + 12);
+        } else if rest.starts_with("@{{") || rest.starts_with("@{!!") {
+            i += echo_fragment(&rest[1..]).map_or(1, |(_, _, next)| next + 1);
+        } else if rest.starts_with("{{") || rest.starts_with("{!!") {
+            let Some((body, start, next)) = echo_fragment(rest) else {
+                break;
+            };
+            php_fragment(
+                &mut walker,
+                &mut parser,
+                body,
+                location_at(&lines, i + start, 0),
+                true,
+            );
+            i += next;
+        } else if let Some(body) = rest.strip_prefix("<?php") {
+            let end = body.find("?>").unwrap_or(body.len());
+            php_fragment(
+                &mut walker,
+                &mut parser,
+                &body[..end],
+                location_at(&lines, i + 5, 0),
+                false,
+            );
+            i += 5 + (end + 2).min(body.len());
+        } else if let Some(body) = rest.strip_prefix("@php").filter(|body| {
+            body.starts_with(char::is_whitespace) && !body.trim_start().starts_with('(')
+        }) {
+            let end = body.find("@endphp").unwrap_or(body.len());
+            php_fragment(
+                &mut walker,
+                &mut parser,
+                &body[..end],
+                location_at(&lines, i + 4, 0),
+                false,
+            );
+            i += 4 + (end + 7).min(body.len());
         } else if let Some(tail) = rest.strip_prefix('@') {
             let name: String = tail.chars().take_while(char::is_ascii_alphabetic).collect();
             let after = i + 1 + name.len();
             match directive_arguments(source, after) {
                 Some((arguments, next)) => {
                     let loc = location_at(&lines, i, next - i);
-                    directive(&mut walker, root.as_deref(), &name, &arguments, loc);
+                    if name == "php" {
+                        let open = source[after..].trim_start_matches(' ');
+                        let start = source.len() - open.len() + 1;
+                        php_fragment(
+                            &mut walker,
+                            &mut parser,
+                            &source[start..next - 1],
+                            location_at(&lines, start, 0),
+                            true,
+                        );
+                    } else {
+                        directive(&mut walker, &name, &arguments, loc);
+                    }
                     i = next;
                 }
                 None => i = after.max(i + 1),
@@ -72,7 +121,113 @@ pub(crate) fn parse(file: &SourceFile) -> ParsedFile {
     }
 }
 
-fn directive(walker: &mut Walker, root: Option<&str>, name: &str, args: &[String], loc: Location) {
+/// Find the closing echo delimiter outside strings and nested PHP expressions.
+fn echo_fragment(rest: &str) -> Option<(&str, usize, usize)> {
+    let (open, close) = if rest.starts_with("{{") {
+        ("{{", "}}")
+    } else if rest.starts_with("{!!") {
+        ("{!!", "!!}")
+    } else {
+        return None;
+    };
+    let mut depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut comment = None;
+    let mut chars = rest[open.len()..].char_indices().peekable();
+    while let Some((offset, ch)) = chars.next() {
+        let next = chars.peek().map(|(_, c)| *c);
+        if let Some(kind) = comment {
+            match (kind, ch, next) {
+                ('/', '\n', _) => comment = None,
+                ('*', '*', Some('/')) => {
+                    chars.next();
+                    comment = None;
+                }
+                _ => {}
+            }
+            continue;
+        }
+        if let Some(end) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == end {
+                quote = None;
+            }
+            continue;
+        }
+        let at = open.len() + offset;
+        if depth == 0 && rest[at..].starts_with(close) {
+            return Some((&rest[open.len()..at], open.len(), at + close.len()));
+        }
+        match (ch, next) {
+            ('\'' | '"' | '`', _) => quote = Some(ch),
+            ('/', Some('/' | '*')) => {
+                comment = next;
+                chars.next();
+            }
+            ('#', n) if n != Some('[') => comment = Some('/'),
+            ('(' | '[' | '{', _) => depth += 1,
+            (')' | ']' | '}', _) => depth = depth.checked_sub(1)?,
+            _ => {}
+        }
+    }
+    None
+}
+
+fn php_fragment(
+    walker: &mut Walker,
+    parser: &mut Option<Parser>,
+    body: &str,
+    start: Location,
+    expression: bool,
+) {
+    let parser = parser.get_or_insert_with(|| {
+        let mut parser = Parser::new();
+        // The PHP-only grammar belongs to the same pinned crate as PHP.
+        let _ = parser.set_language(&tree_sitter_php::LANGUAGE_PHP_ONLY.into());
+        parser
+    });
+    let expression_source;
+    let source = if expression {
+        expression_source = format!("{body};");
+        expression_source.as_str()
+    } else {
+        body
+    };
+    let Some(tree) = parser.parse(source, None) else {
+        return;
+    };
+    let root = tree.root_node();
+    if root.has_error() {
+        return;
+    }
+    let mut fragment = Walker::new(source, walker.path);
+    fragment.scope = walker.scope.clone();
+    fragment.next_id = 1;
+    fragment.visit_children(root, fragment.module_id, None, 0);
+    let offset = walker.relations.len();
+    walker
+        .relations
+        .extend(fragment.relations.into_iter().map(|mut relation| {
+            relation.from = walker.module_id;
+            if relation.location.line == 1 {
+                relation.location.column += start.column - 1;
+            }
+            relation.location.line += start.line - 1;
+            relation
+        }));
+    walker
+        .relation_targets
+        .extend(fragment.relation_targets.into_iter().map(|mut target| {
+            target.relation += offset;
+            target
+        }));
+}
+
+fn directive(walker: &mut Walker, name: &str, args: &[String], loc: Location) {
     let view_at = |index: usize| args.get(index).and_then(|a| string_literal(a));
     let views: Vec<String> = match name {
         "extends" | "include" | "includeIf" | "component" => view_at(0).into_iter().collect(),
@@ -86,10 +241,11 @@ fn directive(walker: &mut Walker, root: Option<&str>, name: &str, args: &[String
         _ => Vec::new(),
     };
     for view in views {
-        if let Some(root) = root {
-            if let Some(path) = blade_file(root, "resources/views", &view) {
-                walker.push_template_import(walker.module_id, path, loc);
-            }
+        walker.push_named_view(walker.module_id, &view, loc, RelationKind::Imports);
+    }
+    if name == "lang" {
+        if let Some(key) = view_at(0) {
+            walker.laravel_key_reference(walker.module_id, KeyKind::Translation, &key, loc);
         }
     }
     let class = match name {
@@ -98,6 +254,11 @@ fn directive(walker: &mut Walker, root: Option<&str>, name: &str, args: &[String
         _ => None,
     };
     if let Some(class) = class {
+        if name == "use" {
+            walker
+                .scope
+                .import(ImportKind::Class, &class, view_at(1).as_deref());
+        }
         class_directive(walker, name == "use", &class, loc);
     }
 }

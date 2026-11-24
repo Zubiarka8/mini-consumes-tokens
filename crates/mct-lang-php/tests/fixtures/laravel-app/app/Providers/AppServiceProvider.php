@@ -11,6 +11,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton('billing.formatter', fn () => new \App\Billing\Formatter());
     }
 
     public function boot(): void

@@ -258,6 +258,63 @@ fn match_tier(name: &str, query_lower: &str, query_compact: &str) -> u8 {
     }
 }
 
+/// Whether the query uses PHP's explicit namespace separator or global prefix.
+pub fn is_php_qualified_query(query: &str) -> bool {
+    php_qualified_name(query).is_some()
+}
+
+fn php_qualified_name(query: &str) -> Option<&str> {
+    let query = query.trim();
+    if !query.contains('\\') {
+        return None;
+    }
+    let name = query.strip_prefix('\\').unwrap_or(query);
+    let is_identifier = |part: &str| {
+        let mut chars = part.chars();
+        chars
+            .next()
+            .is_some_and(|c| c == '_' || c.is_ascii_alphabetic() || !c.is_ascii())
+            && chars.all(|c| c == '_' || c.is_ascii_alphanumeric() || !c.is_ascii())
+    };
+    let (base, member) = name
+        .split_once("::")
+        .map_or((name, None), |(base, member)| (base, Some(member)));
+    let valid_member =
+        member.is_none_or(|member| is_identifier(member.strip_prefix('$').unwrap_or(member)));
+    (base.split('\\').all(is_identifier) && valid_member).then_some(name)
+}
+
+/// Exact declaration aliases take precedence over word matches for PHP FQNs.
+pub(crate) fn search_php_qualified(
+    conn: &Connection,
+    query: &str,
+    scope: ResolvedScope<'_>,
+) -> Result<Option<Vec<SymbolHit>>> {
+    if scope.language.is_some_and(|lang| lang != "php") {
+        return Ok(None);
+    }
+    let Some(query) = php_qualified_name(query) else {
+        return Ok(None);
+    };
+    let mut sql = String::from(
+        "SELECT s.name, s.kind, f.language, f.relative_path, s.line, s.column,
+                s.parent, s.end_line, s.level, s.id
+         FROM symbol_aliases a
+         JOIN symbols s ON s.id = a.symbol_id
+         JOIN files f ON f.id = s.file_id
+         WHERE a.alias = ?1 AND f.language = 'php' AND s.kind <> 'module'",
+    );
+    let mut bound: BoundValues = vec![Box::new(format!(r"\{}", query.to_ascii_lowercase()))];
+    push_scope(&mut sql, &mut bound, scope);
+    sql.push_str(" ORDER BY f.relative_path, s.line, s.column");
+    let mut stmt = conn.prepare_cached(&sql)?;
+    let params: Vec<&dyn rusqlite::ToSql> = bound.iter().map(|b| b.as_ref()).collect();
+    let hits = stmt
+        .query_map(params.as_slice(), symbol_hit)?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(Some(hits))
+}
+
 /// Every symbol whose split name matches `query`, narrowed to `scope`, best
 /// match first: exact (case-insensitive) name, then the same words in any
 /// casing/separator style, then a name prefix, then the rest — each tier
@@ -269,6 +326,9 @@ pub fn search_symbols(
     query: &str,
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<SymbolHit>> {
+    if let Some(exact) = search_php_qualified(conn, query, scope)? {
+        return Ok(exact);
+    }
     search_symbols_with(conn, query, scope, LexicalOptions::default())
 }
 

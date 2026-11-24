@@ -8,3 +8,15 @@
     <x-alert />
     <x-vendor::thing />
 @endsection
+
+@use('App\Models\Customer', 'Buyer')
+<a href="{{ route('billing.export') }}">{{ __('billing.summary') }}</a>
+@php
+    $model = Buyer::class;
+    $format = config('billing.exports.format');
+@endphp
+@{{ route('escaped.blade.route') }}
+@verbatim
+    {{ route('verbatim.blade.route') }}
+@endverbatim
+@include('billing::receipt')

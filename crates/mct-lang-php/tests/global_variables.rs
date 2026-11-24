@@ -25,15 +25,12 @@ fn parse(src: &str) -> ParsedFile {
         .expect("valid php source should parse")
 }
 
-fn variables(parsed: &ParsedFile) -> Vec<(String, u32)> {
+fn global_variables(parsed: &ParsedFile) -> Vec<(String, u32)> {
     parsed
         .symbols
         .iter()
-        .filter(|s| s.kind == SymbolKind::Variable)
-        .map(|s| {
-            assert_eq!(s.parent, None, "{} has a parent", s.name);
-            (s.name.clone(), s.location.line)
-        })
+        .filter(|s| s.kind == SymbolKind::Variable && s.parent.is_none())
+        .map(|s| (s.name.clone(), s.location.line))
         .collect()
 }
 
@@ -49,7 +46,7 @@ fn a_file_scope_assignment_declares_a_variable_once() {
         "$count = $total = 0;\n",
     ));
     assert_eq!(
-        variables(&parsed),
+        global_variables(&parsed),
         [
             ("app".to_string(), 2),
             ("mode".to_string(), 5),
@@ -62,11 +59,11 @@ fn a_file_scope_assignment_declares_a_variable_once() {
 #[test]
 fn a_namespaced_file_scope_assignment_is_a_variable() {
     let parsed = parse("<?php\nnamespace App;\n\n$config = ['debug' => true];\n");
-    assert_eq!(variables(&parsed), [("config".to_string(), 4)]);
+    assert_eq!(global_variables(&parsed), [("config".to_string(), 4)]);
 }
 
 #[test]
-fn a_function_method_closure_or_class_scope_declares_none() {
+fn a_function_method_closure_or_class_scope_declares_no_global_variable() {
     let parsed = parse(concat!(
         "<?php\n",
         "function boot() { $local = 1; }\n",
@@ -78,7 +75,7 @@ fn a_function_method_closure_or_class_scope_declares_none() {
     ));
     // `$cb` is the closure's `function` symbol, not a variable.
     assert_eq!(
-        variables(&parsed),
+        global_variables(&parsed),
         [("sum".to_string(), 5), ("handler".to_string(), 6)]
     );
 }
@@ -97,7 +94,7 @@ fn superglobals_patterns_properties_and_elements_declare_none() {
         "$$dynamic = 3;\n",
         "$total += 1;\n",
     ));
-    assert_eq!(variables(&parsed), Vec::<(String, u32)>::new());
+    assert_eq!(global_variables(&parsed), Vec::<(String, u32)>::new());
 }
 
 #[test]

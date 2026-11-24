@@ -292,11 +292,14 @@ impl ExcludeSet {
         };
         let excludes = |path: &str| {
             let matches = set.matches(path);
-            matches.iter().any(|&i| rules.kinds[i] == RuleKind::Builtin)
-                || matches
-                    .iter()
-                    .max()
-                    .is_some_and(|&i| rules.kinds[i] == RuleKind::Exclude)
+            matches.iter().any(|&i| match rules.kinds[i] {
+                RuleKind::Builtin => true,
+                RuleKind::ComposerVendor => !is_laravel_view_override(path),
+                RuleKind::Exclude | RuleKind::Include => false,
+            }) || matches
+                .iter()
+                .max()
+                .is_some_and(|&i| rules.kinds[i] == RuleKind::Exclude)
         };
         relative_path
             .match_indices('/')
@@ -305,11 +308,24 @@ impl ExcludeSet {
     }
 }
 
+/// Laravel projects keep user-authored overrides in this directory, apart
+/// from the Composer dependency directory named vendor.
+fn is_laravel_view_override(path: &str) -> bool {
+    const DIRECTORY: &str = "resources/views/vendor";
+    let at = path.strip_prefix(DIRECTORY).or_else(|| {
+        path.split_once("/resources/views/vendor")
+            .map(|(_, tail)| tail)
+    });
+    at.is_some_and(|tail| tail.is_empty() || tail.starts_with('/'))
+}
+
 /// What one glob in an [`ExcludeSet`] does when it matches.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum RuleKind {
     /// A built-in exclusion: wins over everything.
     Builtin,
+    /// The vendor directory has one Laravel source-directory exception.
+    ComposerVendor,
     /// An extra pattern.
     Exclude,
     /// A `!` extra pattern, re-including what an earlier extra one excluded.
@@ -349,7 +365,11 @@ fn build_set(extra_patterns: &[String]) -> (Option<GlobSet>, Vec<RuleKind>) {
             // `DEFAULT_EXCLUDE_DIRS` above, same reasoning as the loop
             // over `DEFAULT_EXCLUDE_PATTERNS`.
             builder.add(Glob::new(&pattern).expect("built-in exclude pattern is valid"));
-            kinds.push(RuleKind::Builtin);
+            kinds.push(if *dir == "vendor" {
+                RuleKind::ComposerVendor
+            } else {
+                RuleKind::Builtin
+            });
         }
     }
     for pattern in extra_patterns {

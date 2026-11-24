@@ -2,7 +2,7 @@
 //!
 //! Node/field names below (`class_declaration`, `scoped_call_expression`,
 //! `property_promotion_parameter`, etc.) come from inspecting
-//! `tree-sitter-php` 0.24's actual parse trees and `node-types.json`
+//! `tree-sitter-php` 0.25's actual parse trees and `node-types.json`
 //! (`tree_sitter::Node::to_sexp()`), not from grammar docs — same
 //! methodology used for `mct-lang-bash`/`mct-lang-powershell`.
 //!
@@ -17,10 +17,8 @@
 //!   closest existing relation, though not a perfect fit (it doesn't
 //!   require a contract, it inlines concrete code). No `RelationKind::Uses`
 //!   exists in `mct-core`; adding one is a `mct-core`-level decision, out of
-//!   scope for this crate. A trait-use adaptation block (`{ A::foo
-//!   insteadof B; ... }`) is a distinct `use_list` child and is skipped —
-//!   only the direct `name`/`qualified_name`/`relative_name` children of
-//!   `use_declaration` are trait names.
+//!   scope for this crate. Explicit trait aliases and precedence are
+//!   indexed as methods of the composing type with references to the trait.
 //! - `const` declarations (top-level, or inside a class/interface/trait/
 //!   enum) become `SymbolKind::Constant`, matching `mct-lang-rust`'s
 //!   top-level-const convention rather than `Field` (a constant isn't a
@@ -44,7 +42,8 @@
 //!   unified `base_list`) — no positional heuristic needed.
 //! - Three distinct call-expression node kinds all become `Calls`:
 //!   `function_call_expression` (`foo()`), `member_call_expression`
-//!   (`$obj->foo()`) and `scoped_call_expression` (`Class::foo()`). A static
+//!   (`$obj->foo()`) and `scoped_call_expression` (`Class::foo()`). A lone
+//!   `...` acquires a callable and produces a reference instead. A static
 //!   call is qualified by the class it names (`qualifier` plus its
 //!   namespace); `self::`/`static::`/`$this->` by the enclosing class, `parent::`
 //!   by its `extends`. A trait's `$this`, an anonymous class's `$this`, a
@@ -65,10 +64,8 @@
 //!   (`$cb = function () {}` / `$cb = fn() => ...`) is named after that
 //!   variable and indexed as a top-level `Function` (no `parent`, even
 //!   inside a method — it's a local, not a class member), matching `mct-lang-js-ts`'s
-//!   handling of the same pattern — otherwise every PHP callback (the
-//!   idiomatic way to use `array_map`, etc.) would be invisible. A bare
-//!   `$x = <non-callable>;` is not indexed, matching `mct-lang-python`'s
-//!   choice not to track plain module-level variables.
+//!   handling of the same pattern. Named functions and methods also expose
+//!   parameters and the first explicit binding of each supported local.
 //! - `require`/`require_once`/`include`/`include_once` become `Imports`
 //!   only when their argument is a literal string (`'x.php'`, or
 //!   `"x.php"` with nothing interpolated, parenthesized or not); a computed path
@@ -113,6 +110,7 @@ mod literals;
 mod names;
 mod receivers;
 mod tokens;
+mod traits;
 
 pub use tokens::PhpTokenSource;
 
@@ -168,6 +166,7 @@ impl LanguageParser for PhpParser {
             walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
         walker.module_id = module_id;
         collect_function_names(root, &file.contents, &mut walker.declared_functions, 0);
+        walker.laravel_file_keys(root);
         walker.visit_children(root, module_id, None, 0);
         let mut parsed = walker.finish();
         parsed.literals = literals::collect(root, &file.contents);
@@ -190,11 +189,40 @@ fn text<'a>(node: Node, source: &'a str) -> &'a str {
 
 /// The bare identifier inside a `variable_name` node (its one required
 /// `name` child) — the grammar already excludes the leading `$`.
-pub(crate) fn variable_text<'a>(node: Node<'a>, source: &'a str) -> Option<&'a str> {
+pub(crate) fn variable_text<'a>(node: Node, source: &'a str) -> Option<&'a str> {
     if node.kind() != "variable_name" {
         return None;
     }
     node.named_child(0).map(|n| text(n, source))
+}
+
+/// A promoted by-reference parameter wraps its variable in a `by_ref` node.
+fn parameter_variable(parameter: Node) -> Option<Node> {
+    let name = parameter.child_by_field_name("name")?;
+    if name.kind() == "by_ref" {
+        name.named_child(0)
+    } else {
+        Some(name)
+    }
+}
+
+/// The search name and accessor keyword shared by indexing and tokenization.
+fn property_hook_name<'a>(hook: Node, source: &'a str) -> Option<(String, &'a str)> {
+    let keyword = text(find_child(hook, "name")?, source);
+    if !keyword.eq_ignore_ascii_case("get") && !keyword.eq_ignore_ascii_case("set") {
+        return None;
+    }
+    let property = hook.parent()?.parent()?;
+    let variable = if property.kind() == "property_promotion_parameter" {
+        parameter_variable(property)?
+    } else {
+        find_child(property, "property_element")?.child_by_field_name("name")?
+    };
+    let variable = variable_text(variable, source)?;
+    Some((
+        format!("${variable}::{}", keyword.to_ascii_lowercase()),
+        keyword,
+    ))
 }
 
 /// Last segment of a `name` / `qualified_name` / `relative_name`, i.e. the
@@ -219,6 +247,7 @@ struct Walker<'a> {
     relations: Vec<SymbolRelation>,
     relation_targets: Vec<RelationTarget>,
     details: Vec<SymbolDetail>,
+    aliases: Vec<SymbolAlias>,
     /// This file's repository-relative path, the base of relative includes.
     path: &'a str,
     next_id: SymbolId,
@@ -268,6 +297,7 @@ enum ClassContext {
         parent: Option<ResolvedName>,
         /// A trait's `$this` is whichever class uses it.
         is_trait: bool,
+        eloquent_attributes: HashSet<String>,
     },
     /// An anonymous class has no name to qualify a call with.
     Anonymous,
@@ -282,6 +312,7 @@ impl<'a> Walker<'a> {
             relations: Vec::new(),
             relation_targets: Vec::new(),
             details: Vec::new(),
+            aliases: Vec::new(),
             next_id: 0,
             module_id: 0,
             scope: Scope::default(),
@@ -738,11 +769,11 @@ impl<'a> Walker<'a> {
                 self.visit_type_declaration(node, type_name, depth)
             }
             "enum_declaration" => self.visit_enum(node, type_name, depth),
-            "enum_case" => self.visit_enum_case(node, type_name),
+            "enum_case" => self.visit_enum_case(node, type_name, depth),
             // Trait composition (`use A, B;`, optionally with an
             // `{ A::foo insteadof B; ... }` adaptation block). Only the
             // direct name-like children are trait names — the adaptation
-            // block is a separate `use_list` child, skipped here.
+            // block is handled separately from trait names.
             "use_declaration" => self.visit_trait_use(node, owner),
             "function_definition" | "method_declaration" => {
                 self.visit_function(node, type_name, depth)
@@ -768,7 +799,7 @@ impl<'a> Walker<'a> {
             "member_call_expression"
             | "nullsafe_member_call_expression"
             | "scoped_call_expression" => {
-                if self.web {
+                if self.web && call_relation(node) == RelationKind::Calls {
                     self.join_points
                         .extend(http_routes::use_of(node, owner, self.source));
                 }
@@ -776,6 +807,10 @@ impl<'a> Walker<'a> {
             }
             // `Post::class`, `Post::STATUS`, `Post::$registry`: the class
             // named in the scope position is referenced.
+            "member_access_expression" | "nullsafe_member_access_expression" => {
+                self.laravel_attribute_access(node, owner);
+                self.visit_children(node, owner, type_name, depth + 1);
+            }
             "class_constant_access_expression" | "scoped_property_access_expression" => {
                 self.visit_scoped_access(node, owner, type_name, depth)
             }
@@ -861,7 +896,14 @@ impl<'a> Walker<'a> {
         self.details
             .push(details::type_detail(node, id, self.source));
         self.declare_type(&name);
+        self.add_qualified_alias(id, &name);
+        let eloquent_attributes = if kind == SymbolKind::Class {
+            self.laravel_model(node, id, &name)
+        } else {
+            HashSet::new()
+        };
         if kind == SymbolKind::Class {
+            self.laravel_command_class(node);
             self.entry_points
                 .extend(libraries::laravel::listeners::hint(
                     self.path,
@@ -877,6 +919,7 @@ impl<'a> Walker<'a> {
             namespace: self.scope.namespace().to_string(),
             parent,
             is_trait: kind == SymbolKind::Trait,
+            eloquent_attributes,
         });
         // A trait's `#[\Override]` is checked in the class that
         // uses it, so it has no supertype of its own.
@@ -908,6 +951,7 @@ impl<'a> Walker<'a> {
         self.details
             .push(details::type_detail(node, id, self.source));
         self.declare_type(&name);
+        self.add_qualified_alias(id, &name);
         self.visit_attributes(node, id, depth);
         self.visit_type_clauses(node, id);
         self.classes.push(ClassContext::Named {
@@ -915,6 +959,7 @@ impl<'a> Walker<'a> {
             namespace: self.scope.namespace().to_string(),
             parent: None,
             is_trait: false,
+            eloquent_attributes: HashSet::new(),
         });
         self.supertypes.push(self.override_supertypes(node));
         if let Some(body) = node.child_by_field_name("body") {
@@ -925,28 +970,25 @@ impl<'a> Walker<'a> {
     }
 
     #[inline(never)]
-    fn visit_enum_case(&mut self, node: Node, type_name: Option<&str>) {
-        let name = node
-            .child_by_field_name("name")
-            .map(|n| text(n, self.source).to_string())
-            .unwrap_or_default();
-        self.push_symbol(
-            name,
+    fn visit_enum_case(&mut self, node: Node, type_name: Option<&str>, depth: u32) {
+        let Some(name) = node.child_by_field_name("name") else {
+            return;
+        };
+        let name = text(name, self.source);
+        let id = self.push_symbol(
+            name.to_string(),
             SymbolKind::Field,
             location(node),
             type_name.map(str::to_string),
         );
-    }
-
-    #[inline(never)]
-    fn visit_trait_use(&mut self, node: Node, owner: SymbolId) {
-        for child in named_children(node) {
-            self.push_class_reference(
-                owner,
-                RelationKind::Implements,
-                Some(SymbolKind::Trait),
-                child,
-            );
+        self.details.push(SymbolDetail {
+            symbol: id,
+            signature: Some(format!("case {name}")),
+            ..Default::default()
+        });
+        self.visit_attributes(node, id, depth);
+        if let Some(value) = node.child_by_field_name("value") {
+            self.visit(value, id, type_name, depth + 1);
         }
     }
 
@@ -954,7 +996,7 @@ impl<'a> Walker<'a> {
     fn visit_function(&mut self, node: Node, type_name: Option<&str>, depth: u32) {
         let name = node
             .child_by_field_name("name")
-            .map(|n| text(n, self.source).to_string())
+            .map(|n| text(n, self.source))
             .unwrap_or_default();
         let kind = if node.kind() == "method_declaration" {
             SymbolKind::Method
@@ -966,9 +1008,17 @@ impl<'a> Walker<'a> {
         } else {
             None
         };
-        let id = self.push_symbol(name, kind, location(node), parent);
+        let id = self.push_symbol(name.to_string(), kind, location(node), parent);
+        if kind == SymbolKind::Function {
+            self.add_qualified_alias(id, name);
+        } else if let Some(ClassContext::Named { name: class, .. }) = self.classes.last() {
+            self.add_qualified_alias(id, &format!("{class}::{name}"));
+        }
         self.details
             .push(details::function_detail(node, id, self.source));
+        if kind == SymbolKind::Method {
+            self.laravel_accessor_reference(node, id);
+        }
         if kind == SymbolKind::Method && self.has_override_attribute(node) {
             if let Some(name_node) = node.child_by_field_name("name") {
                 let supertypes = self.supertypes.last().cloned().unwrap_or_default();
@@ -988,15 +1038,31 @@ impl<'a> Walker<'a> {
             self.join_points
                 .extend(http_routes::declarations(node, self.source, id));
         }
-        let locals = receivers::locals(node, self.source);
+        self.visit_callable_parts(node, id, name, type_name, depth);
+    }
+
+    fn visit_callable_parts(
+        &mut self,
+        node: Node,
+        id: SymbolId,
+        name: &str,
+        type_name: Option<&str>,
+        depth: u32,
+    ) {
+        let (locals, bindings) = receivers::locals(node, self.source);
+        for binding in bindings {
+            // Keep the sigil so a call to foo() cannot resolve to local $foo.
+            self.push_symbol(
+                text(binding, self.source).to_string(),
+                SymbolKind::Variable,
+                location(binding),
+                Some(name.to_string()),
+            );
+        }
         let outer_locals = std::mem::replace(&mut self.locals, locals);
         for field in ["parameters", "return_type", "body"] {
             if let Some(part) = node.child_by_field_name(field) {
-                if field == "return_type" {
-                    self.visit(part, id, type_name, depth + 1);
-                } else {
-                    self.visit_children(part, id, type_name, depth + 1);
-                }
+                self.visit(part, id, type_name, depth + 1);
             }
         }
         self.locals = outer_locals;
@@ -1010,7 +1076,7 @@ impl<'a> Walker<'a> {
         type_name: Option<&str>,
         depth: u32,
     ) {
-        if let Some(name_node) = node.child_by_field_name("name") {
+        if let Some(name_node) = parameter_variable(node) {
             if let Some(var) = variable_text(name_node, self.source) {
                 let id = self.push_symbol(
                     var.to_string(),
@@ -1018,8 +1084,12 @@ impl<'a> Walker<'a> {
                     location(node),
                     type_name.map(str::to_string),
                 );
+                if let Some(class) = type_name {
+                    self.add_qualified_alias(id, &format!("{class}::${var}"));
+                }
                 self.details
                     .push(details::promoted_detail(node, id, self.source));
+                self.visit_property_hooks(node, type_name, depth);
             }
         }
         self.visit_attributes(node, owner, depth);
@@ -1041,7 +1111,7 @@ impl<'a> Walker<'a> {
     ) {
         self.visit_attributes(node, owner, depth);
         for child in named_children(node) {
-            if child.kind() == "attribute_list" {
+            if matches!(child.kind(), "attribute_list" | "property_hook_list") {
                 continue;
             }
             if child.kind() != "property_element" {
@@ -1057,13 +1127,43 @@ impl<'a> Walker<'a> {
                         location(child),
                         type_name.map(str::to_string),
                     );
+                    if let Some(class) = type_name {
+                        self.add_qualified_alias(id, &format!("{class}::${var}"));
+                    }
                     self.details
                         .push(details::property_detail(node, child, id, self.source));
+                    self.visit_property_hooks(node, type_name, depth);
                 }
             }
             for initializer in named_children(child).into_iter().skip(1) {
                 self.visit(initializer, owner, type_name, depth + 1);
             }
+        }
+    }
+
+    fn visit_property_hooks(&mut self, property: Node, type_name: Option<&str>, depth: u32) {
+        let Some(hooks) = find_child(property, "property_hook_list") else {
+            return;
+        };
+        for hook in named_children(hooks) {
+            let Some((name, keyword)) = property_hook_name(hook, self.source) else {
+                continue;
+            };
+            let id = self.push_symbol(
+                name.clone(),
+                SymbolKind::Method,
+                location(hook),
+                type_name.map(str::to_string),
+            );
+            self.details.push(details::hook_detail(
+                hook,
+                id,
+                keyword,
+                property,
+                self.source,
+            ));
+            self.visit_attributes(hook, id, depth);
+            self.visit_callable_parts(hook, id, &name, type_name, depth);
         }
     }
 
@@ -1079,14 +1179,27 @@ impl<'a> Walker<'a> {
             if element.kind() != "const_element" {
                 continue;
             }
-            if let Some(name_node) = find_child(element, "name") {
-                self.push_symbol(
-                    text(name_node, self.source).to_string(),
-                    SymbolKind::Constant,
-                    location(element),
-                    type_name.map(str::to_string),
-                );
+            let Some(name_node) = find_child(element, "name") else {
+                continue;
+            };
+            let id = self.push_symbol(
+                text(name_node, self.source).to_string(),
+                SymbolKind::Constant,
+                location(element),
+                type_name.map(str::to_string),
+            );
+            self.details.push(details::constant_detail(
+                node,
+                name_node,
+                id,
+                type_name.is_some(),
+                self.source,
+            ));
+            self.visit_attributes(node, id, depth);
+            if let Some(ty) = node.child_by_field_name("type") {
+                self.visit(ty, id, type_name, depth + 1);
             }
+            // Keep initializer relations on their existing owner.
             for value in named_children(element).into_iter().skip(1) {
                 self.visit(value, owner, type_name, depth + 1);
             }
@@ -1113,9 +1226,16 @@ impl<'a> Walker<'a> {
         type_name: Option<&str>,
         depth: u32,
     ) {
+        let relation = call_relation(node);
         if let Some(function) = node.child_by_field_name("function") {
-            self.push_define_constant(node, function);
-            if function.kind() == "name" && text(function, self.source) == "view" {
+            if relation == RelationKind::Calls {
+                self.push_define_constant(node, function);
+                self.laravel_function_key(node, function, owner);
+            }
+            if relation == RelationKind::Calls
+                && function.kind() == "name"
+                && text(function, self.source) == "view"
+            {
                 if let Some(view) = node
                     .child_by_field_name("arguments")
                     .and_then(|a| a.named_child(0))
@@ -1134,7 +1254,7 @@ impl<'a> Walker<'a> {
                     .map(|r| r.name);
                 self.push_targeted(
                     owner,
-                    RelationKind::Calls,
+                    relation,
                     imported.unwrap_or_else(|| text(seg, self.source).to_string()),
                     location(seg),
                     target,
@@ -1142,13 +1262,7 @@ impl<'a> Walker<'a> {
             } else if let Some(var) = self.bound_closure_name(function) {
                 // `$cb()` after `$cb = function () {}`: a call to the
                 // closure symbol the assignment created.
-                self.push_targeted(
-                    owner,
-                    RelationKind::Calls,
-                    var.to_string(),
-                    location(function),
-                    None,
-                );
+                self.push_targeted(owner, relation, var.to_string(), location(function), None);
             }
             self.visit(function, owner, type_name, depth + 1);
         }
@@ -1168,6 +1282,7 @@ impl<'a> Walker<'a> {
         type_name: Option<&str>,
         depth: u32,
     ) {
+        let relation = call_relation(node);
         let scoped = node.kind() == "scoped_call_expression";
         let receiver = node
             .child_by_field_name("object")
@@ -1179,6 +1294,8 @@ impl<'a> Walker<'a> {
                 } else {
                     self.member_call_target(receiver)
                 };
+                let name = text(name_node, self.source);
+                let target = self.laravel_macro_target(&target, name).unwrap_or(target);
                 // location(name_node), not location(node): a chained
                 // call (`$a->f($x)->f($y)`) has its outer and inner
                 // call both start at `$a`, which would make two
@@ -1186,8 +1303,8 @@ impl<'a> Walker<'a> {
                 // indistinguishable row.
                 self.push_targeted(
                     owner,
-                    RelationKind::Calls,
-                    text(name_node, self.source).to_string(),
+                    relation,
+                    name.to_string(),
                     location(name_node),
                     Some(target),
                 );
@@ -1200,12 +1317,14 @@ impl<'a> Walker<'a> {
                 self.visit(receiver, owner, type_name, depth + 1);
             }
         }
-        if scoped {
-            self.laravel_scoped_call(node, owner);
-        } else {
-            self.laravel_member_call(node, owner);
+        if relation == RelationKind::Calls {
+            if scoped {
+                self.laravel_scoped_call(node, owner);
+            } else {
+                self.laravel_member_call(node, owner);
+            }
         }
-        let controller = if scoped {
+        let controller = if scoped || relation != RelationKind::Calls {
             None
         } else {
             self.controller_group_context(node)
@@ -1213,7 +1332,9 @@ impl<'a> Walker<'a> {
         let bound = controller.is_some();
         self.route_controllers.extend(controller);
         if let Some(arguments) = node.child_by_field_name("arguments") {
-            self.visit_children(arguments, owner, type_name, depth + 1);
+            if !scoped || !self.visit_laravel_macro(node, arguments, owner, type_name, depth) {
+                self.visit_children(arguments, owner, type_name, depth + 1);
+            }
         }
         if bound {
             self.route_controllers.pop();
@@ -1371,15 +1492,11 @@ impl<'a> Walker<'a> {
                     // the method's class.
                     let id =
                         self.push_symbol(var.to_string(), SymbolKind::Function, location(r), None);
-                    let outer_locals = std::mem::take(&mut self.locals);
+                    self.details
+                        .push(details::function_detail(r, id, self.source));
                     self.closure_scopes.push((var.to_string(), owner));
-                    if let Some(params) = r.child_by_field_name("parameters") {
-                        self.visit_children(params, id, type_name, depth + 1);
-                    }
-                    if let Some(body) = r.child_by_field_name("body") {
-                        self.visit(body, id, type_name, depth + 1);
-                    }
-                    self.locals = outer_locals;
+                    self.visit_attributes(r, id, depth);
+                    self.visit_callable_parts(r, id, var, type_name, depth);
                 } else {
                     self.visit(r, owner, type_name, depth + 1);
                 }
@@ -1419,7 +1536,7 @@ impl<'a> Walker<'a> {
         let declared = self
             .symbols
             .iter()
-            .any(|s| s.kind == SymbolKind::Variable && s.name == name);
+            .any(|s| s.kind == SymbolKind::Variable && s.name == name && s.parent.is_none());
         if !declared {
             self.push_symbol(name.to_string(), SymbolKind::Variable, location(left), None);
         }
@@ -1553,12 +1670,28 @@ impl<'a> Walker<'a> {
         }
     }
 
+    fn add_qualified_alias(&mut self, symbol: SymbolId, name: &str) {
+        let namespace = self.scope.namespace();
+        if name.is_empty() {
+            return;
+        }
+        let qualified = if namespace.is_empty() {
+            format!(r"\{name}")
+        } else {
+            format!(r"\{namespace}\{name}")
+        };
+        self.aliases.push(SymbolAlias {
+            symbol,
+            name: qualified.to_ascii_lowercase(),
+        });
+    }
+
     fn finish(self) -> ParsedFile {
         // The file's `Module` symbol answers to every namespace the file
         // declares (the global one when it declares none) and to the name of
         // each type it declares, which is what lets an import find the file
         // that declares a class even when the file is not named after it.
-        let mut aliases: Vec<SymbolAlias> = Vec::new();
+        let mut aliases = self.aliases;
         let module = self.module_id;
         if self.namespaces.is_empty() {
             aliases.push(SymbolAlias {
@@ -1673,6 +1806,17 @@ fn import_kind(node: Node) -> Option<ImportKind> {
         _ => None,
     });
     found
+}
+
+fn call_relation(call: Node) -> RelationKind {
+    if call
+        .child_by_field_name("arguments")
+        .is_some_and(|args| find_child(args, "variadic_placeholder").is_some())
+    {
+        RelationKind::References
+    } else {
+        RelationKind::Calls
+    }
 }
 
 fn named_children(node: Node) -> Vec<Node> {

@@ -72,7 +72,10 @@ pub use queries::{
     SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
 };
 pub use read_limits::{read_repository_file, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV};
-pub use search::{exact_phrase, search_words, split_identifier, LiteralHit, MAX_LITERAL_HITS};
+pub use search::{
+    exact_phrase, is_php_qualified_query, search_words, split_identifier, LiteralHit,
+    MAX_LITERAL_HITS,
+};
 pub use semantic::{
     classify_query, embedding_text, Embedder, EmbeddingCoverage, HybridHit, PendingEmbeddings,
     QueryIntent, SemanticHit, SymbolContext, EMBEDDING_TEXT_VERSION, EXACT_PHRASE_BOOST, RRF_K,

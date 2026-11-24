@@ -1,4 +1,4 @@
-//! [`TokenSource`] for PHP, over the `tree-sitter-php` 0.24 node kinds (read
+//! [`TokenSource`] for PHP, over the `tree-sitter-php` 0.25 node kinds (read
 //! off its `node-types.json` and a parse-tree dump):
 //!
 //! - **Trivia:** `comment`, the opening `<?php` tag and inline HTML (a
@@ -14,7 +14,8 @@
 //!   (named by their `name` field, attributes included, since they sit in
 //!   the declaration), and a closure or arrow function assigned to a
 //!   variable (`$cb = function () { … };`), whose `Function` symbol is
-//!   named after the variable and spans the closure.
+//!   named after the variable and spans the closure. A property hook spans
+//!   its declaration and is named `$property::get` or `$property::set`.
 //! - **Roles** (syntactic only): callable names are declarations; a
 //!   parameter's variable is a parameter; the `name` of a member access or
 //!   of a member, null-safe or static call is a member; the bare
@@ -100,6 +101,7 @@ const CLASSES: TokenClasses = TokenClasses {
         ("enum_declaration", "enum"),
         ("function_definition", "function"),
         ("method_declaration", "method"),
+        ("property_hook", "property_hook"),
         ("anonymous_function", "closure"),
         ("arrow_function", "closure"),
         ("if_statement", "if"),
@@ -145,26 +147,19 @@ impl TokenSource for PhpTokenSource {
             &CLASSES,
             relative_path,
             source,
-            bound_closure,
+            extra_callable,
         )
     }
 }
 
-/// `$cb = function () { … }` or `$cb = fn() => …`: the parser's `Function`
-/// `cb`, which spans the closure.
-fn bound_closure(node: Node<'_>, source: &str) -> Option<CallableSpan> {
-    if !matches!(node.kind(), "anonymous_function" | "arrow_function") {
-        return None;
-    }
-    let assignment = node
-        .parent()
-        .filter(|p| p.kind() == "assignment_expression")?;
-    if assignment.child_by_field_name("right")?.id() != node.id() {
-        return None;
-    }
-    let name = crate::variable_text(assignment.child_by_field_name("left")?, source)?;
+fn extra_callable(node: Node, source: &str) -> Option<CallableSpan> {
+    let name = if node.kind() == "property_hook" {
+        crate::property_hook_name(node, source)?.0
+    } else {
+        bound_closure_name(node, source)?.to_string()
+    };
     Some(CallableSpan {
-        name: name.to_string(),
+        name,
         lines: LineRange {
             start: node.start_position().row as u32 + 1,
             end: node.end_position().row as u32 + 1,
@@ -174,4 +169,19 @@ fn bound_closure(node: Node<'_>, source: &str) -> Option<CallableSpan> {
         enclosing: Vec::new(),
         body: None,
     })
+}
+
+/// `$cb = function () { … }` or `$cb = fn() => …`: the parser's `Function`
+/// `cb`, which spans the closure.
+fn bound_closure_name<'a>(node: Node, source: &'a str) -> Option<&'a str> {
+    if !matches!(node.kind(), "anonymous_function" | "arrow_function") {
+        return None;
+    }
+    let assignment = node
+        .parent()
+        .filter(|p| p.kind() == "assignment_expression")?;
+    if assignment.child_by_field_name("right")?.id() != node.id() {
+        return None;
+    }
+    crate::variable_text(assignment.child_by_field_name("left")?, source)
 }

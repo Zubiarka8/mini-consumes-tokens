@@ -19,6 +19,12 @@ class OrderController extends Controller
         return $payer->balance();
     }
 
+    public function show()
+    {
+        $formatter = app('billing.formatter');
+        return $formatter->format(Order::first());
+    }
+
     public function unused()
     {
         return null;

@@ -9,12 +9,15 @@ use mct_core::{
 };
 use tree_sitter::Node;
 
+use crate::{parameter_variable, variable_text};
+
 /// A function or method: the header up to its body or `;`.
 pub(crate) fn function_detail(node: Node, symbol: SymbolId, source: &str) -> SymbolDetail {
     let doc = PhpDoc::above(node, source);
     let end = node
         .child_by_field_name("body")
         .map_or_else(|| first_start(node, &[";"]), |b| b.start_byte());
+    let end = end.min(first_start(node, &["=>"]));
     let parameters = node.child_by_field_name("parameters");
     SymbolDetail {
         symbol,
@@ -25,7 +28,7 @@ pub(crate) fn function_detail(node: Node, symbol: SymbolId, source: &str) -> Sym
             .child_by_field_name("return_type")
             .map(|t| TypeText::syntax(slice(t, source)))
             .or_else(|| doc.returns.map(documented)),
-        visibility: member_visibility(node, source),
+        visibility: (node.kind() == "method_declaration").then(|| member_visibility(node, source)),
         modifiers: modifiers(node),
         generics: None,
     }
@@ -60,7 +63,7 @@ pub(crate) fn property_detail(
     SymbolDetail {
         symbol,
         signature: header(declaration, end, source).map(|head| format!("{head} {variable}")),
-        visibility: member_visibility(declaration, source),
+        visibility: Some(member_visibility(declaration, source)),
         modifiers: modifiers(declaration),
         ..Default::default()
     }
@@ -75,8 +78,52 @@ pub(crate) fn promoted_detail(node: Node, symbol: SymbolId, source: &str) -> Sym
     SymbolDetail {
         symbol,
         signature: header(node, end, source),
-        visibility: member_visibility(node, source),
+        visibility: Some(member_visibility(node, source)),
         modifiers: modifiers(node),
+        ..Default::default()
+    }
+}
+
+pub(crate) fn hook_detail(
+    node: Node,
+    symbol: SymbolId,
+    hook: &str,
+    property: Node,
+    source: &str,
+) -> SymbolDetail {
+    let mut detail = function_detail(node, symbol, source);
+    let property_type = property
+        .child_by_field_name("type")
+        .map(|ty| TypeText::syntax(slice(ty, source)));
+    detail.parameters_known = true;
+    if hook.eq_ignore_ascii_case("get") {
+        detail.return_type = property_type;
+    } else if node.child_by_field_name("parameters").is_none() {
+        detail.parameters.push(Parameter {
+            name: Some("value".to_string()),
+            type_text: property_type,
+            default: None,
+            kind: ParameterKind::Positional,
+        });
+    }
+    detail
+}
+
+/// Each constant keeps the declaration's shared modifiers and type.
+pub(crate) fn constant_detail(
+    declaration: Node,
+    name: Node,
+    symbol: SymbolId,
+    member: bool,
+    source: &str,
+) -> SymbolDetail {
+    let end = first_start(declaration, &["const_element"]);
+    SymbolDetail {
+        symbol,
+        signature: header(declaration, end, source)
+            .map(|prefix| format!("{prefix} {}", slice(name, source))),
+        visibility: member.then(|| member_visibility(declaration, source)),
+        modifiers: modifiers(declaration),
         ..Default::default()
     }
 }
@@ -107,16 +154,16 @@ fn header(node: Node, end: usize, source: &str) -> Option<String> {
 
 /// The visibility keyword; a method or property without one is public (the
 /// language default). A function or type has no visibility.
-fn member_visibility(node: Node, source: &str) -> Option<Visibility> {
+fn member_visibility(node: Node, source: &str) -> Visibility {
     let keyword = children(node)
         .into_iter()
-        .find(|c| c.kind() == "visibility_modifier")
-        .map(|v| slice(v, source));
+        .filter(|c| c.kind() == "visibility_modifier")
+        .map(|v| slice(v, source))
+        .find(|v| !v.contains('('));
     match keyword {
-        Some(k) if k.starts_with("private") => Some(Visibility::Private),
-        Some(k) if k.starts_with("protected") => Some(Visibility::Protected),
-        Some(_) => Some(Visibility::Public),
-        None => (node.kind() != "function_definition").then_some(Visibility::Public),
+        Some(k) if k.eq_ignore_ascii_case("private") => Visibility::Private,
+        Some(k) if k.eq_ignore_ascii_case("protected") => Visibility::Protected,
+        _ => Visibility::Public,
     }
 }
 
@@ -143,10 +190,9 @@ fn parameter_list(list: Node, doc: &PhpDoc, source: &str) -> Vec<Parameter> {
             )
         })
         .map(|p| {
-            let name = p
-                .child_by_field_name("name")
-                .and_then(|n| n.named_child(0))
-                .map(|n| slice(n, source).to_string());
+            let name = parameter_variable(p)
+                .and_then(|n| variable_text(n, source))
+                .map(str::to_string);
             let type_text = p
                 .child_by_field_name("type")
                 .map(|t| TypeText::syntax(slice(t, source)))

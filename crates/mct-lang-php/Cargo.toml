@@ -12,7 +12,8 @@ categories = ["development-tools", "parser-implementations"]
 mct-core.workspace = true
 mct-tree-sitter.workspace = true
 tree-sitter.workspace = true
-tree-sitter-php = "0.24.2"
+# PHP 8.5 final property promotion, pending an upstream release.
+tree-sitter-php = { version = "0.25.2", path = "../../vendor/tree-sitter-php" }
 
 [dev-dependencies]
 mct-corpus.workspace = true
