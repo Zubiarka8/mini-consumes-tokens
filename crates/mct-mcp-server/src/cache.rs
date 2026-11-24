@@ -79,6 +79,8 @@ const MIN_THRESHOLD: f32 = 0.5;
 /// Digests of responses already returned this session, kept for the
 /// reference reply; oldest dropped past this.
 const MAX_SENT: usize = 1024;
+/// A client may compact or clear its context without notifying the server.
+const SENT_TTL: Duration = Duration::from_secs(15 * 60);
 
 /// Bumped whenever what a cache entry means changes shape.
 pub const CACHE_FORMAT_VERSION: &str = "mct-query-cache/1";
@@ -353,6 +355,8 @@ pub struct CacheStats {
     pub ambiguous_match: u64,
     /// Hits answered with the one-line "unchanged" reply.
     pub reference_responses: u64,
+    /// Explicit full-response requests matching an outstanding reference reply.
+    pub reference_recoveries: u64,
     /// A whole exact or semantic lookup, validation included, embedding not.
     pub lookup_latency: LatencyStats,
     /// Embedding a query for the semantic lookup.
@@ -376,12 +380,13 @@ impl fmt::Display for CacheStats {
         )?;
         writeln!(
             f,
-            "  rejected: {} stale, {} fingerprint mismatch, {} repository mismatch, {} ambiguous; {} reference replies",
+            "  rejected: {} stale, {} fingerprint mismatch, {} repository mismatch, {} ambiguous; {} reference replies, {} recoveries",
             self.stale_rejection,
             self.fingerprint_mismatch,
             self.repository_mismatch,
             self.ambiguous_match,
-            self.reference_responses
+            self.reference_responses,
+            self.reference_recoveries
         )?;
         writeln!(f, "  lookup: {}", self.lookup_latency)?;
         writeln!(f, "  embedding: {}", self.embedding_latency)?;
@@ -508,7 +513,8 @@ pub struct QueryCache {
     config: CacheConfig,
     entries: HashMap<Digest, Entry>,
     repo: RepoTracker,
-    sent: HashSet<Digest>,
+    sent: HashMap<Digest, Instant>,
+    referenced: HashSet<Digest>,
     sent_order: std::collections::VecDeque<Digest>,
     clock: u64,
     stats: CacheStats,
@@ -520,7 +526,8 @@ impl QueryCache {
             config,
             entries: HashMap::new(),
             repo: RepoTracker::default(),
-            sent: HashSet::new(),
+            sent: HashMap::new(),
+            referenced: HashSet::new(),
             sent_order: std::collections::VecDeque::new(),
             clock: 0,
             stats: CacheStats::default(),
@@ -762,23 +769,40 @@ impl QueryCache {
     /// Whether this session was already sent a response whose
     /// query-independent rendering is `rendered`.
     pub fn was_sent(&self, rendered: &str) -> bool {
-        self.sent.contains(&sha256(rendered.as_bytes()))
+        self.was_sent_at(rendered, Instant::now())
+    }
+
+    /// [`Self::was_sent`] as of `now`; a test moves `now` forward, since an
+    /// `Instant` cannot go back before the machine booted (Windows CI).
+    fn was_sent_at(&self, rendered: &str, now: Instant) -> bool {
+        self.sent
+            .get(&sha256(rendered.as_bytes()))
+            .is_some_and(|sent| now.saturating_duration_since(*sent) < SENT_TTL)
     }
 
     pub fn record_sent(&mut self, rendered: &str) {
         let digest = sha256(rendered.as_bytes());
-        if self.sent.insert(digest) {
+        self.referenced.remove(&digest);
+        if self.sent.insert(digest, Instant::now()).is_none() {
             self.sent_order.push_back(digest);
             if self.sent_order.len() > MAX_SENT {
                 if let Some(old) = self.sent_order.pop_front() {
                     self.sent.remove(&old);
+                    self.referenced.remove(&old);
                 }
             }
         }
     }
 
-    pub fn record_reference(&mut self) {
+    pub fn record_reference(&mut self, rendered: &str) {
         self.stats.reference_responses += 1;
+        self.referenced.insert(sha256(rendered.as_bytes()));
+    }
+
+    pub fn record_recovery(&mut self, rendered: &str) {
+        if self.referenced.remove(&sha256(rendered.as_bytes())) {
+            self.stats.reference_recoveries += 1;
+        }
     }
 }
 
@@ -787,6 +811,16 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+
+    #[test]
+    fn sent_responses_expire_and_new_full_responses_refresh_them() {
+        let mut cache = QueryCache::new(CacheConfig::default());
+        cache.record_sent("result");
+        assert!(cache.was_sent("result"));
+        assert!(!cache.was_sent_at("result", Instant::now() + SENT_TTL));
+        cache.record_sent("result");
+        assert!(cache.was_sent("result"));
+    }
 
     fn key<'a>() -> RankingKey<'a> {
         RankingKey {

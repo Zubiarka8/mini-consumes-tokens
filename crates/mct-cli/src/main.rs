@@ -8,7 +8,10 @@ use mct_languages::build_registry;
 mod duplicates;
 mod ignore_preset;
 mod impact;
+mod mcp_agents;
 mod reviewed;
+mod skills;
+mod skills_register;
 mod web;
 
 /// Index a repository and inspect the index from the command line.
@@ -221,6 +224,30 @@ enum Command {
         /// by later `mcp-register` runs that omit the flag.
         #[arg(long, value_name = "VALUE", value_parser = parse_reindex_delay)]
         reindex_delay: Option<String>,
+        /// Agents to configure: claude, codex, cursor, copilot, opencode.
+        #[arg(long, value_delimiter = ',')]
+        agent: Vec<String>,
+        /// Allow registration in Codex's user-level configuration.
+        #[arg(long)]
+        global: bool,
+        /// Show planned changes without writing files.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Install the bundled mct-* skills for detected coding agents.
+    SkillsRegister {
+        /// Agents to configure: claude, codex, cursor, copilot, opencode.
+        #[arg(long, value_delimiter = ',')]
+        agent: Vec<String>,
+        /// Install in the user's home instead of the project.
+        #[arg(long)]
+        global: bool,
+        /// Show changes without writing files.
+        #[arg(long)]
+        dry_run: bool,
+        /// Replace modified skill templates.
+        #[arg(long)]
+        force: bool,
     },
     /// Write a starter `.mctignore` for custom indexing exclusions.
     ///
@@ -353,6 +380,7 @@ impl Command {
             Command::Call { .. } => "call",
             Command::Status => "status",
             Command::McpRegister { .. } => "mcp-register",
+            Command::SkillsRegister { .. } => "skills-register",
             Command::IgnoreInit { .. } => "init-mctignore",
             Command::GitignoreInit => "git-exclusions-init",
             Command::DeadCode { .. } => "dead-code",
@@ -414,12 +442,27 @@ fn run_single(root: PathBuf, command: Command) -> anyhow::Result<()> {
     // None of these touch the index at all, so they're handled before
     // Index::open — running them shouldn't have the side effect of creating
     // .mct-index/.
+    if let Command::SkillsRegister {
+        agent,
+        global,
+        dry_run,
+        force,
+    } = &command
+    {
+        return skills_register::run(&root, agent, *global, *dry_run, *force);
+    }
     if let Command::McpRegister {
         name,
         reindex_delay,
+        agent,
+        global,
+        dry_run,
     } = command
     {
-        return mcp_register(&root, name, reindex_delay);
+        if agent.is_empty() && !global && !dry_run {
+            mcp_register(&root, name.clone(), reindex_delay.clone())?;
+        }
+        return mcp_agents::run(&root, name, reindex_delay, &agent, global, dry_run);
     }
     if let Command::IgnoreInit {
         import_gitignore,
@@ -527,6 +570,7 @@ fn run_single(root: PathBuf, command: Command) -> anyhow::Result<()> {
         Command::Init { .. }
         | Command::Call { .. }
         | Command::McpRegister { .. }
+        | Command::SkillsRegister { .. }
         | Command::IgnoreInit { .. }
         | Command::GitignoreInit
         | Command::Probe { .. }
@@ -698,7 +742,7 @@ fn mcp_register(
     });
     let config_path = root.join(".mcp.json");
 
-    let mut config: serde_json::Value = if config_path.exists() {
+    let mut config: serde_json::Value = if skills_register::regular_or_missing(&config_path)? {
         serde_json::from_str(&std::fs::read_to_string(&config_path)?)?
     } else {
         serde_json::json!({})
@@ -727,19 +771,19 @@ fn mcp_register(
         args.push(delay);
     }
 
-    servers.insert(
-        server_name.clone(),
-        serde_json::json!({
-            "type": "stdio",
-            "command": "mct-mcp-server",
-            "args": args,
-            "env": {}
-        }),
-    );
+    let server = servers
+        .entry(server_name.clone())
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("server configuration must be an object"))?;
+    server.insert("type".into(), serde_json::json!("stdio"));
+    server.insert("command".into(), serde_json::json!("mct-mcp-server"));
+    server.insert("args".into(), serde_json::json!(args));
+    server.entry("env").or_insert_with(|| serde_json::json!({}));
 
-    std::fs::write(
+    skills_register::atomic_write(
         &config_path,
-        format!("{}\n", serde_json::to_string_pretty(&config)?),
+        &format!("{}\n", serde_json::to_string_pretty(&config)?),
     )?;
     println!(
         "Registered `{server_name}` in {}",

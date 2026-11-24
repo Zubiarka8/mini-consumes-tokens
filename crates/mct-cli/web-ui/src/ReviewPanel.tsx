@@ -40,13 +40,14 @@ export function ReviewPanel(props: ReviewPanelProps) {
 
 function Decision({ item, bridge, onSaved, children }: ReviewPanelProps) {
   const { t } = bridge;
-  const [draft, setDraftState] = useState<Draft>(() => drafts.get(item.key) ?? { target: "", note: item.note });
+  const [draft, setDraftState] = useState<Draft>(() => drafts.get(item.key) ?? { target: "", note: item.note, revision: item.revision });
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
   const busy = useRef(false);
   const ids = { state: useId(), note: useId() };
 
   const setDraft = (next: Draft) => {
+    next = { ...next, revision: drafts.get(item.key)?.revision ?? item.revision };
     setDraftState(next);
     // Only a draft that differs from what is saved needs keeping.
     if (next.target || next.note !== item.note) drafts.set(item.key, next);
@@ -58,9 +59,9 @@ function Decision({ item, bridge, onSaved, children }: ReviewPanelProps) {
     busy.current = true;
     setSaving(true);
     try {
-      const saved = await bridge.save(item.key, payload.state, payload.note, item.revision);
+      const saved = await bridge.save(item.key, payload.state, payload.note, draft.revision);
       drafts.delete(item.key);
-      setDraftState({ target: "", note: saved.note ?? payload.note });
+      setDraftState({ target: "", note: saved.note ?? payload.note, revision: saved.revision });
       setProblem(null);
       notify.ok(t("review.saved", { state: bridge.stateLabel(saved.state, item.type) }));
       onSaved(saved);
@@ -68,6 +69,9 @@ function Decision({ item, bridge, onSaved, children }: ReviewPanelProps) {
       const failure = error as ApiFailure;
       if (failure.status === 409 && failure.body?.key) {
         // Someone else decided meanwhile: show theirs, keep what was typed here.
+        const next = { ...draft, revision: failure.body.revision ?? draft.revision };
+        drafts.set(item.key, next);
+        setDraftState(next);
         setProblem({ message: t("review.conflict") });
         onSaved(failure.body as Review);
       } else {
