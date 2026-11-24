@@ -354,8 +354,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // of C# and C++ supertype relations (issue #388), 23 scopes a nested
     // function's candidates to its own file (issue #376), 24 stores
     // `top_level` and keeps type members from bare JS/TS names (issue #395), 25 stores
-    // file-scoped symbols (issue #446).
-    assert_eq!(before, 25);
+    // file-scoped symbols (issue #446), and 26 stores Cargo package names and
+    // TypeScript path aliases (issues #374 and #563).
+    assert_eq!(before, 26);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();

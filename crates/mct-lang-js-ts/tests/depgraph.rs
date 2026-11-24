@@ -22,6 +22,199 @@ fn open_indexed() -> Index {
 use mct_corpus::import_target;
 
 #[test]
+fn tsconfig_path_alias_resolves_to_the_target_file() {
+    let index = open_indexed();
+    assert_eq!(
+        import_target(&index, "utility", "alias.ts").as_deref(),
+        Some("src/utility.ts")
+    );
+}
+
+#[test]
+fn tsconfig_changes_and_multiple_existing_targets_are_reflected() {
+    let root = std::env::temp_dir().join(format!("mct-ts-alias-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("first")).unwrap();
+    std::fs::create_dir_all(root.join("second")).unwrap();
+    std::fs::write(root.join("app.ts"), "import { value } from '@/value';\n").unwrap();
+    std::fs::write(root.join("first/value.ts"), "export function value() {}\n").unwrap();
+    std::fs::write(root.join("second/value.ts"), "export function value() {}\n").unwrap();
+    let config = root.join("tsconfig.json");
+    std::fs::write(&config, "{\n// compiler settings\n\"compilerOptions\": {\"paths\": {\"@/*\": [\"first/*\", \"second/*\",],},},\n}").unwrap();
+    let mut registry = mct_core::LanguageRegistry::new();
+    registry.register(Arc::new(JsTsParser));
+    let mut index = Index::open_in_memory(&root, mct_index::ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+    let import = |index: &Index| {
+        index
+            .find_references("value")
+            .unwrap()
+            .into_iter()
+            .find(|hit| {
+                hit.kind == "imports" && hit.relative_path == "app.ts" && hit.candidates.len() == 2
+            })
+    };
+    assert!(
+        import(&index).is_some(),
+        "both existing targets must stay candidates"
+    );
+    std::fs::write(
+        &config,
+        r#"{"compilerOptions":{"paths":{"@/*":["first/*"]}}}"#,
+    )
+    .unwrap();
+    index
+        .reindex_paths(&registry, &["tsconfig.json".into()])
+        .unwrap();
+    assert_eq!(
+        import_target(&index, "value", "app.ts").as_deref(),
+        Some("first/value.ts")
+    );
+    std::fs::remove_file(&config).unwrap();
+    index
+        .reindex_paths(&registry, &["tsconfig.json".into()])
+        .unwrap();
+    assert_eq!(import_target(&index, "value", "app.ts"), None);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Indexes `files` (path, contents) in a fresh temporary directory.
+fn index_files(
+    name: &str,
+    files: &[(&str, &str)],
+) -> (std::path::PathBuf, Index, mct_core::LanguageRegistry) {
+    let root = std::env::temp_dir().join(format!("mct-ts-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    for (path, contents) in files {
+        let file = root.join(path);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, contents).unwrap();
+    }
+    let mut registry = mct_core::LanguageRegistry::new();
+    registry.register(Arc::new(JsTsParser));
+    let mut index = Index::open_in_memory(&root, mct_index::ExcludeSet::default()).unwrap();
+    index.reindex(&registry, false).unwrap();
+    (root, index, registry)
+}
+
+#[test]
+fn an_extended_config_supplies_paths_relative_to_itself() {
+    let (root, mut index, registry) = index_files(
+        "extends",
+        &[
+            (
+                "tsconfig.json",
+                r#"{"compilerOptions":{"paths":{"@/*":["src/*"]}}}"#,
+            ),
+            (
+                "web/tsconfig.json",
+                r#"{"extends":"../tsconfig","compilerOptions":{"strict":true}}"#,
+            ),
+            ("web/app.ts", "import { value } from '@/value';\n"),
+            ("src/value.ts", "export function value() {}\n"),
+            ("lib/value.ts", "export function value() {}\n"),
+        ],
+    );
+    assert_eq!(
+        import_target(&index, "value", "web/app.ts").as_deref(),
+        Some("src/value.ts"),
+        "the inherited `paths` resolve from the base config's directory"
+    );
+    // Only the base changes: the extending config must follow it.
+    std::fs::write(
+        root.join("tsconfig.json"),
+        r#"{"compilerOptions":{"paths":{"@/*":["lib/*"]}}}"#,
+    )
+    .unwrap();
+    index
+        .reindex_paths(&registry, &["tsconfig.json".into()])
+        .unwrap();
+    assert_eq!(
+        import_target(&index, "value", "web/app.ts").as_deref(),
+        Some("lib/value.ts")
+    );
+    std::fs::remove_file(root.join("tsconfig.json")).unwrap();
+    index
+        .reindex_paths(&registry, &["tsconfig.json".into()])
+        .unwrap();
+    assert_eq!(import_target(&index, "value", "web/app.ts"), None);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn own_paths_override_inherited_ones_and_cycles_or_packages_give_none() {
+    let (root, index, _registry) = index_files(
+        "override",
+        &[
+            (
+                "tsconfig.json",
+                r#"{"compilerOptions":{"paths":{"@/*":["src/*"]}}}"#,
+            ),
+            (
+                "web/tsconfig.json",
+                r#"{"extends":["@tsconfig/node18/tsconfig.json","../tsconfig.json"],"compilerOptions":{"paths":{"@/*":["own/*"]}}}"#,
+            ),
+            ("web/app.ts", "import { value } from '@/value';\n"),
+            ("web/own/value.ts", "export function value() {}\n"),
+            ("src/value.ts", "export function value() {}\n"),
+            ("a/tsconfig.json", r#"{"extends":"../b/tsconfig.json"}"#),
+            ("b/tsconfig.json", r#"{"extends":"../a/tsconfig.json"}"#),
+            ("a/main.ts", "import { value } from '@/value';\n"),
+        ],
+    );
+    assert_eq!(
+        import_target(&index, "value", "web/app.ts").as_deref(),
+        Some("web/own/value.ts")
+    );
+    assert_eq!(
+        import_target(&index, "value", "a/main.ts"),
+        None,
+        "an `extends` cycle declares no paths"
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn indexing_status_lists_each_alias_source_and_an_unreadable_one_resolves_nothing() {
+    let (root, index, _registry) = index_files(
+        "status",
+        &[
+            (
+                "tsconfig.json",
+                r#"{"compilerOptions":{"paths":{"@/*":["src/*"]}}}"#,
+            ),
+            ("web/tsconfig.json", r#"{"compilerOptions": {"paths": "#),
+            ("web/app.ts", "import { value } from '@/value';\n"),
+            ("main.ts", "import { value } from '@/value';\n"),
+            ("src/value.ts", "export function value() {}\n"),
+        ],
+    );
+    let sources: Vec<(String, usize, bool)> = index
+        .status()
+        .unwrap()
+        .alias_sources
+        .into_iter()
+        .map(|source| (source.manifest_path, source.aliases, source.error.is_some()))
+        .collect();
+    assert_eq!(
+        sources,
+        [
+            ("tsconfig.json".to_string(), 1, false),
+            ("web/tsconfig.json".to_string(), 0, true)
+        ]
+    );
+    assert_eq!(
+        import_target(&index, "value", "main.ts").as_deref(),
+        Some("src/value.ts")
+    );
+    assert_eq!(
+        import_target(&index, "value", "web/app.ts"),
+        None,
+        "the outer config must not resolve under an unreadable nearer one"
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn relative_imports_resolve_to_the_target_files_module() {
     let index = open_indexed();
     assert_eq!(
