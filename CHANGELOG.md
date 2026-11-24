@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Duplicate groups can be reviewed per member (file): each member resolves its own decision or takes its group's, whichever is later. `find_duplicate_code` and `mct duplicates --reviewed` hide a group only when every member is hidden, and `find_duplicate_code` reports `reviewed_members` and each member's state. `review-decisions.toon` becomes version 4 only once it holds a member decision (#263, ADR-049).
 - `mct-cli skills-register` installs the bundled `mct-*` skills for each detected coding agent (Claude Code, Codex, Cursor, Copilot, OpenCode), or for those named with `--agent`; `--dry-run` shows the plan and modified templates are kept unless `--force`. `mcp-register --agent` writes each agent's MCP configuration, and the MCP server now offers the skills as prompts (#560).
 
 - Dashboard: the Duplicates page can search for repeated blocks inside functions, the search of `mct-cli duplicates --partial-blocks`. It runs when you ask for it, in the background, and lists each block with its file, line range and function; a location opens the file at those lines. The panel says when the list is partial because a budget ran out or because the index is incomplete.
