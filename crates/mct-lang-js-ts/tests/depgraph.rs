@@ -415,3 +415,77 @@ fn a_destructured_require_of_a_workspace_package_resolves_inside_that_package() 
     );
     std::fs::remove_dir_all(root).unwrap();
 }
+
+/// Issue #563: the `@` alias of a Vite config resolves `@/…` imports for
+/// files under the config's directory. A tsconfig mapping the same `@/*`
+/// pattern wins over it; removing that mapping brings the Vite one back,
+/// and removing the alias drops it.
+#[test]
+fn a_vite_at_alias_resolves_and_a_tsconfig_mapping_wins() {
+    let (root, mut index, registry) = index_files(
+        "vite-alias",
+        &[
+            (
+                "web/vite.config.ts",
+                "import path from 'node:path';\nexport default { resolve: { alias: { '@': path.resolve(__dirname, './src') } } };\n",
+            ),
+            ("web/src/lib/format.ts", "export function format() {}\n"),
+            ("web/other/lib/format.ts", "export function format() {}\n"),
+            ("web/src/main.ts", "import { format } from '@/lib/format';\nformat();\n"),
+            ("api/main.ts", "import { format } from '@/lib/format';\n"),
+        ],
+    );
+    assert_eq!(
+        import_target(&index, "format", "web/src/main.ts").as_deref(),
+        Some("web/src/lib/format.ts")
+    );
+    assert_eq!(import_target(&index, "format", "api/main.ts"), None);
+
+    let write = |path: &str, text: &str| std::fs::write(root.join(path), text).unwrap();
+    write(
+        "web/tsconfig.json",
+        r#"{"compilerOptions":{"paths":{"@/*":["other/*"]}}}"#,
+    );
+    index
+        .reindex_paths(&registry, &["web/tsconfig.json".into()])
+        .unwrap();
+    assert_eq!(
+        import_target(&index, "format", "web/src/main.ts").as_deref(),
+        Some("web/other/lib/format.ts")
+    );
+    write("web/tsconfig.json", r#"{"compilerOptions":{}}"#);
+    index
+        .reindex_paths(&registry, &["web/tsconfig.json".into()])
+        .unwrap();
+    assert_eq!(
+        import_target(&index, "format", "web/src/main.ts").as_deref(),
+        Some("web/src/lib/format.ts")
+    );
+    write("web/vite.config.ts", "export default {};\n");
+    index
+        .reindex_paths(&registry, &["web/vite.config.ts".into()])
+        .unwrap();
+    assert_eq!(import_target(&index, "format", "web/src/main.ts"), None);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// The same `resolve.alias` in a `webpack.config.js` resolves `@/…` too.
+#[test]
+fn a_webpack_at_alias_resolves() {
+    let (root, index, _registry) = index_files(
+        "webpack-alias",
+        &[
+            (
+                "webpack.config.js",
+                "const path = require('path');\nmodule.exports = { resolve: { alias: { '@': path.resolve(__dirname, 'src') } } };\n",
+            ),
+            ("src/lib/format.ts", "export function format() {}\n"),
+            ("src/main.ts", "import { format } from '@/lib/format';\n"),
+        ],
+    );
+    assert_eq!(
+        import_target(&index, "format", "src/main.ts").as_deref(),
+        Some("src/lib/format.ts")
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}

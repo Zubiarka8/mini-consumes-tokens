@@ -21,8 +21,8 @@ Proposed (2026-11-21). Issue: [#563](https://github.com/Zubiarka8/mini-consumes-
 - Any other pattern (`const x = require(…)`, a computed argument) binds nothing, as before.
 
 ## Not done
-- `exports`/`main` entry points of the package. Any file in the package counts, so a name defined twice inside the package stays ambiguous. Narrowing to the entry file needs re-exports (`export * from './button'`) followed first, or it would unresolve bindings that resolve today.
-- Vite/webpack `resolve.alias` and HTML import maps. An alias would join the nearest-config rule of `ts_configs`; how it combines with a `tsconfig.json` in the same directory needs a decision first.
+- `exports`/`main` entry points of the package. Any file in the package counts, so a name defined twice inside the package stays ambiguous. Narrowing to the entry file needs re-exports (`export * from './button'`) followed first, or it would unresolve bindings that resolve today. Left out by maintainer's choice of 2026-11-21.
+- Vite and webpack `@` aliases: done in [ADR-050](050-vite-at-alias.md). HTML import maps are not.
 - Dynamic `import('@acme/ui')` bindings (`const { x } = await import(…)`).
 
 ## Verification
