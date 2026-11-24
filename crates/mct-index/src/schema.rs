@@ -1579,6 +1579,166 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
+        // A root-relative web URL resolves under the web root its app's
+        // framework declares, not always `public/` (#567, ADR-044).
+        M::up(concat!(
+            r#"
+            ALTER TABLE relations ADD COLUMN web_app TEXT;
+            CREATE TABLE web_roots (
+                manifest_path TEXT PRIMARY KEY,
+                directory TEXT NOT NULL,
+                root TEXT NOT NULL
+            );
+            CREATE INDEX idx_web_roots_directory ON web_roots(directory);
+            UPDATE files SET content_hash = '' WHERE language IN ('html', 'css');
+            DROP VIEW relation_candidates;
+            "#,
+            r#"CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                    UNION ALL
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                    UNION ALL
+                    SELECT symbol_id FROM ts_alias_candidates
+                    WHERE relation_id = r.id AND substr(r.module, 1, 2) = '@/'
+                )
+                CROSS JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND ((substr(r.module, 1, 2) = '@/'
+                        AND s.id IN (SELECT symbol_id FROM ts_alias_candidates
+                                     WHERE relation_id = r.id))
+                  OR (r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<'
+                       OR (EXISTS (SELECT 1 FROM relations sr
+                                       WHERE sr.to_name = s.parent
+                                         AND sr.kind IN ('extends', 'implements'))
+                           AND NOT EXISTS (SELECT 1 FROM symbols own
+                                           JOIN files ownf ON ownf.id = own.file_id
+                                           WHERE own.name = r.to_name
+                                             AND own.parent = r.qualifier
+                                             AND ownf.language = sf.language)
+                           AND s.parent IN (
+                           WITH RECURSIVE ancestors(name, depth) AS (
+                               SELECT r.qualifier, 0
+                               UNION
+                               SELECT ir.to_name, a.depth + 1
+                               FROM ancestors a
+                               JOIN symbols t ON t.name = a.name
+                               JOIN files tf ON tf.id = t.file_id
+                                            AND tf.language = sf.language
+                               JOIN relations ir ON ir.from_symbol_id = t.id
+                                                AND ir.kind IN ('extends', 'implements')
+                               WHERE a.depth < 8
+                           )
+                           SELECT a.name FROM ancestors a
+                           WHERE a.depth > 0
+                             AND NOT EXISTS (SELECT 1 FROM ancestors b
+                                             JOIN symbols own ON own.parent = b.name
+                                                             AND own.name = r.to_name
+                                             JOIN files ownf ON ownf.id = own.file_id
+                                                            AND ownf.language = sf.language
+                                             WHERE b.depth < a.depth))))
+                  AND (r.target_path IS NULL
+                       OR sf.relative_path = CASE
+                           WHEN r.web_app IS NULL THEN r.target_path
+                           ELSE COALESCE(
+                               (SELECT CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || w.root || '/'
+                                FROM (SELECT wr.root, 2 AS rank FROM web_roots wr
+                                      WHERE wr.directory = r.web_app
+                                      UNION ALL
+                                      SELECT 'static', 1 FROM files cfg
+                                      WHERE cfg.relative_path IN (
+                                          CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || 'svelte.config.js',
+                                          CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || 'svelte.config.ts',
+                                          CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || 'svelte.config.mjs',
+                                          CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || 'svelte.config.cjs')) w
+                                ORDER BY w.rank DESC LIMIT 1)
+                               || substr(r.target_path, length(CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END) + 8),
+                               r.target_path)
+                       END)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR EXISTS (SELECT 1 FROM symbols pt
+                                  WHERE pt.file_id = s.file_id AND pt.name = s.parent
+                                    AND pt.parent = r.module)
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0
+                       OR (cf.language = 'rust' AND EXISTS (
+                           SELECT 1 FROM cargo_packages cp
+                           WHERE cp.crate_name = r.module
+                             AND (cp.directory = '' OR substr(sf.relative_path, 1, length(cp.directory) + 1) = cp.directory || '/')
+                             AND NOT EXISTS (SELECT 1 FROM cargo_packages nested
+                                 WHERE length(nested.directory) > length(cp.directory)
+                                   AND (cp.directory = '' OR substr(nested.directory, 1, length(cp.directory) + 1) = cp.directory || '/')
+                                   AND substr(sf.relative_path, 1, length(nested.directory) + 1) = nested.directory || '/')
+                       )))
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.not_field = 0 OR s.kind <> 'field')
+                  AND (r.top_level = 0 OR s.kind NOT IN ('method', 'field'))
+                  AND (s.file_scoped = 0 OR sf.id = cf.id)
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module)))
+                       OR (s.parent IS NOT r.qualifier
+                           AND EXISTS (SELECT 1 FROM symbols qt
+                                       JOIN symbols m ON m.file_id = qt.file_id
+                                                     AND m.kind = 'module'
+                                       WHERE qt.name = r.qualifier
+                                         AND qt.parent IS NULL
+                                         AND (m.name = r.target_module
+                                              OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                         WHERE a.symbol_id = m.id
+                                                           AND a.alias = r.target_module)))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module')
+                  AND NOT (r.kind IN ('extends', 'implements')
+                           AND sf.language IN ('csharp', 'cpp')
+                           AND s.kind IN ('method', 'function', 'field', 'variable', 'constant'))
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'variable'
+                       OR s.parent IS NULL
+                       OR NOT EXISTS (SELECT 1 FROM symbols p
+                                      WHERE p.file_id = s.file_id AND p.name = s.parent
+                                        AND p.kind IN ('function', 'method'))
+                       OR EXISTS (SELECT 1 FROM symbols p
+                                  WHERE p.file_id = s.file_id AND p.name = s.parent
+                                    AND p.kind NOT IN ('function', 'method', 'variable',
+                                                       'constant', 'field')))
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'function'
+                       OR s.end_line IS NULL
+                       OR NOT EXISTS (
+                           SELECT 1 FROM symbols p
+                           WHERE p.file_id = s.file_id
+                             AND p.id <> s.id
+                             AND p.kind IN ('function', 'method')
+                             AND (p.line < s.line
+                                  OR (p.line = s.line AND p.column < s.column))
+                             AND (p.end_line > s.end_line
+                                  OR (p.line = s.line AND p.end_line = s.line
+                                      AND s.end_line = s.line
+                                      AND p.column + p.byte_len >= s.column + s.byte_len))))))
+                  "#,
+            shadowed_module_predicate!(),
+            ";",
+        )),
     ])
 }
 
