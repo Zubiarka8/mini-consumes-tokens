@@ -2110,6 +2110,11 @@ impl MctServer {
         // A quoted query is an exact phrase: lexical only, whatever `alpha`.
         let (alpha, alpha_source) = match alpha.filter(|a| a.is_finite()) {
             _ if mct_index::exact_phrase(query).is_some() => (0.0, " (exact phrase)".to_string()),
+            _ if scope.language.is_none_or(|lang| lang == "php")
+                && mct_index::is_php_qualified_query(query) =>
+            {
+                (0.0, " (PHP qualified name)".to_string())
+            }
             Some(alpha) => (alpha.clamp(0.0, 1.0), String::new()),
             None => {
                 let intent = mct_index::classify_query(query);

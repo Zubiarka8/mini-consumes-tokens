@@ -143,11 +143,11 @@ fn methods_group_across_files_despite_names_literals_and_comments() {
 fn methods_and_bound_closures_are_matched_not_skipped() {
     let project = Project::new(&[(
         "src/shop.php",
-        "<?php\nnamespace Shop;\n#[Pure]\nfunction helper(int $x): int { return $x * 2; }\nabstract class Cart {\n    public function __construct(private int $n) {}\n    #[\\Override]\n    public function total(): int { return $this->n; }\n    abstract protected function f();\n}\ninterface I { public function g(): void; }\ntrait T {\n    public function h() {\n        $inner = fn($y) => $y + 1;\n        return $inner(2);\n    }\n}\n$cb = function (int $x) use ($y) {\n    return $x * 2;\n};\n$ar = fn($x) => $x + 1;\n$obj->prop = function () {};\narray_map(function ($z) { return $z; }, []);\n",
+        "<?php\nnamespace Shop;\n#[Pure]\nfunction helper(int $x): int { return $x * 2; }\nabstract class Cart {\n    public int $count { get => $this->n; }\n    public function __construct(private int $n) {}\n    #[\\Override]\n    public function total(): int { return $this->n; }\n    abstract protected function f();\n}\ninterface I { public function g(): void; }\ntrait T {\n    public function h() {\n        $inner = fn($y) => $y + 1;\n        return $inner(2);\n    }\n}\n$cb = function (int $x) use ($y) {\n    return $x * 2;\n};\n$ar = fn($x) => $x + 1;\n$obj->prop = function () {};\narray_map(function ($z) { return $z; }, []);\n",
     )]);
     let report = project.report();
     assert!(report.skipped.is_empty(), "{:?}", report.skipped);
     // `helper`, `__construct`, `total`, `f`, `g`, `h`, `inner`, `cb` and
-    // `ar`; the closure in a property and the unnamed one are no symbols.
-    assert_eq!(report.candidates_analyzed, 9);
+    // `ar`, plus the `$count::get` hook; the closure in a property and the unnamed one are no symbols.
+    assert_eq!(report.candidates_analyzed, 10);
 }

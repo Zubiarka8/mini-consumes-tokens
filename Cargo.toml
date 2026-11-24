@@ -28,8 +28,8 @@ members = [
     "crates/mct-tree-sitter",
     "crates/mct-obsidian",
 ]
-# A patched dependency, not a member: see [patch.crates-io] below.
-exclude = ["vendor/tree-sitter-md"]
+# Vendored grammars are dependencies, not workspace members.
+exclude = ["vendor/tree-sitter-md", "vendor/tree-sitter-php"]
 
 [workspace.package]
 version = "0.3.2"

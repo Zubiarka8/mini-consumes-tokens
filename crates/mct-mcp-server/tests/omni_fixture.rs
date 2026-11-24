@@ -74,7 +74,7 @@ const EXPECTED_COVERAGE: &[(&str, usize, usize)] = &[
     ("kotlin", 2, 9),
     ("lua", 1, 3),
     ("markdown", 2, 6),
-    ("php", 2, 7),
+    ("php", 2, 12),
     ("powershell", 2, 5),
     ("python", 2, 7),
     ("rust", 4, 21),

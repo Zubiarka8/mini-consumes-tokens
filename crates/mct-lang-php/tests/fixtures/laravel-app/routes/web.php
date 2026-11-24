@@ -16,3 +16,14 @@ Route::controller(ReportController::class)->group(function () {
     Route::get('/reports', 'index');
 });
 Route::get('/legacy', 'LegacyController@index');
+
+Route::name('billing.')->group(function () {
+    Route::get('/export', 'App\Http\Controllers\OrderController@show')
+        ->middleware(['billing-scope:export'])
+        ->name('export');
+});
+
+function register_billing_routes(\Illuminate\Routing\Router $router): void
+{
+    $router->get('/receipt', [OrderController::class, 'show'])->name('billing.receipt');
+}

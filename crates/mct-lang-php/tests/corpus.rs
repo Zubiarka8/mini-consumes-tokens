@@ -183,7 +183,7 @@ fn attributes_reference_their_attribute_class() {
 
 #[test]
 fn calls_through_every_expression_shape_are_extracted() {
-    use RelationKind::Calls;
+    use RelationKind::{Calls, References};
     let c = corpus();
     // `$obj->f()`, `Class::f()`, `parent::f()`, `f()`.
     c.relation("Services.php", "borrow", Calls, "byEmail");
@@ -200,8 +200,8 @@ fn calls_through_every_expression_shape_are_extracted() {
     c.relation("Services.php", "__construct", Calls, "SystemClock");
     c.relation("console.php", "bootstrap", Calls, "JsonFileStore");
     // First-class callables (`$this->inventory(...)`).
-    c.relation("Reports.php", "build", Calls, "inventory");
-    c.relation("Reports.php", "format", Calls, "cell");
+    c.relation("Reports.php", "build", References, "inventory");
+    c.relation("Reports.php", "format", References, "cell");
     // `new self`/`new static` name no class.
     assert!(!c.has_relation("of", Calls, "static"));
     assert!(!c.has_relation("parse", Calls, "self"));

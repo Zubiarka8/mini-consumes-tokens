@@ -38,7 +38,7 @@ pub(crate) enum ImportKind {
     Constant,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Scope {
     namespace: String,
     classes: HashMap<String, String>,

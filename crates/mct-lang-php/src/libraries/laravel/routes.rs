@@ -6,7 +6,7 @@ use mct_core::{Location, RelationKind, RelationTarget, SymbolId};
 use mct_tree_sitter::location;
 use tree_sitter::Node;
 
-use super::is_identifier;
+use super::{is_identifier, keys::KeyKind};
 use crate::names::{namespace_alias, ResolvedName};
 use crate::{last_segment, literal_string_text, named_children, text, Walker};
 
@@ -51,14 +51,64 @@ impl Walker<'_> {
         };
         let method = text(name, self.source);
         let args = argument_values(node);
-        if self.is_facade(scope, "View") && method == "make" {
+        self.laravel_morph_map(scope, method, &args, owner);
+        if self.is_facade(scope, "View") && matches!(method, "make" | "first" | "composer") {
             if let Some(view) = args.first() {
-                self.push_view_reference(owner, *view, location(node));
+                if method == "make" {
+                    self.push_view_reference(owner, *view, location(node));
+                } else {
+                    self.laravel_view_candidates(owner, *view);
+                }
             }
             return;
         }
-        if !self.is_facade(scope, "Route") {
+        if let Some(argument) = args.first() {
+            match method {
+                "create" if self.is_facade(scope, "Schema") => {
+                    self.laravel_schema_table(*argument);
+                }
+                "command" if self.is_facade(scope, "Artisan") => {
+                    self.laravel_command(*argument, None);
+                }
+                "command" if self.is_facade(scope, "Schedule") => {
+                    self.laravel_command(*argument, Some(owner));
+                }
+                "call" | "callSilent" | "queue" if self.is_facade(scope, "Artisan") => {
+                    self.laravel_command(*argument, Some(owner));
+                }
+                _ => {}
+            }
+        }
+        if self.laravel_service_registration(scope, method, &args, owner) {
             return;
+        }
+        let key = match method {
+            "get" if self.is_facade(scope, "Config") => Some(KeyKind::Config),
+            "get" | "choice" if self.is_facade(scope, "Lang") => Some(KeyKind::Translation),
+            "route" if self.is_facade(scope, "URL") || self.is_facade(scope, "Redirect") => {
+                Some(KeyKind::Route)
+            }
+            _ => None,
+        };
+        if let Some(key) = key {
+            if let Some(argument) = args.first() {
+                self.laravel_literal_key(owner, key, *argument);
+            }
+            return;
+        }
+        if self.is_facade(scope, "Route") {
+            self.laravel_route_call(node, method, owner, &args);
+        }
+    }
+
+    fn laravel_route_call(&mut self, node: Node, method: &str, owner: SymbolId, args: &[Node]) {
+        if matches!(
+            method,
+            "view" | "redirect" | "permanentRedirect" | "match" | "fallback"
+        ) || VERBS.contains(&method)
+        {
+            self.laravel_route_name(node);
+            self.laravel_route_middleware(node, owner);
         }
         match method {
             "view" => {
@@ -66,26 +116,118 @@ impl Walker<'_> {
                     self.push_view_reference(owner, *view, location(node));
                 }
             }
+            "middleware" => self.laravel_middleware_arguments(node, owner),
             "match" => self.route_action(owner, args.get(2).copied()),
             "fallback" => self.route_action(owner, args.first().copied()),
-            "resource" => self.resource_routes(node, owner, &args, RESOURCE_METHODS, &[]),
-            "apiResource" => self.resource_routes(node, owner, &args, API_RESOURCE_METHODS, &[]),
+            "resource" => self.resource_routes(node, owner, args, RESOURCE_METHODS, &[]),
+            "apiResource" => self.resource_routes(node, owner, args, API_RESOURCE_METHODS, &[]),
             "singleton" => {
-                self.resource_routes(node, owner, &args, SINGLETON_METHODS, SINGLETON_CREATABLE)
+                self.resource_routes(node, owner, args, SINGLETON_METHODS, SINGLETON_CREATABLE)
             }
             "apiSingleton" => self.resource_routes(
                 node,
                 owner,
-                &args,
+                args,
                 API_SINGLETON_METHODS,
                 API_SINGLETON_CREATABLE,
             ),
             "resources" | "softDeletableResources" => {
-                self.resource_map(owner, &args, RESOURCE_METHODS, node)
+                self.resource_map(owner, args, RESOURCE_METHODS, node)
             }
-            "apiResources" => self.resource_map(owner, &args, API_RESOURCE_METHODS, node),
+            "apiResources" => self.resource_map(owner, args, API_RESOURCE_METHODS, node),
             m if VERBS.contains(&m) => self.route_action(owner, args.get(1).copied()),
             _ => {}
+        }
+    }
+
+    fn laravel_route_name(&mut self, route: Node) {
+        let mut name = String::new();
+        let mut loc = None;
+        for call in route_modifiers(route) {
+            if method_name(call, self.source) == Some("name") {
+                let Some(argument) = argument_values(call).first().copied() else {
+                    return;
+                };
+                let Some(part) = literal_string_text(argument, self.source) else {
+                    return;
+                };
+                name.push_str(&part);
+                loc = Some(location(argument));
+            }
+        }
+        let Some(loc) = loc else { return };
+        let mut prefixes = Vec::new();
+        let mut ancestor = route.parent();
+        while let Some(node) = ancestor {
+            if method_name(node, self.source) == Some("group")
+                && matches!(
+                    node.kind(),
+                    "scoped_call_expression" | "member_call_expression"
+                )
+            {
+                let Some(prefix) = self.route_group_prefix(node) else {
+                    return;
+                };
+                prefixes.push(prefix);
+            }
+            ancestor = node.parent();
+        }
+        let full_name: String = prefixes.into_iter().rev().chain([name]).collect();
+        self.laravel_key_declaration(KeyKind::Route, full_name, loc);
+    }
+
+    fn route_group_prefix(&self, mut call: Node) -> Option<String> {
+        // RouteRegistrar keeps the last name/as value for each group.
+        let arguments = argument_values(call);
+        let [body] = arguments.as_slice() else {
+            return None;
+        };
+        if !matches!(body.kind(), "anonymous_function" | "arrow_function") {
+            return None;
+        }
+        let mut prefix = None;
+        loop {
+            if prefix.is_none() && matches!(method_name(call, self.source), Some("name" | "as")) {
+                let argument = argument_values(call).first().copied()?;
+                prefix = Some(literal_string_text(argument, self.source)?);
+            }
+            match call.kind() {
+                "member_call_expression" => call = call.child_by_field_name("object")?,
+                "scoped_call_expression" => {
+                    return self
+                        .is_facade(call.child_by_field_name("scope")?, "Route")
+                        .then(|| prefix.unwrap_or_default());
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    fn laravel_route_middleware(&mut self, route: Node, owner: SymbolId) {
+        for call in route_modifiers(route) {
+            if method_name(call, self.source) == Some("middleware") {
+                self.laravel_middleware_arguments(call, owner);
+            }
+        }
+    }
+
+    fn laravel_middleware_arguments(&mut self, call: Node, owner: SymbolId) {
+        for argument in argument_values(call) {
+            let items = if argument.kind() == "array_creation_expression" {
+                named_children(argument)
+                    .into_iter()
+                    .filter(|item| item.named_child_count() == 1)
+                    .filter_map(|item| item.named_child(0))
+                    .collect()
+            } else {
+                vec![argument]
+            };
+            for item in items {
+                if let Some(value) = literal_string_text(item, self.source) {
+                    let name = value.split(':').next().unwrap_or(&value);
+                    self.laravel_key_reference(owner, KeyKind::Middleware, name, location(item));
+                }
+            }
         }
     }
 
@@ -95,6 +237,19 @@ impl Walker<'_> {
         let Some(name) = node.child_by_field_name("name") else {
             return;
         };
+        if node
+            .child_by_field_name("object")
+            .filter(|receiver| receiver.kind() == "variable_name")
+            .and_then(|receiver| self.locals.get(text(receiver, self.source)))
+            .and_then(|name| self.scope.resolve_class(name))
+            .is_some_and(|class| class.namespace == r"Illuminate\Routing" && class.name == "Router")
+        {
+            self.laravel_route_call(node, text(name, self.source), owner, &argument_values(node));
+        }
+        self.laravel_provider_binding(node, text(name, self.source));
+        if text(name, self.source) == "alias" {
+            self.laravel_middleware_aliases(node);
+        }
         if text(name, self.source) != "withRouting" {
             return;
         }
@@ -160,7 +315,7 @@ impl Walker<'_> {
     }
 
     /// `Name::class` -> the class it names.
-    fn class_constant(&self, node: Node) -> Option<ResolvedName> {
+    pub(super) fn class_constant(&self, node: Node) -> Option<ResolvedName> {
         if node.kind() != "class_constant_access_expression" {
             return None;
         }
@@ -188,8 +343,8 @@ impl Walker<'_> {
     /// A route's action: `[Controller::class, 'method']`, an invokable
     /// `Controller::class`, or a bare method name inside a
     /// `Route::controller(...)->group(...)`. A closure's body is walked like
-    /// any other code; `'Controller@method'` strings need the controller
-    /// namespace configured at run time, so they stay unrecorded.
+    /// any other code. Fully qualified `'Namespace\Controller@method'`
+    /// strings are also explicit enough to resolve.
     fn route_action(&mut self, owner: SymbolId, action: Option<Node>) {
         let Some(action) = action else { return };
         match action.kind() {
@@ -217,14 +372,25 @@ impl Walker<'_> {
                     self.call_into(owner, &class, "__invoke", location(action));
                 }
             }
-            "string" => {
-                let Some(controller) = self.route_controllers.last().cloned() else {
+            "string" | "encapsed_string" => {
+                let Some(value) = literal_string_text(action, self.source) else {
                     return;
                 };
-                if let Some(name) =
-                    literal_string_text(action, self.source).filter(|name| is_identifier(name))
-                {
-                    self.call_into(owner, &controller, &name, location(action));
+                if let Some((class, method)) = value.split_once('@') {
+                    let full = class.strip_prefix('\\').unwrap_or(class);
+                    if let Some((namespace, name)) = full.rsplit_once('\\') {
+                        if full.split('\\').all(is_identifier) && is_identifier(method) {
+                            let controller = ResolvedName {
+                                namespace: namespace.to_string(),
+                                name: name.to_string(),
+                            };
+                            self.call_into(owner, &controller, method, location(action));
+                        }
+                    }
+                } else if is_identifier(&value) {
+                    if let Some(controller) = self.route_controllers.last().cloned() {
+                        self.call_into(owner, &controller, &value, location(action));
+                    }
                 }
             }
             _ => {}
@@ -355,7 +521,7 @@ fn argument_value(argument: Node) -> Option<Node> {
     argument.named_child(argument.named_child_count().checked_sub(1)?)
 }
 
-fn argument_values(call: Node) -> Vec<Node> {
+pub(super) fn argument_values(call: Node) -> Vec<Node> {
     call.child_by_field_name("arguments")
         .map(|arguments| {
             named_children(arguments)
@@ -364,4 +530,22 @@ fn argument_values(call: Node) -> Vec<Node> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn method_name<'a>(call: Node, source: &'a str) -> Option<&'a str> {
+    call.child_by_field_name("name").map(|n| text(n, source))
+}
+
+fn route_modifiers(route: Node<'_>) -> impl Iterator<Item = Node<'_>> {
+    let mut receiver = route;
+    std::iter::from_fn(move || {
+        let call = receiver.parent()?;
+        if call.kind() != "member_call_expression"
+            || call.child_by_field_name("object") != Some(receiver)
+        {
+            return None;
+        }
+        receiver = call;
+        Some(call)
+    })
 }

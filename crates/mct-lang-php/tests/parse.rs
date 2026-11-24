@@ -49,6 +49,53 @@ fn constructor_property_promotion_is_indexed_as_a_field() {
 }
 
 #[test]
+fn indexes_named_function_bindings_once_per_scope() {
+    let parsed = parse(
+        r"<?php
+        function exportOrders(string $format, string ...$columns) {
+            $result = [];
+            $result = [1];
+            $alias =& $result;
+            try {} catch (Exception $failure) {}
+            static $count = 0;
+            global $shared;
+            $shared = 1;
+            $_GET = [];
+            $callback = function () { $hidden = 1; };
+        }
+        class Printer {
+            public function printOrders() { $result = []; }
+        }
+        $result = [];
+        ",
+    );
+    let variables: Vec<_> = parsed
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.kind == SymbolKind::Variable)
+        .map(|symbol| (symbol.name.as_str(), symbol.parent.as_deref()))
+        .collect();
+    assert_eq!(
+        variables,
+        [
+            ("$format", Some("exportOrders")),
+            ("$columns", Some("exportOrders")),
+            ("$result", Some("exportOrders")),
+            ("$alias", Some("exportOrders")),
+            ("$failure", Some("exportOrders")),
+            ("$count", Some("exportOrders")),
+            ("$hidden", Some("callback")),
+            ("$result", Some("printOrders")),
+            ("result", None),
+        ]
+    );
+    assert_eq!(
+        mct_corpus::parsed_symbol(&parsed, "callback").kind,
+        SymbolKind::Function
+    );
+}
+
+#[test]
 fn trait_use_is_recorded_as_implements_on_the_class() {
     let parsed = parse(
         "<?php\ntrait Loggable { public function log(string $m): void {} }\nclass Invoice {\n  use Loggable;\n  public function noop(): void {}\n}\n",
@@ -268,6 +315,7 @@ fn module_aliases(parsed: &ParsedFile) -> Vec<&str> {
     parsed
         .symbol_aliases
         .iter()
+        .filter(|a| a.symbol == 0)
         .map(|a| a.name.as_str())
         .collect()
 }
@@ -281,7 +329,15 @@ fn the_module_answers_to_its_namespaces_and_declared_types() {
         aliases.contains(&"User") && aliases.contains(&"Owned"),
         "{aliases:?}"
     );
-    assert!(parsed.symbol_aliases.iter().all(|a| a.symbol == 0));
+    let user = parsed
+        .symbols
+        .iter()
+        .find(|symbol| symbol.name == "User")
+        .unwrap();
+    assert!(parsed
+        .symbol_aliases
+        .iter()
+        .any(|alias| { alias.symbol == user.id && alias.name == r"\app\models\user" }));
 }
 
 #[test]

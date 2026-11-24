@@ -14,7 +14,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use mct_core::LanguageRegistry;
-use mct_index::{ExcludeSet, Index, RelationHit, Resolution};
+use mct_index::{ExcludeSet, Index, QueryScope, RelationHit, Resolution};
 use mct_lang_php::PhpParser;
 
 fn open_indexed() -> Index {
@@ -256,6 +256,60 @@ fn homonymous_models_are_told_apart_by_namespace() {
     );
 }
 
+#[test]
+fn qualified_search_prefers_the_declared_class_over_homonyms() {
+    let index = open_indexed();
+    let expected = Some(("class", "app/Models/Customer.php"));
+    for query in [
+        r"App\Models\Customer",
+        r"\app\MODELS\customer",
+        r"\App\Models\Customer",
+    ] {
+        let lexical = index.search_symbols(query, Default::default()).unwrap();
+        let hybrid = index
+            .hybrid_search(query, None, 0.0, Default::default())
+            .unwrap();
+        assert_eq!(
+            lexical
+                .first()
+                .map(|hit| (hit.kind.as_str(), hit.relative_path.as_str())),
+            expected,
+            "lexical search for {query}"
+        );
+        assert_eq!(
+            hybrid
+                .first()
+                .map(|entry| (entry.hit.kind.as_str(), entry.hit.relative_path.as_str())),
+            expected,
+            "hybrid search for {query}"
+        );
+    }
+}
+
+#[test]
+fn qualified_search_distinguishes_methods_in_two_namespaces_in_one_file() {
+    let index = open_indexed();
+    let billing = index
+        .search_symbols(r"App\Billing\Receipt::export", Default::default())
+        .unwrap();
+    let models = index
+        .hybrid_search(r"App\Models\Receipt::export", None, 1.0, Default::default())
+        .unwrap();
+    assert_eq!(billing.len(), 1, "{billing:?}");
+    assert_eq!(models.len(), 1, "{models:?}");
+    assert_eq!(billing[0].line, 5, "{billing:?}");
+    assert_eq!(models[0].hit.line, 11, "{models:?}");
+
+    let other_path = QueryScope {
+        path: Some("app/Billing"),
+        ..Default::default()
+    };
+    let unrelated = index
+        .search_symbols(r"App\Models\Customer", other_path)
+        .unwrap();
+    assert!(unrelated.is_empty(), "{unrelated:?}");
+}
+
 /// Issue #272: `Order` is both the file module and the class of
 /// `app/Models/Order.php`; a parameter type or `Order::class` names the class.
 #[test]
@@ -356,5 +410,90 @@ fn anonymous_migrations_expose_up_and_down() {
     assert_eq!(
         details.signature.as_deref(),
         Some("public function up(): void")
+    );
+}
+
+#[test]
+fn literal_laravel_keys_resolve_from_routes_and_blade() {
+    let index = open_indexed();
+    let template = "resources/views/orders/index.blade.php";
+    for (key, source, target) in [
+        ("billing.export", template, "routes/web.php"),
+        ("billing-scope", "routes/web.php", "bootstrap/app.php"),
+        ("billing.exports.format", template, "config/billing.php"),
+        ("billing.summary", template, "lang/es/billing.php"),
+    ] {
+        let refs = index.find_references(key).unwrap();
+        assert_eq!(
+            resolved_to(&refs, |hit| hit.relative_path == source),
+            [pair(source, target)],
+            "{key}: {refs:?}"
+        );
+    }
+    for name in ["escaped.blade.route", "verbatim.blade.route"] {
+        assert!(index.find_references(name).unwrap().is_empty(), "{name}");
+    }
+    let refs = index.find_references("Customer").unwrap();
+    assert_eq!(
+        resolved_to(&refs, |hit| hit.relative_path == template),
+        [pair(template, "app/Models/Customer.php")],
+    );
+}
+
+#[test]
+fn qualified_legacy_routes_resolve_without_a_runtime_namespace_guess() {
+    let index = open_indexed();
+    let calls = index.find_callers("show").unwrap();
+    assert!(
+        resolved_to(&calls, |_| true).contains(&pair(
+            "routes/web.php",
+            "app/Http/Controllers/OrderController.php"
+        )),
+        "{calls:?}"
+    );
+}
+
+#[test]
+fn models_commands_and_container_lookups_reach_their_literal_declarations() {
+    let index = open_indexed();
+    for (name, source, target) in [
+        (
+            "orders",
+            "app/Models/Order.php",
+            "database/migrations/2024_01_01_000000_create_orders_table.php",
+        ),
+        ("inspire", "routes/console.php", "routes/console.php"),
+        (
+            "billing.formatter",
+            "app/Http/Controllers/OrderController.php",
+            "app/Providers/AppServiceProvider.php",
+        ),
+    ] {
+        let refs = index.find_references(name).unwrap();
+        assert_eq!(
+            resolved_to(&refs, |hit| hit.relative_path == source),
+            [pair(source, target)],
+            "{name}: {refs:?}"
+        );
+    }
+}
+
+#[test]
+fn a_typed_router_and_a_local_vendor_view_override_are_indexed() {
+    let index = open_indexed();
+    let callers = index.find_callers("show").unwrap();
+    assert!(
+        resolved_to(&callers, |hit| hit.from_symbol == "register_billing_routes").contains(&pair(
+            "routes/web.php",
+            "app/Http/Controllers/OrderController.php"
+        ))
+    );
+    let views = index.find_references("receipt.blade").unwrap();
+    assert_eq!(
+        resolved_to(&views, |hit| hit.kind == "references"),
+        [pair(
+            "resources/views/orders/index.blade.php",
+            "resources/views/vendor/billing/receipt.blade.php"
+        )],
     );
 }

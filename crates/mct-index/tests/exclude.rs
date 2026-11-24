@@ -53,6 +53,12 @@ fn php_composer_vendor_directory_is_excluded() {
     assert!(set.is_excluded("vendor/autoload.php"));
     assert!(set.is_excluded("vendor/monolog/monolog/src/Logger.php"));
     assert!(!set.is_excluded("src/Invoice.php"));
+    assert!(!set.is_excluded("resources/views/vendor"));
+    assert!(!set.is_excluded("apps/shop/resources/views/vendor/billing/show.blade.php"));
+    assert!(set.is_excluded("resources/views/vendor/billing/.env"));
+    assert!(set.is_excluded("vendor/package/resources/views/vendor/billing/show.blade.php"));
+    let custom = ExcludeSet::new(&["resources/views/vendor/**".into()]);
+    assert!(custom.is_excluded("resources/views/vendor/billing/show.blade.php"));
 }
 
 /// `storage/framework` and `bootstrap/cache` are Laravel's generated

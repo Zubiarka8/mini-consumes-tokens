@@ -25,8 +25,8 @@ use rusqlite::Connection;
 
 use crate::queries::{push_scope, symbol_hit, BoundValues, ResolvedScope, SymbolHit};
 use crate::search::{
-    exact_phrase, phrase_tier, qualified_parts, search_phrase, search_symbols_with,
-    split_identifier, LexicalOptions,
+    exact_phrase, phrase_tier, qualified_parts, search_php_qualified, search_phrase,
+    search_symbols_with, split_identifier, LexicalOptions,
 };
 use crate::{IndexError, Result};
 
@@ -823,6 +823,18 @@ pub fn hybrid_search(
     scope: ResolvedScope<'_>,
 ) -> Result<Vec<HybridHit>> {
     let phrase = exact_phrase(query);
+    if let Some(exact) = search_php_qualified(conn, phrase.unwrap_or(query), scope)? {
+        return Ok(exact
+            .into_iter()
+            .enumerate()
+            .map(|(i, hit)| HybridHit {
+                hit,
+                score: 1.0 / (RRF_K + (i + 1) as f64),
+                lexical_rank: Some(i + 1),
+                semantic_rank: None,
+            })
+            .collect());
+    }
     let alpha = if phrase.is_some() || alpha.is_nan() {
         0.0
     } else {
