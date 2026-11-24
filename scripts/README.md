@@ -60,6 +60,12 @@ The CI planner, used by `.github/workflows/ci.yml` and `ci-recovery.yml`. It nee
 | `parse-probe.sh <files…>` | Parses each file with this project's parsers (`mct-cli probe`), nothing indexed: symbol/relation counts, or the first syntax error with its source line. For finding which construct a grammar rejects — one suspect snippet per file, all probed at once. |
 | `install-hooks.sh` | Installs the git hooks under `hooks/` (copied, so they survive checking out older branches; re-run to update, `--uninstall` to remove). Today one: `post-checkout`, which on a branch switch that changes the index schema's migration count rebuilds `.mct-index/index.sqlite3` if it's now newer than the installed binaries (the `CONNECTION_CLOSED` failure) and says how to serve the branch. Silent otherwise; `MCT_SKIP_HOOKS=1` skips it. |
 
+### Reviewing an existing PR
+
+Use `scripts/unix/pr-review.sh <start|status|push|cleanup> <number>` (or `scripts/windows/pr-review.ps1` on Windows) to prepare a detached worktree, inspect its state, push committed changes, or remove a clean published worktree. Use `--worktree <path>` to choose a worktree and `--dry-run` to preview actions. The script requires Git, authenticated `gh`, and Python 3.9 or later. It does not review code, run tests, edit PR descriptions, or merge PRs.
+
+Run `python3 scripts/unix/tests/test_pr_review.py` for tests using disposable repositories.
+
 ### Installer regression
 
 Run `python3 scripts/unix/tests/test_pr_sync.py` to verify `pr-sync.sh` (ledger conflicts keep both sides,
