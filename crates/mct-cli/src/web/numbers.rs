@@ -304,6 +304,7 @@ mod tests {
             content_known: true,
             legacy_key: None,
             draft_identity: String::new(),
+            group: None,
         }
     }
 

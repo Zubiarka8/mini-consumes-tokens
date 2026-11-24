@@ -29,6 +29,7 @@ fn finding(id: &str) -> FindingKeys {
         content_known: true,
         legacy_key: None,
         draft_identity: hex(id),
+        group: None,
     }
 }
 
