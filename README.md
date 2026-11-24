@@ -108,7 +108,7 @@ See [Troubleshooting](docs/INSTALL.md#troubleshooting).
 | [Symbol coverage](docs/02-crates/parsers/symbol-coverage.md) | The symbols and relations each language produces |
 | [Language gaps](docs/02-crates/parsers/language-gaps.md) | Known gaps per language |
 | [Dashboard guide](docs/01-architecture/web-dashboard.md) | Design notes for `mct-cli web` |
-| [Benchmarks](benchmarks/) | Token measurements and how they were taken |
+| [Benchmarks](BENCHMARKS.md) | Reproducible public-repository token measurements and methodology; script: [`benchmarks/public-token-benchmark.py`](benchmarks/public-token-benchmark.py) |
 | [Roadmap](ROADMAP.md) | What is planned |
 | [Changelog](CHANGELOG.md) | What changed in each release, with upgrade steps |
 | [Contributing](CONTRIBUTING.md) | Clone, build, test, open a pull request, add a language |
