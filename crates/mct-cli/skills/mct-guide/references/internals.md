@@ -1,0 +1,11 @@
+# Index and database
+
+MCT walks supported project files, parses source with language-specific tree-sitter parsers, and extracts symbols and relations. A shared language-neutral model and SQLite index let CLI, MCP and dashboard features query the same project data. Non-source inputs such as dependency manifests have separate routing. Parser coverage and resolution are heuristic and vary by language; results are evidence, not proof that code is unused or a call resolves uniquely.
+
+The project index is normally `.mct-index/index.sqlite3` under the selected root. SQLite uses WAL and FTS5; one shared schema contains file, symbol, relation, search and index metadata, with additional tables introduced by migrations. Some relation candidates are computed from stored evidence when read rather than stored as certain edges. The index is derived data; do not assume all other files under `.mct-index` are disposable without checking their purpose.
+
+`init` creates or updates the index, and `reindex` refreshes it. Incremental indexing uses file content hashes to skip unchanged inputs; forced reindex bypasses that check. The MCP server also indexes at startup and can refresh after filesystem changes and periodically reconcile missed events. The watcher may be disabled or unavailable; use status and the running server's options to establish freshness. Multiple processes may share an index, with a maintainer lease coordinating background work. The dashboard has its own serving and refresh behavior.
+
+The index supports location, search, dependency and relationship queries. A context pack can include source retrieved from the project: indexed metadata is not a guarantee that the current file content still matches the indexed version. Surface indexing errors, ignored files, ambiguous results and staleness rather than treating absence as proof. Follow the project rules for accessing or modifying the database; use MCT commands and tools for ordinary inspection.
+
+For authoritative details in an MCT checkout, consult `rules.md`, `docs/07-agents/mcp-tools-reference.md`, `docs/01-architecture/adrs/001-sqlite-storage.md`, `docs/01-architecture/adrs/021-index-writer-and-generations.md`, and `docs/01-architecture/adrs/028-one-maintainer-per-index.md` as relevant. Check current implementation or live help before making version-specific claims.

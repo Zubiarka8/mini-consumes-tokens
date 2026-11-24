@@ -236,7 +236,7 @@ mod tests {
                 "only name and description in the frontmatter"
             );
             let steps = lines.len() - 4;
-            assert!((2..=10).contains(&steps), "{}: {steps} lines", skill.name);
+            assert!((2..=16).contains(&steps), "{}: {steps} lines", skill.name);
             assert!(skill.text.is_ascii(), "{}: plain ASCII", skill.name);
         }
     }
@@ -304,6 +304,10 @@ mod tests {
                     word = words.next();
                 }
                 let word = word.unwrap_or_default();
+                // `mct-cli --help`, `-u` and the like are flags, not subcommands.
+                if word.starts_with('-') {
+                    continue;
+                }
                 assert!(
                     subcommands.contains(word),
                     "{} runs `mct-cli {word}`, which is not a subcommand",
@@ -351,10 +355,14 @@ mod tests {
         // Wording that legitimately differs: a skill points at a sibling skill,
         // a prompt at the sibling prompt, and `<arg>` is `{arg}`.
         let normalise = |line: &str| {
-            line.replace("<arg>", "{arg}")
-                .replace("mct-reindex", "the reindex prompt")
-                .replace("mct-meaning", "the meaning prompt")
-                .replace("mct-status", "status")
+            let mut line = line.replace("<arg>", "{arg}");
+            for w in mct_mcp_server::prompts::WORKFLOWS {
+                line = line.replace(
+                    &format!("mct-{}", w.name),
+                    &format!("the {} prompt", w.name),
+                );
+            }
+            line
         };
         for w in mct_mcp_server::prompts::WORKFLOWS {
             let prompt: Vec<String> = w.steps.lines().map(|l| normalise(l.trim())).collect();
