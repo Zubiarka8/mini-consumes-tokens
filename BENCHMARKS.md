@@ -7,7 +7,7 @@ benchmark uses three public repositories at fixed commits: ripgrep 14.1.1
 (`e42b82b17b3bf2ef5ff1f26328582254d7348278`).
 
 For each named symbol, the script runs `search_symbols_like` and requests
-`build_context_pack`, both scoped to its definition file. Issue #24's
+`build_context_pack`, both scoped to its definition file. The issue's
 `search_symbols + get_symbol_source` workflow has no `get_symbol_source`
 tool; `build_context_pack` is the tool that returns a symbol's definition and
 source, plus its callers, callees and tests. It also runs an exact text search across the repository and
@@ -22,7 +22,7 @@ and these numbers are not a general estimate of an agent's end-to-end savings.
 | Repository | Symbol | MCP TOON | MCP JSON envelope | grep | full matched files | grep + read |
 |---|---|---:|---:|---:|---:|---:|
 | ripgrep | Searcher | 733 | 864 | 7938 | 153786 | 161724 |
-| ripgrep | RegexMatcher | 440 | 550 | 6536 | 105666 | 112202 |
+| ripgrep | RegexMatcher | 465 | 576 | 6536 | 105666 | 112202 |
 | ripgrep | Standard | 452 | 567 | 5811 | 218694 | 224505 |
 | requests | Session | 1683 | 1877 | 2845 | 77007 | 79852 |
 | requests | PreparedRequest | 801 | 936 | 1269 | 80259 | 81528 |
@@ -31,8 +31,11 @@ and these numbers are not a general estimate of an agent's end-to-end savings.
 | preact | createElement | 1232 | 1424 | 7291 | 285164 | 292455 |
 | preact | hydrate | 355 | 460 | 2490 | 72341 | 74831 |
 
-The numbers above were measured with `mct-cli` built from `main` at commit
-`b7053663` (ripgrep 14.1.1 as `rg`). Results can change with the indexer, CLI, source
+The benchmark was first run against the worktree based on commit `655d46e3`
+and then rerun on `b7053663` with the changes in this branch. The rerun gave the
+same numbers except for `RegexMatcher`, whose context pack grew from 440 to 465
+TOON tokens (550 to 576 in the JSON envelope) because more of its relations now
+resolve. The grep and full-read baselines were identical. Results can change with the indexer, CLI, source
 checkout, `rg` version and tokenizer. The script refuses a different repository
 revision and aborts if it cannot find the requested context pack.
 
