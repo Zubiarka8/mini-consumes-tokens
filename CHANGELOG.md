@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `mct-cli skills-register` installs the bundled `mct-*` skills for each detected coding agent (Claude Code, Codex, Cursor, Copilot, OpenCode), or for those named with `--agent`; `--dry-run` shows the plan and modified templates are kept unless `--force`. `mcp-register --agent` writes each agent's MCP configuration, and the MCP server now offers the skills as prompts (#560).
+
 - Dashboard: the Duplicates page can search for repeated blocks inside functions, the search of `mct-cli duplicates --partial-blocks`. It runs when you ask for it, in the background, and lists each block with its file, line range and function; a location opens the file at those lines. The panel says when the list is partial because a budget ran out or because the index is incomplete.
 
 ### Fixed
@@ -16,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_indexing_status` lists file references that match a file only with other letter case. They stay unresolved because they break on Linux (#567). A Bash `source` through a variable (`$LIB_DIR/x.sh`) no longer guesses a repository file.
 
 - Index: a Rust import of a package whose directory has another name (`use grep_searcher::X` for `crates/searcher/`) now resolves through the package's `Cargo.toml` name (#374). A TypeScript/JavaScript `@/` import resolves through the nearest `tsconfig.json`/`jsconfig.json` `paths`, following relative `extends`. `get_indexing_status` lists each config read and any it could not parse (#563, ADR-043). Schema migration 26 reparses JS/TS files.
+- Query cache: a reference reply now lists the hit count and up to three locations, expires after 15 minutes, and is never sent while a page file differs from its indexed revision (saved but not yet reindexed). An explicit `cache:false` after a reference reply is counted as a recovery in the cache stats (#188).
 
 - An HTML link or CSS `@import` whose `../` path climbs above the repository root (`../../other-repo/x.css`) is now `external`, with no path stored, instead of unresolved (#567).
 

@@ -85,6 +85,25 @@ describe("ReviewPanel", () => {
     expect(note()).toHaveValue("my reasoning");
   });
 
+  test("a refreshed review does not silently rebase an unsaved draft", async () => {
+    const user = userEvent.setup();
+    const old = duplicate();
+    const current = { ...old, state: "confirmed", note: "other reviewer", revision: "fp|r2" };
+    const save = vi.fn().mockRejectedValueOnce(failure(409, "changed meanwhile", current));
+    const onSaved = vi.fn();
+    const { rerender } = render(<ReviewPanel item={old} bridge={bridge({ save })} onSaved={onSaved} />);
+    await user.selectOptions(decision(), "in-review");
+    await user.type(note(), "my draft");
+    rerender(<ReviewPanel item={current} bridge={bridge({ save })} onSaved={onSaved} />);
+    await user.click(saveButton());
+    expect(save).toHaveBeenCalledWith("k1", "in-review", "my draft", "fp|r1");
+    expect(screen.getByRole("alert")).toHaveTextContent("review.conflict");
+    expect(note()).toHaveValue("my draft");
+    save.mockResolvedValueOnce({ ...current, state: "in-review", note: "my draft", revision: "fp|r3" });
+    await user.click(saveButton());
+    expect(save).toHaveBeenLastCalledWith("k1", "in-review", "my draft", "fp|r2");
+  });
+
   test("an unsaved draft survives switching files and findings", async () => {
     const user = userEvent.setup();
     const first = render(<ReviewPanel item={duplicate()} bridge={bridge()} onSaved={vi.fn()} />);
