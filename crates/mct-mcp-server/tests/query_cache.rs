@@ -754,3 +754,55 @@ async fn semantic_hits_cut_tokens_by_at_least_ninety_percent() {
     let r = reduction(&uncached, &cached);
     assert!(r >= 0.90, "semantic: {r:.3} ({uncached:?} vs {cached:?})");
 }
+
+// ---- exact tools (#188) ----------------------------------------------
+
+fn pack_args(cache: Option<bool>) -> mct_mcp_server::server::BuildContextPackArgs {
+    mct_mcp_server::server::BuildContextPackArgs {
+        symbol: "create_invoice".to_string(),
+        format: Some("text".to_string()),
+        cache,
+        ..Default::default()
+    }
+}
+
+async fn pack(server: &MctServer, cache: Option<bool>) -> String {
+    text(
+        server
+            .build_context_pack(Parameters(pack_args(cache)))
+            .await
+            .unwrap(),
+    )
+}
+
+/// `build_context_pack` is exact, not ranked: a repeat whose rendered pack
+/// is byte-identical to one this session received gets the reference reply,
+/// naming the definition; an edit (seen on disk, before any reindex) or
+/// `cache: false` sends the full pack again.
+#[tokio::test]
+async fn a_repeated_identical_context_pack_is_answered_by_reference() {
+    let root = project("context-pack");
+    let server = server(&root);
+    let first = pack(&server, None).await;
+    assert!(first.contains("create_invoice"), "{first}");
+
+    let second = pack(&server, None).await;
+    assert!(is_reference(&second), "got: {second}");
+    assert!(second.contains("src/billing.rs:1"), "{second}");
+    assert!(second.len() * 3 < first.len(), "{second}");
+
+    assert_eq!(pack(&server, Some(false)).await, first);
+    assert_eq!(server.cache_stats().reference_recoveries, 1);
+
+    let file = root.join("src/billing.rs");
+    let source = std::fs::read_to_string(&file).unwrap();
+    std::fs::write(&file, source.replace("inv-", "invoice-")).unwrap();
+    // Saved, not yet reindexed: the pack withholds the stale source, so its
+    // text differs and goes out in full.
+    let edited = pack(&server, None).await;
+    assert!(!is_reference(&edited), "a reference would hide the edit");
+    assert_ne!(edited, first);
+    reindex(&server).await;
+    let reindexed = pack(&server, None).await;
+    assert!(reindexed.contains("invoice-"), "{reindexed}");
+}

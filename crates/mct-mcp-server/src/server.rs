@@ -644,7 +644,7 @@ const CONTEXT_PACK_MAX_DEFINITIONS: usize = 3;
 /// symbol's transitive callers can't turn one call into thousands of rows.
 const CONTEXT_PACK_MAX_RELATIONS: usize = 500;
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
 pub struct BuildContextPackArgs {
     /// Exact name of the symbol to build the pack around.
     pub symbol: String,
@@ -679,6 +679,11 @@ pub struct BuildContextPackArgs {
     /// model limit); least relevant parts are lowered, then dropped.
     #[serde(default)]
     pub max_tokens: Option<usize>,
+    /// `false` always returns the full pack; otherwise a byte-identical
+    /// repeat this session received gets a one-line reply. `detail` and
+    /// `max_tokens` bypass the cache.
+    #[serde(default)]
+    pub cache: Option<bool>,
 }
 
 /// Groups this server's registered tool names for `discover_tool_categories`.
@@ -1572,6 +1577,40 @@ impl MctServer {
             cache.record_sent(digest_view);
         }
         CallToolResult::success(vec![ContentBlock::text(text)])
+    }
+
+    /// The response for an exact (unranked) tool such as
+    /// `build_context_pack`: `full`, or a one-line reference reply when this
+    /// session already received the byte-identical text. The text is
+    /// rendered afresh from the index and the files on disk, so equal text
+    /// means the agent's earlier copy is still current (issue #188).
+    fn repeat_reply(
+        &self,
+        cache: Option<bool>,
+        full: String,
+        locations: &[String],
+    ) -> CallToolResult {
+        if !self.cache_on(cache) {
+            if cache == Some(false) {
+                self.cache_guard().record_recovery(&full);
+            }
+            return CallToolResult::success(vec![ContentBlock::text(full)]);
+        }
+        let mut cache = self.cache_guard();
+        if cache.config().response == cache::ResponseMode::Reference && cache.was_sent(&full) {
+            let mut reply =
+                String::from("cache: unchanged since your identical earlier call; cache:false");
+            for location in locations {
+                reply.push_str("; ");
+                reply.push_str(location);
+            }
+            if reply.len() < full.len() {
+                cache.record_reference(&full);
+                return CallToolResult::success(vec![ContentBlock::text(reply)]);
+            }
+        }
+        cache.record_sent(&full);
+        CallToolResult::success(vec![ContentBlock::text(full)])
     }
 
     /// The tool catalog as it will be sent to an MCP client: names,
@@ -2632,6 +2671,7 @@ impl MctServer {
             format,
             detail,
             max_tokens,
+            cache,
         }): Parameters<BuildContextPackArgs>,
     ) -> Result<CallToolResult, McpError> {
         let symbol = validate_name(&symbol)?;
@@ -2858,6 +2898,11 @@ impl MctServer {
             });
         }
 
+        let locations: Vec<String> = packed_definitions
+            .iter()
+            .take(3)
+            .map(|d| format!("{}:{}", d.hit.relative_path, d.hit.line))
+            .collect();
         let pack = ContextPack {
             symbol: symbol.to_string(),
             depth,
@@ -2874,7 +2919,12 @@ impl MctServer {
             (None, OutputFormat::Text) => format::context_pack(&pack, limit),
             (None, OutputFormat::Toon) => format::context_pack_toon(&pack, limit),
         };
-        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+        // A `detail`/`max_tokens` pack bypasses the cache, like the search
+        // tools' `detail`: the agent chose that rendering on purpose.
+        if pack_request.is_some() {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+        }
+        Ok(self.repeat_reply(cache, text, &locations))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.

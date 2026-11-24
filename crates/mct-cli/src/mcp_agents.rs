@@ -55,17 +55,9 @@ fn merge_json(
     safe_directories(path.parent().context("config has no parent")?)?;
     let mut config = read_json(path)?;
     let entry = if section == "opencode" {
-        let mcp = object_at(&mut config, "mcp")?;
-        let old_format = !mcp.is_empty() && !mcp.contains_key("servers");
-        let servers = if old_format {
-            mcp
-        } else {
-            mcp.entry("servers")
-                .or_insert_with(|| json!({}))
-                .as_object_mut()
-                .context("mcp.servers must be an object")?
-        };
-        let server = servers
+        // OpenCode reads `mcp.<name>` (verified with opencode v2.0.26:
+        // `opencode mcp list` shows nothing for `mcp.servers.<name>`).
+        let server = object_at(&mut config, "mcp")?
             .entry(name)
             .or_insert_with(|| json!({}))
             .as_object_mut()
@@ -276,7 +268,7 @@ mod tests {
     fn opencode_preserves_other_servers_and_supports_dry_run() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("opencode.json");
-        fs::write(&path, r#"{"mcp":{"servers":{"other":{"type":"local"}}}}"#).unwrap();
+        fs::write(&path, r#"{"mcp":{"other":{"type":"local"}}}"#).unwrap();
         let before = fs::read_to_string(&path).unwrap();
         merge_json(
             &path,
@@ -296,10 +288,29 @@ mod tests {
         )
         .unwrap();
         let result: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
-        assert_eq!(result["mcp"]["servers"]["other"]["type"], "local");
+        assert_eq!(result["mcp"]["other"]["type"], "local");
+        assert_eq!(result["mcp"]["mct"]["command"][0], "mct-mcp-server");
+        assert!(result["mcp"].get("servers").is_none(), "{result}");
+    }
+
+    /// The shape `opencode mcp list` (v2.0.26) reads: `mcp.<name>` with
+    /// `type: local` and the command as one array.
+    #[test]
+    fn a_new_opencode_config_puts_the_server_directly_under_mcp() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opencode.json");
+        merge_json(
+            &path,
+            "opencode",
+            "mct",
+            &["--root".into(), "/repo".into()],
+            false,
+        )
+        .unwrap();
+        let result: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
         assert_eq!(
-            result["mcp"]["servers"]["mct"]["command"][0],
-            "mct-mcp-server"
+            result,
+            json!({"mcp": {"mct": {"type": "local", "command": ["mct-mcp-server", "--root", "/repo"]}}})
         );
     }
 
