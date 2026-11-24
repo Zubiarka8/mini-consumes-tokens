@@ -2,6 +2,38 @@
 
 Full reference for exploring this repository with its own MCP tools. The short version is in the Dogfooding section of [rules.md](../../rules.md#dogfooding-exploring-this-repositorys-source).
 
+## Skills and prompts
+
+`mct-cli skills-register` installs the bundled `mct-*` workflows. Use
+`--dry-run` to preview, `--agent claude,codex,cursor,copilot,opencode` to
+choose clients explicitly, and `--global` for user-level skill directories.
+Edited templates are preserved unless `--force` is supplied. A small manifest
+in each skills directory identifies unmodified templates for upgrades and
+retirement. Project registration also maintains a marked block in `AGENTS.md`
+or `CLAUDE.md`; surrounding content is preserved.
+
+Codex, Cursor and OpenCode share `.agents/skills`; Claude Code uses
+`.claude/skills`; Copilot also gets `.github/skills`. The global Copilot
+location is `.copilot/skills`. Copilot's project directory follows the
+[VS Code skills documentation](https://code.visualstudio.com/docs/agent-customization/agent-skills),
+while OpenCode documents `.agents/skills` as a
+[compatibility location](https://opencode.ai/docs/skills).
+
+`mct-cli mcp-register` detects clients and merges their MCP configuration.
+`--agent` selects clients, `--dry-run` previews changes, and Codex registration
+requires `--global` because its configuration is user-level. OpenCode's
+current `mcp.servers` format and existing legacy `mcp` maps are supported.
+The MCP server also advertises named prompts for clients without skills. These
+describe workflows and do not run queries; the tools remain callable under
+Tool Attention even when hidden from `tools/list`.
+
+How clients show them: Claude Code loads a skill when its description
+matches the task, also offers it as `/mct-find`, and lists MCP prompts as
+`/mcp__<server>__<prompt>`. VS Code Copilot loads skills from
+`.github/skills` on demand and lists MCP prompts as `/mcp.<server>.<prompt>`.
+The menus of Codex, Cursor and OpenCode were not verified here; see each
+client's documentation.
+
 | Question | Tool and parameters |
 |---|---|
 | What symbols does a file or crate have, name unknown? | `list_symbols`. A file path matches exactly. A directory or crate path (no extension) matches as a prefix. `kind` and `language` narrow it. Use it first. |

@@ -2225,6 +2225,8 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
             out.push_str(&format!("  {}: {}\n", error.relative_path, error.detail));
         }
     }
+    write_alias_sources(&mut out, &status.alias_sources);
+    write_case_mismatches(&mut out, &status.case_mismatches);
     if !status.dependencies.is_empty() {
         if verbose_dependencies {
             out.push_str("Dependencies detected:\n");
@@ -2423,6 +2425,49 @@ pub fn tool_schema(tool: &rmcp::model::Tool) -> String {
         "{}\n\n{description}\n\nInput schema:\n{schema}\n",
         tool.name
     )
+}
+
+/// File references that match a file only with other letter case (#567).
+fn write_case_mismatches(out: &mut String, mismatches: &[mct_index::CaseMismatch]) {
+    if mismatches.is_empty() {
+        return;
+    }
+    out.push_str(&format!(
+        "{} file reference(s) match a file only with other letter case (unresolved; breaks on Linux):\n",
+        mismatches.len()
+    ));
+    for m in mismatches {
+        out.push_str(&format!(
+            "  {}:{}: `{}` is `{}`\n",
+            printable(&m.from_path),
+            m.line,
+            printable(&m.written),
+            printable(&m.actual)
+        ));
+    }
+}
+
+/// One line per module-alias source (issue #563): how many alias targets it
+/// records, or why it could not be read.
+fn write_alias_sources(out: &mut String, sources: &[mct_index::AliasSource]) {
+    if sources.is_empty() {
+        return;
+    }
+    out.push_str("Module alias sources:\n");
+    for source in sources {
+        match &source.error {
+            Some(error) => out.push_str(&format!(
+                "  {}: not read ({})\n",
+                printable(&source.manifest_path),
+                printable(error)
+            )),
+            None => out.push_str(&format!(
+                "  {}: {} alias target(s)\n",
+                printable(&source.manifest_path),
+                source.aliases
+            )),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -3042,6 +3087,8 @@ mod index_status_tests {
                 file_count: 2,
                 symbol_count: 10,
             }],
+            alias_sources: Vec::new(),
+            case_mismatches: Vec::new(),
             total_files: 2,
             total_symbols: 10,
             last_indexed_at: Some(1_700_000_000),

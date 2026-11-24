@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Query cache: a repeated search whose files were saved but not yet reindexed gets the full result again instead of the one-line reference reply (#188).
+
+- `get_indexing_status` lists file references that match a file only with other letter case. They stay unresolved because they break on Linux (#567). A Bash `source` through a variable (`$LIB_DIR/x.sh`) no longer guesses a repository file.
+
+- Index: a Rust import of a package whose directory has another name (`use grep_searcher::X` for `crates/searcher/`) now resolves through the package's `Cargo.toml` name (#374). A TypeScript/JavaScript `@/` import resolves through the nearest `tsconfig.json`/`jsconfig.json` `paths`, following relative `extends`. `get_indexing_status` lists each config read and any it could not parse (#563, ADR-043). Schema migration 26 reparses JS/TS files.
+
 - Bash: `coproc NAME { …; }` and `coproc { …; }` no longer end the enclosing function at the `coproc` line. tree-sitter-bash 0.25 misreads them with no error; the parser now reparses with the `coproc [NAME]` prefix blanked, so the body's calls belong to the function and its closing `}` is no call (#79).
 
 - `mct-cli duplicates` now applies the rules of nested `.gitignore` files that `.mctignore` imports, as the dashboard and the other commands do. A path excluded by such a rule after indexing is no longer reported, and its cached report is not reused.
