@@ -11,6 +11,7 @@ pub mod incident;
 pub mod intent;
 pub mod maintainer;
 pub mod pack_budget;
+pub mod prompts;
 pub mod readiness;
 pub mod registry;
 pub mod reindex_delay;
