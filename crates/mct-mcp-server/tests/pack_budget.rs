@@ -180,11 +180,17 @@ async fn the_estimated_budget_covers_the_whole_response_and_degradation_is_repor
             )
             .await;
             let spent = est(&text);
-            let minimal = text.contains("No row fits");
             assert!(
-                spent <= budget || minimal,
+                spent <= budget,
                 "{format} budget {budget}: {spent} est. tokens\n{text}"
             );
+            if text.starts_with("No row fits") {
+                assert!(
+                    text.contains("est. tokens are needed for one row"),
+                    "{text}"
+                );
+                continue;
+            }
             assert!(text.contains("Budget: "), "{text}");
             assert!(text.contains(&format!("/{budget}")), "{text}");
             if budget < est(&full) {
@@ -195,7 +201,7 @@ async fn the_estimated_budget_covers_the_whole_response_and_degradation_is_repor
                 );
             }
             // Provenance of what remains is never lost.
-            if !minimal {
+            if !text.contains("No row fits") {
                 assert!(text.contains("src/orders.rs:L35-L49"), "{text}");
             }
         }
@@ -224,35 +230,39 @@ async fn tail_rows_are_lowered_before_the_head() {
 }
 
 #[tokio::test]
-async fn a_budget_below_the_minimal_metadata_still_returns_a_valid_response() {
+async fn tiny_budgets_cover_the_entire_response() {
     let server = server().await;
+    let missing = "a".repeat(733);
     for format in ["text", "toon"] {
+        for symbol in ["place_order", missing.as_str()] {
+            for budget in [1, 32, 128] {
+                let text = pack(
+                    &server,
+                    json!({ "symbol": symbol, "format": format, "max_tokens": budget }),
+                )
+                .await;
+                assert!(!text.trim().is_empty());
+                assert!(est(&text) <= budget, "{format} budget {budget}: {text}");
+            }
+        }
         let text = pack(
             &server,
-            json!({ "symbol": "place_order", "format": format, "max_tokens": 1 }),
+            json!({ "symbol": "place_order", "format": format, "max_tokens": 32 }),
         )
         .await;
-        assert!(text.starts_with("Context pack for `place_order`"), "{text}");
-        assert!(text.contains("No row fits `max_tokens`"), "{text}");
-        assert!(
-            text.contains("est. tokens are needed for one row"),
-            "{text}"
-        );
-        assert!(text.contains("dropped"), "{text}");
-        // Following the advice works: that budget yields at least a definition row.
         let needed: usize = text
-            .split("~")
-            .last()
-            .and_then(|t| t.split(' ').next())
-            .and_then(|n| n.parse().ok())
+            .rsplit('~')
+            .next()
+            .and_then(|s| s.split_whitespace().next())
+            .and_then(|s| s.parse().ok())
             .unwrap();
-        let again = pack(
+        let retried = pack(
             &server,
             json!({ "symbol": "place_order", "format": format, "max_tokens": needed }),
         )
         .await;
-        assert!(!again.contains("No row fits"), "{again}");
-        assert!(again.contains("src/orders.rs:L35-L49"), "{again}");
+        assert!(retried.contains("src/orders.rs:L35-L49"), "{retried}");
+        assert!(est(&retried) <= needed, "{retried}");
     }
 }
 

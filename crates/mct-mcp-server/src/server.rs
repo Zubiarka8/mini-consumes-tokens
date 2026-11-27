@@ -2041,7 +2041,7 @@ impl MctServer {
             let lines = snippet_lines.max(pack_budget::SEARCH_DETAILED_SNIPPET_LINES);
             let snippets = page_snippets(&index, &hits, offset, limit, lines);
             let text = if hits.is_empty() {
-                format::search_hits(query, &hits, offset, limit, &snippets)
+                request.fit_response(format::search_hits(query, &hits, offset, limit, &snippets))
             } else {
                 pack_budget::render_search(
                     query,
@@ -2338,9 +2338,9 @@ impl MctServer {
             let text = if !hits.is_empty() {
                 text
             } else if literal_section.is_empty() {
-                format!("{note}\n{text}")
+                request.fit_response(format!("{note}\n{text}"))
             } else {
-                format!("{note}\n{text}\n{literal_section}")
+                request.fit_response(format!("{note}\n{text}\n{literal_section}"))
             };
             return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
         }
@@ -2700,9 +2700,14 @@ impl MctServer {
                 .map_err(index_error)?,
         );
         if definitions.is_empty() {
-            return Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+            let text = format!(
                 "No symbol named `{symbol}` found in the index — try search_symbols for a partial name."
-            ))]));
+            );
+            let text = match &pack_request {
+                Some(request) => request.fit_response(text),
+                None => text,
+            };
+            return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
         }
 
         // Every relation is walked from these exact rows, so a same-named
@@ -3144,14 +3149,19 @@ impl MctServer {
         &self,
         Parameters(GetFileTreeArgs { path, depth }): Parameters<GetFileTreeArgs>,
     ) -> Result<CallToolResult, McpError> {
-        let path = path.as_deref().map(str::trim).filter(|p| !p.is_empty());
         let depth = depth.unwrap_or(3).max(1);
-        let index = self.index.lock().await;
-        let _snapshot = index.read_snapshot().map_err(index_error)?;
-        let tree = index.file_tree(path, depth).map_err(file_tree_error)?;
-        Ok(CallToolResult::success(vec![ContentBlock::text(
-            format::file_tree(path.unwrap_or("."), &tree, depth),
-        )]))
+        let index = self.index.clone().lock_owned().await;
+        let text = tokio::task::spawn_blocking(move || {
+            let path = optional_arg(path.as_ref());
+            let _snapshot = index.read_snapshot().map_err(index_error)?;
+            let tree = index
+                .file_tree_prefix(path, depth, format::DEFAULT_BYTE_BUDGET)
+                .map_err(file_tree_error)?;
+            Ok::<_, McpError>(format::file_tree(path.unwrap_or("."), &tree, depth))
+        })
+        .await
+        .map_err(|err| McpError::internal_error(format!("file tree task failed: {err}"), None))??;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
     // Fallback only — see tools.ttc / MctServer::new.

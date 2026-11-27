@@ -49,6 +49,53 @@ impl PackRequest {
             max_tokens: budget.max_tokens(),
         }))
     }
+
+    pub(crate) fn fit_response(&self, text: String) -> String {
+        self.fit_with_retry(text, None, None)
+    }
+
+    fn fit_with_retry(
+        &self,
+        mut text: String,
+        needed_tokens: Option<usize>,
+        offset: Option<usize>,
+    ) -> String {
+        let Some(max) = self.max_tokens else {
+            return text;
+        };
+        let advice = needed_tokens.map(|needed| {
+            format!("No row fits `max_tokens`; ~{needed} est. tokens are needed for one row")
+        });
+        if let Some(advice) = &advice {
+            text.push_str(advice);
+            text.push_str(".\n");
+        }
+
+        let counter = EstimatedCounter;
+        if counter.count(&text).value <= max {
+            return text;
+        }
+
+        // Metadata alone can overflow, including when selection drops every
+        // row. Keep the recovery advice when it fits without echoing inputs.
+        if let Some(mut advice) = advice {
+            if let Some(offset) = offset {
+                let retry = format!("{advice}; retry offset={offset}.\n");
+                if counter.count(&retry).value <= max {
+                    return retry;
+                }
+            }
+            advice.push_str(".\n");
+            if counter.count(&advice).value <= max {
+                return advice;
+            }
+        }
+        let partial = "Budget: partial\n";
+        if counter.count(partial).value <= max {
+            return partial.to_string();
+        }
+        "…\n".to_string()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -434,15 +481,8 @@ pub fn render(
                 .value;
         }
     }
-    let mut out = compose(pack, &parts, &selection.rows, limit, format, &caps, &stats);
-    if selection.minimal() {
-        if let Some(needed) = selection.needed_min_tokens {
-            out.push_str(&format!(
-                "No row fits `max_tokens`; ~{needed} est. tokens are needed for one row.\n"
-            ));
-        }
-    }
-    out
+    let out = compose(pack, &parts, &selection.rows, limit, format, &caps, &stats);
+    request.fit_with_retry(out, selection.needed_min_tokens, None)
 }
 
 /// Snippet lines a `detailed` search hit shows when `snippet_lines` is not
@@ -471,8 +511,8 @@ fn head_lines(snippet: &str, n: usize) -> String {
 /// the `offset` that continues after the last shown row.
 ///
 /// `prefix` and `suffix` are text the tool puts around the hits (the hybrid
-/// note and its literal section). They are not rows, so they are never cut,
-/// but they are counted: the budget covers the whole response.
+/// note and its literal section). They are counted with the rest of the
+/// response. If the metadata alone cannot fit, return a compact notice.
 #[allow(clippy::too_many_arguments)]
 pub fn render_search(
     query: &str,
@@ -576,18 +616,11 @@ pub fn render_search(
         let next = truncated.then_some(offset + rows.len());
         counter.count(&compose(rows, next, degraded, max)).value
     });
-    let mut out = compose(
+    let out = compose(
         &selection.rows,
         selection.next_offset,
         selection.degraded,
         selection.spent,
     );
-    if selection.minimal() {
-        if let Some(needed) = selection.needed_min_tokens {
-            out.push_str(&format!(
-                "No row fits `max_tokens`; ~{needed} est. tokens are needed for one row.\n"
-            ));
-        }
-    }
-    out
+    request.fit_with_retry(out, selection.needed_min_tokens, selection.next_offset)
 }

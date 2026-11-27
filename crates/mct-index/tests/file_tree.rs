@@ -55,6 +55,29 @@ fn excluded_directories_never_appear() {
 }
 
 #[test]
+fn the_prefix_walk_stops_after_the_first_entry_that_does_not_fit() {
+    let dir = tempdir();
+    fs::create_dir_all(dir.join("listing/aa")).unwrap();
+    fs::create_dir_all(dir.join("listing/zz")).unwrap();
+    for file in ["aa/one.txt", "aa/two.txt", "zz/later.txt"] {
+        fs::write(dir.join("listing").join(file), "").unwrap();
+    }
+
+    let index = Index::open_in_memory(&dir, ExcludeSet::default()).unwrap();
+    let budget = "listing/\n  aa/\n    one.txt\n".len();
+    let tree = index.file_tree_prefix(Some("listing"), 3, budget).unwrap();
+
+    assert_eq!(tree.children.len(), 1);
+    assert_eq!(tree.children[0].name, "aa");
+    let files: Vec<_> = tree.children[0]
+        .children
+        .iter()
+        .map(|f| f.name.as_str())
+        .collect();
+    assert_eq!(files, ["one.txt", "two.txt"]);
+}
+
+#[test]
 fn depth_stops_recursion_and_flags_it() {
     let dir = tempdir();
     fs::create_dir_all(dir.join("a/b/c")).unwrap();

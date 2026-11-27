@@ -1299,9 +1299,26 @@ impl Index {
     /// index — so it stays cheap and correct even for a file the parser
     /// doesn't support. `depth` is clamped to `[1, mct_core::MAX_QUERY_DEPTH]`.
     pub fn file_tree(&self, path: Option<&str>, depth: u32) -> Result<FileTreeNode> {
+        self.file_tree_prefix(path, depth, usize::MAX)
+    }
+
+    /// Bound the walk by the entry lines in an indented listing. Retains
+    /// the first entry beyond `byte_budget` so rendering detects truncation.
+    pub fn file_tree_prefix(
+        &self,
+        path: Option<&str>,
+        depth: u32,
+        byte_budget: usize,
+    ) -> Result<FileTreeNode> {
         let depth = depth.clamp(1, mct_core::MAX_QUERY_DEPTH);
         let relative_start = path.map(str::trim).filter(|p| !p.is_empty()).unwrap_or(".");
-        file_tree::file_tree(&self.root, &self.exclude, relative_start, depth)
+        file_tree::file_tree(
+            &self.root,
+            &self.exclude,
+            relative_start,
+            depth,
+            byte_budget,
+        )
     }
 }
 

@@ -321,3 +321,7 @@ ERR-014 recurrence, 2026-11-08 (RESOLVED caller error, `perf/vault-publication` 
 2026-11-20 ERR-014 (RESOLVED caller error, `feat/autonomous-issues`, base `655d46e3`): `find_callers` with `name: "record_sent"` returned ``failed to deserialize parameters: missing field `function` ``. After checking its schema, `function: "record_sent"` succeeded. The connected index timestamp was 1795125356 (981 files, 53,249 symbols), from another checkout; freshness against this worktree was not verified. No server change.
 
 2026-11-20 ERR-014 (RESOLVED caller error, `feat/autonomous-issues`): local CLI `batch` used `calls` instead of the required `queries` and returned `missing field queries`. The direct `search_symbols` lookup for `module_import_target` succeeded. No server change.
+
+## 2026-11-27 — ERR-015 recurrence in the resource benchmark
+
+The stdio server built from `8054f015` exited before initialization with `table join_points already exists` (offset 26) when it opened a synthetic fixture index from the local join-point branch. Retrying with a fresh fixture index succeeded. Its status reported one indexable Rust file and three symbols at timestamp `1795792622`, with no parse diagnostics.

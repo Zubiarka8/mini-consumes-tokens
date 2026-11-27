@@ -39,6 +39,7 @@ pub(crate) fn file_tree(
     exclude: &ExcludeSet,
     relative_start: &str,
     depth: u32,
+    byte_budget: usize,
 ) -> Result<FileTreeNode> {
     let start = root.join(relative_start);
     let canonical = start.canonicalize().map_err(|source| IndexError::Io {
@@ -56,7 +57,15 @@ pub(crate) fn file_tree(
         .and_then(|n| n.to_str())
         .unwrap_or(relative_start)
         .to_string();
-    Ok(build_node(root, &canonical, name, depth, exclude))
+    Ok(build_node(
+        root,
+        &canonical,
+        name,
+        depth,
+        exclude,
+        0,
+        &mut Some(byte_budget),
+    ))
 }
 
 fn build_node(
@@ -65,11 +74,18 @@ fn build_node(
     name: String,
     remaining_depth: u32,
     exclude: &ExcludeSet,
+    indent: usize,
+    remaining_bytes: &mut Option<usize>,
 ) -> FileTreeNode {
-    if remaining_depth == 0 {
-        let depth_exhausted = std::fs::read_dir(dir)
-            .map(|mut entries| entries.next().is_some())
-            .unwrap_or(false);
+    // Count entry lines as a lower bound on the rendered size. Keep the
+    // first overflowing entry so rendering clips the same prefix, including
+    // when depth or omission notes used some of the space.
+    let fits = charge_entry(remaining_bytes, &name, indent, true);
+    if !fits || remaining_depth == 0 {
+        let depth_exhausted = fits
+            && std::fs::read_dir(dir)
+                .map(|mut entries| entries.next().is_some())
+                .unwrap_or(false);
         return FileTreeNode {
             name,
             is_dir: true,
@@ -101,30 +117,35 @@ fn build_node(
     let omitted = entries.len().saturating_sub(MAX_ENTRIES_PER_DIR);
     entries.truncate(MAX_ENTRIES_PER_DIR);
 
-    let children = entries
-        .into_iter()
-        .map(|entry| {
-            let entry_name = entry.file_name().to_string_lossy().into_owned();
-            let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-            if is_dir {
-                build_node(
-                    root,
-                    &entry.path(),
-                    entry_name,
-                    remaining_depth - 1,
-                    exclude,
-                )
-            } else {
-                FileTreeNode {
-                    name: entry_name,
-                    is_dir: false,
-                    children: Vec::new(),
-                    omitted: 0,
-                    depth_exhausted: false,
-                }
+    let mut children = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if remaining_bytes.is_none() {
+            break;
+        }
+        let entry_name = entry.file_name().to_string_lossy().into_owned();
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        let child = if is_dir {
+            build_node(
+                root,
+                &entry.path(),
+                entry_name,
+                remaining_depth - 1,
+                exclude,
+                indent + 1,
+                remaining_bytes,
+            )
+        } else {
+            charge_entry(remaining_bytes, &entry_name, indent + 1, false);
+            FileTreeNode {
+                name: entry_name,
+                is_dir: false,
+                children: Vec::new(),
+                omitted: 0,
+                depth_exhausted: false,
             }
-        })
-        .collect();
+        };
+        children.push(child);
+    }
 
     FileTreeNode {
         name,
@@ -133,4 +154,15 @@ fn build_node(
         omitted,
         depth_exhausted: false,
     }
+}
+
+fn charge_entry(
+    remaining_bytes: &mut Option<usize>,
+    name: &str,
+    indent: usize,
+    is_dir: bool,
+) -> bool {
+    let line_bytes = name.len() + 2 * indent + usize::from(is_dir) + 1;
+    *remaining_bytes = remaining_bytes.and_then(|bytes| bytes.checked_sub(line_bytes));
+    remaining_bytes.is_some()
 }

@@ -65,6 +65,12 @@ an isolated home directory:
 
 `find_references`, `find_calls`, `find_callers` and `impact_analysis` also take `depth` (multi-hop breadth-first search beyond the direct hit, default 1, clamped to 32) and `offset` (pagination past `limit`). Try `depth` before you chain calls by hand to walk the relation graph further out.
 
+For context packs and symbol searches, the estimated token limit includes
+headings, status notes and literal matches. If those would exceed the limit,
+the response gives compact retry advice when it fits. At the smallest budgets
+it may contain only `…`. A `retry offset=N` instruction means to raise
+`max_tokens` and retry that page.
+
 ## Markdown literal search
 
 Use `hybrid_search_like` with a double-quoted phrase. `search_symbols_like` searches symbols only, even with quotes.
