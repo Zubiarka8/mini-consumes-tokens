@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    # feat/agent-graph-ten-tasks: temporary, so each pushed SHA of that
+    # branch gets a full run without a pull request. Drop it before merging.
+    branches: [main, master, feat/agent-graph-ten-tasks]
   pull_request:
   # Full validation on demand (works once this file is on the default branch).
   workflow_dispatch:
