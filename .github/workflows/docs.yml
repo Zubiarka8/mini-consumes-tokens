@@ -5,9 +5,9 @@ name: Docs
 on:
   push:
     branches: [main]
-    paths: ["website/**", ".github/workflows/docs.yml"]
+    paths: ["website/**", "THIRD_PARTY_WEB_LICENSES.txt", ".github/workflows/docs.yml"]
   pull_request:
-    paths: ["website/**", ".github/workflows/docs.yml"]
+    paths: ["website/**", "THIRD_PARTY_WEB_LICENSES.txt", ".github/workflows/docs.yml"]
   workflow_dispatch:
 
 permissions:
@@ -49,6 +49,9 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: ${{ github.event_name == 'pull_request' && format('/{0}', github.event.repository.name) || steps.pages.outputs.base_path }}
+
+      - name: Copy third-party notices to the export
+        run: cp ../THIRD_PARTY_WEB_LICENSES.txt out/THIRD_PARTY_WEB_LICENSES.txt
 
       - name: Check exported routes and asset links
         run: npm run test:export

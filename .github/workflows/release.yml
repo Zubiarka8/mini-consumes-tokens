@@ -149,13 +149,13 @@ jobs:
           mkdir -p "$dist"
           cp "target/${{ matrix.target }}/release/mct-cli" "$dist/"
           cp "target/${{ matrix.target }}/release/mct-mcp-server" "$dist/"
-          cp README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md "$dist/"
+          cp README.md LICENSE THIRD_PARTY_NOTICES.md THIRD_PARTY_BINARY_LICENSES.txt CHANGELOG.md "$dist/"
           tar -C dist -czf "dist/$pkg.tar.gz" "$pkg"
           rm -rf "$dist"
           # install.sh expects exactly this layout: one top-level
           # mini-consumes-tokens-* directory holding both binaries.
           listing="$(tar -tzf "dist/$pkg.tar.gz")"
-          for f in mct-cli mct-mcp-server README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md; do
+          for f in mct-cli mct-mcp-server README.md LICENSE THIRD_PARTY_NOTICES.md THIRD_PARTY_BINARY_LICENSES.txt CHANGELOG.md; do
             printf '%s\n' "$listing" | grep -qx "$pkg/$f" || { echo "::error::$f missing from $pkg.tar.gz"; exit 1; }
           done
 
@@ -168,14 +168,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path $dist | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/mct-cli.exe" "$dist/"
           Copy-Item "target/${{ matrix.target }}/release/mct-mcp-server.exe" "$dist/"
-          Copy-Item README.md,LICENSE,THIRD_PARTY_NOTICES.md,CHANGELOG.md "$dist/"
+          Copy-Item README.md,LICENSE,THIRD_PARTY_NOTICES.md,THIRD_PARTY_BINARY_LICENSES.txt,CHANGELOG.md "$dist/"
           # The directory itself (not "$dist/*"), so the zip keeps the
           # top-level mini-consumes-tokens-* folder install.ps1 looks for.
           Compress-Archive -Path $dist -DestinationPath "dist/$pkg.zip"
           Remove-Item -Recurse -Force $dist
           $check = "dist-check"
           Expand-Archive -Path "dist/$pkg.zip" -DestinationPath $check
-          foreach ($f in "mct-cli.exe","mct-mcp-server.exe","README.md","LICENSE","THIRD_PARTY_NOTICES.md","CHANGELOG.md") {
+          foreach ($f in "mct-cli.exe","mct-mcp-server.exe","README.md","LICENSE","THIRD_PARTY_NOTICES.md","THIRD_PARTY_BINARY_LICENSES.txt","CHANGELOG.md") {
             if (-not (Test-Path (Join-Path $check "$pkg/$f"))) { throw "$f missing from $pkg.zip" }
           }
           Remove-Item -Recurse -Force $check
@@ -237,6 +237,7 @@ jobs:
           # Both binaries must land in /usr/bin in every package.
           for deb in dist/*.deb; do
             listing="$(dpkg-deb -c "$deb")"
+            printf '%s\n' "$listing" | grep -q '\./usr/share/doc/mini-consumes-tokens/THIRD_PARTY_BINARY_LICENSES\.txt$'
             for f in mct-cli mct-mcp-server; do
               printf '%s\n' "$listing" | grep -q "\./usr/bin/$f$" || { echo "::error::$f missing from $deb"; exit 1; }
             done
@@ -244,6 +245,7 @@ jobs:
           sudo apt-get install -y rpm > /dev/null
           for rpm in dist/*.rpm; do
             listing="$(rpm -qlp "$rpm")"
+            printf '%s\n' "$listing" | grep -Fxq '/usr/share/doc/mini-consumes-tokens/THIRD_PARTY_BINARY_LICENSES.txt'
             for f in mct-cli mct-mcp-server; do
               printf '%s\n' "$listing" | grep -qx "/usr/bin/$f" || { echo "::error::$f missing from $rpm"; exit 1; }
             done

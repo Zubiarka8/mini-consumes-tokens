@@ -34,5 +34,7 @@ contents:
     dst: /usr/share/doc/mini-consumes-tokens/LICENSE
   - src: pkg/THIRD_PARTY_NOTICES.md
     dst: /usr/share/doc/mini-consumes-tokens/THIRD_PARTY_NOTICES.md
+  - src: pkg/THIRD_PARTY_BINARY_LICENSES.txt
+    dst: /usr/share/doc/mini-consumes-tokens/THIRD_PARTY_BINARY_LICENSES.txt
   - src: pkg/README.md
     dst: /usr/share/doc/mini-consumes-tokens/README.md
