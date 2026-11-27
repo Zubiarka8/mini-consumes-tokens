@@ -338,6 +338,40 @@ enum Command {
         #[arg(long, value_enum)]
         reviewed: Option<reviewed::Reviewed>,
     },
+    /// List indexed files by path, name, category or format, as TOON
+    ///
+    /// The same page the MCP `find_files` tool returns. Reads the existing
+    /// index, so run `init` or `reindex` first. Paths and metadata only,
+    /// never file contents.
+    #[command(
+        after_help = "Examples:\n  mct-cli files --category audio --path demo/\n  mct-cli files --format svg --query logo\n  mct-cli files --category document --format pdf --limit 20"
+    )]
+    Files {
+        /// Words that must all occur in the path, case-insensitive.
+        #[arg(long)]
+        query: Option<String>,
+        /// A file or directory: the path itself and everything under it.
+        #[arg(long)]
+        path: Option<String>,
+        /// image, vector, video, audio, subtitle, document, spreadsheet,
+        /// presentation, ebook, font, design, model3d, data, database,
+        /// geospatial, archive, binary, email, source or other.
+        #[arg(long)]
+        category: Option<String>,
+        /// Format id or extension alias (`pdf`, `jpg`, `tgz`), or a
+        /// language id for source files.
+        #[arg(long)]
+        format: Option<String>,
+        /// Page size, 1..=200 (default 50).
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Rows to skip: the previous page's `next_offset`.
+        #[arg(long)]
+        offset: Option<usize>,
+        /// `toon` (default) or `text`.
+        #[arg(long)]
+        output_format: Option<String>,
+    },
     /// Report candidate duplicate functions and methods, as TOON.
     ///
     /// Groups functions and methods of the same language whose token
@@ -415,6 +449,7 @@ impl Command {
             Command::IgnoreInit { .. } => "init-mctignore",
             Command::GitignoreInit => "git-exclusions-init",
             Command::DeadCode { .. } => "dead-code",
+            Command::Files { .. } => "files",
             Command::Duplicates { .. } => "duplicates",
             Command::Probe { .. } => "probe",
             Command::Update => "update",
@@ -596,6 +631,28 @@ fn run_single(root: PathBuf, command: Command) -> anyhow::Result<()> {
         }
         Command::Obsidian => obsidian_vault(&index)?,
         Command::Status => print_status(index.status()?),
+        Command::Files {
+            query,
+            path,
+            category,
+            format,
+            limit,
+            offset,
+            output_format,
+        } => {
+            let args = mct_mcp_server::file_query::FindFilesArgs {
+                query,
+                path,
+                category,
+                format,
+                limit,
+                offset,
+                output_format,
+            };
+            let text = mct_mcp_server::file_query::run(&index, &args)
+                .map_err(|err| anyhow::anyhow!(err.message.to_string()))?;
+            print!("{text}");
+        }
         Command::DeadCode {
             path,
             language,

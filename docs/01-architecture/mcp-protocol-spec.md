@@ -25,6 +25,7 @@
 | `get_file_skeleton` | discovery | Top-level shape of one file, bodies collapsed |
 | `get_project_overview` | discovery | Compact hierarchical digest of a file/directory/crate/project |
 | `get_file_tree` | discovery | File and directory tree |
+| `find_files` | discovery | Indexed files by path, name, category or format, with size; no contents ([ADR-052](adrs/052-path-catalog.md)) |
 | `reindex` | maintenance | Force a re-scan |
 | `get_indexing_status` | maintenance | Index health report |
 | `discover_tool_categories` | meta | List tool names and purposes by category |
@@ -33,6 +34,18 @@
 | `select_tools` | meta | Tool Attention, only with `MCT_TOOL_ATTENTION=1`: narrow `tools/list` to one request's tools |
 
 `select_tools` accepts `query` (the user's request, verbatim). With `MCT_TOOL_ATTENTION=1` the server declares `tools.listChanged` and `tools/list` starts with `select_tools` alone. Each call runs `intent::preselect` on the query (word rules only; the full catalog when they find nothing), makes `select_tools` plus the picked tools the advertised set, sends `notifications/tools/list_changed`, and replies with the intent line, the tool names and argument hints. It never runs a tool. `tools/call` accepts every catalog tool whatever is advertised. Without the variable, `select_tools` is not registered and nothing else changes. `batch` refuses it (with the variable off it is an unknown tool there too).
+
+`find_files` accepts `query` (words that must all occur in the path, case-insensitive), `path` (that file or directory and everything under it), `category` (one of the 20 in `mct_index::catalog::Category`), `format` (a format id or extension alias, normalized: `jpg` = `jpeg`, `tgz` = `tar.gz`, `ts` = `mpeg-ts`; or a parser language id for a source file), `limit` (1..=200, default 50), `offset` and `output_format` (`toon` default, or `text`; named so because `format` is the file format). Rows come in stored path order. The page states `total`, `offset`, `returned` and `next_offset` (`none` on the last page), and adds a `note` column only when a returned row's classification is doubtful. An unknown category or format, an out-of-range limit or a path outside the root is `invalid_params` naming the valid values. An index that was never filled says so. `mct-cli files` prints the same page. Example, `{"category": "document", "format": "pdf", "limit": 20}`:
+
+```text
+filters: category=document format=pdf
+total: 1
+offset: 0
+returned: 1
+next_offset: none
+files[1]{path,category,format,bytes}:
+  docs/manual.pdf,document,pdf,9
+```
 
 `find_references`/`find_calls`/`find_callers`/`impact_analysis` accept `depth` (multi-hop, default 1), `limit`, `offset`. `find_references` also accepts `sort`: `relevance` (default) or `execution` (by hop, file and line; a static approximation, not the real execution order).
 

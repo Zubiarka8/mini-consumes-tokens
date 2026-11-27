@@ -44,6 +44,7 @@ Commands:
   obsidian              Regenerate the Obsidian vault from the existing index
   web                   Serve the local project dashboard (atlas, duplicates, dead code, search, dependencies)
   dead-code             Write a CSV report of dead-code candidates (heuristic: symbols with zero indexed references) — one row per candidate with its file, function name, kind, language, and start/end line
+  files                 List indexed files by path, name, category or format, as TOON
   duplicates            Report candidate duplicate functions and methods, as TOON
   probe                 Parse files without indexing them and report, per file, either its symbol/relation counts or the first syntax error with its line
   update, -u, --update  Update mct-cli and mct-mcp-server to the latest GitHub release
@@ -557,6 +558,25 @@ processes see them on their next save or restart. A crash may leave
 `duplicate-reviews.lock`; remove it only after confirming no writer is active.
 Atomic replacement is not a promise of power-loss durability. No bulk purge or
 source-deletion operation is provided. See [ADR-015](docs/01-architecture/adrs/015-duplicate-review-decisions.md).
+
+### `files` / `files --query <words> --path <path> --category <category> --format <format>`
+
+Lists catalogued files: every file the index walks, source or not (PDF, image, audio, video, font, spreadsheet, archive, ...), with its category, format and size. The page is the one the MCP `find_files` tool returns, rendered by the same code. It reads the existing index and never opens a file, so run `init` or `reindex` first.
+
+- `--query` words must all occur in the path, case-insensitive.
+- `--path` keeps that file or directory and everything under it.
+- `--category` is one of `image vector video audio subtitle document spreadsheet presentation ebook font design model3d data database geospatial archive binary email source other`.
+- `--format` takes a format id or extension alias, any case, with or without the dot: `jpg`, `JPEG` and `.jpe` all mean `jpeg`; `tgz` means `tar.gz`; `ts` means MPEG-TS video. A source file's format is its parser's language id (`rust`, `javascript_typescript`).
+- `--limit` (1..=200, default 50) and `--offset` page the rows, which come in path order. `next_offset` names the next page.
+- `--output-format text` prints one line per file instead of TOON.
+
+A row whose classification is doubtful carries a `note` column (for example a `.ttc` file without the font-collection signature). A file no format or parser claims is category `other` and stays findable by path. An unknown category or format exits non-zero and lists the valid values. The format registry and how to add a format are in [docs/02-crates/path-catalog-formats.md](docs/02-crates/path-catalog-formats.md).
+
+```sh
+mct-cli --root . files --category audio --path demo/
+mct-cli --root . files --format svg --query logo
+mct-cli --root . files --category document --format pdf --limit 20
+```
 
 ### `dead-code` / `dead-code --path <path> --language <lang> --output <file>`
 
