@@ -20,6 +20,10 @@ for the components included in their distribution. This document is not a
 complete dependency-license inventory; the required set depends on the target,
 enabled features, and distributed artifacts.
 
+The vendored `tree-sitter-php` grammar uses the MIT License. Its full license
+and copyright notices are in [`vendor/tree-sitter-php/LICENSE`](vendor/tree-sitter-php/LICENSE)
+and [`THIRD_PARTY_BINARY_LICENSES.txt`](THIRD_PARTY_BINARY_LICENSES.txt).
+
 ## Optional embedding models
 
 The default `bge-small-en-v1.5` model is published under MIT;
