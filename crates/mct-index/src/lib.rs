@@ -32,6 +32,7 @@ mod vite;
 pub use assets::{
     read_glb_json_chunk, AssetError, ASSET_EXTENSIONS, ASSET_LANGUAGE, MAX_GLTF_JSON_BYTES,
 };
+pub use catalog::CatalogEntry;
 pub use context_budget::{
     select, Basis, BudgetError, Candidate, ContextBudget, DetailLevel, EstimatedCounter, Evidence,
     SelectedRow, Selection, TokenCount, TokenCounter, MAX_BUDGET_RESULTS, MAX_BUDGET_TOKENS,
@@ -184,6 +185,9 @@ pub struct Index {
     pending_warnings: Vec<String>,
     /// Incidents found by the reindex in progress, logged once it commits.
     pending_incidents: std::cell::RefCell<Vec<incidents::Pending>>,
+    /// The path catalog's rules fingerprint for the registry last indexed
+    /// with, keyed by that registry's address (see `catalog::store`).
+    catalog_rules: std::cell::RefCell<Option<(usize, String)>>,
     /// Whether the post-reindex hook has succeeded on this connection. Until
     /// it has, it runs even after a run that published nothing, so derived
     /// views (the Obsidian vault) are written once per process.
@@ -226,6 +230,7 @@ impl Index {
             post_reindex: None,
             pending_warnings: Vec::new(),
             pending_incidents: std::cell::RefCell::new(Vec::new()),
+            catalog_rules: std::cell::RefCell::new(None),
             post_reindex_done: false,
             last_verified_at: None,
             last_full_verified_at: None,
@@ -262,6 +267,7 @@ impl Index {
             post_reindex: None,
             pending_warnings: Vec::new(),
             pending_incidents: std::cell::RefCell::new(Vec::new()),
+            catalog_rules: std::cell::RefCell::new(None),
             post_reindex_done: false,
             last_verified_at: None,
             last_full_verified_at: None,
@@ -289,6 +295,7 @@ impl Index {
             post_reindex: None,
             pending_warnings: Vec::new(),
             pending_incidents: std::cell::RefCell::new(Vec::new()),
+            catalog_rules: std::cell::RefCell::new(None),
             post_reindex_done: false,
             last_verified_at: None,
             last_full_verified_at: None,
