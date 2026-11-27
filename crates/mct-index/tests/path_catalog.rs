@@ -678,3 +678,23 @@ fn an_empty_index_returns_an_empty_page() {
         })
         .is_ok());
 }
+
+#[test]
+fn the_status_counts_catalogued_files_by_category() {
+    let (_dir, index) = indexed_fixture();
+    let status = index.status().unwrap();
+    let count = |category: &str| {
+        status
+            .catalog
+            .iter()
+            .find(|c| c.category == category)
+            .map_or(0, |c| c.files)
+    };
+    assert_eq!(count("audio"), 5);
+    assert!(count("other") >= 2, "{:?}", status.catalog);
+    assert!(status.catalog_doubtful >= 1);
+    let files: Vec<usize> = status.catalog.iter().map(|c| c.files).collect();
+    let mut sorted = files.clone();
+    sorted.sort_by(|a, b| b.cmp(a));
+    assert_eq!(files, sorted);
+}
