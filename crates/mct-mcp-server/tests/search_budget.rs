@@ -178,19 +178,45 @@ async fn pages_resume_at_the_reported_offset_without_gaps_or_repeats() {
 }
 
 #[tokio::test]
-async fn a_budget_below_the_minimum_returns_a_valid_explained_response() {
+async fn tiny_budgets_cover_matches_and_no_matches() {
+    let server = server().await;
+    let missing = "a".repeat(733);
+    for query in ["order", missing.as_str()] {
+        for budget in [1, 32, 128] {
+            let text = search(
+                &server,
+                json!({ "query": query, "format": "text", "max_tokens": budget }),
+            )
+            .await;
+            assert!(!text.trim().is_empty());
+            assert!(est(&text) <= budget, "budget {budget}: {text}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_compact_budget_notice_retries_the_same_page_with_more_tokens() {
     let server = server().await;
     let text = search(
         &server,
-        json!({ "query": "order", "format": "text", "max_tokens": 1 }),
+        json!({ "query": "order", "offset": 1, "limit": 1, "max_tokens": 32 }),
     )
     .await;
-    assert!(text.contains("none fit `max_tokens`"), "{text}");
-    assert!(
-        text.contains("est. tokens are needed for one row"),
-        "{text}"
-    );
-    assert!(text.contains("next: offset=0"), "{text}");
+    assert!(est(&text) <= 32, "{text}");
+    assert!(text.contains("retry offset=1"), "{text}");
+    let needed: usize = text
+        .rsplit('~')
+        .next()
+        .and_then(|s| s.split_whitespace().next())
+        .and_then(|s| s.parse().ok())
+        .unwrap();
+    let retried = search(
+        &server,
+        json!({ "query": "order", "offset": 1, "limit": 1, "max_tokens": needed }),
+    )
+    .await;
+    assert!(retried.contains("matches[1]"), "{retried}");
+    assert!(est(&retried) <= needed, "{retried}");
 }
 
 #[tokio::test]

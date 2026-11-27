@@ -126,7 +126,7 @@ async fn a_heading_less_note_gets_a_valid_minimal_response_then_fits_at_the_repo
         )
     };
     let tiny = pack(60).await;
-    assert!(tiny.starts_with("Context pack for `bare`"), "{tiny}");
+    assert!(est(&tiny) <= 60, "{tiny}");
     assert!(tiny.contains("No row fits `max_tokens`"), "{tiny}");
     let needed: usize = tiny
         .rsplit('~')
@@ -251,10 +251,7 @@ async fn long_unicode_paths_cost_budget_and_survive_truncation_intact() {
         json!({"query": "決定", "format": "text", "detail": "summary", "max_tokens": est(&wide) / 2}),
     )
     .await;
-    assert!(
-        est(&narrow) <= est(&wide) / 2 || narrow.contains("No row fits"),
-        "{narrow}"
-    );
+    assert!(est(&narrow) <= est(&wide) / 2, "{narrow}");
     // Never a split character: the text is valid UTF-8 by construction, and
     // any path it still shows is the whole path.
     if narrow.contains("ディレクトリ") {

@@ -758,9 +758,7 @@ pub async fn run(
     let micros = start.elapsed().as_micros();
     let all = answers.join("\n");
     let ok = satisfied(case, &all);
-    let signalled = answers
-        .iter()
-        .any(|a| SIGNALS.iter().any(|s| a.contains(s)));
+    let signalled = answers.iter().any(|answer| signals_truncation(answer));
     Some(Outcome {
         case: case.id,
         strategy,
@@ -803,9 +801,17 @@ fn recall(case: &Case, all: &str) -> f64 {
     case.needs.iter().filter(|n| has(n, all)).count() as f64 / case.needs.len() as f64
 }
 
+fn signals_truncation(text: &str) -> bool {
+    text.trim() == "…" || SIGNALS.iter().any(|signal| text.contains(signal))
+}
+
 fn satisfied(case: &Case, all: &str) -> bool {
     if case.expect_signal {
-        return all.contains("none fit `max_tokens`") && !all.contains(":L");
+        return !all.contains(":L")
+            && signals_truncation(all)
+            && case
+                .task_budget
+                .is_none_or(|max| EstimatedCounter.count(all).value <= max);
     }
     if case.expect_none {
         // Nothing found, and the answer says so instead of inventing rows.

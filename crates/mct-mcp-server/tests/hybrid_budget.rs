@@ -133,6 +133,15 @@ async fn a_quoted_phrase_keeps_its_literal_section_inside_the_budget() {
         "{budgeted}"
     );
     assert!(est(&budgeted) <= 400, "{budgeted}");
+    for budget in [1, 32] {
+        let tiny = hybrid(
+            &server,
+            json!({ "query": query, "format": "text", "max_tokens": budget }),
+        )
+        .await;
+        assert!(!tiny.trim().is_empty());
+        assert!(est(&tiny) <= budget, "budget {budget}: {tiny}");
+    }
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
