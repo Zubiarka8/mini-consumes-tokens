@@ -149,7 +149,7 @@ async fn references_flag_an_ambiguous_note_link_and_keep_raw_spelling() {
     )
     .await;
     assert!(
-        out.contains("bare.md:1:1 [markdown] bare --references--> beta (ambiguous among 2: a/beta.md:1, b/beta.md:1)"),
+        out.contains("bare.md:1:1 [markdown] bare --references--> beta (ambiguous among 2, several candidates: a/beta.md:1, b/beta.md:1)"),
         "{out}"
     );
     assert!(

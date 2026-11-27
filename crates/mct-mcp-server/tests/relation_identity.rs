@@ -140,7 +140,9 @@ async fn path_scoped_relation_tools_never_report_a_same_named_target_outside_the
     );
     // `v.get()`: the one same-named method is a candidate, never the target.
     assert!(
-        calls.contains("--calls--> get (ambiguous among 1: c/src/util.rs:5 in Repo)\n"),
+        calls.contains(
+            "--calls--> get (ambiguous among 1, receiver type unproven: c/src/util.rs:5 in Repo)\n"
+        ),
         "{calls}"
     );
 }
