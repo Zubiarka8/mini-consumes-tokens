@@ -26,6 +26,7 @@ mod search;
 mod semantic;
 mod symbol_changes;
 mod traversal;
+mod vite;
 
 pub use assets::{
     read_glb_json_chunk, AssetError, ASSET_EXTENSIONS, ASSET_LANGUAGE, MAX_GLTF_JSON_BYTES,

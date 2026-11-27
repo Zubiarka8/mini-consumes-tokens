@@ -2314,6 +2314,305 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
+        // A named import from a bare specifier resolves inside the
+        // workspace package of that name (#563, ADR-048).
+        M::up(concat!(
+            r#"
+            ALTER TABLE relations ADD COLUMN package TEXT;
+            ALTER TABLE package_manifests ADD COLUMN name TEXT;
+            CREATE INDEX idx_package_manifests_name ON package_manifests(name);
+            UPDATE files SET content_hash = '' WHERE language = 'javascript_typescript';
+            DROP VIEW relation_candidates;
+            "#,
+            r#"CREATE VIEW relation_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id
+                JOIN symbols s ON s.id IN (
+                    SELECT id FROM symbols WHERE name = r.to_name
+                    UNION ALL
+                    SELECT symbol_id FROM symbol_aliases
+                    WHERE alias = r.to_name AND r.target_kind = 'module'
+                      AND r.target_path IS NULL
+                    UNION ALL
+                    SELECT symbol_id FROM ts_alias_candidates
+                    WHERE relation_id = r.id AND (substr(r.module, 1, 2) = '@/' OR substr(r.module, 1, 1) = '#')
+                )
+                CROSS JOIN files sf ON sf.id = s.file_id
+                WHERE r.targets_parsed = 1
+                  AND (((substr(r.module, 1, 2) = '@/' OR substr(r.module, 1, 1) = '#')
+                        AND s.id IN (SELECT symbol_id FROM ts_alias_candidates
+                                     WHERE relation_id = r.id))
+                  OR (r.to_name IN (SELECT s.name
+                                    UNION ALL
+                                    SELECT alias FROM symbol_aliases
+                                    WHERE symbol_id = s.id)
+                  AND r.external = 0
+                  AND sf.language = COALESCE(r.target_language, cf.language)
+                  AND (r.qualifier IS NULL
+                       OR s.parent = r.qualifier
+                       OR substr(s.parent, 1, length(r.qualifier) + 1) = r.qualifier || '<'
+                       OR (EXISTS (SELECT 1 FROM relations sr
+                                       WHERE sr.to_name = s.parent
+                                         AND sr.kind IN ('extends', 'implements'))
+                           AND NOT EXISTS (SELECT 1 FROM symbols own
+                                           JOIN files ownf ON ownf.id = own.file_id
+                                           WHERE own.name = r.to_name
+                                             AND own.parent = r.qualifier
+                                             AND ownf.language = sf.language)
+                           AND s.parent IN (
+                           WITH RECURSIVE ancestors(name, depth) AS (
+                               SELECT r.qualifier, 0
+                               UNION
+                               SELECT ir.to_name, a.depth + 1
+                               FROM ancestors a
+                               JOIN symbols t ON t.name = a.name
+                               JOIN files tf ON tf.id = t.file_id
+                                            AND tf.language = sf.language
+                               JOIN relations ir ON ir.from_symbol_id = t.id
+                                                AND ir.kind IN ('extends', 'implements')
+                               WHERE a.depth < 8
+                           )
+                           SELECT a.name FROM ancestors a
+                           WHERE a.depth > 0
+                             AND NOT EXISTS (SELECT 1 FROM ancestors b
+                                             JOIN symbols own ON own.parent = b.name
+                                                             AND own.name = r.to_name
+                                             JOIN files ownf ON ownf.id = own.file_id
+                                                            AND ownf.language = sf.language
+                                             WHERE b.depth < a.depth))))
+                  AND (r.target_path IS NULL
+                       OR (r.include_spec IS NOT NULL
+                           AND NOT EXISTS (SELECT 1 FROM files beside WHERE beside.relative_path = r.target_path)
+                           AND EXISTS (SELECT 1 FROM include_dirs d
+                               WHERE (d.directory = '' OR substr(cf.relative_path, 1, length(d.directory) + 1) = d.directory || '/')
+                                 AND sf.relative_path = CASE WHEN d.include_path = '' THEN '' ELSE d.include_path || '/' END || r.include_spec))
+                       OR sf.relative_path = CASE
+                           WHEN r.web_app IS NULL THEN r.target_path
+                           ELSE COALESCE(
+                               (SELECT CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || w.root || '/'
+                                FROM (SELECT wr.root, 2 AS rank FROM web_roots wr
+                                      WHERE wr.directory = r.web_app
+                                      UNION ALL
+                                      SELECT 'static', 1 FROM files cfg
+                                      WHERE cfg.relative_path IN (
+                                          CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || 'svelte.config.js',
+                                          CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || 'svelte.config.ts',
+                                          CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || 'svelte.config.mjs',
+                                          CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END || 'svelte.config.cjs')) w
+                                ORDER BY w.rank DESC LIMIT 1)
+                               || substr(r.target_path, length(CASE WHEN r.web_app = '' THEN '' ELSE r.web_app || '/' END) + 8),
+                               r.target_path)
+                       END)
+                  AND (r.module IS NULL
+                       OR s.parent = r.module
+                       OR EXISTS (SELECT 1 FROM symbols pt
+                                  WHERE pt.file_id = s.file_id AND pt.name = s.parent
+                                    AND pt.parent = r.module)
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '/') > 0
+                       OR instr('/' || replace(sf.relative_path, '-', '_'), '/' || r.module || '.') > 0
+                       OR (cf.language = 'rust' AND EXISTS (
+                           SELECT 1 FROM cargo_packages cp
+                           WHERE cp.crate_name = r.module
+                             AND (cp.directory = '' OR substr(sf.relative_path, 1, length(cp.directory) + 1) = cp.directory || '/')
+                             AND NOT EXISTS (SELECT 1 FROM cargo_packages nested
+                                 WHERE length(nested.directory) > length(cp.directory)
+                                   AND (cp.directory = '' OR substr(nested.directory, 1, length(cp.directory) + 1) = cp.directory || '/')
+                                   AND substr(sf.relative_path, 1, length(nested.directory) + 1) = nested.directory || '/')
+                       ))
+                       OR (cf.language = 'rust' AND EXISTS (
+                           SELECT 1 FROM cargo_renames cr
+                           WHERE cr.alias = r.module
+                             AND (cr.directory = '' OR substr(cf.relative_path, 1, length(cr.directory) + 1) = cr.directory || '/')
+                             AND NOT EXISTS (SELECT 1 FROM cargo_packages nested
+                                 WHERE length(nested.directory) > length(cr.directory)
+                                   AND (cr.directory = '' OR substr(nested.directory, 1, length(cr.directory) + 1) = cr.directory || '/')
+                                   AND substr(cf.relative_path, 1, length(nested.directory) + 1) = nested.directory || '/')
+                             AND substr(sf.relative_path, 1, length(cr.target_directory) + 1) = cr.target_directory || '/'
+                             AND NOT EXISTS (SELECT 1 FROM cargo_packages nested
+                                 WHERE length(nested.directory) > length(cr.target_directory)
+                                   AND substr(nested.directory, 1, length(cr.target_directory) + 1) = cr.target_directory || '/'
+                                   AND substr(sf.relative_path, 1, length(nested.directory) + 1) = nested.directory || '/')
+                       ))
+                       OR (r.package IS NOT NULL AND EXISTS (
+                           SELECT 1 FROM package_manifests pm
+                           WHERE pm.name = r.package
+                             AND (pm.directory = '' OR substr(sf.relative_path, 1, length(pm.directory) + 1) = pm.directory || '/')
+                             AND NOT EXISTS (SELECT 1 FROM package_manifests nested
+                                 WHERE length(nested.directory) > length(pm.directory)
+                                   AND (pm.directory = '' OR substr(nested.directory, 1, length(pm.directory) + 1) = pm.directory || '/')
+                                   AND substr(sf.relative_path, 1, length(nested.directory) + 1) = nested.directory || '/')
+                       )))
+                  AND (r.package IS NULL
+                       OR NOT EXISTS (SELECT 1 FROM package_manifests named WHERE named.name = r.package)
+                       OR EXISTS (SELECT 1 FROM package_manifests pm
+                           WHERE pm.name = r.package
+                             AND (pm.directory = '' OR substr(sf.relative_path, 1, length(pm.directory) + 1) = pm.directory || '/')
+                             AND NOT EXISTS (SELECT 1 FROM package_manifests nested
+                                 WHERE length(nested.directory) > length(pm.directory)
+                                   AND (pm.directory = '' OR substr(nested.directory, 1, length(pm.directory) + 1) = pm.directory || '/')
+                                   AND substr(sf.relative_path, 1, length(nested.directory) + 1) = nested.directory || '/')))
+                  AND (r.member = 0 OR s.kind = 'method')
+                  AND (r.not_field = 0 OR s.kind <> 'field')
+                  AND (r.top_level = 0 OR s.kind NOT IN ('method', 'field'))
+                  AND (s.file_scoped = 0 OR sf.id = cf.id)
+                  AND (r.target_kind IS NULL OR s.kind = r.target_kind)
+                  AND (r.target_module IS NULL
+                       OR EXISTS (SELECT 1 FROM symbols m
+                                  WHERE m.file_id = s.file_id AND m.kind = 'module'
+                                    AND (m.name = r.target_module
+                                         OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                    WHERE a.symbol_id = m.id
+                                                      AND a.alias = r.target_module)))
+                       OR (s.parent IS NOT r.qualifier
+                           AND EXISTS (SELECT 1 FROM symbols qt
+                                       JOIN symbols m ON m.file_id = qt.file_id
+                                                     AND m.kind = 'module'
+                                       WHERE qt.name = r.qualifier
+                                         AND qt.parent IS NULL
+                                         AND (m.name = r.target_module
+                                              OR EXISTS (SELECT 1 FROM symbol_aliases a
+                                                         WHERE a.symbol_id = m.id
+                                                           AND a.alias = r.target_module)))))
+                  AND NOT (r.kind = 'calls' AND s.kind = 'module')
+                  AND NOT (r.kind IN ('extends', 'implements')
+                           AND sf.language IN ('csharp', 'cpp')
+                           AND s.kind IN ('method', 'function', 'field', 'variable', 'constant'))
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'variable'
+                       OR s.parent IS NULL
+                       OR NOT EXISTS (SELECT 1 FROM symbols p
+                                      WHERE p.file_id = s.file_id AND p.name = s.parent
+                                        AND p.kind IN ('function', 'method'))
+                       OR EXISTS (SELECT 1 FROM symbols p
+                                  WHERE p.file_id = s.file_id AND p.name = s.parent
+                                    AND p.kind NOT IN ('function', 'method', 'variable',
+                                                       'constant', 'field')))
+                  AND (sf.id = cf.id
+                       OR s.kind <> 'function'
+                       OR s.end_line IS NULL
+                       OR NOT EXISTS (
+                           SELECT 1 FROM symbols p
+                           WHERE p.file_id = s.file_id
+                             AND p.id <> s.id
+                             AND p.kind IN ('function', 'method')
+                             AND (p.line < s.line
+                                  OR (p.line = s.line AND p.column < s.column))
+                             AND (p.end_line > s.end_line
+                                  OR (p.line = s.line AND p.end_line = s.line
+                                      AND s.end_line = s.line
+                                      AND p.column + p.byte_len >= s.column + s.byte_len))))))
+                  "#,
+            shadowed_module_predicate!(),
+            ";",
+        )),
+        // 32: `@` alias of a Vite or webpack config's `resolve.alias`, merged with
+        // tsconfig `paths` (a tsconfig mapping of the same pattern wins;
+        // #563, ADR-050). Vite configs are reparsed to fill the table.
+        M::up(
+            r#"
+            CREATE TABLE vite_aliases (
+                file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+                directory TEXT NOT NULL,
+                pattern TEXT NOT NULL,
+                target TEXT NOT NULL,
+                PRIMARY KEY (file_id, pattern)
+            );
+            UPDATE files SET content_hash = '' WHERE language = 'javascript_typescript'
+                AND (relative_path LIKE 'vite.config.%' OR relative_path LIKE '%/vite.config.%'
+                     OR relative_path LIKE 'webpack.config.%' OR relative_path LIKE '%/webpack.config.%');
+            DROP VIEW ts_alias_candidates;
+            CREATE VIEW ts_alias_candidates AS
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id AND cf.language = 'javascript_typescript'
+                JOIN ts_configs config ON (config.directory = '' OR substr(cf.relative_path, 1, length(config.directory) + 1) = config.directory || '/')
+                JOIN ts_paths mapping ON mapping.manifest_path = config.manifest_path
+                JOIN files sf ON sf.language = 'javascript_typescript'
+                JOIN symbols s ON s.file_id = sf.id AND s.kind = 'module'
+                WHERE r.targets_parsed = 1 AND r.external = 0 AND r.kind = 'imports'
+                  AND r.target_kind = 'module' AND substr(r.module, 1, 2) = '@/'
+                  AND NOT EXISTS (SELECT 1 FROM ts_configs nearer
+                      WHERE length(nearer.directory) > length(config.directory)
+                        AND (config.directory = '' OR substr(nearer.directory, 1, length(config.directory) + 1) = config.directory || '/')
+                        AND substr(cf.relative_path, 1, length(nearer.directory) + 1) = nearer.directory || '/')
+                  AND substr(r.module, 1, instr(mapping.pattern, '*') - 1) = substr(mapping.pattern, 1, instr(mapping.pattern, '*') - 1)
+                  AND substr(r.module, length(r.module) - length(mapping.pattern) + instr(mapping.pattern, '*') + 1) = substr(mapping.pattern, instr(mapping.pattern, '*') + 1)
+                  AND length(r.module) >= length(mapping.pattern) - 1
+                  AND sf.relative_path IN (
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)),
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '.ts',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '.tsx',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '.js',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '.jsx',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '/index.ts',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) || '/index.js'
+                  )
+                UNION ALL
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id AND cf.language = 'javascript_typescript'
+                JOIN package_manifests package ON (package.directory = '' OR substr(cf.relative_path, 1, length(package.directory) + 1) = package.directory || '/')
+                JOIN package_imports mapping ON mapping.manifest_path = package.manifest_path
+                JOIN files sf ON sf.language = 'javascript_typescript'
+                JOIN symbols s ON s.file_id = sf.id AND s.kind = 'module'
+                WHERE r.targets_parsed = 1 AND r.external = 0 AND r.kind = 'imports'
+                  AND r.target_kind = 'module' AND substr(r.module, 1, 1) = '#'
+                  AND NOT EXISTS (SELECT 1 FROM package_manifests nearer
+                      WHERE length(nearer.directory) > length(package.directory)
+                        AND (package.directory = '' OR substr(nearer.directory, 1, length(package.directory) + 1) = package.directory || '/')
+                        AND substr(cf.relative_path, 1, length(nearer.directory) + 1) = nearer.directory || '/')
+                  AND ((instr(mapping.pattern, '*') = 0 AND r.module = mapping.pattern)
+                       OR (instr(mapping.pattern, '*') > 0
+                           AND substr(r.module, 1, instr(mapping.pattern, '*') - 1) = substr(mapping.pattern, 1, instr(mapping.pattern, '*') - 1)
+                           AND substr(r.module, length(r.module) - length(mapping.pattern) + instr(mapping.pattern, '*') + 1) = substr(mapping.pattern, instr(mapping.pattern, '*') + 1)
+                           AND length(r.module) >= length(mapping.pattern)))
+                  AND sf.relative_path IN (
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END),
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '.ts',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '.tsx',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '.js',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '.jsx',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '/index.ts',
+                      (CASE WHEN instr(mapping.pattern, '*') = 0 THEN mapping.target ELSE replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'), length(r.module) - length(mapping.pattern) + 1)) END) || '/index.js'
+                  )
+                UNION ALL
+                SELECT r.id AS relation_id, s.id AS symbol_id
+                FROM relations r
+                JOIN symbols caller ON caller.id = r.from_symbol_id
+                JOIN files cf ON cf.id = caller.file_id AND cf.language = 'javascript_typescript'
+                JOIN vite_aliases mapping ON (mapping.directory = '' OR substr(cf.relative_path, 1, length(mapping.directory) + 1) = mapping.directory || '/')
+                JOIN files sf ON sf.language = 'javascript_typescript'
+                JOIN symbols s ON s.file_id = sf.id AND s.kind = 'module'
+                WHERE r.targets_parsed = 1 AND r.external = 0 AND r.kind = 'imports'
+                  AND r.target_kind = 'module' AND substr(r.module, 1, 2) = '@/'
+                  AND NOT EXISTS (SELECT 1 FROM vite_aliases nearer
+                      WHERE length(nearer.directory) > length(mapping.directory)
+                        AND (mapping.directory = '' OR substr(nearer.directory, 1, length(mapping.directory) + 1) = mapping.directory || '/')
+                        AND substr(cf.relative_path, 1, length(nearer.directory) + 1) = nearer.directory || '/')
+                  AND NOT EXISTS (SELECT 1 FROM ts_configs config
+                      JOIN ts_paths same ON same.manifest_path = config.manifest_path AND same.pattern = mapping.pattern
+                      WHERE (config.directory = '' OR substr(cf.relative_path, 1, length(config.directory) + 1) = config.directory || '/')
+                        AND NOT EXISTS (SELECT 1 FROM ts_configs nearer
+                            WHERE length(nearer.directory) > length(config.directory)
+                              AND (config.directory = '' OR substr(nearer.directory, 1, length(config.directory) + 1) = config.directory || '/')
+                              AND substr(cf.relative_path, 1, length(nearer.directory) + 1) = nearer.directory || '/'))
+                  AND substr(r.module, 1, instr(mapping.pattern, '*') - 1) = substr(mapping.pattern, 1, instr(mapping.pattern, '*') - 1)
+                  AND length(r.module) >= length(mapping.pattern)
+                  AND sf.relative_path IN (
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))),
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '.ts',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '.tsx',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '.js',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '.jsx',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '/index.ts',
+                      replace(mapping.target, '*', substr(r.module, instr(mapping.pattern, '*'))) || '/index.js'
+                  );
+            "#,
+        ),
     ])
 }
 

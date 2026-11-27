@@ -49,14 +49,23 @@ impl Walker<'_> {
         clause: Node,
         owner: SymbolId,
         module: Option<&str>,
+        package: Option<&str>,
     ) {
         let mut cursor = clause.walk();
         for child in clause.named_children(&mut cursor) {
             match child.kind() {
-                "identifier" => self.push_import_binding(owner, child, location(child), module),
+                "identifier" => {
+                    self.push_import_binding(owner, child, location(child), module, package)
+                }
                 "namespace_import" => {
                     if let Some(name_node) = child.named_child(0) {
-                        self.push_import_binding(owner, name_node, location(child), module);
+                        self.push_import_binding(
+                            owner,
+                            name_node,
+                            location(child),
+                            module,
+                            package,
+                        );
                     }
                 }
                 "named_imports" => {
@@ -72,11 +81,60 @@ impl Walker<'_> {
                             if target.kind() == "default" {
                                 continue;
                             }
-                            self.push_import_binding(owner, target, location(spec), module);
+                            self.push_import_binding(
+                                owner,
+                                target,
+                                location(spec),
+                                module,
+                                package,
+                            );
                         }
                     }
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// `const { a, b: c } = require('spec')`: each destructured name binds
+    /// an export of `spec`, as `import { a, b as c }` does, under its local
+    /// name. Any other pattern or a non-literal `require` binds nothing.
+    pub(super) fn push_require_bindings(&mut self, declarator: Node, value: Node, owner: SymbolId) {
+        let Some(pattern) = declarator
+            .child_by_field_name("name")
+            .filter(|n| n.kind() == "object_pattern")
+        else {
+            return;
+        };
+        let is_require = value.kind() == "call_expression"
+            && value
+                .child_by_field_name("function")
+                .is_some_and(|f| f.kind() == "identifier" && text(f, self.source) == "require");
+        let Some(spec) = is_require
+            .then(|| require_argument(value, self.source))
+            .flatten()
+        else {
+            return;
+        };
+        let module = super::globals::module_name(&spec);
+        let package = bare_package(&spec);
+        let mut cursor = pattern.walk();
+        for property in pattern.named_children(&mut cursor) {
+            let local = match property.kind() {
+                "shorthand_property_identifier_pattern" => Some(property),
+                "pair_pattern" => property
+                    .child_by_field_name("value")
+                    .filter(|v| v.kind() == "identifier"),
+                _ => None,
+            };
+            if let Some(local) = local {
+                self.push_import_binding(
+                    owner,
+                    local,
+                    location(local),
+                    module.as_deref(),
+                    package.as_deref(),
+                );
             }
         }
     }
@@ -87,6 +145,7 @@ impl Walker<'_> {
         name: Node,
         loc: mct_core::Location,
         module: Option<&str>,
+        package: Option<&str>,
     ) {
         let index = self.relations.len();
         self.push_relation(
@@ -99,11 +158,33 @@ impl Walker<'_> {
             self.relation_targets.push(RelationTarget {
                 relation: index,
                 module: Some(module.to_string()),
+                package: package.map(str::to_string),
                 ..Default::default()
             });
         }
         // An import binding names an export: never a member of a type.
         self.mark_top_level(index);
+    }
+}
+
+/// The npm package a bare specifier names: `@scope/name` or `name`, without
+/// any subpath. `None` for a relative, absolute, aliased (`@/`, `#`) or
+/// protocol (`node:`, `https:`) specifier.
+pub(super) fn bare_package(spec: &str) -> Option<String> {
+    if spec.is_empty()
+        || spec.starts_with(['.', '/', '#'])
+        || spec.starts_with("@/")
+        || spec.contains(':')
+    {
+        return None;
+    }
+    let mut segments = spec.split('/');
+    let first = segments.next().filter(|s| !s.is_empty())?;
+    if first.starts_with('@') {
+        let name = segments.next().filter(|s| !s.is_empty())?;
+        Some(format!("{first}/{name}"))
+    } else {
+        Some(first.to_string())
     }
 }
 
@@ -237,4 +318,30 @@ pub(super) fn string_value(node: Node, source: &str) -> Option<String> {
         .named_children(&mut cursor)
         .find(|c| c.kind() == "string_fragment");
     fragment.map(|c| text(c, source).to_string())
+}
+
+#[cfg(test)]
+mod bare_package_tests {
+    use super::bare_package;
+
+    #[test]
+    fn a_bare_specifier_names_its_package_without_the_subpath() {
+        assert_eq!(bare_package("react").as_deref(), Some("react"));
+        assert_eq!(bare_package("lodash/fp").as_deref(), Some("lodash"));
+        assert_eq!(bare_package("@acme/ui").as_deref(), Some("@acme/ui"));
+        assert_eq!(bare_package("@acme/ui/button").as_deref(), Some("@acme/ui"));
+        for spec in [
+            "./x",
+            "../x",
+            "/abs",
+            "@/lib",
+            "#internal",
+            "node:fs",
+            "https://x",
+            "@scope",
+            "",
+        ] {
+            assert_eq!(bare_package(spec), None, "{spec}");
+        }
+    }
 }
