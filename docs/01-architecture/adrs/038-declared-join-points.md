@@ -52,3 +52,20 @@ Other clients and frameworks (`$.ajax`, `XMLHttpRequest`, reqwest, Retrofit, JAX
 `crates/mct-mcp-server/tests/http_join.rs`: `fetch` and `axios` to axum and Express, one positive test per language above, parameter spellings, method mismatch, computed and foreign-host paths, a route declared twice (both handlers ambiguous), an imported or inline handler, a same-named function in another scope, and reindexing (no write when nothing changed, a removed route, a deleted frontend file).
 
 Same `origin/main` snapshot (`650e97ff`), `mct-cli init --force` before and after: 66,208 symbols and 158,697 relations in both, none made by the join pass; 121 dead-code candidates in both, and the CSV reports identical once the root path is ignored. The snapshot has one use (`POST /api/invoices` in a test fixture) and no matching declaration. Index size 32,935,936 to 33,107,968 bytes (+0.5%); `init --force` 7.85 s to 7.63 s (one run each, release build).
+
+## Amendment: declared tests (issue #630)
+
+### Decision
+
+- A Rust function with a test attribute (`#[test]`, `#[tokio::test]`, `#[rstest]`, `#[test_case(..)]`, any path ending in one of those) declares a `test` join point. Its value is the attribute path as written (`#[tokio::test]`), and its role is `declares`. `#[bench]` and any other attribute declare nothing. Migration 34 reparses Rust files to record them.
+- A test join point is no framework entry point. It keeps its function out of the dead-code candidates but adds no `possible entry point` line, so a test suite does not bury the route declarations.
+- An affected test (`impact_analysis`, `build_context_pack`) says why it is one, in this order: the declaring syntax (`#[test]`), then the path convention (`path`: `tests/`, `*_test.*`, `*.spec.*` and the like), then the name convention (`name`: exactly `test` or a `test_` prefix). A name that merely contains `test` (`attest_render`, `latest`) is no test.
+- A test is `likely` affected when its relation to the symbol resolved, and only `possible` when it is ambiguous or unresolved. `impact_analysis` adds the TOON columns `test` (the reason) and `affected` (`likely` or `possible`), and the text line ends in `(#[test])` or `(#[test], possible)` plus the ambiguity reason. The pack names the reason in the role: `test:#[test]`, `test:path`, `test:name`.
+
+### Not decided here
+
+JUnit `@Test`, Jest `it`/`test` calls, pytest fixtures and Go `func TestX(t *testing.T)` signatures need their own extractors; until then they fall back to the path and name conventions.
+
+### Verification
+
+`crates/mct-mcp-server/tests/affected_tests.rs`: an inline `#[test]` and `#[tokio::test]` under `src/`, a function under `tests/` with no attribute (`path`), a caller named `attest_render` that is not a test, and a test reached through an ambiguous call (`possible`). `crates/mct-lang-rust/tests/parse.rs` checks which attributes declare a test.

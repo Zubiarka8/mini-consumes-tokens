@@ -15,7 +15,7 @@
 | `find_references` | atomic | Every reference to a symbol |
 | `find_calls` | atomic | What a function calls |
 | `find_callers` | atomic | What calls a function |
-| `impact_analysis` | composite | Full blast radius in one call |
+| `impact_analysis` | composite | Full blast radius in one call; each affected test says why it is one (`#[test]`, `path`, `name`) and whether it is `likely` or only `possible` (ADR-038, #630) |
 | `find_dead_code` | analysis | Review-aware candidates with zero indexed references; TOON or text ([ADR-023](adrs/023-mcp-dead-code-reviews.md)) |
 | `find_duplicate_code` | analysis | Review-aware whole-function duplicate candidates; compact bounded references ([ADR-022](adrs/022-mcp-duplicate-findings.md)) |
 | `get_dependency_graph` | composite | Module-level import graph: nodes by hop, resolved import edges, cycles, external imports, optional DOT/Mermaid |
@@ -53,7 +53,7 @@ Related symbols, each listed once:
   callee apply_discount  src/pricing.rs:L32-L35 function  | pub fn apply_discount(cents: u64, coupon: Option<&str>) -> u64 {
   callee insert  src/store.rs:L27-L31 method  | pub fn insert(&mut self, order: StoredOrder) -> u64 {
   caller place_orders  src/orders.rs:L82-L91 function  | pub fn place_orders(
-  caller,test test_place_order_stores_the_discounted_total  tests/orders.rs:L18-L25 function  | fn test_place_order_stores_the_discounted_total() {
+  caller,test:#[test] test_place_order_stores_the_discounted_total  tests/orders.rs:L18-L25 function  | fn test_place_order_stores_the_discounted_total() {
   ...
 
 Referenced at file level (use/import) by: tests/orders.rs

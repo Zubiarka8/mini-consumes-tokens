@@ -37,8 +37,8 @@ pub use context_budget::{
 };
 pub use cycles::find_cycles;
 pub use dead_code::{
-    find_dead_code_candidates, looks_like_test_name, scan_dead_code, DeadCodeScan, EntryPointNote,
-    DEAD_CODE_ENTRY_POINT_NAMES, DEAD_CODE_KIND_ALLOWLIST,
+    find_dead_code_candidates, looks_like_test_name, scan_dead_code, test_evidence, DeadCodeScan,
+    EntryPointNote, DEAD_CODE_ENTRY_POINT_NAMES, DEAD_CODE_KIND_ALLOWLIST,
 };
 pub use dependency_graph::{DependencyEdge, DependencyGraph};
 pub use duplicates::{
@@ -70,7 +70,7 @@ pub use indexer::{
 pub use queries::{
     CandidateRef, DeclarationDetails, DeclaredParameter, QueryScope, ReferencedSymbols,
     RelationDirection, RelationHit, RelationPage, Resolution, ResolutionEvidence, SymbolHit,
-    SymbolListEntry, SymbolMatchMode, SHOWN_CANDIDATES,
+    SymbolListEntry, SymbolMatchMode, TestEvidence, SHOWN_CANDIDATES,
 };
 pub use read_limits::{read_repository_file, DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV};
 pub use search::{
@@ -906,6 +906,11 @@ impl Index {
         queries::symbols_by_ids(&self.conn, ids)
     }
 
+    /// The declaring syntax (`#[test]`) of every declared test among `ids`.
+    pub fn declared_tests(&self, ids: &[i64]) -> Result<std::collections::HashMap<i64, String>> {
+        queries::declared_tests(&self.conn, ids)
+    }
+
     /// Calls made by the exact symbol rows `start` (not by every definition
     /// sharing their name), walked forward along resolved callees only, up
     /// to `depth` hops and `limit` hits. See `traversal.rs`.
@@ -1153,6 +1158,8 @@ impl Index {
 
     /// Tests are filtered and deduplicated before their own page is cut.
     /// Increase the reference prefix only when non-test hits consumed it.
+    /// Each hit's `test` says why it is one: a declared test first (a
+    /// `#[test]` join point), then the path, then the name convention.
     pub fn affected_test_page(
         &self,
         name: &str,
@@ -1172,10 +1179,19 @@ impl Index {
                 self.resolve_scope(scope),
             )?;
             let exhausted = refs.len() < budget || budget == usize::MAX;
+            let from: Vec<_> = refs.iter().map(|hit| hit.from_symbol_id).collect();
+            let declared = queries::declared_tests(&self.conn, &from)?;
             let mut seen = std::collections::HashSet::new();
             let mut tests: Vec<_> = refs
                 .into_iter()
-                .filter(|h| looks_like_test_name(&h.from_symbol, &h.relative_path))
+                .filter_map(|mut hit| {
+                    hit.test = test_evidence(
+                        declared.get(&hit.from_symbol_id).map(String::as_str),
+                        &hit.from_symbol,
+                        &hit.relative_path,
+                    );
+                    hit.test.is_some().then_some(hit)
+                })
                 .filter(|h| seen.insert(h.from_symbol_id))
                 .collect();
             // File-root modules in test paths own imports, but they are

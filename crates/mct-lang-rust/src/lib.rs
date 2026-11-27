@@ -281,6 +281,13 @@ impl<'a> Walker<'a> {
                             {
                                 self.join_points.push(point);
                             }
+                            if let Some(value) = test_declaration(attribute, self.source) {
+                                self.join_points.push(mct_core::JoinPoint::test_declares(
+                                    target,
+                                    value,
+                                    location(attribute),
+                                ));
+                            }
                         }
                         self.visit_attribute_references(attribute, target);
                     }
@@ -2152,26 +2159,36 @@ fn is_bare_builtin_attribute(name: &str) -> bool {
 /// the function to a test/bench harness. `#[cfg(test)]` is not one — it only
 /// gates compilation, and a helper under it can still be genuinely unused.
 fn is_harness_attribute(attribute_item: Node, source: &str) -> bool {
+    attribute_path(attribute_item, source)
+        .is_some_and(|(_, last)| matches!(last, "test" | "bench" | "rstest" | "test_case"))
+}
+
+/// The declaring syntax of a test, `#[test]` or `#[tokio::test]` (its
+/// arguments dropped), when `attribute_item` hands its function to a test
+/// harness. A `#[bench]` is a harness attribute but not a test.
+fn test_declaration(attribute_item: Node, source: &str) -> Option<String> {
+    let (path, last) = attribute_path(attribute_item, source)?;
+    matches!(last, "test" | "rstest" | "test_case").then(|| format!("#[{path}]"))
+}
+
+/// An attribute's path as written (`tokio::test`) and its last segment
+/// (`test`); `None` for anything but a plain or scoped identifier.
+fn attribute_path<'s>(attribute_item: Node, source: &'s str) -> Option<(&'s str, &'s str)> {
     let mut cursor = attribute_item.walk();
-    let Some(attribute) = attribute_item
+    let attribute = attribute_item
         .named_children(&mut cursor)
-        .find(|c| c.kind() == "attribute")
-    else {
-        return false;
-    };
+        .find(|c| c.kind() == "attribute")?;
     let mut cursor = attribute.walk();
-    let Some(path) = attribute.named_children(&mut cursor).next() else {
-        return false;
-    };
+    let path = attribute.named_children(&mut cursor).next()?;
     let last = match path.kind() {
         "identifier" => text(path, source),
         "scoped_identifier" => path
             .child_by_field_name("name")
             .map(|n| text(n, source))
             .unwrap_or_default(),
-        _ => return false,
+        _ => return None,
     };
-    matches!(last, "test" | "bench" | "rstest" | "test_case")
+    Some((text(path, source), last))
 }
 
 /// One name a `use` declaration brings in, with what its path proves.

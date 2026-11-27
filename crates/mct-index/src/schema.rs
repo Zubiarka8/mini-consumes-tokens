@@ -2808,6 +2808,10 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
+        // 34: a Rust test attribute (`#[test]`, `#[tokio::test]`) is a test
+        // join point (issue #630), the declared evidence affected-test lists
+        // give first. Rust files are reparsed to record them.
+        M::up("UPDATE files SET content_hash = '' WHERE language = 'rust';"),
     ])
 }
 

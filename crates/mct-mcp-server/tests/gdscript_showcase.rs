@@ -111,7 +111,7 @@ async fn impact_analysis_and_context_pack_include_the_gut_tests() {
     // test's call is listed as uncertain, still marked as a test.
     has_line(
         &pack,
-        "caller,test test_strike_adds_power  tests/test_weapon.gd:L5-L7",
+        "caller,test:path test_strike_adds_power  tests/test_weapon.gd:L5-L7",
     );
 }
 
