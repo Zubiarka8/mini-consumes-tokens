@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Duplicate groups can be reviewed per member (file): each member resolves its own decision or takes its group's, whichever is later. `find_duplicate_code` and `mct duplicates --reviewed` hide a group only when every member is hidden, and `find_duplicate_code` reports `reviewed_members` and each member's state. `review-decisions.toon` becomes version 4 only once it holds a member decision (#263, ADR-049).
+- Duplicate groups can be reviewed per member (file): each member resolves its own decision or takes its group's, whichever is later. `find_duplicate_code` and `mct duplicates --reviewed` hide a group only when every member is hidden, and `find_duplicate_code` reports `reviewed_members` and each member's state. `review-decisions.toon` becomes version 4 only once it holds a member decision (#263, ADR-049). The dashboard review panel picks "All files" or one file (A, B …); a state filter finds a group through any member.
+
 - `mct-cli skills-register` installs the bundled `mct-*` skills for each detected coding agent (Claude Code, Codex, Cursor, Copilot, OpenCode), or for those named with `--agent`; `--dry-run` shows the plan and modified templates are kept unless `--force`. `mcp-register --agent` writes each agent's MCP configuration, and the MCP server now offers the skills as prompts (#560).
 
 - Dashboard: the Duplicates page can search for repeated blocks inside functions, the search of `mct-cli duplicates --partial-blocks`. It runs when you ask for it, in the background, and lists each block with its file, line range and function; a location opens the file at those lines. The panel says when the list is partial because a budget ran out or because the index is incomplete.
@@ -17,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `get_indexing_status` lists file references that match a file only with other letter case. They stay unresolved because they break on Linux (#567). A Bash `source` through a variable (`$LIB_DIR/x.sh`) no longer guesses a repository file.
+
+- An `@/…` import resolves through the `@` alias of the nearest `vite.config.*` or `webpack.config.*` (`resolve.alias`, a literal path or `path.resolve(__dirname, …)`); a tsconfig `paths` entry for `@/*` wins over it (#563, ADR-050). Schema migration 32 reparses those configs.
+
+- A JS/TS import binding from a bare specifier that names a workspace package (`import { Button } from '@acme/ui'` with `"name": "@acme/ui"` in a `package.json`) resolves only inside that package. A destructured CommonJS `const { Button } = require('@acme/ui')` binds the same way. Packages the repository does not hold keep the module-name rule (#563, ADR-048). Schema migration 31 reparses JS/TS files.
+
+- A quoted C/C++ `#include` found only through an include directory a `CMakeLists.txt` declares literally (`include_directories`, `target_include_directories`) resolves there; a header next to the includer still wins (#563, ADR-047). So do `-I`/`-iquote` flags of a `compile_commands.json`, for files in the compiled file's directory. Schema migration 30 reparses C/C++ files.
 
 - A Rust `use alias::…` resolves through a renamed path dependency (`alias = { package = "real", path = "../real" }`) to that crate's files, only inside the declaring package (#563, ADR-046). Schema migration 29.
 

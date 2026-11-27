@@ -9,7 +9,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use mct_index::reviews::{
-    Change, FindingKeys, HistoryEvent, Resolution, ReviewError, Reviews as Store, State,
+    summarize, Change, FindingKeys, GroupSummary, HistoryEvent, Resolution, ReviewError,
+    Reviews as Store, State,
 };
 
 pub(super) struct Reviews {
@@ -18,6 +19,8 @@ pub(super) struct Reviews {
     by_key: HashMap<String, usize>,
     resolutions: Vec<Resolution>,
     histories: Vec<Vec<HistoryEvent>>,
+    /// Without the group events a member shows: each event counted once.
+    own_histories: Vec<Vec<HistoryEvent>>,
 }
 
 impl Reviews {
@@ -35,6 +38,7 @@ impl Reviews {
             by_key,
             resolutions: Vec::new(),
             histories: Vec::new(),
+            own_histories: Vec::new(),
         };
         reviews.refresh();
         reviews
@@ -43,6 +47,25 @@ impl Reviews {
     fn refresh(&mut self) {
         self.resolutions = self.store.resolve(&self.findings);
         self.histories = self.store.histories(&self.findings);
+        let alone: Vec<FindingKeys> = self
+            .findings
+            .iter()
+            .cloned()
+            .map(|mut finding| {
+                finding.group = None;
+                finding
+            })
+            .collect();
+        self.own_histories = self.store.histories(&alone);
+    }
+
+    /// The summary of a duplicate group from its members' keys.
+    pub fn summary(&self, member_keys: &[String]) -> GroupSummary {
+        let members: Vec<Resolution> = member_keys
+            .iter()
+            .filter_map(|key| self.resolution(key).cloned())
+            .collect();
+        summarize(&members)
     }
 
     /// Every finding of the snapshot, in order.
@@ -51,13 +74,16 @@ impl Reviews {
     }
 
     /// The identities of the findings that have a review decision (any state
-    /// but `Unreviewed`).
+    /// but `Unreviewed`). A decided member marks its group.
     pub fn reviewed_keys(&self) -> HashSet<&str> {
         self.findings
             .iter()
             .zip(&self.resolutions)
             .filter(|(_, resolution)| resolution.state() != State::Unreviewed)
-            .map(|(finding, _)| finding.identity.as_str())
+            .map(|(finding, _)| {
+                let owner = finding.group.and_then(|group| self.findings.get(group));
+                owner.unwrap_or(finding).identity.as_str()
+            })
             .collect()
     }
 
@@ -89,11 +115,11 @@ impl Reviews {
             .map_or(&[], |index| self.histories[*index].as_slice())
     }
 
-    /// Every finding's key with each of its history events.
+    /// Every finding's key with each of its own history events.
     pub fn events(&self) -> impl Iterator<Item = (&str, &HistoryEvent)> {
         self.findings
             .iter()
-            .zip(&self.histories)
+            .zip(&self.own_histories)
             .flat_map(|(finding, events)| {
                 events
                     .iter()

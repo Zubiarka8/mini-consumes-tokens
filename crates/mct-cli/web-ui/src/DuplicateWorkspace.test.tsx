@@ -198,4 +198,30 @@ describe("duplicate workspace", () => {
     await user.click(within(files).getByRole("button", { name: "dup.backToList" }));
     expect(props.onBack).toHaveBeenCalledTimes(1);
   });
+
+  test("one file is reviewed on its own and saved under its own key", async () => {
+    const user = userEvent.setup();
+    const member = (key: string, state: string) => ({
+      key, number: null, state, previousState: state, note: "", updated: null,
+      revision: `r-${key}`, readOnly: false, held: false, history: [],
+    });
+    const base = duplicate();
+    const item = duplicate({
+      members: base.members.map((m, i) => ({ ...m, review: member(`m${i}`, i === 1 ? "confirmed" : "unreviewed") })),
+    });
+    const saved = { ...member("m2", "dismissed"), history: [] };
+    const save = vi.fn(async () => saved);
+    const props = show(item, 0, { ...pending(), save });
+    const scope = screen.getByRole("radiogroup", { name: "dup.reviewScope" });
+    expect(within(scope).getByRole("radio", { name: "dup.reviewAll" })).toHaveAttribute("aria-checked", "true");
+    const review = screen.getByRole("complementary", { name: "rw.review" });
+    expect(within(review).getAllByRole("listitem")[1]).toHaveTextContent("state:confirmed");
+
+    await user.click(within(scope).getByRole("radio", { name: "dup.reviewFile(letter=C)" }));
+    expect(within(review).getByText("dup.memberDecision(letter=C)")).toBeInTheDocument();
+    await user.click(within(review).getByRole("button", { name: /review\.ignoreNow/ }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith("m2", "dismissed", "", "r-m2"));
+    const update = props.onSaved.mock.calls[0][0] as { members: { review?: { state: string } }[] };
+    expect(update.members.map((m) => m.review?.state)).toEqual(["unreviewed", "confirmed", "dismissed"]);
+  });
 });
