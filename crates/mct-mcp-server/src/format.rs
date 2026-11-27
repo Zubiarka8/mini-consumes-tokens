@@ -1420,9 +1420,21 @@ fn context_pack_header(pack: &crate::server::ContextPack) -> String {
         out.push_str(&format!(", {} unresolved name(s)", pack.unresolved.len()));
     }
     out.push('\n');
-    if pack.omitted_definitions > 0 {
+    if !pack.missing.is_empty() {
+        let names: Vec<String> = pack.missing.iter().map(|n| format!("`{n}`")).collect();
         out.push_str(&format!(
-            "({} more definition(s) of `{}` not shown — narrow with `path`/`language`)\n",
+            "(not found: {} — try search_symbols for a partial name)\n",
+            names.join(", ")
+        ));
+    }
+    if pack.omitted_definitions > 0 {
+        let narrow = if pack.joint {
+            "narrow with each entry's `path`/`language`"
+        } else {
+            "narrow with `path`/`language`"
+        };
+        out.push_str(&format!(
+            "({} more definition(s) of `{}` not shown — {narrow})\n",
             pack.omitted_definitions, pack.symbol
         ));
     }
@@ -1565,6 +1577,37 @@ fn uncertain_detail(item: &crate::server::UncertainRelated, with_reason: bool) -
     }
 }
 
+/// For a joint pack whose related rows `limit` cut: how many rows each
+/// symbol lost, and the calls that bring them back.
+fn joint_recovery_hint(pack: &crate::server::ContextPack, limit: usize) -> String {
+    if !pack.joint || pack.related.len() <= limit {
+        return String::new();
+    }
+    let mut lost: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for related in &pack.related[limit..] {
+        let origins: BTreeSet<&str> = related
+            .roles
+            .iter()
+            .filter_map(|role| role.rsplit_once('@'))
+            .flat_map(|(_, origins)| origins.split('+'))
+            .collect();
+        for origin in origins {
+            *lost.entry(origin).or_default() += 1;
+        }
+    }
+    // The first symbol (in name order) that lost the most rows.
+    let most = lost.values().copied().max().unwrap_or(0);
+    let Some((worst, _)) = lost.iter().find(|(_, n)| **n == most) else {
+        return String::new();
+    };
+    let counts: Vec<String> = lost.iter().map(|(o, n)| format!("{o} {n}")).collect();
+    format!(
+        "Omitted related rows by symbol: {}. Pass `limit`: {} to list them all, or pack one alone with `symbol`: \"{worst}\".\n",
+        counts.join(", "),
+        pack.related.len()
+    )
+}
+
 /// The uncertain-relations section of a context pack, or nothing.
 fn context_pack_uncertain(pack: &crate::server::ContextPack, limit: usize) -> String {
     if pack.uncertain.is_empty() {
@@ -1621,6 +1664,7 @@ pub fn context_pack(pack: &crate::server::ContextPack, limit: usize) -> String {
             list_note(pack.related.len(), 0, shown.len(), &body),
             body.body
         ));
+        out.push_str(&joint_recovery_hint(pack, limit));
     }
     out.push_str(&context_pack_uncertain(pack, limit));
     out.push_str(&context_pack_footer(pack));
@@ -1663,6 +1707,7 @@ pub fn context_pack_toon(pack: &crate::server::ContextPack, limit: usize) -> Str
                 &rows,
             )
         ));
+        out.push_str(&joint_recovery_hint(pack, limit));
     }
     if !pack.uncertain.is_empty() {
         let shown = paginate(&pack.uncertain, 0, limit);
@@ -3476,6 +3521,8 @@ mod context_pack_tests {
     fn external_and_unresolved_names_stay_distinct_in_both_formats() {
         let pack = crate::server::ContextPack {
             symbol: "f".to_string(),
+            joint: false,
+            missing: Vec::new(),
             depth: 1,
             definitions: Vec::new(),
             omitted_definitions: 0,
