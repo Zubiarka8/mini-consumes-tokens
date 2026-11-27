@@ -389,15 +389,16 @@ pub const FORMATS: &[Format] = &[
 /// that claims the file and a bounded signature read, never by extension
 /// alone. Each keeps its own formats (ids not in [`FORMATS`]).
 pub const CONFLICTING_SUFFIXES: &[&str] = &[
-    // TypeScript (`.ts`, `.mts`) or an MPEG transport stream / AVCHD video.
-    "ts", "mts", // Word 97-2003 template or a Graphviz graph.
-    "dot", // TrueType font collection or any other `.ttc` text.
-    "ttc", // Wavefront 3D mesh (text) or a compiled COFF object file.
-    "obj", // Keynote presentation (a ZIP package) or a PEM key.
-    "key", // A SQLite database or some other `.db` file.
-    "db",  // A plain TIFF or a GeoTIFF raster.
-    "tif", "tiff", // A Figma file or an XFig drawing.
-    "fig",
+    "ts",   // TypeScript or an MPEG transport stream.
+    "mts",  // TypeScript module or an AVCHD video.
+    "dot",  // Word 97-2003 template or a Graphviz graph.
+    "ttc",  // TrueType font collection or any other `.ttc` text.
+    "obj",  // Wavefront 3D mesh (text) or a compiled COFF object file.
+    "key",  // Keynote presentation (a ZIP package) or a PEM key.
+    "db",   // A SQLite database or some other `.db` file.
+    "tif",  // A plain TIFF or a GeoTIFF raster.
+    "tiff", // A plain TIFF or a GeoTIFF raster.
+    "fig",  // A Figma file or an XFig drawing.
 ];
 
 /// Formats only [`CONFLICTING_SUFFIXES`] resolve to: `(id, category)`, so a
