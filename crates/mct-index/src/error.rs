@@ -35,6 +35,9 @@ pub enum IndexError {
     #[error("`{0}` is not a directory")]
     NotADirectory(String),
 
+    #[error("invalid find_files query: {0}")]
+    InvalidFileQuery(crate::catalog::query::FileQueryError),
+
     #[error("embedding error: {0}")]
     Embedding(String),
 

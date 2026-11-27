@@ -5,6 +5,7 @@
 
 pub mod classify;
 pub mod formats;
+pub mod query;
 pub(crate) mod store;
 
 use rusqlite::{params, OptionalExtension};

@@ -37,6 +37,9 @@ mod vite;
 pub use assets::{
     read_glb_json_chunk, AssetError, ASSET_EXTENSIONS, ASSET_LANGUAGE, MAX_GLTF_JSON_BYTES,
 };
+pub use catalog::query::{
+    FilePage, FileQueryError, FileQueryInput, DEFAULT_FILE_LIMIT, MAX_FILE_LIMIT,
+};
 pub use catalog::CatalogEntry;
 pub use context_budget::{
     select, Basis, BudgetError, Candidate, ContextBudget, DetailLevel, EstimatedCounter, Evidence,

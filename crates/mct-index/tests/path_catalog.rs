@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mct_core::{Location, ParseError, ParsedFile, SourceFile, SymbolKind, SymbolRecord};
-use mct_index::{ExcludeSet, Index};
+use mct_index::{ExcludeSet, FileQueryInput, Index};
 
 #[path = "common/scratch_dir.rs"]
 mod scratch_dir;
@@ -429,4 +429,252 @@ fn a_symlink_is_catalogued_at_its_target_only() {
     assert!(catalogued(&index, "docs/manual.pdf"));
     assert!(!catalogued(&index, "manual-link.pdf"));
     assert!(!catalogued(&index, "outside"));
+}
+
+fn paths_of(page: &mct_index::FilePage) -> Vec<&str> {
+    page.entries
+        .iter()
+        .map(|e| e.relative_path.as_str())
+        .collect()
+}
+
+fn find(index: &Index, input: FileQueryInput<'_>) -> mct_index::FilePage {
+    index.find_files(&input).unwrap()
+}
+
+#[test]
+fn a_category_and_path_filter_lists_the_demo_audio_in_path_order() {
+    let (_dir, index) = indexed_fixture();
+    let page = find(
+        &index,
+        FileQueryInput {
+            category: Some("audio"),
+            path: Some("demo/"),
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        paths_of(&page),
+        [
+            "demo/audio/clip.opus",
+            "demo/audio/intro.mp3",
+            "demo/audio/song.flac",
+            "demo/audio/theme.mid",
+            "demo/audio/voice.WAV",
+        ]
+    );
+    assert_eq!(page.next_offset, None);
+}
+
+#[test]
+fn a_format_alias_and_a_query_find_every_svg_logo() {
+    let (_dir, index) = indexed_fixture();
+    for alias in ["svg", "SVG", ".svg"] {
+        let page = find(
+            &index,
+            FileQueryInput {
+                format: Some(alias),
+                query: Some("LOGO"),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            paths_of(&page),
+            ["brand/Logo-Dark.SVG", "brand/logo.svg"],
+            "{alias}"
+        );
+    }
+}
+
+#[test]
+fn jpg_and_jpeg_name_the_same_format() {
+    let (_dir, index) = indexed_fixture();
+    let by = |alias| {
+        paths_of(&find(
+            &index,
+            FileQueryInput {
+                format: Some(alias),
+                ..Default::default()
+            },
+        ))
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(by("jpg"), by("JPEG"));
+    assert!(by("jpg").contains(&"img/photo.JPG".to_string()));
+    assert!(by("jpg").contains(&"img/photo2.jpeg".to_string()));
+}
+
+#[test]
+fn query_words_all_have_to_match() {
+    let (_dir, index) = indexed_fixture();
+    let page = find(
+        &index,
+        FileQueryInput {
+            query: Some("demo intro"),
+            ..Default::default()
+        },
+    );
+    assert_eq!(paths_of(&page), ["demo/audio/intro.mp3"]);
+}
+
+#[test]
+fn unicode_and_spaces_match_case_insensitively() {
+    let (_dir, index) = indexed_fixture();
+    let page = find(
+        &index,
+        FileQueryInput {
+            query: Some("spec ÜNÏCODE"),
+            ..Default::default()
+        },
+    );
+    assert_eq!(paths_of(&page), ["docs/Spec Ünïcode.docx"]);
+}
+
+#[test]
+fn pages_follow_on_without_repeats_or_gaps() {
+    let (_dir, index) = indexed_fixture();
+    let all = find(
+        &index,
+        FileQueryInput {
+            limit: Some(200),
+            ..Default::default()
+        },
+    );
+    let mut paged: Vec<String> = Vec::new();
+    let mut offset = Some(0);
+    while let Some(start) = offset {
+        let page = find(
+            &index,
+            FileQueryInput {
+                limit: Some(7),
+                offset: Some(start),
+                ..Default::default()
+            },
+        );
+        assert_eq!(page.total, all.total);
+        paged.extend(page.entries.iter().map(|e| e.relative_path.clone()));
+        offset = page.next_offset;
+    }
+    let expected: Vec<String> = all
+        .entries
+        .iter()
+        .map(|e| e.relative_path.clone())
+        .collect();
+    assert_eq!(paged, expected);
+    let mut sorted = expected.clone();
+    sorted.sort();
+    assert_eq!(expected, sorted);
+}
+
+#[test]
+fn a_path_filter_matches_a_whole_segment_only() {
+    let (dir, mut index) = indexed_fixture();
+    fs::create_dir_all(dir.join("demo-old")).unwrap();
+    fs::write(dir.join("demo-old/a.mp3"), b"ID3").unwrap();
+    index.reindex(&registry(), false).unwrap();
+    let page = find(
+        &index,
+        FileQueryInput {
+            path: Some("demo"),
+            category: Some("audio"),
+            ..Default::default()
+        },
+    );
+    assert!(
+        paths_of(&page).iter().all(|p| p.starts_with("demo/")),
+        "{:?}",
+        paths_of(&page)
+    );
+    let file = find(
+        &index,
+        FileQueryInput {
+            path: Some("./docs/manual.pdf"),
+            ..Default::default()
+        },
+    );
+    assert_eq!(paths_of(&file), ["docs/manual.pdf"]);
+}
+
+#[test]
+fn invalid_filters_are_rejected_with_the_valid_values() {
+    let (_dir, index) = indexed_fixture();
+    let err = |input: FileQueryInput<'_>| index.find_files(&input).unwrap_err().to_string();
+    assert!(err(FileQueryInput {
+        category: Some("pictures"),
+        ..Default::default()
+    })
+    .contains("image, vector"));
+    assert!(err(FileQueryInput {
+        format: Some("nope"),
+        ..Default::default()
+    })
+    .contains("unknown format `nope`"));
+    assert!(err(FileQueryInput {
+        limit: Some(0),
+        ..Default::default()
+    })
+    .contains("out of range"));
+    assert!(err(FileQueryInput {
+        limit: Some(201),
+        ..Default::default()
+    })
+    .contains("out of range"));
+    assert!(err(FileQueryInput {
+        path: Some("../x"),
+        ..Default::default()
+    })
+    .contains("relative"));
+    assert!(err(FileQueryInput {
+        path: Some("/etc"),
+        ..Default::default()
+    })
+    .contains("relative"));
+}
+
+#[test]
+fn a_language_id_filters_source_files() {
+    let (_dir, index) = indexed_fixture();
+    let page = find(
+        &index,
+        FileQueryInput {
+            format: Some("rust"),
+            ..Default::default()
+        },
+    );
+    assert_eq!(paths_of(&page), ["src/lib.rs"]);
+    let ts = find(
+        &index,
+        FileQueryInput {
+            format: Some("typescript"),
+            ..Default::default()
+        },
+    );
+    assert_eq!(paths_of(&ts), ["src/app.ts"]);
+    let mpeg = find(
+        &index,
+        FileQueryInput {
+            format: Some("ts"),
+            ..Default::default()
+        },
+    );
+    assert_eq!(paths_of(&mpeg), ["demo/video/broadcast.ts"]);
+}
+
+#[test]
+fn an_empty_index_returns_an_empty_page() {
+    let dir = scratch_dir::scratch_dir("mct-empty-catalog");
+    let index = Index::open_in_memory(&dir, ExcludeSet::for_project(&dir)).unwrap();
+    let page = find(&index, FileQueryInput::default());
+    assert_eq!(
+        (page.total, page.catalogued, page.next_offset),
+        (0, 0, None)
+    );
+    assert!(index
+        .find_files(&FileQueryInput {
+            format: Some("pdf"),
+            ..Default::default()
+        })
+        .is_ok());
 }
