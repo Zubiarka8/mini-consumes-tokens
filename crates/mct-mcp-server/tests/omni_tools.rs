@@ -6,7 +6,7 @@
 //! administration tools — `get_indexing_status` and `reindex` had no test at
 //! all — and (b) `depth`/`offset` on `find_references` and
 //! `impact_analysis`, and `offset` on `find_calls`. Those, plus every other
-//! tool re-run across 17 languages at once, are what this file adds.
+//! tool re-run across 18 languages at once, are what this file adds.
 
 // Test code: an unwrap()/expect() here means a broken test precondition, and
 // panicking is the correct behavior — this is not production code parsing
@@ -530,6 +530,7 @@ async fn get_file_skeleton_falls_back_to_declaration_lines_for_a_non_brace_langu
 /// package, namespace or synthetic file-module symbol) rather than `None`.
 const PARENTED_TOP_LEVEL_LANGUAGES: &[(&str, &str)] = &[
     ("backend/server.go", "go"),
+    ("godot/ledger.gd", "gdscript"),
     ("dotnet/PaymentProcessor.cs", "csharp"),
     ("shell/lib.sh", "bash"),
     ("pwsh/Common.psm1", "powershell"),
@@ -655,6 +656,7 @@ async fn get_project_overview_surfaces_real_declarations_for_every_registered_la
     for (language, declarations) in [
         ("powershell", &["Write-Line", "New-Artifact"][..]),
         ("go", &["HandlePost", "Describe"][..]),
+        ("gdscript", &["WorkshopLedger"][..]),
         ("csharp", &["PaymentProcessor"][..]),
         ("bash", &["log_line", "build_artifact"][..]),
     ] {
@@ -713,7 +715,7 @@ async fn get_indexing_status_reports_every_language_and_the_detected_manifests()
     );
 
     assert!(
-        text.contains("31 files indexed, 133 symbols total."),
+        text.contains("32 files indexed, 137 symbols total."),
         "got: {text}"
     );
     assert!(text.contains("Coverage by language:"), "got: {text}");
@@ -722,6 +724,7 @@ async fn get_indexing_status_reports_every_language_and_the_detected_manifests()
         "cpp",
         "csharp",
         "css",
+        "gdscript",
         "go",
         "html",
         "java",
@@ -787,7 +790,7 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
     );
     assert!(
         incremental
-            .starts_with("Reindex complete: 0 parsed, 31 unchanged, 0 removed, 0 symbols written."),
+            .starts_with("Reindex complete: 0 parsed, 32 unchanged, 0 removed, 0 symbols written."),
         "nothing changed on disk, so nothing should be re-parsed: {incremental}"
     );
 
@@ -799,7 +802,7 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
     );
     assert!(
         forced.starts_with(
-            "Reindex complete: 31 parsed, 0 unchanged, 0 removed, 133 symbols written."
+            "Reindex complete: 32 parsed, 0 unchanged, 0 removed, 137 symbols written."
         ),
         "force must bypass the hash check for every file: {forced}"
     );
@@ -812,7 +815,7 @@ async fn reindex_tool_reports_an_incremental_no_op_then_a_full_reparse_when_forc
             .unwrap(),
     );
     assert!(
-        status.contains("31 files indexed, 133 symbols total."),
+        status.contains("32 files indexed, 137 symbols total."),
         "got: {status}"
     );
 }

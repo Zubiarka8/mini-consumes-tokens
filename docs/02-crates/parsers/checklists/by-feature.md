@@ -8,7 +8,7 @@
 > [symbol-coverage.md](../symbol-coverage.md) (synced 2026-11-15); that page is the one kept up to date. Rows
 > of the markup languages are unchanged.
 
-Primary view. Each feature lists all 17 languages in the same order: a checkbox, or a named not-applicable
+Primary view. Each feature lists all 18 languages in the same order: a checkbox, or a named not-applicable
 reason. Definitions are in [features.md](../features.md). Same data as [by-language.md](by-language.md).
 Libraries and packages are in [by-library.md](by-library.md).
 
@@ -35,6 +35,7 @@ Callable code: free functions, nested and anonymous ones, and methods with their
 - [x] Go: parent is the package
 - [x] PHP: `function`
 - [x] Lua: `function`
+- — GDScript: GDScript files are classes and their top-level functions are methods.
 - [x] Bash: `f() {}`
 - [x] PowerShell: multi-line and one-line `function f { param(...) … }` both parse
 - — HTML: HTML is markup; it has no top-level function
@@ -45,7 +46,7 @@ Callable code: free functions, nested and anonymous ones, and methods with their
 
 *Done when:* Free function at file or module top level, indexed as `function`.
 
-Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 7
+Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 8
 
 ### FN02 Nested function
 
@@ -59,6 +60,7 @@ Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 7
 - — Go: Go has no nested function
 - [~] PHP: named `nestedNamed` function is indexed without a parent association
 - [~] Lua: local `nested` function is indexed without a parent association
+- — GDScript: Nested callable declarations use lambda syntax (FN03).
 - [x] Bash: parent is the outer function
 - [x] PowerShell: parent is the outer function
 - — HTML: HTML is markup; it has no nested function
@@ -69,7 +71,7 @@ Done 10 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 7
 
 *Done when:* Named function inside another function, indexed as `function` with the outer function as parent.
 
-Done 3 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 8
+Done 3 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 9
 
 ### FN03 Lambda or closure assigned to a name
 
@@ -83,6 +85,7 @@ Done 3 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 8
 - [ ] Go: `f := func()` has no symbol
 - [x] PHP: `$f = function` → `function`
 - [x] Lua: `local p_lam = function`
+- [~] GDScript: Named lambdas, initializers, and assignments to a simple identifier are indexed. Assignments through dynamic receivers are not resolved.
 - — Bash: Bash has no lambda or closure assigned to a name
 - [~] PowerShell: top-level `$f = { … }` is a `variable`
 - — HTML: HTML is markup; it has no lambda or closure assigned to a name
@@ -93,7 +96,7 @@ Done 3 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 8
 
 *Done when:* `f = <lambda>` or `f := func…` gives a symbol, not only a `calls` relation.
 
-Done 4 · Partial 1 · Not done 6 · Not verified 0 · Not applicable 6
+Done 4 · Partial 2 · Not done 6 · Not verified 0 · Not applicable 6
 
 ### FN04 Method
 
@@ -107,6 +110,7 @@ Done 4 · Partial 1 · Not done 6 · Not verified 0 · Not applicable 6
 - [x] Go: pointer receiver as `method`
 - [x] PHP: `method`
 - [x] Lua: `M.p_mod` and `M:p_meth` as `method`
+- [x] GDScript: Instance and static methods are owned by the script or inner class.
 - — Bash: Bash has no method
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no method
@@ -117,7 +121,7 @@ Done 4 · Partial 1 · Not done 6 · Not verified 0 · Not applicable 6
 
 *Done when:* Function declared in a class, struct, impl or table, indexed as `method` with its owner as parent.
 
-Done 10 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 6
+Done 11 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 6
 
 ### FN05 Constructor
 
@@ -131,6 +135,7 @@ Done 10 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 6
 - — Go: no constructor keyword; `NewX` is a function
 - [x] PHP: `__construct`
 - — Lua: no constructor keyword
+- [x] GDScript: `_init` is a method.
 - — Bash: Bash has no constructor
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no constructor
@@ -141,7 +146,7 @@ Done 10 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 6
 
 *Done when:* Constructor indexed as `method`, named after the class or as a special name.
 
-Done 6 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 9
+Done 7 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 9
 
 ### FN06 Destructor / finalizer
 
@@ -155,6 +160,7 @@ Done 6 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 9
 - — Go: Go has no destructor / finalizer
 - [x] PHP: `__destruct`
 - — Lua: Lua has no destructor / finalizer
+- — GDScript: No destructor declaration. Engine lifecycle callbacks are methods.
 - — Bash: Bash has no destructor / finalizer
 - — PowerShell: PowerShell has no destructor / finalizer
 - — HTML: HTML is markup; it has no destructor / finalizer
@@ -165,7 +171,7 @@ Done 6 · Partial 0 · Not done 2 · Not verified 0 · Not applicable 9
 
 *Done when:* Destructor or finalizer indexed as `method`.
 
-Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
+Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 13
 
 ### FN07 Operator overload
 
@@ -179,6 +185,7 @@ Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
 - — Go: Go has no operator overload
 - — PHP: PHP has no operator overload
 - [x] Lua: `Vec.__add = function(a, b)` → `method` of `Vec`
+- — GDScript: No user-defined operator overload declarations.
 - — Bash: Bash has no operator overload
 - — PowerShell: PowerShell has no operator overload
 - — HTML: HTML is markup; it has no operator overload
@@ -189,7 +196,7 @@ Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
 
 *Done when:* Operator implementation indexed as `method`.
 
-Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
+Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
 
 ### FN08 Abstract / pure virtual method
 
@@ -203,6 +210,7 @@ Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 - — Go: Go has no abstract / pure virtual method
 - [x] PHP: abstract `p_am`
 - — Lua: Lua has no abstract / pure virtual method
+- [x] GDScript: Bodyless methods have declaration details marked abstract.
 - — Bash: Bash has no abstract / pure virtual method
 - — PowerShell: PowerShell has no abstract / pure virtual method
 - — HTML: HTML is markup; it has no abstract / pure virtual method
@@ -213,7 +221,7 @@ Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 
 *Done when:* Method without a body (abstract, pure virtual, interface) indexed as `method`.
 
-Done 8 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 9
+Done 9 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 9
 
 ### FN09 Property accessors (get/set)
 
@@ -227,6 +235,7 @@ Done 8 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 9
 - — Go: Go has no property accessors (get/set)
 - — PHP: PHP has no property accessors (get/set)
 - — Lua: Lua has no property accessors (get/set)
+- [x] GDScript: Accessor blocks and named getter/setter bindings share the property symbol.
 - — Bash: Bash has no property accessors (get/set)
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no property accessors (get/set)
@@ -237,7 +246,7 @@ Done 8 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 9
 
 *Done when:* A getter and setter give one symbol, or two rows that are documented as the same property.
 
-Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
+Done 3 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
 
 ### FN10 Overloads kept apart
 
@@ -251,6 +260,7 @@ Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
 - — Go: Go has no overloads kept apart
 - — PHP: PHP has no overloads kept apart
 - — Lua: Lua has no overloads kept apart
+- — GDScript: Methods cannot be overloaded by signature.
 - — Bash: Bash has no overloads kept apart
 - — PowerShell: PowerShell has no overloads kept apart
 - — HTML: HTML is markup; it has no overloads kept apart
@@ -261,7 +271,7 @@ Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
 
 *Done when:* Each overload is its own row with the same name and parent.
 
-Done 4 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 12
+Done 4 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 13
 
 ## Types and object-oriented programming
 
@@ -279,6 +289,7 @@ Named types and what they contain: classes, structs, interfaces, traits, enums, 
 - — Go: Go has no class
 - [x] PHP: `class`
 - [~] Lua: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it; a nested table (`W.Widget.__index = W.Widget`) stays `module`
+- [x] GDScript: Named and implicit script classes are indexed as classes.
 - — Bash: Bash has no class
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no class
@@ -289,7 +300,7 @@ Named types and what they contain: classes, structs, interfaces, traits, enums, 
 
 *Done when:* Class indexed as `class`.
 
-Done 7 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 8
+Done 8 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 8
 
 ### TY02 Abstract class
 
@@ -303,6 +314,7 @@ Done 7 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 8
 - — Go: Go has no abstract class
 - [x] PHP: `abstract class` → `class`
 - — Lua: Lua has no abstract class
+- [x] GDScript: `@abstract` script classes are indexed as classes.
 - — Bash: Bash has no abstract class
 - — PowerShell: PowerShell has no abstract class
 - — HTML: HTML is markup; it has no abstract class
@@ -313,7 +325,7 @@ Done 7 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 8
 
 *Done when:* Abstract class indexed as `class` (the abstract flag is not stored).
 
-Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
+Done 8 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 
 ### TY03 Struct
 
@@ -327,6 +339,7 @@ Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 - [x] Go: `struct`
 - — PHP: PHP has no struct
 - — Lua: Lua has no struct
+- — GDScript: No struct declaration.
 - — Bash: Bash has no struct
 - — PowerShell: PowerShell has no struct
 - — HTML: HTML is markup; it has no struct
@@ -337,7 +350,7 @@ Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 
 *Done when:* Struct indexed as `struct`.
 
-Done 4 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 13
+Done 4 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 14
 
 ### TY04 Union
 
@@ -351,6 +364,7 @@ Done 4 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 13
 - — Go: Go has no union
 - — PHP: PHP has no union
 - — Lua: Lua has no union
+- — GDScript: No union declaration.
 - — Bash: Bash has no union
 - — PowerShell: PowerShell has no union
 - — HTML: HTML is markup; it has no union
@@ -361,7 +375,7 @@ Done 4 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 13
 
 *Done when:* Union indexed as its own kind or as `struct`, with its members.
 
-Done 1 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 15
+Done 1 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 16
 
 ### TY05 Interface / protocol
 
@@ -375,6 +389,7 @@ Done 1 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 15
 - [x] Go: `interface`
 - [x] PHP: `interface`
 - — Lua: Lua has no interface / protocol
+- — GDScript: No interface declaration.
 - — Bash: Bash has no interface / protocol
 - — PowerShell: PowerShell has no interface / protocol
 - — HTML: HTML is markup; it has no interface / protocol
@@ -385,7 +400,7 @@ Done 1 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 15
 
 *Done when:* Interface indexed as `interface`.
 
-Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
+Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
 
 ### TY06 Interface members
 
@@ -399,6 +414,7 @@ Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 - [x] Go: `P_Im` in interface
 - [x] PHP: interface method
 - — Lua: Lua has no interface members
+- — GDScript: No interface members.
 - — Bash: Bash has no interface members
 - — PowerShell: PowerShell has no interface members
 - — HTML: HTML is markup; it has no interface members
@@ -409,7 +425,7 @@ Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 
 *Done when:* Methods and properties inside an interface indexed as `method` or `field`.
 
-Done 6 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 10
+Done 6 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 11
 
 ### TY07 Trait / mixin
 
@@ -423,6 +439,7 @@ Done 6 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 10
 - — Go: Go has no trait / mixin
 - [x] PHP: `trait` with its methods
 - — Lua: Lua has no trait / mixin
+- — GDScript: No trait declaration.
 - — Bash: Bash has no trait / mixin
 - — PowerShell: PowerShell has no trait / mixin
 - — HTML: HTML is markup; it has no trait / mixin
@@ -433,7 +450,7 @@ Done 6 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 10
 
 *Done when:* Trait or mixin indexed as `trait`, or as the closest kind, with its members.
 
-Done 2 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 14
+Done 2 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 15
 
 ### TY08 Enum
 
@@ -447,6 +464,7 @@ Done 2 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 14
 - — Go: Go has no enum
 - [x] PHP: `enum`
 - — Lua: Lua has no enum
+- [x] GDScript: Named and anonymous enums are indexed.
 - — Bash: Bash has no enum
 - [ ] PowerShell: PowerShell enum declarations produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no enum
@@ -457,7 +475,7 @@ Done 2 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 14
 
 *Done when:* Enum indexed as `enum`.
 
-Done 6 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 8
+Done 7 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 8
 
 ### TY09 Enum members
 
@@ -471,6 +489,7 @@ Done 6 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 8
 - — Go: Go has no enum members
 - [x] PHP: `case` as `field`
 - — Lua: Lua has no enum members
+- [x] GDScript: Enum entries are constants owned by their enum.
 - — Bash: Bash has no enum members
 - [ ] PowerShell: PowerShell enum declarations produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no enum members
@@ -481,7 +500,7 @@ Done 6 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 8
 
 *Done when:* Enum values indexed as `field` or `constant`.
 
-Done 6 · Partial 1 · Not done 2 · Not verified 0 · Not applicable 8
+Done 7 · Partial 1 · Not done 2 · Not verified 0 · Not applicable 8
 
 ### TY10 Record / data class
 
@@ -495,6 +514,7 @@ Done 6 · Partial 1 · Not done 2 · Not verified 0 · Not applicable 8
 - — Go: Go has no record / data class
 - — PHP: PHP has no record / data class
 - — Lua: Lua has no record / data class
+- — GDScript: No dedicated record or data-class declaration.
 - — Bash: Bash has no record / data class
 - — PowerShell: PowerShell has no record / data class
 - — HTML: HTML is markup; it has no record / data class
@@ -505,7 +525,7 @@ Done 6 · Partial 1 · Not done 2 · Not verified 0 · Not applicable 8
 
 *Done when:* Record or data class indexed as `class`, with its components as `field`.
 
-Done 3 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 13
+Done 3 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 14
 
 ### TY11 Nested / inner class
 
@@ -519,6 +539,7 @@ Done 3 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 13
 - — Go: Go has no nested / inner class
 - — PHP: PHP has no nested class syntax; the [nested-class RFC was declined](https://wiki.php.net/rfc/short-and-inner-classes)
 - — Lua: Lua has no nested / inner class
+- [x] GDScript: Inner classes preserve their class parent.
 - — Bash: Bash has no nested / inner class
 - — PowerShell: PowerShell has no nested / inner class
 - — HTML: HTML is markup; it has no nested / inner class
@@ -529,7 +550,7 @@ Done 3 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 13
 
 *Done when:* Class declared inside another, with the outer class as parent.
 
-Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
+Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 
 ### TY12 Anonymous class
 
@@ -543,6 +564,7 @@ Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 - — Go: Go has no anonymous class
 - [~] PHP: `new class {}` gives no class or member symbols, except an anonymous Laravel `Migration` (`up`/`down` as methods of the file module)
 - — Lua: Lua has no anonymous class
+- — GDScript: No anonymous class expression.
 - — Bash: Bash has no anonymous class
 - — PowerShell: PowerShell has no anonymous class
 - — HTML: HTML is markup; it has no anonymous class
@@ -553,7 +575,7 @@ Done 6 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 
 *Done when:* Anonymous class indexed with its members attached to it.
 
-Done 0 · Partial 4 · Not done 1 · Not verified 0 · Not applicable 12
+Done 0 · Partial 4 · Not done 1 · Not verified 0 · Not applicable 13
 
 ### TY13 Partial class
 
@@ -567,6 +589,7 @@ Done 0 · Partial 4 · Not done 1 · Not verified 0 · Not applicable 12
 - — Go: Go has no partial class
 - — PHP: PHP has no partial class
 - — Lua: Lua has no partial class
+- — GDScript: No partial class declaration.
 - — Bash: Bash has no partial class
 - — PowerShell: PowerShell has no partial class
 - — HTML: HTML is markup; it has no partial class
@@ -577,7 +600,7 @@ Done 0 · Partial 4 · Not done 1 · Not verified 0 · Not applicable 12
 
 *Done when:* Each declaration of a partial class gives a row; members keep the class as parent.
 
-Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
+Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 17
 
 ### TY14 Singleton / companion object
 
@@ -591,6 +614,7 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 - — Go: Go has no singleton / companion object
 - — PHP: PHP has no singleton / companion object
 - — Lua: Lua has no singleton / companion object
+- [~] GDScript: Named autoloads are indexed from project.godot and linked to their scripts. Calls through the singleton are not resolved to its members.
 - — Bash: Bash has no singleton / companion object
 - — PowerShell: PowerShell has no singleton / companion object
 - — HTML: HTML is markup; it has no singleton / companion object
@@ -601,7 +625,7 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 
 *Done when:* Singleton or companion object indexed, with its members under it.
 
-Done 0 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 16
+Done 0 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 16
 
 ### TY15 Type alias
 
@@ -615,6 +639,7 @@ Done 0 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 16
 - [x] Go: both alias forms
 - — PHP: PHP has no type alias
 - — Lua: Lua has no type alias
+- — GDScript: No type alias declaration. Preloaded scripts are constants.
 - — Bash: Bash has no type alias
 - — PowerShell: PowerShell has no type alias
 - — HTML: HTML is markup; it has no type alias
@@ -625,7 +650,7 @@ Done 0 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 16
 
 *Done when:* Alias indexed as `type_alias`.
 
-Done 6 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 10
+Done 6 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 11
 
 ### TY16 Module / namespace / package
 
@@ -639,6 +664,7 @@ Done 6 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 10
 - [~] Go: package `module` and file module; same name only when the file is named after the package
 - [~] PHP: `namespace` is not a symbol
 - [x] Lua: file `module` and table `module`
+- [x] GDScript: A module identifies each script file.
 - [x] Bash: file `module`
 - [x] PowerShell: file `module`
 - — HTML: HTML is markup; it has no module / namespace / package
@@ -649,7 +675,7 @@ Done 6 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 10
 
 *Done when:* File-level `module` row, plus namespace or package blocks where the language has them.
 
-Done 9 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 5
+Done 10 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 5
 
 ## Fields, constants and variables
 
@@ -667,6 +693,7 @@ Data declared in code, from instance fields to parameters and macros.
 - [x] Go: each named struct field is a `field` of the struct
 - [x] PHP: property `$prop`
 - [x] Lua: a file-level `M.x = …` and the first `self.x = …` in a colon method `T:m()` → `field` of `M` / `T`
+- [x] GDScript: Regular, exported, onready and static member variables are fields. Signals also use field symbols.
 - — Bash: Bash has no field / instance attribute
 - [ ] PowerShell: class declarations and properties are not indexed (corpus test)
 - — HTML: HTML is markup; it has no field / instance attribute
@@ -677,7 +704,7 @@ Data declared in code, from instance fields to parameters and macros.
 
 *Done when:* Instance or class field indexed as `field`.
 
-Done 9 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 6
+Done 10 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 6
 
 ### DA02 Constructor-promoted field
 
@@ -691,6 +718,7 @@ Done 9 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 6
 - — Go: Go has no constructor-promoted field
 - [x] PHP: promoted parameter → `field`
 - — Lua: Lua has no constructor-promoted field
+- — GDScript: Constructor parameters do not declare fields.
 - — Bash: Bash has no constructor-promoted field
 - — PowerShell: PowerShell has no constructor-promoted field
 - — HTML: HTML is markup; it has no constructor-promoted field
@@ -701,7 +729,7 @@ Done 9 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 6
 
 *Done when:* Constructor parameter that becomes a field (`val`/`var`, `public x`) indexed as `field`.
 
-Done 3 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 13
+Done 3 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 14
 
 ### DA03 Constant (module or global)
 
@@ -715,6 +743,7 @@ Done 3 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 13
 - [x] Go: package-level `const` → `constant`
 - [x] PHP: `const` top-level and in classes
 - — Lua: no `const` keyword
+- [x] GDScript: Constants are indexed under their script, class or callable.
 - [~] Bash: `readonly X=…` → `variable`
 - — PowerShell: PowerShell has no constant (module or global)
 - — HTML: HTML is markup; it has no constant (module or global)
@@ -725,7 +754,7 @@ Done 3 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 13
 
 *Done when:* Constant indexed as `constant`.
 
-Done 6 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 7
+Done 7 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 7
 
 ### DA04 Global / module-level variable
 
@@ -739,6 +768,7 @@ Done 6 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 7
 - [x] Go: package-level `var` → `variable`
 - [ ] PHP: `$p_glob = …` has no symbol
 - [x] Lua: globals and top-level `local` → `variable`, `<const>` → `constant`
+- — GDScript: Script-level variables are fields.
 - [x] Bash: `P_GLOBAL` → `variable`
 - [x] PowerShell: scope prefixes stripped
 - — HTML: HTML is markup; it has no global / module-level variable
@@ -749,7 +779,7 @@ Done 6 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 7
 
 *Done when:* Module-level or global variable indexed as `variable`.
 
-Done 9 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 7
+Done 9 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 8
 
 ### DA05 Local variable
 
@@ -763,6 +793,7 @@ Done 9 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 7
 - [ ] Go: `find_symbol(local)` returns no symbol
 - [ ] PHP: `find_symbol(local)` returns no symbol
 - [x] Lua: `find_symbol(local_value)` returns a variable under `method`
+- [x] GDScript: Local declarations, loop variables and match bindings are variables.
 - [ ] Bash: `local` is not indexed (by design)
 - [ ] PowerShell: corpus test confirms function-local assignments are not indexed
 - — HTML: HTML is markup; it has no local variable
@@ -773,7 +804,7 @@ Done 9 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 7
 
 *Done when:* Variable inside a function indexed as a symbol.
 
-Done 2 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 5
+Done 3 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 5
 
 ### DA06 Parameter
 
@@ -787,6 +818,7 @@ Done 2 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 5
 - [ ] Go: `find_symbol(input)` returns no symbol
 - [ ] PHP: `find_symbol(input)` returns no symbol
 - [ ] Lua: `find_symbol(input)` returns no symbol
+- [x] GDScript: Callable, signal and setter parameters are indexed.
 - — Bash: Bash has no parameter
 - [ ] PowerShell: no parameter symbol was found in the parser corpus
 - — HTML: HTML is markup; it has no parameter
@@ -797,7 +829,7 @@ Done 2 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 5
 
 *Done when:* Function parameter indexed as a symbol.
 
-Done 1 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 6
+Done 2 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 6
 
 ### DA07 Macro / preprocessor define
 
@@ -811,6 +843,7 @@ Done 1 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 6
 - — Go: Go has no macro / preprocessor define
 - — PHP: `define()` stays a call by decision
 - — Lua: Lua has no macro / preprocessor define
+- — GDScript: No macro or preprocessor declarations.
 - — Bash: Bash has no macro / preprocessor define
 - — PowerShell: PowerShell has no macro / preprocessor define
 - — HTML: HTML is markup; it has no macro / preprocessor define
@@ -821,7 +854,7 @@ Done 1 · Partial 0 · Not done 10 · Not verified 0 · Not applicable 6
 
 *Done when:* `#define` or `macro_rules!` indexed as a symbol.
 
-Done 2 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 15
+Done 2 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 
 ## Relations
 
@@ -839,6 +872,7 @@ Links between symbols: calls, imports, inheritance and decorators. Callers, refe
 - [x] Go: `main.go` calls `lib.P_Helper`
 - [x] PHP: `p_am` → `__construct`
 - [x] Lua: `p_top` → `p_local`, `p_mod`
+- [~] GDScript: Local and typed calls, self, super and preloaded script calls have evidence. An unbound PascalCase receiver (a `class_name` global, an autoload or an engine class) is the call's qualifier; an autoload reaches its script's class through `project.godot`, unless that script declares another `class_name`. Untyped values stay ambiguous.
 - [x] Bash: `p_top` → `p_helper`
 - [x] PowerShell: `p_top` → `p_helper`
 - — HTML: HTML is markup; it has no calls
@@ -849,7 +883,7 @@ Links between symbols: calls, imports, inheritance and decorators. Callers, refe
 
 *Done when:* Call from one symbol to another, as a `calls` relation.
 
-Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
+Done 12 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### RE02 Constructor call
 
@@ -863,6 +897,7 @@ Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 - [x] Go: composite literal `T{}` gives `references T`
 - [x] PHP: `new Box()` produces `calls Box` (MCT probe)
 - — Lua: Lua has no constructor call
+- [~] GDScript: Class.new() and preloaded script constructors are indexed. Computed constructors are unresolved.
 - — Bash: Bash has no constructor call
 - — PowerShell: PowerShell has no constructor call
 - — HTML: HTML is markup; it has no constructor call
@@ -873,7 +908,7 @@ Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `new X()` or `X()` gives `calls X`.
 
-Done 6 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 9
+Done 6 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 9
 
 ### RE03 Super / base constructor call
 
@@ -887,6 +922,7 @@ Done 6 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 9
 - — Go: Go has no super / base constructor call
 - [x] PHP: `parent::__construct()` → `calls __construct`
 - — Lua: Lua has no super / base constructor call
+- [x] GDScript: An explicit super() in _init links to the base constructor.
 - — Bash: Bash has no super / base constructor call
 - — PowerShell: PowerShell has no super / base constructor call
 - — HTML: HTML is markup; it has no super / base constructor call
@@ -897,7 +933,7 @@ Done 6 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 9
 
 *Done when:* `super()`, `parent::__construct()` or a base initializer gives a call to the base constructor.
 
-Done 5 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 10
+Done 6 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 10
 
 ### RE04 Imports
 
@@ -911,6 +947,7 @@ Done 5 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 10
 - [x] Go: `import "lib"` → edge
 - [x] PHP: `require_once 'lib.php'` → `imports`
 - [x] Lua: `require("lib")` → edge
+- [~] GDScript: Literal script loads and path-based inheritance are tracked. Dynamic paths and scene resources are not linked.
 - [x] Bash: `source` → edge
 - [x] PowerShell: dot-sourcing → edge
 - — HTML: HTML is markup; it has no imports
@@ -921,7 +958,7 @@ Done 5 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 10
 
 *Done when:* Import, include or require gives an `imports` relation for the module and each name.
 
-Done 11 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 5
+Done 11 · Partial 2 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### RE05 Class extends class
 
@@ -935,6 +972,7 @@ Done 11 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 5
 - — Go: Go has no class extends class
 - [x] PHP: `P_Sub` extends `P_Base`
 - [x] Lua: `Child` extends `Base` via `setmetatable` (MCT probe)
+- [~] GDScript: Named bases link to classes. Path-based bases link to their script file.
 - — Bash: Bash has no class extends class
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no class extends class
@@ -945,7 +983,7 @@ Done 11 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* Base class gives `extends`.
 
-Done 7 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 8
+Done 7 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 8
 
 ### RE06 Implements interface / trait
 
@@ -959,6 +997,7 @@ Done 7 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 8
 - [ ] Go: structural; no relation
 - [x] PHP: `implements` for interface and trait
 - — Lua: Lua has no implements interface / trait
+- — GDScript: No interface or trait implementation syntax.
 - — Bash: Bash has no implements interface / trait
 - — PowerShell: PowerShell has no implements interface / trait
 - — HTML: HTML is markup; it has no implements interface / trait
@@ -969,7 +1008,7 @@ Done 7 · Partial 1 · Not done 1 · Not verified 0 · Not applicable 8
 
 *Done when:* Interface or trait implementation gives `implements`, owned by the implementing type.
 
-Done 4 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 10
+Done 4 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 11
 
 ### RE07 Interface extends interface / supertrait
 
@@ -983,6 +1022,7 @@ Done 4 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 10
 - [x] Go: an embedded interface gives `extends`
 - [x] PHP: `ChildContract` extends `Contract` (MCT probe)
 - — Lua: Lua has no interface extends interface / supertrait
+- — GDScript: No interface inheritance syntax.
 - — Bash: Bash has no interface extends interface / supertrait
 - — PowerShell: PowerShell has no interface extends interface / supertrait
 - — HTML: HTML is markup; it has no interface extends interface / supertrait
@@ -993,7 +1033,7 @@ Done 4 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 10
 
 *Done when:* Interface inheritance gives `extends`.
 
-Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
+Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 11
 
 ### RE08 Decorator / annotation / attribute
 
@@ -1007,6 +1047,7 @@ Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 - — Go: Go has no decorator / annotation / attribute
 - [x] PHP: `#[Attr]` → `references`
 - — Lua: Lua has no decorator / annotation / attribute
+- [x] GDScript: Annotations are recorded as references.
 - — Bash: Bash has no decorator / annotation / attribute
 - — PowerShell: PowerShell has no decorator / annotation / attribute
 - — HTML: HTML is markup; it has no decorator / annotation / attribute
@@ -1017,7 +1058,7 @@ Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 
 *Done when:* Decorator or attribute gives a `references` relation.
 
-Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
+Done 8 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 
 ### RE09 Struct / type embedding
 
@@ -1031,6 +1072,7 @@ Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 - [x] Go: embedded `P_Embedded` gives `extends`
 - — PHP: PHP has no struct / type embedding
 - — Lua: Lua has no struct / type embedding
+- — GDScript: No type embedding declaration.
 - — Bash: Bash has no struct / type embedding
 - — PowerShell: PowerShell has no struct / type embedding
 - — HTML: HTML is markup; it has no struct / type embedding
@@ -1041,7 +1083,7 @@ Done 7 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 10
 
 *Done when:* Embedded field or type gives a relation.
 
-Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
+Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 17
 
 ### RE10 Cross-language HTTP link
 
@@ -1055,6 +1097,7 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 - [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
 - [~] PHP: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
 - [~] Lua: Lapis `app:get("/x", handler)`, `ngx.location.capture` and lua-resty-http `request_uri("http://localhost/x")`
+- [~] GDScript: Typed HTTPRequest receivers with literal URLs and known methods participate as clients.
 - [~] Bash: `curl` and `wget` to this machine (use only)
 - [~] PowerShell: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
 - [~] HTML: `<form action method>` is a use; `<a href>` and `<script>` calls are not read
@@ -1063,9 +1106,9 @@ Done 1 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 16
 - — XAML: XAML is markup; it has no cross-language HTTP link
 - — Markdown: Markdown is markup; it has no cross-language HTTP link
 
-*Done 0 · Partial 13 · Not done 0 · Not verified 0 · Not applicable 4
+*Done when:* A literal server route and client call link to the route handler.
 
-Done 0 · Partial 2 · Not done 10 · Not verified 0 · Not applicable 5
+Done 0 · Partial 14 · Not done 0 · Not verified 0 · Not applicable 4
 
 ## Search and lookup
 
@@ -1083,6 +1126,7 @@ What the search and query tools return for a language, checked end to end throug
 - [x] Go: `list_symbols`
 - [x] PHP: `list_symbols`
 - [x] Lua: `list_symbols`
+- [x] GDScript: Definitions appear through the shared query tools.
 - [x] Bash: `list_symbols`
 - [x] PowerShell: `list_symbols`
 - — HTML: HTML is markup; it has no find a definition
@@ -1093,7 +1137,7 @@ What the search and query tools return for a language, checked end to end throug
 
 *Done when:* `find_symbol`, `list_symbols` and `search_symbols` return the symbol.
 
-Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
+Done 13 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### SE02 Callers and callees
 
@@ -1107,6 +1151,7 @@ Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 - [x] Go: `main.go` calls `P_Helper`
 - [x] PHP: `find_calls p_am`
 - [x] Lua: `find_calls`
+- [~] GDScript: Known calls appear in both directions. Dynamic dispatch can leave unresolved edges.
 - [x] Bash: `main.sh` calls `p_helper`
 - [x] PowerShell: `find_calls p_top`
 - — HTML: HTML is markup; it has no callers and callees
@@ -1117,7 +1162,7 @@ Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `find_callers` and `find_calls` return the relation, including inside macros.
 
-Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
+Done 12 · Partial 1 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### SE03 Every use
 
@@ -1131,6 +1176,7 @@ Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 - [~] Go: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
 - [x] PHP: references to `p_helper`
 - [~] Lua: `find_references`: a nested table class (`W.Widget`) used only as a qualifier (`W.Widget.make()`) gets no reference; the call to `make` resolves
+- [~] GDScript: Identifier and member uses are recorded. Runtime and scene-driven uses can be missing.
 - [x] Bash: references to `p_helper`
 - [x] PowerShell: references to `p_helper`
 - — HTML: HTML is markup; it has no every use
@@ -1141,7 +1187,7 @@ Done 12 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `find_references` returns each use of the symbol.
 
-Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
+Done 7 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### SE04 Blast radius and context
 
@@ -1155,6 +1201,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 - [~] Go: `impact_analysis`, `build_context_pack`: same gaps as references
 - [x] PHP: `build_context_pack`
 - [~] Lua: `impact_analysis`, `build_context_pack`: same gaps as references
+- [~] GDScript: The shared graph tools can use indexed edges. Coverage depends on call and reference resolution.
 - [x] Bash: `build_context_pack(P_Helper)` returned its caller
 - [x] PowerShell: `build_context_pack(P_Helper)` returns its caller
 - — HTML: HTML is markup; it has no blast radius and context
@@ -1165,7 +1212,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `impact_analysis` and `build_context_pack` include callers, references and tests.
 
-Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
+Done 7 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### SE05 Exact text in strings
 
@@ -1179,6 +1226,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 - [ ] Go: literal not collected
 - [ ] PHP: literal not collected
 - [ ] Lua: literal not collected
+- [x] GDScript: Prose string literals are available for exact text search.
 - [ ] Bash: literal not collected
 - [ ] PowerShell: literal not collected
 - — HTML: HTML is markup; it has no exact text in strings
@@ -1189,7 +1237,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `hybrid_search` with a `"quoted"` query finds literal text.
 
-Done 1 · Partial 0 · Not done 11 · Not verified 0 · Not applicable 5
+Done 2 · Partial 0 · Not done 11 · Not verified 0 · Not applicable 5
 
 ## Code quality
 
@@ -1207,6 +1255,7 @@ The review reports. Dead code and repeated code are heuristics: a hit is a candi
 - [~] Go: unused struct and function reported; a struct used only as a declared type is reported
 - [x] PHP: function and class reported
 - [~] Lua: free functions are candidates; table methods not exercised
+- [~] GDScript: Shared heuristics apply to eligible kinds. Scene, engine and autoload usage can be invisible.
 - [x] Bash: unused function reported
 - [x] PowerShell: unused function reported
 - — HTML: HTML is markup; it has no dead code
@@ -1217,7 +1266,7 @@ The review reports. Dead code and repeated code are heuristics: a hit is a candi
 
 *Done when:* `find_dead_code` reports unused symbols of the kinds it checks, without false positives.
 
-Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
+Done 7 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### QU02 Repeated code
 
@@ -1231,6 +1280,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 - [ ] Go: listed under `unsupported_languages`
 - [ ] PHP: listed under `unsupported_languages`
 - [x] Lua: listed as supported by `duplicates` (group not exercised)
+- [x] GDScript: The shared token registry includes GDScript.
 - [ ] Bash: listed under `unsupported_languages`
 - [ ] PowerShell: listed under `unsupported_languages`
 - — HTML: HTML is markup; it has no repeated code
@@ -1241,7 +1291,7 @@ Done 7 · Partial 5 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `mct-cli duplicates` covers the language (it has a token source).
 
-Done 3 · Partial 0 · Not done 9 · Not verified 0 · Not applicable 5
+Done 4 · Partial 0 · Not done 9 · Not verified 0 · Not applicable 5
 
 ## Structure
 
@@ -1259,6 +1309,7 @@ How the project fits together: the import graph, the outline of a file and the d
 - [~] Go: `get_dependency_graph`: edges correct; the module import path is also listed as external
 - [x] PHP: edge `main.php → lib.php` for `'lib.php'`, `"lib.php"` and `("lib.php")`, no external
 - [x] Lua: edge `main → lib`, no external
+- [~] GDScript: Literal script links resolve within the Godot project. Computed loads are outside the graph.
 - [x] Bash: edge `main.sh → lib.sh`, no external
 - [x] PowerShell: edge `main.ps1 → lib.ps1`, no external
 - — HTML: HTML is markup; it has no import graph
@@ -1269,7 +1320,7 @@ How the project fits together: the import graph, the outline of a file and the d
 
 *Done when:* `get_dependency_graph` shows local import edges without false external entries.
 
-Done 6 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 5
+Done 10 · Partial 3 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### ST02 File outline
 
@@ -1283,6 +1334,7 @@ Done 6 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 5
 - [x] Go: braces collapsed
 - [x] PHP: `get_file_skeleton` returned class and function declarations
 - [~] Lua: declaration line and placeholder; one-line function shown whole
+- [x] GDScript: The script class members and nested class headers appear with bodies collapsed.
 - [~] Bash: `get_file_skeleton`: declaration line only; a one-line function is shown whole, then a placeholder
 - [~] PowerShell: declaration line and placeholder
 - — HTML: HTML is markup; it has no file outline
@@ -1293,7 +1345,7 @@ Done 6 · Partial 6 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `get_file_skeleton` shows the file's declarations with bodies collapsed.
 
-Done 8 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 5
+Done 9 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 5
 
 ### ST03 Declared dependencies
 
@@ -1307,6 +1359,7 @@ Done 8 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 5
 - [x] Go: `go.mod` counted
 - [ ] PHP: `composer.json` not read
 - [ ] Lua: `.rockspec` not counted
+- [~] GDScript: project.godot reports enabled editor plugins. The engine does not declare package versions there.
 - — Bash: Bash scripts have no package manifest
 - [ ] PowerShell: `.psd1` module manifest is not reported by status
 - — HTML: HTML is markup; it has no declared dependencies
@@ -1317,11 +1370,11 @@ Done 8 · Partial 4 · Not done 0 · Not verified 0 · Not applicable 5
 
 *Done when:* `get_indexing_status` reads the language's manifest.
 
-Done 3 · Partial 1 · Not done 7 · Not verified 0 · Not applicable 6
+Done 3 · Partial 2 · Not done 7 · Not verified 0 · Not applicable 6
 
 ## Markup and style features
 
-Each markup feature lists all 17 languages. Code languages have no markup features: they are marked not applicable.
+Each markup feature lists all 18 languages. Code languages have no markup features: they are marked not applicable.
 
 ### MK01 Find a definition
 
@@ -1335,6 +1388,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [x] HTML: by `id`
@@ -1345,7 +1399,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 
 *Done when:* Element, selector, heading or note is found by its name.
 
-Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
+Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 13
 
 ### MK02 Find references
 
@@ -1359,6 +1413,7 @@ Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [x] HTML: `#id` and `.class` of an identified element
@@ -1369,7 +1424,7 @@ Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
 
 *Done when:* `find_references` returns the links to the element.
 
-Done 4 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 12
+Done 4 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 13
 
 ### MK03 Dead code
 
@@ -1383,6 +1438,7 @@ Done 4 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 12
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [ ] HTML: `find_dead_code` reports no candidates for a markup-only project
@@ -1393,7 +1449,7 @@ Done 4 · Partial 0 · Not done 1 · Not verified 0 · Not applicable 12
 
 *Done when:* `find_dead_code` reports unused elements. Markup is never reported.
 
-Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 12
+Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 13
 
 ### MK04 Repeated code
 
@@ -1407,6 +1463,7 @@ Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 12
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [ ] HTML: markup-only `duplicates` run produced zero candidates
@@ -1417,7 +1474,7 @@ Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 12
 
 *Done when:* `mct-cli duplicates` covers the language.
 
-Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 12
+Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 13
 
 ### MK05 Import graph
 
@@ -1431,6 +1488,7 @@ Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 12
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [x] HTML: `<link>` and `<script src>` edges, no external
@@ -1441,7 +1499,7 @@ Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 12
 
 *Done when:* `get_dependency_graph` shows local file edges.
 
-Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
+Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 13
 
 ### MK06 File outline
 
@@ -1455,6 +1513,7 @@ Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [x] HTML: `get_file_skeleton` returns its element outline
@@ -1465,7 +1524,7 @@ Done 2 · Partial 2 · Not done 1 · Not verified 0 · Not applicable 12
 
 *Done when:* `get_file_skeleton` shows the structure of the file.
 
-Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
+Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 13
 
 ### MK07 Exact text in strings
 
@@ -1479,6 +1538,7 @@ Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [ ] HTML: exact-phrase query does not find HTML text content
@@ -1489,4 +1549,4 @@ Done 5 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 12
 
 *Done when:* `hybrid_search` with a `"quoted"` query finds literal text.
 
-Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 12
+Done 0 · Partial 0 · Not done 5 · Not verified 0 · Not applicable 13

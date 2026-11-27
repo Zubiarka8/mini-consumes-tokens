@@ -88,6 +88,8 @@ const DEFAULT_EXCLUDE_DIRS: &[&str] = &[
     ".git",
     "target",
     ".mct-index",
+    // Godot editor and imported resource cache.
+    ".godot",
     // Next.js build output and cache: generated, often hundreds of MB, and
     // re-parsed after every `next build` otherwise.
     ".next",

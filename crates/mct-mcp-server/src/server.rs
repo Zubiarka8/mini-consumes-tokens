@@ -471,6 +471,62 @@ fn is_top_level(entry: &mct_index::SymbolListEntry, shape: &FileShape) -> bool {
     !clashes || entry.kind == "function"
 }
 
+/// A GDScript file is itself a class. Show its members as file declarations
+/// and collapse nested classes like the other skeleton renderers do.
+fn gdscript_skeleton(
+    index: &Index,
+    path: &str,
+    entries: &[mct_index::SymbolListEntry],
+    source: &str,
+) -> Result<String, McpError> {
+    let shape = file_shape(entries);
+    let Some(script) = entries
+        .iter()
+        .find(|entry| entry.kind == "class" && is_top_level(entry, &shape))
+    else {
+        return Ok(format::file_skeleton(path, &[], source));
+    };
+    let mut out = format!("Skeleton of `{path}` (bodies collapsed):\n\n");
+    let lines: Vec<_> = source.lines().collect();
+    // Print explicit class_name and extends headers, even when annotations
+    // occupy the class symbol's first line.
+    for line in lines
+        .iter()
+        .take_while(|line| {
+            let line = line.trim();
+            line.is_empty()
+                || line.starts_with(['#', '@'])
+                || line.starts_with("class_name ")
+                || line.starts_with("extends ")
+        })
+        .filter(|line| line.starts_with("class_name ") || line.starts_with("extends "))
+    {
+        out.push_str(line);
+        out.push('\n');
+    }
+    for entry in entries
+        .iter()
+        .filter(|entry| entry.parent.as_deref() == Some(&script.name))
+    {
+        let details = index
+            .symbol_details(path, entry.line, &entry.name)
+            .map_err(index_error)?;
+        let header = details
+            .as_ref()
+            .and_then(|detail| detail.signature.as_deref())
+            .or_else(|| lines.get(entry.line.saturating_sub(1) as usize).copied())
+            .unwrap_or(&entry.name);
+        out.push_str(header);
+        if matches!(entry.kind.as_str(), "method" | "class")
+            && entry.end_line.is_some_and(|end| end > entry.line)
+        {
+            out.push_str("\n    # ...");
+        }
+        out.push('\n');
+    }
+    Ok(out)
+}
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetProjectOverviewArgs {
     /// File, directory, or crate prefix — same matching semantics as
@@ -3017,6 +3073,15 @@ impl MctServer {
         }
         let source = read_source_file(&index, path)?;
         let all = index.list_symbols(path, None, None).map_err(index_error)?;
+        if path.ends_with(".gd")
+            && all
+                .first()
+                .is_some_and(|entry| entry.language == "gdscript")
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
+                gdscript_skeleton(&index, path, &all, &source)?,
+            )]));
+        }
         let shape = file_shape(&all);
         let entries: Vec<_> = all
             .into_iter()

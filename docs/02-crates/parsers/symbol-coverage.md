@@ -229,6 +229,7 @@ snapshots and metadata. They were recounted for this review.
 | Lua / [`mct-lang-lua`](../../../crates/mct-lang-lua) | tree-sitter-lua 0.5.0 | `lua`; .lua | 484 |
 | Bash / [`mct-lang-bash`](../../../crates/mct-lang-bash) | tree-sitter-bash 0.25.1 | `bash`; .sh, .bash | 471 |
 | PowerShell / [`mct-lang-powershell`](../../../crates/mct-lang-powershell) | tree-sitter-powershell 0.26.4 | `powershell`; .ps1, .psm1 | 500 |
+| GDScript / [`mct-lang-gdscript`](../../../crates/mct-lang-gdscript) | tree-sitter-gdscript 6.1.0 | `gdscript`; .gd | 1056 |
 | HTML / [`mct-lang-html`](../../../crates/mct-lang-html) | tree-sitter-html 0.23.2 | `html`; .html, .htm | 412 |
 | CSS / [`mct-lang-css`](../../../crates/mct-lang-css) | tree-sitter-css 0.25.0 | `css`; .css | 1041 |
 | XML / [`mct-lang-xml`](../../../crates/mct-lang-xml) | tree-sitter-xml 0.7.0 | `xml`; .xml | 233 |
@@ -259,6 +260,7 @@ framework adapters. See [library support](../../01-architecture/library-support.
 | Lua | 11 / 9 / 4 / 2 (tests/depgraph.rs: 2) | 0 | 5 / 1,525 | — |
 | Bash | 10 / 9 / 5 / 3 (tests/depgraph.rs: 3) | 1 | 5 / 1,539 | — |
 | PowerShell | 10 / 8 / 5 / 2 (tests/depgraph.rs: 2) | 0 | 5 / 1,515 | — |
+| GDScript | 2 / 11 / 0 / 40 (tests/declarations.rs: 18, tests/depgraph.rs: 4, tests/global_receivers.rs: 5, tests/relations.rs: 13) | 0 | 9 / 2,278 | — |
 | HTML | 14 / 9 / 7 / 2 (tests/depgraph.rs: 2) | 0 | 5 / 1,563 | — |
 | CSS | 40 / 8 / 6 / 13 (src/lib.rs: 7, src/libraries/bootstrap/mod.rs: 1, src/libraries/tailwind/mod.rs: 3, tests/depgraph.rs: 2) | 0 | 12 / 3,240 | bootstrap, tailwind |
 | XML | 9 / 10 / 6 / 0 (none) | 0 | 6 / 2,037 | — |
@@ -696,6 +698,15 @@ score; unknown checks are excluded. Counts and unknowns remain in the checklists
 | `: base(…)` constructors, `??`, ternary | Grammar | tree-sitter-powershell 0.26.4 rejects these forms; simple bare identifier comma lists are recovered, not an unconditional gap (`errors/REGISTRY.md` ERR-002) |
 | Variables inside functions, computed import paths | By design | explicit static/scope limits in [crate docs](../../../crates/mct-lang-powershell/src/lib.rs#L16) |
 
+### GDScript
+
+GDScript has no scored checklist on this page yet. Its canonical
+checklist is the GDScript section of
+[`checklists/by-language.md`](checklists/by-language.md), and its gaps are in
+[language gaps](language-gaps.md). Known limits: tree-sitter-gdscript 6.1.0
+rejects non-ASCII identifiers, so such a file is not indexed; a call through
+an autoload whose script declares another `class_name` stays unresolved.
+
 ## Markup and style languages
 
 These parsers do not model functions, classes or variables. Here is what
@@ -721,10 +732,10 @@ languages:
 
 | Feature | Languages | Where it is decided |
 |---|---|---|
-| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash, PowerShell | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
-| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell and Markdown share `mct_tree_sitter::collect_literals` |
-| Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines |
-| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go, PHP, Lua, C# | `manifest_language` in `crates/mct-index/src/manifests.rs` |
+| Repeated code (`mct-cli duplicates`) | Rust, Python, Lua, JS/TS, Go, Java, Kotlin, C#, C++, PHP, Bash, PowerShell, GDScript | `build_token_sources` in `crates/mct-languages/src/lib.rs`; every other language is reported under `unsupported_languages` |
+| String literals for `hybrid_search` `"quoted"` queries | Rust, Python, JS/TS, Java, Kotlin, C#, C++, Go, PHP, Lua, Bash, PowerShell, Markdown, GDScript | Every language parser here fills `ParsedFile::literals`; all but Rust, PowerShell, Markdown and GDScript share `mct_tree_sitter::collect_literals` |
+| Brace-based body elision in `get_file_skeleton` | Rust, Go, Java, C++, C#, JS/TS, PHP, Kotlin | `BRACE_LANGUAGES` in `crates/mct-mcp-server/src/format.rs`; other languages show declaration lines. A GDScript file shows its script class's members as file declarations (`gdscript_skeleton` in `crates/mct-mcp-server/src/server.rs`) |
+| Declared dependencies in `get_indexing_status` | Rust, JS/TS, Python, Go, PHP, Lua, C#, GDScript (`project.godot` editor plugins) | `manifest_language` in `crates/mct-index/src/manifests.rs` |
 
 Dead code (`find_dead_code`, `mct-cli dead-code`) uses the same rules for
 every language (`crates/mct-index/src/dead_code.rs`). The rules decide most

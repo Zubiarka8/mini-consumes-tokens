@@ -1,0 +1,10 @@
+config_version=5
+
+[application]
+config/name="Workshop"
+
+[editor_plugins]
+enabled=PackedStringArray("res://addons/workshop/plugin.cfg")
+
+[autoload]
+WorkshopState="*res://scripts/helper.gd"

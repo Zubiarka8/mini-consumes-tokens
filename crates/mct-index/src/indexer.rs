@@ -211,6 +211,10 @@ fn reindex_inner(
         match index_file(index, registry, entry.path(), force, &mut report)? {
             Seen::Source(path) => seen_paths.push(path),
             Seen::Manifest(path) => seen_manifest_paths.push(path),
+            Seen::ManifestAndSource(path) => {
+                seen_paths.push(path.clone());
+                seen_manifest_paths.push(path);
+            }
             Seen::Unreadable(path) => unreadable.push(path),
             Seen::Nothing => {}
         }
@@ -313,6 +317,8 @@ enum Seen {
     Source(String),
     /// A manifest whose `dependencies` rows were rewritten.
     Manifest(String),
+    /// A project manifest that also declares indexable symbols.
+    ManifestAndSource(String),
     /// A path that exists but could not be read (a read failure is on record
     /// for it): every row for it, and for anything under it, is kept as is.
     Unreadable(String),
@@ -476,6 +482,15 @@ fn index_file(
     if let Some(language) = manifests::manifest_language(file_name) {
         match crate::read_repository_file(&canonical) {
             Ok(bytes) => {
+                if file_name == "project.godot" && std::str::from_utf8(&bytes).is_err() {
+                    record_read_failure(
+                        index,
+                        report,
+                        &relative_path,
+                        "project.godot is not valid UTF-8".into(),
+                    )?;
+                    return Ok(Seen::Unreadable(relative_path));
+                }
                 clear_read_failure(index, &relative_path)?;
                 if manifests::is_rockspec(file_name) {
                     // Invalid UTF-8 is recorded, not skipped: skipping would
@@ -513,6 +528,10 @@ fn index_file(
                     }
                     let deps = manifests::parse_manifest(file_name, &contents);
                     write_manifest_dependencies(index, &relative_path, language, &deps)?;
+                    if file_name == "project.godot" {
+                        index_godot_autoloads(index, &relative_path, &contents, force, report)?;
+                        return Ok(Seen::ManifestAndSource(relative_path));
+                    }
                 }
             }
             // Unreadable (permissions, race): the last-read dependencies stay,
@@ -654,7 +673,12 @@ fn index_file(
         contents,
     };
 
-    let parsed = registry.parse(&source);
+    let parsed = registry.parse(&source).map(|mut parsed| {
+        if extension == "gd" {
+            resolve_godot_paths(index.root(), &relative_path, &mut parsed);
+        }
+        parsed
+    });
     // Parsing can be expensive and the working tree is mutable. Verify the
     // exact bytes again before writing this file into the run so an edit made
     // during either a successful or failed parse cannot be published as current.
@@ -902,6 +926,10 @@ fn reindex_paths_inner(
                 )? {
                     Seen::Source(p) => seen.push(p),
                     Seen::Manifest(p) => seen_manifests.push(p),
+                    Seen::ManifestAndSource(p) => {
+                        seen.push(p.clone());
+                        seen_manifests.push(p);
+                    }
                     Seen::Unreadable(p) => unreadable.push(p),
                     Seen::Nothing => {}
                 }
@@ -909,7 +937,7 @@ fn reindex_paths_inner(
             report.files_removed +=
                 remove_under_prefix(index, &relative_path, &seen, &seen_manifests, &unreadable)?;
         } else if metadata.is_ok() {
-            let (indexed_as, manifest) = match index_noting_created(
+            let (indexed_as, source, manifest) = match index_noting_created(
                 index,
                 registry,
                 &absolute,
@@ -917,11 +945,12 @@ fn reindex_paths_inner(
                 &mut report,
                 &mut created,
             )? {
-                Seen::Source(p) => (Some(p), false),
-                Seen::Manifest(p) => (Some(p), true),
+                Seen::Source(p) => (Some(p), true, false),
+                Seen::Manifest(p) => (Some(p), false, true),
+                Seen::ManifestAndSource(p) => (Some(p), true, true),
                 // Its rows stay as they are, like any path indexed as reported.
-                Seen::Unreadable(p) => (Some(p), false),
-                Seen::Nothing => (None, false),
+                Seen::Unreadable(p) => (Some(p), true, true),
+                Seen::Nothing => (None, false, false),
             };
             // Indexed under another spelling (the old name of a case-only
             // rename, a symlink resolving elsewhere) or not at all (now
@@ -929,11 +958,8 @@ fn reindex_paths_inner(
             // spelling are stale. A no-op for a plain edit.
             if indexed_as.as_deref() != Some(relative_path.as_str()) {
                 let keep: Vec<String> = indexed_as.into_iter().collect();
-                let (files, manifests) = if manifest {
-                    (&[][..], &keep[..])
-                } else {
-                    (&keep[..], &[][..])
-                };
+                let files = if source { &keep[..] } else { &[] };
+                let manifests = if manifest { &keep[..] } else { &[] };
                 report.files_removed +=
                     remove_under_prefix(index, &relative_path, files, manifests, &[])?;
             }
@@ -999,7 +1025,7 @@ fn index_noting_created(
 ) -> Result<Seen> {
     let was_indexed = has_rows(index, as_reported)?;
     let seen = index_file(index, registry, path, false, report)?;
-    if let Seen::Source(p) | Seen::Manifest(p) = &seen {
+    if let Seen::Source(p) | Seen::Manifest(p) | Seen::ManifestAndSource(p) = &seen {
         if !was_indexed && has_rows(index, p)? {
             created.push(p.clone());
         }
@@ -1238,6 +1264,64 @@ fn under_prefix_sql(table: &str, column: &str) -> String {
         "SELECT DISTINCT {column} FROM {table}
          WHERE {column} = ?1 OR ({column} >= ?2 AND {column} < ?3)"
     )
+}
+
+fn index_godot_autoloads(
+    index: &mut Index,
+    path: &str,
+    contents: &str,
+    force: bool,
+    report: &mut ReindexReport,
+) -> Result<()> {
+    let Ok(hash) = Oid::hash_object(ObjectType::Blob, contents.as_bytes()) else {
+        return Ok(());
+    };
+    let hash = hash.to_string();
+    let unchanged = index.conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM files WHERE relative_path = ?1 AND content_hash = ?2)",
+        params![path, hash],
+        |row| row.get::<_, bool>(0),
+    )?;
+    if unchanged && !force {
+        return Ok(());
+    }
+    let directory = path.rsplit_once('/').map_or("", |(directory, _)| directory);
+    let parsed = manifests::godot::autoloads(contents, directory);
+    if parsed.symbols.is_empty() {
+        index
+            .conn
+            .execute("DELETE FROM files WHERE relative_path = ?1", params![path])?;
+    } else {
+        report.symbols_written += write_parsed_file(index, path, "gdscript", &hash, &parsed)?;
+        report.files_parsed += 1;
+    }
+    Ok(())
+}
+
+/// Godot resource paths are rooted at the nearest enclosing project.godot.
+fn resolve_godot_paths(root: &Path, path: &str, parsed: &mut mct_core::ParsedFile) {
+    let Some(directory) = Path::new(path).parent() else {
+        return;
+    };
+    let project = directory
+        .ancestors()
+        .find(|dir| root.join(dir).join("project.godot").is_file())
+        .and_then(Path::to_str)
+        .unwrap_or_default();
+    for target in &mut parsed.relation_targets {
+        let Some(resource) = target
+            .path
+            .as_deref()
+            .and_then(|path| path.strip_prefix("res://"))
+        else {
+            continue;
+        };
+        target.path = Some(if project.is_empty() {
+            resource.to_owned()
+        } else {
+            format!("{project}/{resource}")
+        });
+    }
 }
 
 fn write_manifest_dependencies(
