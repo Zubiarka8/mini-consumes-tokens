@@ -267,3 +267,166 @@ fn an_index_file_reopened_on_disk_serves_the_catalog() {
         class("spreadsheet", "xlsx", "extension")
     );
 }
+
+fn catalogued(index: &Index, path: &str) -> bool {
+    index.catalog_entry(path).unwrap().is_some()
+}
+
+#[test]
+fn add_rename_and_delete_converge_on_a_full_reindex() {
+    let (dir, mut index) = indexed_fixture();
+    fs::write(dir.join("docs/new manual.pdf"), b"%PDF-1.7\n").unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert!(catalogued(&index, "docs/new manual.pdf"));
+
+    // A rename that also changes the extension reclassifies the file.
+    fs::rename(
+        dir.join("docs/new manual.pdf"),
+        dir.join("docs/new manual.epub"),
+    )
+    .unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert!(!catalogued(&index, "docs/new manual.pdf"));
+    assert_eq!(
+        class_of(&index, "docs/new manual.epub"),
+        class("ebook", "epub", "extension")
+    );
+
+    fs::remove_file(dir.join("docs/new manual.epub")).unwrap();
+    fs::remove_dir_all(dir.join("demo")).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert!(!catalogued(&index, "docs/new manual.epub"));
+    assert!(!catalogued(&index, "demo/audio/intro.mp3"));
+    assert!(catalogued(&index, "docs/manual.pdf"));
+}
+
+#[test]
+fn watcher_updates_converge_on_add_rename_and_delete() {
+    let (dir, mut index) = indexed_fixture();
+    let registry = registry();
+    fs::write(dir.join("demo/audio/outro.ogg"), b"OggS").unwrap();
+    index
+        .reindex_paths(&registry, &[dir.join("demo/audio/outro.ogg")])
+        .unwrap();
+    assert_eq!(
+        class_of(&index, "demo/audio/outro.ogg"),
+        class("audio", "ogg", "extension")
+    );
+
+    // Reported by its new path only, as macOS FSEvents does, into another
+    // directory and with another extension.
+    fs::create_dir_all(dir.join("archive")).unwrap();
+    fs::rename(
+        dir.join("demo/audio/outro.ogg"),
+        dir.join("archive/outro.opus"),
+    )
+    .unwrap();
+    index
+        .reindex_paths(&registry, &[dir.join("archive/outro.opus")])
+        .unwrap();
+    assert!(!catalogued(&index, "demo/audio/outro.ogg"));
+    assert_eq!(
+        class_of(&index, "archive/outro.opus"),
+        class("audio", "opus", "extension")
+    );
+
+    fs::remove_dir_all(dir.join("fonts")).unwrap();
+    index
+        .reindex_paths(&registry, &[dir.join("fonts")])
+        .unwrap();
+    assert!(!catalogued(&index, "fonts/Inter.woff2"));
+    assert!(catalogued(&index, "archive/outro.opus"));
+}
+
+#[test]
+fn a_reindex_that_fails_midway_keeps_the_previous_catalog() {
+    struct Exploding;
+    impl mct_core::LanguageParser for Exploding {
+        fn language_id(&self) -> &'static str {
+            "boom"
+        }
+        fn file_extensions(&self) -> &'static [&'static str] {
+            &["boom"]
+        }
+        fn parse(&self, _file: &SourceFile) -> Result<ParsedFile, ParseError> {
+            panic!("parser crashed mid-run");
+        }
+    }
+    let (dir, mut index) = indexed_fixture();
+    let mut exploding = registry();
+    exploding.register(Arc::new(Exploding));
+    fs::remove_file(dir.join("docs/manual.pdf")).unwrap();
+    fs::write(dir.join("zz.boom"), "x").unwrap();
+    let crashed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        index.reindex(&exploding, false)
+    }));
+    assert!(crashed.is_err());
+    // Rolled back: the run never reached the sweep, and nothing it wrote
+    // before the crash was kept either.
+    assert!(catalogued(&index, "docs/manual.pdf"));
+    assert!(catalogued(&index, "sheets/budget.xlsx"));
+    assert!(!catalogued(&index, "zz.boom"));
+    fs::remove_file(dir.join("zz.boom")).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert!(!catalogued(&index, "docs/manual.pdf"));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unreadable_directory_keeps_its_catalog_rows() {
+    use std::os::unix::fs::PermissionsExt;
+    let (dir, mut index) = indexed_fixture();
+    let sheets = dir.join("sheets");
+    fs::set_permissions(&sheets, fs::Permissions::from_mode(0o000)).unwrap();
+    let readable = fs::read_dir(&sheets).is_ok(); // root ignores permissions
+    index.reindex(&registry(), false).unwrap();
+    fs::set_permissions(&sheets, fs::Permissions::from_mode(0o755)).unwrap();
+    if !readable {
+        assert!(catalogued(&index, "sheets/budget.xlsx"));
+    }
+}
+
+#[test]
+fn excluded_paths_never_enter_and_newly_excluded_ones_leave() {
+    let (dir, mut index) = indexed_fixture();
+    for excluded in [
+        "node_modules/pkg/logo.svg",
+        "secrets/manual.pdf",
+        "ignored/logo.svg",
+        "slides/keynote.key",
+    ] {
+        assert!(!catalogued(&index, excluded), "{excluded}");
+    }
+    fs::write(dir.join(".mctignore"), "ignored/\nbooks/\n").unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert!(!catalogued(&index, "books/novel.epub"));
+    assert!(catalogued(&index, "docs/manual.pdf"));
+}
+
+#[test]
+fn a_new_parser_reclassifies_unchanged_files_once() {
+    let (_dir, mut index) = indexed_fixture();
+    assert_eq!(class_of(&index, "other/blob.xyz").0, "other");
+    let mut wider = registry();
+    wider.register(Arc::new(ToyParser {
+        language: "xyz",
+        extensions: &["xyz"],
+    }));
+    index.reindex(&wider, false).unwrap();
+    assert_eq!(
+        class_of(&index, "other/blob.xyz"),
+        class("source", "xyz", "parser")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlink_is_catalogued_at_its_target_only() {
+    let (dir, mut index) = indexed_fixture();
+    std::os::unix::fs::symlink(dir.join("docs/manual.pdf"), dir.join("manual-link.pdf")).unwrap();
+    std::os::unix::fs::symlink(std::env::temp_dir(), dir.join("outside")).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    assert!(catalogued(&index, "docs/manual.pdf"));
+    assert!(!catalogued(&index, "manual-link.pdf"));
+    assert!(!catalogued(&index, "outside"));
+}

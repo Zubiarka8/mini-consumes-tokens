@@ -221,6 +221,7 @@ fn reindex_inner(
         }
     }
 
+    remove_missing_catalog(index, &seen_paths, &seen_manifest_paths, &unreadable)?;
     report.files_removed = remove_missing_files(index, &seen_paths, &unreadable)?;
     remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
     crate::join_resolution::resolve(&index.conn)?;
@@ -1045,8 +1046,8 @@ fn reindex_paths_inner(
     Ok(report)
 }
 
-/// Whether any `files`, `index_issues`, `dependencies` or `rockspec_items` row exists for
-/// exactly `relative_path`.
+/// Whether any `files`, `index_issues`, `dependencies`, `rockspec_items`
+/// or `path_catalog` row (among others) exists for exactly `relative_path`.
 fn has_rows(index: &Index, relative_path: &str) -> Result<bool> {
     Ok(index.conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM files WHERE relative_path = ?1)
@@ -1054,7 +1055,8 @@ fn has_rows(index: &Index, relative_path: &str) -> Result<bool> {
              OR EXISTS(SELECT 1 FROM dependencies WHERE manifest_path = ?1)
              OR EXISTS(SELECT 1 FROM rockspec_items WHERE manifest_path = ?1)
              OR EXISTS(SELECT 1 FROM cargo_packages WHERE manifest_path = ?1)
-             OR EXISTS(SELECT 1 FROM ts_configs WHERE manifest_path = ?1)",
+             OR EXISTS(SELECT 1 FROM ts_configs WHERE manifest_path = ?1)
+             OR EXISTS(SELECT 1 FROM path_catalog WHERE relative_path = ?1)",
         params![relative_path],
         |row| row.get(0),
     )?)
@@ -1093,8 +1095,9 @@ fn index_noting_created(
     Ok(seen)
 }
 
-const PATH_TABLES: [(&str, &str); 6] = [
+const PATH_TABLES: [(&str, &str); 7] = [
     ("files", "relative_path"),
+    ("path_catalog", "relative_path"),
     ("index_issues", "relative_path"),
     ("dependencies", "manifest_path"),
     ("rockspec_items", "manifest_path"),
@@ -1154,6 +1157,21 @@ fn remove_renamed_away(index: &mut Index, created: &[String]) -> Result<usize> {
         same_hash.extend(rows.collect::<rusqlite::Result<Vec<(String, String)>>>()?);
     }
     candidates.extend(same_hash.iter().map(|(path, _)| path.clone()));
+    // A file no parser claims has no content hash: a catalogued path with
+    // the size and modification time of a created one is the likely old
+    // end (a rename keeps both). Dropped below only if it vanished.
+    for path in created {
+        let mut stmt = index.conn.prepare_cached(
+            "SELECT other.relative_path FROM path_catalog created
+             JOIN path_catalog other
+               ON other.size_bytes IS created.size_bytes
+              AND other.modified_ns = created.modified_ns
+              AND other.relative_path <> created.relative_path
+             WHERE created.relative_path = ?1",
+        )?;
+        let rows = stmt.query_map(params![path], |row| row.get(0))?;
+        candidates.extend(rows.collect::<rusqlite::Result<Vec<String>>>()?);
+    }
 
     let parents: HashSet<&str> = created
         .iter()
@@ -1263,7 +1281,7 @@ fn children_sql(table: &str, column: &str, at_root: bool) -> String {
     }
 }
 
-/// Drops every `files`, `index_issues`, `dependencies` and `rockspec_items` row for
+/// Drops every `files`, `path_catalog`, `index_issues`, `dependencies` and `rockspec_items` row for
 /// `relative_path` itself or for anything under it as a directory, except
 /// the paths in `keep`/`keep_manifests` and everything at or under an
 /// `unreadable` path (see [`is_retained`]). Returns how many `files` rows went.
@@ -1274,6 +1292,11 @@ fn remove_under_prefix(
     keep_manifests: &[String],
     unreadable: &[String],
 ) -> Result<usize> {
+    let keep_seen: HashSet<&str> = keep
+        .iter()
+        .chain(keep_manifests)
+        .map(String::as_str)
+        .collect();
     let keep: HashSet<&str> = keep.iter().map(String::as_str).collect();
     let keep_manifests: HashSet<&str> = keep_manifests.iter().map(String::as_str).collect();
     // `dir/` ≤ path < `dir0` (`0` is the byte after `/`) selects exactly the
@@ -1286,6 +1309,7 @@ fn remove_under_prefix(
     let mut removed = 0;
     for (table, column, keep) in [
         ("files", "relative_path", &keep),
+        ("path_catalog", "relative_path", &keep_seen),
         ("index_issues", "relative_path", &keep),
         ("dependencies", "manifest_path", &keep_manifests),
         ("rockspec_items", "manifest_path", &keep_manifests),
@@ -2586,6 +2610,40 @@ fn remove_missing_files(
     }
 
     Ok(removed)
+}
+
+/// Drops the catalog row of every path this full walk did not see (as a
+/// source file or a manifest) and of every now-excluded path, except at or
+/// under an `unreadable` path, whose subtree was not visited.
+fn remove_missing_catalog(
+    index: &Index,
+    seen_paths: &[String],
+    seen_manifest_paths: &[String],
+    unreadable: &[String],
+) -> Result<()> {
+    let seen: HashSet<&str> = seen_paths
+        .iter()
+        .chain(seen_manifest_paths)
+        .map(String::as_str)
+        .collect();
+    let stored: Vec<String> = {
+        let mut stmt = index
+            .conn
+            .prepare("SELECT relative_path FROM path_catalog")?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    let mut delete = index
+        .conn
+        .prepare_cached("DELETE FROM path_catalog WHERE relative_path = ?1")?;
+    for path in stored {
+        if index.exclude.is_excluded(&path)
+            || (!seen.contains(path.as_str()) && !is_retained(&path, unreadable))
+        {
+            delete.execute(params![path])?;
+        }
+    }
+    Ok(())
 }
 
 fn record_issue(
