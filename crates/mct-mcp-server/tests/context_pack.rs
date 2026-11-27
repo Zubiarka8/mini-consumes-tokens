@@ -408,7 +408,7 @@ async fn homonyms_are_never_presented_as_resolved_callees() {
     assert!(
         text.contains(
             "Uncertain relations — target not proven, none picked, not followed:\n  \
-             callee run  ambiguous among 2: src/lib.rs:L3 method, src/lib.rs:L7 method\n"
+             callee run  ambiguous among 2, receiver type unproven: src/lib.rs:L3 method, src/lib.rs:L7 method\n"
         ),
         "{text}"
     );
@@ -551,4 +551,89 @@ async fn source_offset_pages_past_the_source_lines_cap() {
     // An offset past the end shows no source and no footer.
     assert!(!past_the_end.contains("| "), "{past_the_end}");
     assert!(!past_the_end.contains("more line(s)"), "{past_the_end}");
+}
+
+/// Why an ambiguous relation stays unpicked: a receiver of unproven type
+/// with one candidate (`receiver`) and a bare call with several
+/// (`candidates`) both stay `ambiguous`, each with its own reason, in the
+/// relation tools' TOON `evidence` column and in both pack formats.
+#[tokio::test]
+async fn ambiguous_relations_say_why_none_is_picked() {
+    let root = std::env::temp_dir().join(format!("mct-ambiguity-reason-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let files = [
+        (
+            "src/repo.rs",
+            "pub struct Repo;\nimpl Repo {\n    pub fn fetch(&self) {}\n}\n",
+        ),
+        ("src/a.rs", "pub fn helper() {}\n"),
+        ("src/b.rs", "pub fn helper() {}\n"),
+        (
+            "src/main.rs",
+            "fn entry() {\n\
+             \x20   let x = make();\n\
+             \x20   x.fetch();\n\
+             \x20   helper();\n\
+             }\n",
+        ),
+    ];
+    for (path, contents) in files {
+        std::fs::write(root.join(path), contents).unwrap();
+    }
+    let server = build_server(&root).await;
+    let calls = content_of(
+        &call(
+            &server,
+            "find_calls",
+            &json!({ "function": "entry", "format": "toon" }),
+        )
+        .await,
+    );
+    let calls_text = content_of(
+        &call(
+            &server,
+            "find_calls",
+            &json!({ "function": "entry", "format": "text" }),
+        )
+        .await,
+    );
+    let toon = pack(&server, json!({ "symbol": "entry" })).await;
+    let text = pack(&server, json!({ "symbol": "entry", "format": "text" })).await;
+    let _ = std::fs::remove_dir_all(&root);
+
+    assert!(
+        calls.contains(",entry,calls,fetch,1,ambiguous,receiver,1,src/repo.rs:3 in Repo\n"),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(",entry,calls,helper,1,ambiguous,candidates,2,"),
+        "{calls}"
+    );
+    assert!(
+        calls_text
+            .contains("fetch (ambiguous among 1, receiver type unproven: src/repo.rs:3 in Repo)"),
+        "{calls_text}"
+    );
+    assert!(
+        calls_text
+            .contains("helper (ambiguous among 2, several candidates: src/a.rs:1, src/b.rs:1)"),
+        "{calls_text}"
+    );
+    assert!(
+        toon.contains("uncertain[2]{name,roles,hop,candidates,evidence,detail}:"),
+        "{toon}"
+    );
+    assert!(toon.contains("  fetch,callee,1,1,receiver,"), "{toon}");
+    assert!(toon.contains("  helper,callee,1,2,candidates,"), "{toon}");
+    assert!(
+        text.contains(
+            "  callee fetch  ambiguous among 1, receiver type unproven: src/repo.rs:L3 method\n"
+        ),
+        "{text}"
+    );
+    assert!(
+        text.contains("  callee helper  ambiguous among 2, several candidates: src/a.rs:L1 function, src/b.rs:L1 function\n"),
+        "{text}"
+    );
 }

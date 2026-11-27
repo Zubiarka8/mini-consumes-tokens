@@ -108,6 +108,16 @@ impl ResolutionEvidence {
             Self::None => "none",
         }
     }
+
+    /// Why an ambiguous hit stays unpicked, in a few words for text output;
+    /// `None` for evidence that never makes a hit ambiguous.
+    pub fn ambiguity_reason(self) -> Option<&'static str> {
+        match self {
+            Self::Receiver => Some("receiver type unproven"),
+            Self::Candidates => Some("several candidates"),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]

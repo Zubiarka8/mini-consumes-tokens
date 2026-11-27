@@ -768,12 +768,22 @@ fn resolution_tag(hit: &RelationHit) -> String {
             None => String::new(),
         },
         Resolution::Ambiguous => format!(
-            " (ambiguous among {}: {})",
+            " (ambiguous among {}{}: {})",
             hit.candidate_count,
+            reason_suffix(hit.evidence),
             candidate_list(hit)
         ),
         other => format!(" ({})", other.as_str()),
     }
+}
+
+/// `, <reason>` after an ambiguous hit's candidate count: why none is
+/// picked. Empty for evidence that never makes a hit ambiguous.
+fn reason_suffix(evidence: ResolutionEvidence) -> String {
+    evidence
+        .ambiguity_reason()
+        .map(|reason| format!(", {reason}"))
+        .unwrap_or_default()
 }
 
 /// `path:line` — just `Lline` in the hit's own file — plus ` in Parent`
@@ -1033,9 +1043,10 @@ fn relation_hit_row(hit: &RelationHit) -> Vec<String> {
         hit.to_name.clone(),
         hit.depth.to_string(),
         hit.resolution.as_str().to_string(),
-        // Only a resolved hit's evidence is not implied by its resolution:
-        // an empty cell keeps the column's cost on the other rows to a comma.
-        if hit.resolution == Resolution::Resolved {
+        // A resolved hit's evidence says how it was proven, an ambiguous
+        // one's why none was picked (`receiver` or `candidates`). The other
+        // resolutions imply theirs: an empty cell keeps their cost to a comma.
+        if matches!(hit.resolution, Resolution::Resolved | Resolution::Ambiguous) {
             hit.evidence.as_str().to_string()
         } else {
             String::new()
@@ -1472,8 +1483,14 @@ fn related_location(related: &crate::server::PackedRelated) -> (String, String) 
 
 /// What makes an uncertain relation uncertain, in one cell: a caller/test's
 /// own location and how many definitions its call could denote, or a
-/// callee's first candidates. Never a single picked target.
-fn uncertain_detail(item: &crate::server::UncertainRelated) -> String {
+/// callee's first candidates. Never a single picked target. `with_reason`
+/// adds why none is picked, for output without an `evidence` column.
+fn uncertain_detail(item: &crate::server::UncertainRelated, with_reason: bool) -> String {
+    let reason = if with_reason {
+        reason_suffix(item.evidence)
+    } else {
+        String::new()
+    };
     let loc = |d: &SymbolHit| {
         format!(
             "{}:{} {}",
@@ -1484,9 +1501,9 @@ fn uncertain_detail(item: &crate::server::UncertainRelated) -> String {
     };
     match &item.definition {
         Some(def) => format!(
-            "{}, its call is ambiguous among {}",
+            "{}, its call is ambiguous among {}{reason}",
             loc(def),
-            item.candidate_count
+            item.candidate_count,
         ),
         None => {
             let shown: Vec<String> = item.candidates.iter().map(loc).collect();
@@ -1497,7 +1514,7 @@ fn uncertain_detail(item: &crate::server::UncertainRelated) -> String {
                 String::new()
             };
             format!(
-                "ambiguous among {}: {}{more}",
+                "ambiguous among {}{reason}: {}{more}",
                 item.candidate_count,
                 shown.join(", ")
             )
@@ -1521,7 +1538,7 @@ fn context_pack_uncertain(pack: &crate::server::ContextPack, limit: usize) -> St
             item.roles.join(","),
             item.name,
             depth_tag(item.hop),
-            uncertain_detail(item)
+            uncertain_detail(item, true)
         ));
     }
     out
@@ -1614,7 +1631,8 @@ pub fn context_pack_toon(pack: &crate::server::ContextPack, limit: usize) -> Str
                     item.roles.join(" "),
                     item.hop.to_string(),
                     item.candidate_count.to_string(),
-                    uncertain_detail(item),
+                    item.evidence.as_str().to_string(),
+                    uncertain_detail(item, false),
                 ]
             })
             .collect();
@@ -1623,7 +1641,7 @@ pub fn context_pack_toon(pack: &crate::server::ContextPack, limit: usize) -> Str
             truncation_note(pack.uncertain.len(), 0, shown.len()),
             encode_table(
                 "uncertain",
-                &["name", "roles", "hop", "candidates", "detail"],
+                &["name", "roles", "hop", "candidates", "evidence", "detail"],
                 &rows
             )
         ));
@@ -3069,7 +3087,7 @@ mod resolution_tests {
             "4 caller(s) of this function:\n\
              src/main.rs:4:5 [rust] other_file --calls--> run -> src/a.rs:3 in A\n\
              src/main.rs:4:5 [rust] same_file --calls--> run -> L9 (by name)\n\
-             src/main.rs:4:5 [rust] guess --calls--> run (ambiguous among 5: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n\
+             src/main.rs:4:5 [rust] guess --calls--> run (ambiguous among 5, several candidates: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n\
              src/main.rs:4:5 [rust] unknown --calls--> run (unresolved)\n"
         );
     }
@@ -3094,7 +3112,7 @@ mod resolution_tests {
         );
         assert!(
             out.contains(
-                "guess,calls,run,1,ambiguous,,5,\"src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more\""
+                "guess,calls,run,1,ambiguous,candidates,5,\"src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more\""
             ),
             "{out}"
         );
@@ -3111,7 +3129,7 @@ mod resolution_tests {
             "{text}"
         );
         assert!(
-            text.contains("guess --calls--> run (ambiguous among 5: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n"),
+            text.contains("guess --calls--> run (ambiguous among 5, several candidates: src/a.rs:3 in A, src/b.rs:7 in B, L2, +2 more)\n"),
             "{text}"
         );
     }
