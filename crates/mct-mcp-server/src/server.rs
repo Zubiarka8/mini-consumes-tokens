@@ -681,14 +681,36 @@ pub(crate) const CONTEXT_PACK_MAX_SOURCE_LINES: usize = 200;
 /// Definitions of an ambiguous name rendered with source; the rest are only
 /// counted, with a hint to narrow by `path`/`language`.
 const CONTEXT_PACK_MAX_DEFINITIONS: usize = 3;
+/// Symbols one joint pack may list in `symbols`.
+const CONTEXT_PACK_MAX_SYMBOLS: usize = 8;
 /// Bound on each multi-hop walk behind a pack (`depth > 1`), so a hub
 /// symbol's transitive callers can't turn one call into thousands of rows.
 const CONTEXT_PACK_MAX_RELATIONS: usize = 500;
 
+/// One symbol of a joint `build_context_pack` (issue #631).
+#[derive(Debug, Default, Clone, serde::Deserialize, schemars::JsonSchema)]
+pub struct PackSymbol {
+    /// Exact name of the symbol.
+    pub symbol: String,
+    /// Which definition(s) of it: a file or directory/crate prefix.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Which definition(s) of it, by language id.
+    #[serde(default)]
+    pub language: Option<String>,
+}
+
 #[derive(Debug, Default, serde::Deserialize, schemars::JsonSchema)]
 pub struct BuildContextPackArgs {
-    /// Exact name of the symbol to build the pack around.
+    /// Exact name of the symbol to build the pack around. Omit it when
+    /// `symbols` lists several.
+    #[serde(default)]
     pub symbol: String,
+    /// Several symbols packed as one (issue #631): each related symbol is
+    /// listed once, its roles tagged with the symbol they relate to
+    /// (`callee@a+b`), under one `limit` and `max_tokens`. At most 8.
+    #[serde(default)]
+    pub symbols: Option<Vec<PackSymbol>>,
     /// Which definition(s) to pack when the name is ambiguous: a file or
     /// directory/crate prefix, as list_symbols. Callers/tests stay project-wide.
     #[serde(default)]
@@ -1289,7 +1311,12 @@ pub struct UncertainRelated {
 /// Everything `build_context_pack` renders, deduplicated.
 #[derive(Clone)]
 pub struct ContextPack {
+    /// The packed symbol, or a joint pack's found symbols, comma-separated.
     pub symbol: String,
+    /// Several symbols packed as one: roles carry `@symbol`.
+    pub joint: bool,
+    /// Requested symbols of a joint pack with no indexed definition.
+    pub missing: Vec<String>,
     pub depth: u32,
     pub definitions: Vec<PackedDefinition>,
     pub omitted_definitions: usize,
@@ -1412,6 +1439,96 @@ impl RelatedSet {
             }
         }
     }
+}
+
+/// The symbols one `build_context_pack` call packs: `symbol` alone, or the
+/// `symbols` list, whose entries fall back to the top-level `path` and
+/// `language`. Repeated entries are packed once.
+fn pack_targets(
+    symbol: &str,
+    symbols: Option<Vec<PackSymbol>>,
+    path: Option<&String>,
+    language: Option<&String>,
+) -> Result<Vec<PackSymbol>, McpError> {
+    let invalid = |msg: String| McpError::invalid_params(msg, None);
+    let list = match symbols {
+        None => vec![PackSymbol {
+            symbol: symbol.to_string(),
+            path: path.cloned(),
+            language: language.cloned(),
+        }],
+        Some(_) if !symbol.trim().is_empty() => {
+            return Err(invalid("pass `symbol` or `symbols`, not both".to_string()))
+        }
+        Some(list) if list.is_empty() => {
+            return Err(invalid(
+                "`symbols` must list at least one symbol".to_string(),
+            ))
+        }
+        Some(list) if list.len() > CONTEXT_PACK_MAX_SYMBOLS => {
+            return Err(invalid(format!(
+                "`symbols` lists {} symbols; at most {CONTEXT_PACK_MAX_SYMBOLS} fit one pack, \
+                 so split them into several calls",
+                list.len()
+            )))
+        }
+        Some(list) => list
+            .into_iter()
+            .map(|target| PackSymbol {
+                symbol: target.symbol,
+                path: target.path.or_else(|| path.cloned()),
+                language: target.language.or_else(|| language.cloned()),
+            })
+            .collect(),
+    };
+    let mut seen = std::collections::HashSet::new();
+    let mut targets = Vec::new();
+    for target in list {
+        let target = PackSymbol {
+            symbol: validate_name(&target.symbol)?.to_string(),
+            path: optional_arg(target.path.as_ref()).map(str::to_string),
+            language: optional_arg(target.language.as_ref()).map(str::to_string),
+        };
+        if seen.insert((
+            target.symbol.clone(),
+            target.path.clone(),
+            target.language.clone(),
+        )) {
+            targets.push(target);
+        }
+    }
+    Ok(targets)
+}
+
+/// A joint pack's roles grouped by role, in first-seen order: `callee@a`,
+/// `callee@b` and `caller@a` become `callee@a+b` and `caller@a`. A single
+/// pack's roles carry no `@` and pass through unchanged.
+fn compact_roles(roles: Vec<String>) -> Vec<String> {
+    let mut grouped: Vec<(String, Vec<String>)> = Vec::new();
+    for role in roles {
+        match role.rsplit_once('@') {
+            Some((base, origin)) => {
+                match grouped
+                    .iter_mut()
+                    .find(|(b, origins)| b == base && !origins.is_empty())
+                {
+                    Some((_, origins)) => origins.push(origin.to_string()),
+                    None => grouped.push((base.to_string(), vec![origin.to_string()])),
+                }
+            }
+            None => grouped.push((role, Vec::new())),
+        }
+    }
+    grouped
+        .into_iter()
+        .map(|(base, origins)| {
+            if origins.is_empty() {
+                base
+            } else {
+                format!("{base}@{}", origins.join("+"))
+            }
+        })
+        .collect()
 }
 
 /// Drops `module` entries (a file's synthetic whole-file symbol) when the
@@ -2713,6 +2830,7 @@ impl MctServer {
         &self,
         Parameters(BuildContextPackArgs {
             symbol,
+            symbols,
             path,
             language,
             depth,
@@ -2725,12 +2843,10 @@ impl MctServer {
             cache,
         }): Parameters<BuildContextPackArgs>,
     ) -> Result<CallToolResult, McpError> {
-        let symbol = validate_name(&symbol)?;
+        let requested = pack_targets(&symbol, symbols, path.as_ref(), language.as_ref())?;
         let output_format = parse_output_format(format.as_deref())?;
         let pack_request = PackRequest::parse(detail.as_deref(), max_tokens)
             .map_err(|msg| McpError::invalid_params(msg, None))?;
-        let path = optional_arg(path.as_ref());
-        let language = optional_arg(language.as_ref());
         let depth = depth.unwrap_or(1).clamp(1, mct_core::MAX_QUERY_DEPTH);
         let limit = limit.unwrap_or(CONTEXT_PACK_DEFAULT_LIMIT).max(1);
         let source_lines = source_lines
@@ -2740,14 +2856,35 @@ impl MctServer {
         let index = self.index.lock().await;
         let _snapshot = index.read_snapshot().map_err(index_error)?;
 
-        let definitions = without_modules(
-            index
-                .find_symbol_scoped(symbol, query_scope(path, language))
-                .map_err(index_error)?,
-        );
-        if definitions.is_empty() {
+        // Each requested symbol's definitions, in request order. A joint
+        // pack (several symbols) tags every role with the symbol it relates
+        // to, so a row shared by several of them is still listed once.
+        let joint = requested.len() > 1;
+        let mut origins = Vec::new();
+        let mut missing = Vec::new();
+        for target in &requested {
+            let definitions = without_modules(
+                index
+                    .find_symbol_scoped(
+                        &target.symbol,
+                        query_scope(target.path.as_deref(), target.language.as_deref()),
+                    )
+                    .map_err(index_error)?,
+            );
+            if definitions.is_empty() {
+                missing.push(target.symbol.clone());
+            } else {
+                origins.push((target.symbol.clone(), definitions));
+            }
+        }
+        if origins.is_empty() {
+            let names = missing
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
             let text = format!(
-                "No symbol named `{symbol}` found in the index — try search_symbols for a partial name."
+                "No symbol named {names} found in the index — try search_symbols for a partial name."
             );
             let text = match &pack_request {
                 Some(request) => request.fit_response(text),
@@ -2755,79 +2892,98 @@ impl MctServer {
             };
             return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
         }
+        let symbol = origins
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
 
         // Every relation is walked from these exact rows, so a same-named
         // symbol elsewhere (another language, another type's method) never
         // contributes callees, and a callee is only followed — or listed as
         // a related symbol — once its target is proven.
-        let definition_ids: Vec<i64> = definitions.iter().map(|d| d.id).collect();
-        let callees = index
-            .find_calls_from_symbols(&definition_ids, depth, CONTEXT_PACK_MAX_RELATIONS)
-            .map_err(index_error)?;
-        let dependencies = index
-            .find_dependencies_of_symbols(&definition_ids)
-            .map_err(index_error)?;
-        let callers = index
-            .find_callers_of_symbols(&definition_ids, depth, CONTEXT_PACK_MAX_RELATIONS)
-            .map_err(index_error)?;
-        let references = index
-            .find_references_of_symbols(&definition_ids, depth, CONTEXT_PACK_MAX_RELATIONS)
-            .map_err(index_error)?;
-
+        let definition_ids: Vec<i64> = origins
+            .iter()
+            .flat_map(|(_, definitions)| definitions.iter().map(|d| d.id))
+            .collect();
         let mut related = RelatedSet::default();
         let mut external = std::collections::BTreeSet::new();
         let mut unresolved = std::collections::BTreeSet::new();
-        let targets = callees
-            .iter()
-            .map(|hit| ("callee", hit))
-            .chain(dependencies.iter().map(|hit| (hit.kind.as_str(), hit)));
-        for (role, hit) in targets {
-            if let Some(hit) = related.add_target(role, hit) {
-                if hit.resolution == mct_index::Resolution::External {
-                    external.insert(hit.to_name.clone());
+        for (name, definitions) in &origins {
+            let role = |base: &str| {
+                if joint {
+                    format!("{base}@{name}")
                 } else {
-                    unresolved.insert(hit.to_name.clone());
+                    base.to_string()
+                }
+            };
+            let ids: Vec<i64> = definitions.iter().map(|d| d.id).collect();
+            let callees = index
+                .find_calls_from_symbols(&ids, depth, CONTEXT_PACK_MAX_RELATIONS)
+                .map_err(index_error)?;
+            let dependencies = index
+                .find_dependencies_of_symbols(&ids)
+                .map_err(index_error)?;
+            let callers = index
+                .find_callers_of_symbols(&ids, depth, CONTEXT_PACK_MAX_RELATIONS)
+                .map_err(index_error)?;
+            let references = index
+                .find_references_of_symbols(&ids, depth, CONTEXT_PACK_MAX_RELATIONS)
+                .map_err(index_error)?;
+
+            let targets = callees
+                .iter()
+                .map(|hit| ("callee", hit))
+                .chain(dependencies.iter().map(|hit| (hit.kind.as_str(), hit)));
+            for (base, hit) in targets {
+                if let Some(hit) = related.add_target(&role(base), hit) {
+                    if hit.resolution == mct_index::Resolution::External {
+                        external.insert(hit.to_name.clone());
+                    } else {
+                        unresolved.insert(hit.to_name.clone());
+                    }
                 }
             }
-        }
-        for hit in &callers {
-            related.add_referrer("caller", hit);
-        }
-        // Backlinks by resolved identity — links and embeds reaching a
-        // note/section (`module`/`element`), so a same-named note elsewhere
-        // never shares them. Other kinds keep their callers-only pack.
-        let linkable: Vec<i64> = definitions
-            .iter()
-            .filter(|d| matches!(d.kind.as_str(), "module" | "element"))
-            .map(|d| d.id)
-            .collect();
-        if !linkable.is_empty() {
-            let backlinks = index
-                .find_references_of_symbols(&linkable, 1, CONTEXT_PACK_MAX_RELATIONS)
-                .map_err(index_error)?;
-            for hit in backlinks
-                .iter()
-                .filter(|hit| matches!(hit.kind.as_str(), "references" | "imports"))
-            {
-                related.add_referrer(&hit.kind, hit);
+            for hit in &callers {
+                related.add_referrer(&role("caller"), hit);
             }
-        }
-        // Same test evidence as impact_analysis, over every relation
-        // reaching the symbol — a test importing it counts, not just one
-        // calling it. The role names the reason: `test:#[test]`,
-        // `test:path` or `test:name`.
-        let referrers: Vec<i64> = references
-            .iter()
-            .chain(callers.iter())
-            .map(|hit| hit.from_symbol_id)
-            .collect();
-        let declared_tests = index.declared_tests(&referrers).map_err(index_error)?;
-        for hit in references.iter().chain(callers.iter()) {
-            let declared = declared_tests.get(&hit.from_symbol_id).map(String::as_str);
-            if let Some(test) =
-                mct_index::test_evidence(declared, &hit.from_symbol, &hit.relative_path)
-            {
-                related.add_referrer(&format!("test:{}", test.label()), hit);
+            // Backlinks by resolved identity — links and embeds reaching a
+            // note/section (`module`/`element`), so a same-named note
+            // elsewhere never shares them. Other kinds keep their
+            // callers-only pack.
+            let linkable: Vec<i64> = definitions
+                .iter()
+                .filter(|d| matches!(d.kind.as_str(), "module" | "element"))
+                .map(|d| d.id)
+                .collect();
+            if !linkable.is_empty() {
+                let backlinks = index
+                    .find_references_of_symbols(&linkable, 1, CONTEXT_PACK_MAX_RELATIONS)
+                    .map_err(index_error)?;
+                for hit in backlinks
+                    .iter()
+                    .filter(|hit| matches!(hit.kind.as_str(), "references" | "imports"))
+                {
+                    related.add_referrer(&role(&hit.kind), hit);
+                }
+            }
+            // Same test evidence as impact_analysis, over every relation
+            // reaching the symbol — a test importing it counts, not just one
+            // calling it. The role names the reason: `test:#[test]`,
+            // `test:path` or `test:name`.
+            let referrers: Vec<i64> = references
+                .iter()
+                .chain(callers.iter())
+                .map(|hit| hit.from_symbol_id)
+                .collect();
+            let declared_tests = index.declared_tests(&referrers).map_err(index_error)?;
+            for hit in references.iter().chain(callers.iter()) {
+                let declared = declared_tests.get(&hit.from_symbol_id).map(String::as_str);
+                if let Some(test) =
+                    mct_index::test_evidence(declared, &hit.from_symbol, &hit.relative_path)
+                {
+                    related.add_referrer(&role(&format!("test:{}", test.label())), hit);
+                }
             }
         }
 
@@ -2843,9 +2999,13 @@ impl MctServer {
                 .clone()
         };
 
-        let omitted_definitions = definitions
-            .len()
-            .saturating_sub(CONTEXT_PACK_MAX_DEFINITIONS);
+        // Up to three definitions of each symbol are shown with source.
+        let mut omitted_definitions = 0;
+        let mut definitions = Vec::new();
+        for (_, found) in origins {
+            omitted_definitions += found.len().saturating_sub(CONTEXT_PACK_MAX_DEFINITIONS);
+            definitions.extend(found.into_iter().take(CONTEXT_PACK_MAX_DEFINITIONS));
+        }
         // A signature is the header the parser stored (ADR-034), whole even
         // when written over several lines; without one, the first source
         // line. Both are capped the same, so the pack's budget is unchanged.
@@ -2858,7 +3018,7 @@ impl MctServer {
         let stored_signature = |id: i64| stored.get(&id).map(|s| format::capped_signature(s));
 
         let mut packed_definitions = Vec::new();
-        for hit in definitions.into_iter().take(CONTEXT_PACK_MAX_DEFINITIONS) {
+        for hit in definitions {
             // An asset is binary or glTF JSON: no source lines to show.
             let source = if hit.kind == "asset" {
                 None
@@ -2931,7 +3091,7 @@ impl MctServer {
                 };
                 uncertain.push(UncertainRelated {
                     name: draft.name,
-                    roles: draft.roles,
+                    roles: compact_roles(draft.roles),
                     hop: draft.hop,
                     definition,
                     candidates,
@@ -2947,10 +3107,10 @@ impl MctServer {
             // file-level `use`/`import` of the packed symbol: the file is
             // worth naming, its whole-file "definition" isn't worth a row.
             if definition.kind == "module"
-                && draft
-                    .roles
-                    .iter()
-                    .all(|r| r == "caller" || r.starts_with("test:"))
+                && draft.roles.iter().all(|r| {
+                    let base = r.rsplit_once('@').map_or(r.as_str(), |(base, _)| base);
+                    base == "caller" || base.starts_with("test:")
+                })
             {
                 file_level.insert(definition.relative_path);
                 continue;
@@ -2961,7 +3121,7 @@ impl MctServer {
             });
             packed_related.push(PackedRelated {
                 name: draft.name,
-                roles: draft.roles,
+                roles: compact_roles(draft.roles),
                 hop: draft.hop,
                 definition: Some(definition),
                 signature,
@@ -2974,7 +3134,9 @@ impl MctServer {
             .map(|d| format!("{}:{}", d.hit.relative_path, d.hit.line))
             .collect();
         let pack = ContextPack {
-            symbol: symbol.to_string(),
+            symbol,
+            joint,
+            missing,
             depth,
             definitions: packed_definitions,
             omitted_definitions,

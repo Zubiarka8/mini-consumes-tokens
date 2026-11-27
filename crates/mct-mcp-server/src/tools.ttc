@@ -119,8 +119,8 @@ TOOL build_context_pack
 WHEN before working on a symbol: def+doc+source, callers/callees/deps/tests once each.
 ERR not blast radius (use impact_analysis); ambiguous name -> path/language.
 TAGS context, composite, tests, tokens-saving
-PRE `symbol` non-blank; `path`/`language` disambiguate; optional `detail` overview|summary|detailed, `max_tokens` (estimated).
-POST definitions with source, then each related symbol once; ambiguous callees apart. TOON by default; `format`:`text` for plain text.
+PRE `symbol` non-blank, or `symbols` (up to 8 `{symbol,path?,language?}`, one joint pack); `path`/`language` disambiguate; optional `detail` overview|summary|detailed, `max_tokens` (estimated).
+POST definitions with source, then each related symbol once (joint: roles `callee@a+b`); ambiguous callees apart. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index, project files, query cache.
 
 TOOL reindex
