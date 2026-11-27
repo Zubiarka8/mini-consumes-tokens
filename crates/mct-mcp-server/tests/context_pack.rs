@@ -122,9 +122,10 @@ async fn packs_definition_doc_comment_and_every_related_symbol_once() {
         text.contains("references Order  src/orders.rs:L17-L21 struct"),
         "{text}"
     );
-    // A caller that is also a test is one row with both roles.
+    // A caller that is also a test is one row with both roles; the test
+    // role names its reason: the `#[test]` attribute, ahead of `tests/`.
     assert!(
-        text.contains("caller,test test_place_order_stores_the_discounted_total"),
+        text.contains("caller,test:#[test] test_place_order_stores_the_discounted_total"),
         "{text}"
     );
     assert!(
@@ -244,7 +245,7 @@ async fn toon_renders_the_related_symbols_as_one_table() {
         "{text}"
     );
     assert!(
-        text.contains("  test_place_order_stores_the_discounted_total,caller test,1,tests/orders.rs,L18-L25,function,"),
+        text.contains("  test_place_order_stores_the_discounted_total,caller test:#[test],1,tests/orders.rs,L18-L25,function,"),
         "{text}"
     );
     // The definition's source is not tabular and stays as numbered lines.
