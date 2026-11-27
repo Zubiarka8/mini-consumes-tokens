@@ -8,7 +8,7 @@
 > [symbol-coverage.md](../symbol-coverage.md) (synced 2026-11-15); that page is the one kept up to date. Rows
 > of the markup languages are unchanged.
 
-Secondary view. One checklist per language, all 17 languages. Definitions are in [features.md](../features.md).
+Secondary view. One checklist per language, all 18 languages. Definitions are in [features.md](../features.md).
 Same data as [by-feature.md](by-feature.md).
 
 Marks:
@@ -34,6 +34,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Go | 18 | 6 | 6 | 0 | 23 |
 | PHP | 30 | 5 | 6 | 0 | 12 |
 | Lua | 15 | 7 | 3 | 0 | 28 |
+| GDScript | 33 | 0 | 0 | 0 | 20 |
 | Bash | 11 | 4 | 3 | 0 | 35 |
 | PowerShell | 11 | 4 | 13 | 0 | 25 |
 | HTML | 3 | 1 | 3 | 0 | 0 |
@@ -813,6 +814,87 @@ Done 15 · Partial 7 · Not done 3 · Not verified 0 · Not applicable 28
 - — RE09 Struct / type embedding: Lua has no struct / type embedding
 
 Markup features (MK) do not apply to code languages.
+
+## GDScript (gdscript)
+
+Done 33 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 20
+
+**Functions and methods**
+
+- [x] FN03 Lambda or closure assigned to a name: `var f := func(..)`, `const F = func(..)` and `f = func(..)` give a function owned by the enclosing scope. An anonymous lambda passed as an argument stays part of its callable.
+- [x] FN04 Method: Instance and static methods are owned by the script or inner class.
+- [x] FN05 Constructor: `_init` is a method.
+- [x] FN08 Abstract / pure virtual method: Bodyless methods have declaration details marked abstract.
+- [x] FN09 Property accessors (get/set): Accessor blocks and named getter/setter bindings share the property symbol.
+
+**Types and object-oriented programming**
+
+- [x] TY01 Class: Named and implicit script classes are indexed as classes.
+- [x] TY02 Abstract class: `@abstract` script classes are indexed as classes.
+- [x] TY08 Enum: Named enums are indexed. An unnamed enum is not a symbol: its entries are constants of the class.
+- [x] TY09 Enum members: Enum entries are constants owned by their enum, or by the class for an unnamed enum.
+- [x] TY11 Nested / inner class: Inner classes preserve their class parent.
+- [x] TY14 Singleton / companion object: Autoloads from `project.godot` are indexed and extend their script's class, so `GameState.f()` resolves to the script's method. An autoload whose script declares another `class_name` does not reach its members.
+- [x] TY16 Module / namespace / package: A module identifies each script file.
+
+**Fields, constants and variables**
+
+- [x] DA01 Field / instance attribute: Regular, exported, onready and static member variables are fields. Signals also use field symbols.
+- [x] DA03 Constant (module or global): Constants are indexed under their script, class or callable.
+- [x] DA05 Local variable: Local declarations, loop variables and match bindings are variables.
+- [x] DA06 Parameter: Callable, signal and setter parameters are indexed.
+
+**Relations**
+
+- [x] RE01 Calls: Local, typed, `:=`-inferred, self, super, inherited bare and preloaded-script calls carry evidence. A PascalCase receiver (a `class_name` global, an autoload or an engine class) is the call's qualifier. Untyped values stay ambiguous.
+- [x] RE02 Constructor call: `X.new()` calls `_init` of X, also through a preload constant. A computed constructor is unresolved.
+- [x] RE03 Super / base constructor call: An explicit super() in _init links to the base constructor.
+- [x] RE04 Imports: Literal `preload`/`load` paths, `extends "x.gd"`, `.tscn`/`.tres` `ext_resource` lines and `project.godot` autoloads import the file. A computed path is skipped.
+- [x] RE05 Class extends class: A named base links to its class. `extends "x.gd"` links to the script's class and imports the file; members are not inherited through it when that script declares `class_name`.
+- [x] RE08 Decorator / annotation / attribute: Annotations are recorded as references.
+- [x] RE10 Cross-language HTTP link: `HTTPRequest.request` with a literal URL to this machine, or a constant holding one, and a known method is a use linked to the server handler.
+
+**Search and lookup**
+
+- [x] SE01 Find a definition: Definitions appear through the shared query tools.
+- [x] SE02 Callers and callees: `find_callers` and `find_calls` list calls in both directions, including editor signal connections in `.tscn` scenes. An untyped receiver stays ambiguous.
+- [x] SE03 Every use: Identifier, member, signal and annotation uses are references. Scenes, resources, autoloads and preloads reference the scripts they use.
+- [x] SE04 Blast radius and context: `impact_analysis` and `build_context_pack` include callers, references and GUT tests (`test_*.gd`, `tests/`).
+- [x] SE05 Exact text in strings: Prose string literals are available for exact text search.
+
+**Code quality**
+
+- [x] QU01 Dead code: A class used only by a scene, a resource, an autoload or a preload is not reported. Engine callbacks such as `_ready` are methods, which dead code does not check.
+- [x] QU02 Repeated code: The shared token registry includes GDScript.
+
+**Structure**
+
+- [x] ST01 Import graph: Literal script, scene and resource paths resolve within the Godot project (`res://` or relative), with no false externals. A computed load is outside the graph.
+- [x] ST02 File outline: The script class members and nested class headers appear with bodies collapsed.
+- [x] ST03 Declared dependencies: `get_indexing_status` lists the editor plugins `project.godot` enables. Godot declares no package versions.
+
+**Not applicable:**
+
+- — FN01 Top-level function: GDScript files are classes and their top-level functions are methods.
+- — FN02 Nested function: Nested callable declarations use lambda syntax (FN03).
+- — FN06 Destructor / finalizer: No destructor declaration. Engine lifecycle callbacks are methods.
+- — FN07 Operator overload: No user-defined operator overload declarations.
+- — FN10 Overloads kept apart: Methods cannot be overloaded by signature.
+- — TY03 Struct: No struct declaration.
+- — TY04 Union: No union declaration.
+- — TY05 Interface / protocol: No interface declaration.
+- — TY06 Interface members: No interface members.
+- — TY07 Trait / mixin: No trait declaration.
+- — TY10 Record / data class: No dedicated record or data-class declaration.
+- — TY12 Anonymous class: No anonymous class expression.
+- — TY13 Partial class: No partial class declaration.
+- — TY15 Type alias: No type alias declaration. Preloaded scripts are constants.
+- — DA02 Constructor-promoted field: Constructor parameters do not declare fields.
+- — DA04 Global / module-level variable: Script-level variables are fields.
+- — DA07 Macro / preprocessor define: No macro or preprocessor declarations.
+- — RE06 Implements interface / trait: No interface or trait implementation syntax.
+- — RE07 Interface extends interface / supertrait: No interface inheritance syntax.
+- — RE09 Struct / type embedding: No type embedding declaration.
 
 ## Bash (`bash`)
 

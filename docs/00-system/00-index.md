@@ -61,6 +61,7 @@ Central map of this vault. Start here.
 | .php | PHP | `mct-lang-php` |
 | .md | Markdown | `mct-lang-md` |
 | .lua | Lua | `mct-lang-lua` |
+| .gd | GDScript | `mct-lang-gdscript` |
 
 Adding a language does not need a new note here beyond a row in this table — see the templates below for the one exception.
 

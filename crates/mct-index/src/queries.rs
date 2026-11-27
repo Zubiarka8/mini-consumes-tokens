@@ -787,7 +787,10 @@ impl ReferencedSymbols {
 /// - a name only one symbol has keeps that symbol alive whether a relation
 ///   resolved to it or not, so it is counted by name;
 /// - a name with no symbol of `kinds` is never asked about, so it is counted
-///   by name too (module aliases resolve to `module` symbols only);
+///   by name too (an unpinned alias resolves to `module` symbols only);
+/// - a relation that pins its target's file may reach a symbol by its alias
+///   (a Godot scene names a `class_name` script by its file), so its
+///   resolved target is counted too;
 /// - a name with homonyms is counted by name as soon as one relation to it
 ///   is not resolved to a single symbol — that relation keeps every homonym
 ///   alive — and per resolved target only when none is.
@@ -825,7 +828,9 @@ pub fn referenced_symbols(conn: &Connection, kinds: &[&str]) -> Result<Reference
          JOIN symbols s ON s.id = c.symbol_id
          JOIN files f ON f.id = s.file_id
          WHERE r.external = 0
-           AND r.to_name IN (SELECT name FROM resolved_names)
+           AND (r.to_name IN (SELECT name FROM resolved_names)
+                OR (r.target_path IS NOT NULL
+                    AND r.to_name IN (SELECT alias FROM symbol_aliases)))
            AND NOT (r.kind = 'calls' AND s.id = r.from_symbol_id)"
     );
     // `sql` interpolates only `?` placeholders, one per kind; the kinds bind.

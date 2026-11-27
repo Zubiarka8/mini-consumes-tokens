@@ -1,0 +1,5 @@
+config_version=5
+
+[autoload]
+Game="*res://core/game.gd"
+Scores="*res://core/scores.gd"

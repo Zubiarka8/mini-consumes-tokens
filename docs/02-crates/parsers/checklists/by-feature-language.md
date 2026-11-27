@@ -8,7 +8,7 @@
 > [symbol-coverage.md](../symbol-coverage.md) (synced 2026-11-15); that page is the one kept up to date. Rows
 > of the markup languages are unchanged.
 
-Primary language view. Each feature lists all 17 languages in the same order: a checkbox, or a named
+Primary language view. Each feature lists all 18 languages in the same order: a checkbox, or a named
 not-applicable reason. Definitions are in [features.md](../features.md). Same data as
 [by-language.md](by-language.md). Library features are tracked separately in
 [by-feature-library.md](by-feature-library.md).
@@ -26,7 +26,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 10 | 0 | 0 | 0 | 7 |
+| 10 | 0 | 0 | 0 | 8 |
 
 - [x] Rust: `function`
 - [x] Python: `async def` too
@@ -38,6 +38,7 @@ Marks:
 - [x] Go: parent is the package
 - [x] PHP: `function`
 - [x] Lua: `function`
+- — GDScript: GDScript files are classes and their top-level functions are methods.
 - [x] Bash: `f() {}`
 - [x] PowerShell: multi-line and one-line `function f { param(...) … }` both parse
 - — HTML: HTML is markup; it has no top-level function
@@ -53,7 +54,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 6 | 0 | 0 | 8 |
+| 3 | 6 | 0 | 0 | 9 |
 
 - [x] Rust: nested function is indexed with the enclosing function as `parent`
 - [~] Python: file skeleton shows `nested` indented, but the parser test confirms `parent` is `None`
@@ -65,6 +66,7 @@ Marks:
 - — Go: Go has no nested function
 - [~] PHP: named `nestedNamed` function is indexed without a parent association
 - [~] Lua: local `nested` function is indexed without a parent association
+- — GDScript: Nested callable declarations use lambda syntax (FN03).
 - [x] Bash: parent is the outer function
 - [x] PowerShell: parent is the outer function
 - — HTML: HTML is markup; it has no nested function
@@ -80,7 +82,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 1 | 6 | 0 | 6 |
+| 5 | 1 | 6 | 0 | 6 |
 
 - [x] Rust: `let name = |..| ..` closure is a `function` owned by the enclosing function; closures not bound by a plain `let` are not indexed
 - [ ] Python: `find_symbol("assigned_lambda")` returns no symbol
@@ -92,6 +94,7 @@ Marks:
 - [ ] Go: `f := func()` has no symbol
 - [x] PHP: `$f = function` → `function`
 - [x] Lua: `local p_lam = function`
+- [x] GDScript: `var f := func(..)`, `const F = func(..)` and `f = func(..)` give a function owned by the enclosing scope. An anonymous lambda passed as an argument stays part of its callable.
 - — Bash: Bash has no lambda or closure assigned to a name
 - [~] PowerShell: top-level `$f = { … }` is a `variable`
 - — HTML: HTML is markup; it has no lambda or closure assigned to a name
@@ -107,7 +110,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 10 | 0 | 1 | 0 | 6 |
+| 11 | 0 | 1 | 0 | 6 |
 
 - [x] Rust: parent is the impl type
 - [x] Python: parent is the class
@@ -119,6 +122,7 @@ Marks:
 - [x] Go: pointer receiver as `method`
 - [x] PHP: `method`
 - [x] Lua: `M.p_mod` and `M:p_meth` as `method`
+- [x] GDScript: Instance and static methods are owned by the script or inner class.
 - — Bash: Bash has no method
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no method
@@ -134,7 +138,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 0 | 2 | 0 | 9 |
+| 7 | 0 | 2 | 0 | 9 |
 
 
 - — Rust: no constructor keyword; `fn new` is a method
@@ -147,6 +151,7 @@ Marks:
 - — Go: no constructor keyword; `NewX` is a function
 - [x] PHP: `__construct`
 - — Lua: no constructor keyword
+- [x] GDScript: `_init` is a method.
 - — Bash: Bash has no constructor
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no constructor
@@ -162,7 +167,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 0 | 0 | 0 | 12 |
+| 5 | 0 | 0 | 0 | 13 |
 
 - [x] Rust: `drop` is a `method` owned by `Widget`
 - [x] Python: `__del__`
@@ -174,6 +179,7 @@ Marks:
 - — Go: Go has no destructor / finalizer
 - [x] PHP: `__destruct`
 - — Lua: Lua has no destructor / finalizer
+- — GDScript: No destructor declaration. Engine lifecycle callbacks are methods.
 - — Bash: Bash has no destructor / finalizer
 - — PowerShell: PowerShell has no destructor / finalizer
 - — HTML: HTML is markup; it has no destructor / finalizer
@@ -189,7 +195,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 0 | 0 | 0 | 11 |
+| 6 | 0 | 0 | 0 | 12 |
 
 - [x] Rust: `add` is a `method` owned by `Widget`
 - [x] Python: `__add__`
@@ -201,6 +207,7 @@ Marks:
 - — Go: Go has no operator overload
 - — PHP: PHP has no operator overload
 - [x] Lua: `Vec.__add = function(a, b)` → `method` of `Vec`
+- — GDScript: No user-defined operator overload declarations.
 - — Bash: Bash has no operator overload
 - — PowerShell: PowerShell has no operator overload
 - — HTML: HTML is markup; it has no operator overload
@@ -216,7 +223,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 8 | 0 | 0 | 0 | 9 |
+| 9 | 0 | 0 | 0 | 9 |
 
 - [x] Rust: required trait method is indexed as `method` in `ChildTrait`
 - [x] Python: `@abstractmethod`
@@ -228,6 +235,7 @@ Marks:
 - — Go: Go has no abstract / pure virtual method
 - [x] PHP: abstract `p_am`
 - — Lua: Lua has no abstract / pure virtual method
+- [x] GDScript: Bodyless methods have declaration details marked abstract.
 - — Bash: Bash has no abstract / pure virtual method
 - — PowerShell: PowerShell has no abstract / pure virtual method
 - — HTML: HTML is markup; it has no abstract / pure virtual method
@@ -243,7 +251,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 2 | 1 | 0 | 12 |
+| 3 | 2 | 1 | 0 | 12 |
 
 
 - — Rust: Rust has no property accessors (get/set)
@@ -256,6 +264,7 @@ Marks:
 - — Go: Go has no property accessors (get/set)
 - — PHP: PHP has no property accessors (get/set)
 - — Lua: Lua has no property accessors (get/set)
+- [x] GDScript: Accessor blocks and named getter/setter bindings share the property symbol.
 - — Bash: Bash has no property accessors (get/set)
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no property accessors (get/set)
@@ -271,7 +280,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 1 | 0 | 0 | 12 |
+| 4 | 1 | 0 | 0 | 13 |
 
 
 - — Rust: Rust has no overloads kept apart
@@ -284,6 +293,7 @@ Marks:
 - — Go: Go has no overloads kept apart
 - — PHP: PHP has no overloads kept apart
 - — Lua: Lua has no overloads kept apart
+- — GDScript: Methods cannot be overloaded by signature.
 - — Bash: Bash has no overloads kept apart
 - — PowerShell: PowerShell has no overloads kept apart
 - — HTML: HTML is markup; it has no overloads kept apart
@@ -301,7 +311,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 1 | 1 | 0 | 8 |
+| 8 | 1 | 1 | 0 | 8 |
 
 
 - — Rust: Rust has no class
@@ -314,6 +324,7 @@ Marks:
 - — Go: Go has no class
 - [x] PHP: `class`
 - [~] Lua: a file-level table becomes `class` once `T.__index = T` or `setmetatable({}, { __index = Base })` wires it; a nested table (`W.Widget.__index = W.Widget`) stays `module`
+- [x] GDScript: Named and implicit script classes are indexed as classes.
 - — Bash: Bash has no class
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no class
@@ -329,7 +340,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 0 | 0 | 0 | 10 |
+| 8 | 0 | 0 | 0 | 10 |
 
 
 - — Rust: Rust has no abstract class
@@ -342,6 +353,7 @@ Marks:
 - — Go: Go has no abstract class
 - [x] PHP: `abstract class` → `class`
 - — Lua: Lua has no abstract class
+- [x] GDScript: `@abstract` script classes are indexed as classes.
 - — Bash: Bash has no abstract class
 - — PowerShell: PowerShell has no abstract class
 - — HTML: HTML is markup; it has no abstract class
@@ -357,7 +369,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 0 | 0 | 0 | 13 |
+| 4 | 0 | 0 | 0 | 14 |
 
 - [x] Rust: `struct`
 - — Python: Python has no struct
@@ -369,6 +381,7 @@ Marks:
 - [x] Go: `struct`
 - — PHP: PHP has no struct
 - — Lua: Lua has no struct
+- — GDScript: No struct declaration.
 - — Bash: Bash has no struct
 - — PowerShell: PowerShell has no struct
 - — HTML: HTML is markup; it has no struct
@@ -384,7 +397,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 1 | 0 | 0 | 15 |
+| 1 | 1 | 0 | 0 | 16 |
 
 - [x] Rust: `union RawValue` is indexed as a `struct` with its fields
 - — Python: Python has no union
@@ -396,6 +409,7 @@ Marks:
 - — Go: Go has no union
 - — PHP: PHP has no union
 - — Lua: Lua has no union
+- — GDScript: No union declaration.
 - — Bash: Bash has no union
 - — PowerShell: PowerShell has no union
 - — HTML: HTML is markup; it has no union
@@ -411,7 +425,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 0 | 0 | 0 | 11 |
+| 6 | 0 | 0 | 0 | 12 |
 
 
 - — Rust: traits are TY07
@@ -424,6 +438,7 @@ Marks:
 - [x] Go: `interface`
 - [x] PHP: `interface`
 - — Lua: Lua has no interface / protocol
+- — GDScript: No interface declaration.
 - — Bash: Bash has no interface / protocol
 - — PowerShell: PowerShell has no interface / protocol
 - — HTML: HTML is markup; it has no interface / protocol
@@ -439,7 +454,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 0 | 1 | 0 | 10 |
+| 6 | 0 | 1 | 0 | 11 |
 
 - [x] Rust: trait method as `method`
 - — Python: Python has no interface members
@@ -451,6 +466,7 @@ Marks:
 - [x] Go: `P_Im` in interface
 - [x] PHP: interface method
 - — Lua: Lua has no interface members
+- — GDScript: No interface members.
 - — Bash: Bash has no interface members
 - — PowerShell: PowerShell has no interface members
 - — HTML: HTML is markup; it has no interface members
@@ -466,7 +482,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 1 | 0 | 0 | 14 |
+| 2 | 1 | 0 | 0 | 15 |
 
 - [x] Rust: `trait`
 - — Python: Python has no trait / mixin
@@ -478,6 +494,7 @@ Marks:
 - — Go: Go has no trait / mixin
 - [x] PHP: `trait` with its methods
 - — Lua: Lua has no trait / mixin
+- — GDScript: No trait declaration.
 - — Bash: Bash has no trait / mixin
 - — PowerShell: PowerShell has no trait / mixin
 - — HTML: HTML is markup; it has no trait / mixin
@@ -493,7 +510,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 2 | 1 | 0 | 8 |
+| 7 | 2 | 1 | 0 | 8 |
 
 - [x] Rust: `enum`
 - [~] Python: `Enum` subclass is a `class`
@@ -505,6 +522,7 @@ Marks:
 - — Go: Go has no enum
 - [x] PHP: `enum`
 - — Lua: Lua has no enum
+- [x] GDScript: Named enums are indexed. An unnamed enum is not a symbol: its entries are constants of the class.
 - — Bash: Bash has no enum
 - [ ] PowerShell: PowerShell enum declarations produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no enum
@@ -520,7 +538,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 1 | 2 | 0 | 8 |
+| 7 | 1 | 2 | 0 | 8 |
 
 - [x] Rust: variants `Red` and `Green` are `constant` symbols owned by `Color`
 - [~] Python: assignments in an `Enum` subclass are `field` rows of the class, not `constant`
@@ -532,6 +550,7 @@ Marks:
 - — Go: Go has no enum members
 - [x] PHP: `case` as `field`
 - — Lua: Lua has no enum members
+- [x] GDScript: Enum entries are constants owned by their enum, or by the class for an unnamed enum.
 - — Bash: Bash has no enum members
 - [ ] PowerShell: PowerShell enum declarations produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no enum members
@@ -547,7 +566,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 1 | 0 | 0 | 13 |
+| 3 | 1 | 0 | 0 | 14 |
 
 
 - — Rust: Rust has no record / data class
@@ -560,6 +579,7 @@ Marks:
 - — Go: Go has no record / data class
 - — PHP: PHP has no record / data class
 - — Lua: Lua has no record / data class
+- — GDScript: No dedicated record or data-class declaration.
 - — Bash: Bash has no record / data class
 - — PowerShell: PowerShell has no record / data class
 - — HTML: HTML is markup; it has no record / data class
@@ -575,7 +595,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 0 | 0 | 0 | 11 |
+| 7 | 0 | 0 | 0 | 11 |
 
 
 - — Rust: Rust has no nested / inner class
@@ -588,6 +608,7 @@ Marks:
 - — Go: Go has no nested / inner class
 - — PHP: PHP has no nested class syntax; the [nested-class RFC was declined](https://wiki.php.net/rfc/short-and-inner-classes)
 - — Lua: Lua has no nested / inner class
+- [x] GDScript: Inner classes preserve their class parent.
 - — Bash: Bash has no nested / inner class
 - — PowerShell: PowerShell has no nested / inner class
 - — HTML: HTML is markup; it has no nested / inner class
@@ -603,7 +624,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 4 | 1 | 0 | 12 |
+| 0 | 4 | 1 | 0 | 13 |
 
 
 - — Rust: Rust has no anonymous class
@@ -616,6 +637,7 @@ Marks:
 - — Go: Go has no anonymous class
 - [~] PHP: `new class {}` gives no class or member symbols, except an anonymous Laravel `Migration` (`up`/`down` as methods of the file module)
 - — Lua: Lua has no anonymous class
+- — GDScript: No anonymous class expression.
 - — Bash: Bash has no anonymous class
 - — PowerShell: PowerShell has no anonymous class
 - — HTML: HTML is markup; it has no anonymous class
@@ -631,7 +653,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 0 | 0 | 0 | 16 |
+| 1 | 0 | 0 | 0 | 17 |
 
 
 - — Rust: Rust has no partial class
@@ -644,6 +666,7 @@ Marks:
 - — Go: Go has no partial class
 - — PHP: PHP has no partial class
 - — Lua: Lua has no partial class
+- — GDScript: No partial class declaration.
 - — Bash: Bash has no partial class
 - — PowerShell: PowerShell has no partial class
 - — HTML: HTML is markup; it has no partial class
@@ -659,7 +682,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 1 | 0 | 0 | 16 |
+| 1 | 1 | 0 | 0 | 16 |
 
 
 - — Rust: Rust has no singleton / companion object
@@ -672,6 +695,7 @@ Marks:
 - — Go: Go has no singleton / companion object
 - — PHP: PHP has no singleton / companion object
 - — Lua: Lua has no singleton / companion object
+- [x] GDScript: Autoloads from `project.godot` are indexed and extend their script's class, so `GameState.f()` resolves to the script's method. An autoload whose script declares another `class_name` does not reach its members.
 - — Bash: Bash has no singleton / companion object
 - — PowerShell: PowerShell has no singleton / companion object
 - — HTML: HTML is markup; it has no singleton / companion object
@@ -687,7 +711,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 1 | 0 | 0 | 10 |
+| 6 | 1 | 0 | 0 | 11 |
 
 - [x] Rust: `type` alias
 - [x] Python: PEP 695 `type X = …`
@@ -699,6 +723,7 @@ Marks:
 - [x] Go: both alias forms
 - — PHP: PHP has no type alias
 - — Lua: Lua has no type alias
+- — GDScript: No type alias declaration. Preloaded scripts are constants.
 - — Bash: Bash has no type alias
 - — PowerShell: PowerShell has no type alias
 - — HTML: HTML is markup; it has no type alias
@@ -714,7 +739,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 9 | 3 | 0 | 0 | 5 |
+| 10 | 3 | 0 | 0 | 5 |
 
 - [x] Rust: file module plus `mod` blocks
 - [x] Python: file `module`
@@ -726,6 +751,7 @@ Marks:
 - [~] Go: package `module` and file module; same name only when the file is named after the package
 - [~] PHP: `namespace` is not a symbol
 - [x] Lua: file `module` and table `module`
+- [x] GDScript: A module identifies each script file.
 - [x] Bash: file `module`
 - [x] PowerShell: file `module`
 - — HTML: HTML is markup; it has no module / namespace / package
@@ -743,7 +769,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 9 | 1 | 1 | 0 | 6 |
+| 10 | 1 | 1 | 0 | 6 |
 
 - [x] Rust: `Widget.inner` and `Widget.value` are `field` symbols; tuple fields are named `0`, `1`
 - [~] Python: class-body assignments, annotations and `self.x = …` in a method are `field`; `__slots__` has no symbol
@@ -755,6 +781,7 @@ Marks:
 - [x] Go: each named struct field is a `field` of the struct
 - [x] PHP: property `$prop`
 - [x] Lua: a file-level `M.x = …` and the first `self.x = …` in a colon method `T:m()` → `field` of `M` / `T`
+- [x] GDScript: Regular, exported, onready and static member variables are fields. Signals also use field symbols.
 - — Bash: Bash has no field / instance attribute
 - [ ] PowerShell: class declarations and properties are not indexed (corpus test)
 - — HTML: HTML is markup; it has no field / instance attribute
@@ -770,7 +797,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 0 | 1 | 0 | 13 |
+| 3 | 0 | 1 | 0 | 14 |
 
 
 - — Rust: Rust has no constructor-promoted field
@@ -783,6 +810,7 @@ Marks:
 - — Go: Go has no constructor-promoted field
 - [x] PHP: promoted parameter → `field`
 - — Lua: Lua has no constructor-promoted field
+- — GDScript: Constructor parameters do not declare fields.
 - — Bash: Bash has no constructor-promoted field
 - — PowerShell: PowerShell has no constructor-promoted field
 - — HTML: HTML is markup; it has no constructor-promoted field
@@ -798,7 +826,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 4 | 0 | 0 | 7 |
+| 7 | 4 | 0 | 0 | 7 |
 
 - [x] Rust: `const` → `constant`
 - [x] Python: `X: Final = 1` is `constant`; an unannotated `UPPER = 1` is `variable`, since Python has no constant syntax
@@ -810,6 +838,7 @@ Marks:
 - [x] Go: package-level `const` → `constant`
 - [x] PHP: `const` top-level and in classes
 - — Lua: no `const` keyword
+- [x] GDScript: Constants are indexed under their script, class or callable.
 - [x] Bash: `readonly X=…` and `declare -r X=…` → `constant`
 - — PowerShell: PowerShell has no constant (module or global)
 - — HTML: HTML is markup; it has no constant (module or global)
@@ -825,7 +854,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 9 | 0 | 1 | 0 | 7 |
+| 9 | 0 | 1 | 0 | 8 |
 
 - [x] Rust: `static` and `static mut` are `variable`; `const` stays `constant`
 - [x] Python: module assignments are `variable`
@@ -837,6 +866,7 @@ Marks:
 - [x] Go: package-level `var` → `variable`
 - [ ] PHP: `$p_glob = …` has no symbol
 - [x] Lua: globals and top-level `local` → `variable`, `<const>` → `constant`
+- — GDScript: Script-level variables are fields.
 - [x] Bash: `P_GLOBAL` → `variable`
 - [x] PowerShell: scope prefixes stripped
 - — HTML: HTML is markup; it has no global / module-level variable
@@ -852,7 +882,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 0 | 10 | 0 | 5 |
+| 3 | 0 | 10 | 0 | 5 |
 
 - [x] Rust: `local_value` is a `variable` owned by its function, like the bindings of `for`, `if let`, `while let` and `match` arms
 - [ ] Python: `find_symbol("local_value")` returns no symbol
@@ -864,6 +894,7 @@ Marks:
 - [ ] Go: `find_symbol(local)` returns no symbol
 - [ ] PHP: `find_symbol(local)` returns no symbol
 - [x] Lua: `find_symbol(local_value)` returns a variable under `method`
+- [x] GDScript: Local declarations, loop variables and match bindings are variables.
 - [ ] Bash: `local` is not indexed (by design)
 - [ ] PowerShell: corpus test confirms function-local assignments are not indexed
 - — HTML: HTML is markup; it has no local variable
@@ -879,7 +910,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 0 | 10 | 0 | 6 |
+| 2 | 0 | 10 | 0 | 6 |
 
 - [x] Rust: `input` is a `variable` owned by its function
 - [ ] Python: `find_symbol("argument")` returns no symbol
@@ -891,6 +922,7 @@ Marks:
 - [ ] Go: `find_symbol(input)` returns no symbol
 - [ ] PHP: `find_symbol(input)` returns no symbol
 - [ ] Lua: `find_symbol(input)` returns no symbol
+- [x] GDScript: Callable, signal and setter parameters are indexed.
 - — Bash: Bash has no parameter
 - [ ] PowerShell: no parameter symbol was found in the parser corpus
 - — HTML: HTML is markup; it has no parameter
@@ -906,7 +938,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 0 | 0 | 0 | 15 |
+| 2 | 0 | 0 | 0 | 16 |
 
 - [x] Rust: `macro_rules! audit_macro` is a `function`; there is no macro kind
 - — Python: Python has no macro / preprocessor define
@@ -918,6 +950,7 @@ Marks:
 - — Go: Go has no macro / preprocessor define
 - — PHP: `define()` stays a call by decision
 - — Lua: Lua has no macro / preprocessor define
+- — GDScript: No macro or preprocessor declarations.
 - — Bash: Bash has no macro / preprocessor define
 - — PowerShell: PowerShell has no macro / preprocessor define
 - — HTML: HTML is markup; it has no macro / preprocessor define
@@ -935,7 +968,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 12 | 0 | 0 | 0 | 5 |
+| 13 | 0 | 0 | 0 | 5 |
 
 - [x] Rust: `find_calls(top_level)` returns the call to `nested`
 - [x] Python: `caller` → `p_top`
@@ -947,6 +980,7 @@ Marks:
 - [x] Go: `main.go` calls `lib.P_Helper`
 - [x] PHP: `p_am` → `__construct`
 - [x] Lua: `p_top` → `p_local`, `p_mod`
+- [x] GDScript: Local, typed, `:=`-inferred, self, super, inherited bare and preloaded-script calls carry evidence. A PascalCase receiver (a `class_name` global, an autoload or an engine class) is the call's qualifier. Untyped values stay ambiguous.
 - [x] Bash: `p_top` → `p_helper`
 - [x] PowerShell: `p_top` → `p_helper`
 - — HTML: HTML is markup; it has no calls
@@ -962,7 +996,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 2 | 0 | 0 | 9 |
+| 7 | 2 | 0 | 0 | 9 |
 
 
 - — Rust: `Foo::new()` is a plain call (RE01)
@@ -975,6 +1009,7 @@ Marks:
 - [x] Go: composite literal `T{}` gives `references T`
 - [x] PHP: `new Box()` produces `calls Box` (MCT probe)
 - — Lua: Lua has no constructor call
+- [x] GDScript: `X.new()` calls `_init` of X, also through a preload constant. A computed constructor is unresolved.
 - — Bash: Bash has no constructor call
 - — PowerShell: PowerShell has no constructor call
 - — HTML: HTML is markup; it has no constructor call
@@ -990,7 +1025,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 2 | 0 | 0 | 10 |
+| 6 | 2 | 0 | 0 | 10 |
 
 
 - — Rust: Rust has no super / base constructor call
@@ -1003,6 +1038,7 @@ Marks:
 - — Go: Go has no super / base constructor call
 - [x] PHP: `parent::__construct()` → `calls __construct`
 - — Lua: Lua has no super / base constructor call
+- [x] GDScript: An explicit super() in _init links to the base constructor.
 - — Bash: Bash has no super / base constructor call
 - — PowerShell: PowerShell has no super / base constructor call
 - — HTML: HTML is markup; it has no super / base constructor call
@@ -1018,7 +1054,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 11 | 1 | 0 | 0 | 5 |
+| 12 | 1 | 0 | 0 | 5 |
 
 - [x] Rust: `use lib::p_helper` → `imports`
 - [x] Python: `from sibling import imported` → `imports`
@@ -1030,6 +1066,7 @@ Marks:
 - [x] Go: `import "lib"` → edge
 - [x] PHP: `require_once 'lib.php'` → `imports`
 - [x] Lua: `require("lib")` → edge
+- [x] GDScript: Literal `preload`/`load` paths, `extends "x.gd"`, `.tscn`/`.tres` `ext_resource` lines and `project.godot` autoloads import the file. A computed path is skipped.
 - [x] Bash: `source` → edge
 - [x] PowerShell: dot-sourcing → edge
 - — HTML: HTML is markup; it has no imports
@@ -1045,7 +1082,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 1 | 1 | 0 | 8 |
+| 8 | 1 | 1 | 0 | 8 |
 
 
 - — Rust: Rust has no class extends class
@@ -1058,6 +1095,7 @@ Marks:
 - — Go: Go has no class extends class
 - [x] PHP: `P_Sub` extends `P_Base`
 - [x] Lua: `Child` extends `Base` via `setmetatable` (MCT probe)
+- [x] GDScript: A named base links to its class. `extends "x.gd"` links to the script's class and imports the file; members are not inherited through it when that script declares `class_name`.
 - — Bash: Bash has no class extends class
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no class extends class
@@ -1073,7 +1111,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 2 | 1 | 0 | 10 |
+| 4 | 2 | 1 | 0 | 11 |
 
 - [~] Rust: `impl Trait for T` → `implements`, but owned by the file module, not by `T`
 - — Python: no `implements`; abstract bases use `extends`
@@ -1085,6 +1123,7 @@ Marks:
 - [ ] Go: structural; no relation
 - [x] PHP: `implements` for interface and trait
 - — Lua: Lua has no implements interface / trait
+- — GDScript: No interface or trait implementation syntax.
 - — Bash: Bash has no implements interface / trait
 - — PowerShell: PowerShell has no implements interface / trait
 - — HTML: HTML is markup; it has no implements interface / trait
@@ -1100,7 +1139,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 0 | 0 | 0 | 10 |
+| 7 | 0 | 0 | 0 | 11 |
 
 - [x] Rust: `ChildTrait: ParentTrait` produces an `extends` relation
 - — Python: Python has no interface extends interface / supertrait
@@ -1112,6 +1151,7 @@ Marks:
 - [x] Go: an embedded interface gives `extends`
 - [x] PHP: `ChildContract` extends `Contract` (MCT probe)
 - — Lua: Lua has no interface extends interface / supertrait
+- — GDScript: No interface inheritance syntax.
 - — Bash: Bash has no interface extends interface / supertrait
 - — PowerShell: PowerShell has no interface extends interface / supertrait
 - — HTML: HTML is markup; it has no interface extends interface / supertrait
@@ -1127,7 +1167,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 0 | 0 | 0 | 10 |
+| 8 | 0 | 0 | 0 | 10 |
 
 - [x] Rust: `#[derive(Clone)]` produces a `references` relation to `Clone`; compiler attributes such as `#[cfg]` are ignored
 - [x] Python: `@abc.abstractmethod` and `@login_required` → `references`
@@ -1139,6 +1179,7 @@ Marks:
 - — Go: Go has no decorator / annotation / attribute
 - [x] PHP: `#[Attr]` → `references`
 - — Lua: Lua has no decorator / annotation / attribute
+- [x] GDScript: Annotations are recorded as references.
 - — Bash: Bash has no decorator / annotation / attribute
 - — PowerShell: PowerShell has no decorator / annotation / attribute
 - — HTML: HTML is markup; it has no decorator / annotation / attribute
@@ -1154,7 +1195,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 0 | 0 | 0 | 16 |
+| 1 | 0 | 0 | 0 | 17 |
 
 
 - — Rust: Rust has no struct / type embedding
@@ -1167,6 +1208,7 @@ Marks:
 - [x] Go: embedded `P_Embedded` gives `extends`
 - — PHP: PHP has no struct / type embedding
 - — Lua: Lua has no struct / type embedding
+- — GDScript: No type embedding declaration.
 - — Bash: Bash has no struct / type embedding
 - — PowerShell: PowerShell has no struct / type embedding
 - — HTML: HTML is markup; it has no struct / type embedding
@@ -1178,13 +1220,40 @@ Marks:
 *Done when:* Embedded field or type gives a relation.
 
 
+### RE10 Cross-language HTTP link
+
+| Done | Partial | Not done | Not verified | Not applicable |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 13 | 0 | 0 | 4 |
+
+- [~] Rust: axum and Actix Web routes are declarations; `reqwest`/`ureq` calls with an absolute URL to this machine are uses
+- [~] Python: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client`/`self.client` calls with a literal path; `urlopen` with an absolute URL to this machine
+- [~] JS/TS: `fetch`, `axios.<method>`, `$.ajax`/`$.get`/`$.post`, `xhr.open("GET", "/x")` and Express routes; other frameworks are not read
+- [~] Java: Spring `@GetMapping` family and `@RequestMapping` (class prefix); JAX-RS `@GET` with `@Path`; Retrofit `@GET("/x")` (a use; a path without a leading slash is skipped); MockMvc `get("/x")`
+- [~] Kotlin: Spring mappings with the class prefix; Retrofit `@GET("/x")` is a use (a path without a leading slash is skipped); Ktor `get("/x") { }` has no named handler
+- [~] C#: ASP.NET `[HttpGet]` with `[Route]` prefix, minimal-API `MapGet`, `HttpClient.GetAsync`, Refit `[Get("/x")]` (a path without a leading slash is skipped); `[controller]` tokens skipped
+- [~] C++: cpp-httplib `svr.Get("/x", handler)` and `cli.Get("/x")`; Crow `CROW_ROUTE(app, "/x")(handler)` with `.methods(..)`; Drogon not read
+- [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
+- [~] PHP: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
+- [~] Lua: Lapis `app:get("/x", handler)`, `ngx.location.capture` and lua-resty-http `request_uri("http://localhost/x")`
+- [x] GDScript: `HTTPRequest.request` with a literal URL to this machine, or a constant holding one, and a known method is a use linked to the server handler.
+- [~] Bash: `curl` and `wget` to this machine (use only)
+- [~] PowerShell: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
+- [~] HTML: `<form action method>` is a use; `<a href>` and `<script>` calls are not read
+- — CSS: CSS is markup; it has no cross-language HTTP link
+- — XML: XML is markup; it has no cross-language HTTP link
+- — XAML: XAML is markup; it has no cross-language HTTP link
+- — Markdown: Markdown is markup; it has no cross-language HTTP link
+
+*Done when:* A literal server route and client call link to the route handler.
+
 ## Search and lookup
 
 ### SE01 Find a definition
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 12 | 0 | 0 | 0 | 5 |
+| 13 | 0 | 0 | 0 | 5 |
 
 - [x] Rust: `find_symbol("top_level")` returns a `function`
 - [x] Python: `find_symbol`
@@ -1196,6 +1265,7 @@ Marks:
 - [x] Go: `list_symbols`
 - [x] PHP: `list_symbols`
 - [x] Lua: `list_symbols`
+- [x] GDScript: Definitions appear through the shared query tools.
 - [x] Bash: `list_symbols`
 - [x] PowerShell: `list_symbols`
 - — HTML: HTML is markup; it has no find a definition
@@ -1211,7 +1281,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 12 | 0 | 0 | 0 | 5 |
+| 13 | 0 | 0 | 0 | 5 |
 
 - [x] Rust: `audit_macro!` and an imported function called inside a macro (`println!("{}", helper(x))`) are `calls`
 - [x] Python: `find_calls`, `find_callers`
@@ -1223,6 +1293,7 @@ Marks:
 - [x] Go: `main.go` calls `P_Helper`
 - [x] PHP: `find_calls p_am`
 - [x] Lua: `find_calls`
+- [x] GDScript: `find_callers` and `find_calls` list calls in both directions, including editor signal connections in `.tscn` scenes. An untyped receiver stays ambiguous.
 - [x] Bash: `main.sh` calls `p_helper`
 - [x] PowerShell: `find_calls p_top`
 - — HTML: HTML is markup; it has no callers and callees
@@ -1238,7 +1309,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 5 | 0 | 0 | 5 |
+| 8 | 5 | 0 | 0 | 5 |
 
 - [~] Rust: `find_references`: imported/qualified macro calls can have no use relation; same-file free functions get `references`
 - [x] Python: references to `abstractmethod`
@@ -1250,6 +1321,7 @@ Marks:
 - [~] Go: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
 - [x] PHP: references to `p_helper`
 - [~] Lua: `find_references`: a nested table class (`W.Widget`) used only as a qualifier (`W.Widget.make()`) gets no reference; the call to `make` resolves
+- [x] GDScript: Identifier, member, signal and annotation uses are references. Scenes, resources, autoloads and preloads reference the scripts they use.
 - [x] Bash: references to `p_helper`
 - [x] PowerShell: references to `p_helper`
 - — HTML: HTML is markup; it has no every use
@@ -1265,7 +1337,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 5 | 0 | 0 | 5 |
+| 8 | 5 | 0 | 0 | 5 |
 
 - [~] Rust: `impact_analysis`, `build_context_pack`: same gap as callers (macros)
 - [x] Python: `build_context_pack` lists the base class
@@ -1277,6 +1349,7 @@ Marks:
 - [~] Go: `impact_analysis`, `build_context_pack`: same gaps as references
 - [x] PHP: `build_context_pack`
 - [~] Lua: `impact_analysis`, `build_context_pack`: same gaps as references
+- [x] GDScript: `impact_analysis` and `build_context_pack` include callers, references and GUT tests (`test_*.gd`, `tests/`).
 - [x] Bash: `build_context_pack(P_Helper)` returned its caller
 - [x] PowerShell: `build_context_pack(P_Helper)` returns its caller
 - — HTML: HTML is markup; it has no blast radius and context
@@ -1292,7 +1365,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 0 | 11 | 0 | 5 |
+| 2 | 0 | 11 | 0 | 5 |
 
 - [x] Rust: exact phrase query finds the `SEARCH_TEXT` literal
 - [ ] Python: exact phrase query does not list the `page.html` literal
@@ -1304,6 +1377,7 @@ Marks:
 - [ ] Go: literal not collected
 - [ ] PHP: literal not collected
 - [ ] Lua: literal not collected
+- [x] GDScript: Prose string literals are available for exact text search.
 - [ ] Bash: literal not collected
 - [ ] PowerShell: literal not collected
 - — HTML: HTML is markup; it has no exact text in strings
@@ -1321,7 +1395,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 5 | 0 | 0 | 5 |
+| 8 | 5 | 0 | 0 | 5 |
 
 - [x] Rust: unused functions and types are reported; `Inner`, macros and associated types of trait impls are not false positives
 - [x] Python: unused function and class reported
@@ -1333,6 +1407,7 @@ Marks:
 - [~] Go: unused struct and function reported; a struct used only as a declared type is reported
 - [x] PHP: function and class reported
 - [~] Lua: free functions are candidates; table methods not exercised
+- [x] GDScript: A class used only by a scene, a resource, an autoload or a preload is not reported. Engine callbacks such as `_ready` are methods, which dead code does not check.
 - [x] Bash: unused function reported
 - [x] PowerShell: unused function reported
 - — HTML: HTML is markup; it has no dead code
@@ -1348,7 +1423,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 3 | 0 | 9 | 0 | 5 |
+| 4 | 0 | 9 | 0 | 5 |
 
 - [x] Rust: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
 - [x] Python: `duplicate_one` and `duplicate_two` form a candidate group at 2 lines / 5 tokens
@@ -1360,6 +1435,7 @@ Marks:
 - [ ] Go: listed under `unsupported_languages`
 - [ ] PHP: listed under `unsupported_languages`
 - [x] Lua: listed as supported by `duplicates` (group not exercised)
+- [x] GDScript: The shared token registry includes GDScript.
 - [ ] Bash: listed under `unsupported_languages`
 - [ ] PowerShell: listed under `unsupported_languages`
 - — HTML: HTML is markup; it has no repeated code
@@ -1377,7 +1453,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 6 | 0 | 0 | 5 |
+| 11 | 2 | 0 | 0 | 5 |
 
 - [x] Rust: `src/lib.rs → src/dependency.rs`; external `Add` is listed separately
 - [x] Python: `src/audit.py → src/sibling.py`; standard and framework imports are listed as external
@@ -1389,6 +1465,7 @@ Marks:
 - [~] Go: `get_dependency_graph`: edges correct; the module import path is also listed as external
 - [~] PHP: resolved `require_once` path also listed as external
 - [x] Lua: edge `main → lib`, no external
+- [x] GDScript: Literal script, scene and resource paths resolve within the Godot project (`res://` or relative), with no false externals. A computed load is outside the graph.
 - [~] Bash: resolved `source` path also listed as external
 - [~] PowerShell: dot-sourced path also listed as external
 - — HTML: HTML is markup; it has no import graph
@@ -1404,7 +1481,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 8 | 4 | 0 | 0 | 5 |
+| 9 | 4 | 0 | 0 | 5 |
 
 - [x] Rust: declarations shown with bodies collapsed; nested function retained
 - [~] Python: `get_file_skeleton`: declaration-line fallback, as for Lua/Bash/PowerShell; a one-line body remains visible
@@ -1416,6 +1493,7 @@ Marks:
 - [x] Go: braces collapsed
 - [x] PHP: `get_file_skeleton` returned class and function declarations
 - [~] Lua: declaration line and placeholder; one-line function shown whole
+- [x] GDScript: The script class members and nested class headers appear with bodies collapsed.
 - [~] Bash: `get_file_skeleton`: declaration line only; a one-line function is shown whole, then a placeholder
 - [~] PowerShell: declaration line and placeholder
 - — HTML: HTML is markup; it has no file outline
@@ -1431,7 +1509,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 1 | 6 | 0 | 6 |
+| 5 | 1 | 6 | 0 | 6 |
 
 - [x] Rust: `get_indexing_status` reports `serde 1.0.0` from `Cargo.toml`
 - [~] Python: `requirements.txt` counted; `pyproject.toml` not
@@ -1443,6 +1521,7 @@ Marks:
 - [x] Go: `go.mod` counted
 - [x] PHP: `composer.json` `require` and `require-dev` counted
 - [ ] Lua: `.rockspec` not counted
+- [x] GDScript: `get_indexing_status` lists the editor plugins `project.godot` enables. Godot declares no package versions.
 - — Bash: Bash scripts have no package manifest
 - [ ] PowerShell: `.psd1` module manifest is not reported by status
 - — HTML: HTML is markup; it has no declared dependencies
@@ -1456,13 +1535,13 @@ Marks:
 
 ## Markup and style features
 
-Each markup feature lists all 17 languages. Code languages have no markup features: they are marked not applicable.
+Each markup feature lists all 18 languages. Code languages have no markup features: they are marked not applicable.
 
 ### MK01 Find a definition
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 0 | 0 | 0 | 12 |
+| 5 | 0 | 0 | 0 | 13 |
 
 
 - — Rust: code language; markup feature does not apply
@@ -1475,6 +1554,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [x] HTML: by `id`
@@ -1490,7 +1570,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 0 | 1 | 0 | 12 |
+| 4 | 0 | 1 | 0 | 13 |
 
 
 - — Rust: code language; markup feature does not apply
@@ -1503,6 +1583,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [x] HTML: `#id` and `.class` of an identified element
@@ -1518,7 +1599,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 5 | 0 | 12 |
+| 0 | 0 | 5 | 0 | 13 |
 
 
 - — Rust: code language; markup feature does not apply
@@ -1531,6 +1612,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [ ] HTML: `find_dead_code` reports no candidates for a markup-only project
@@ -1546,7 +1628,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 5 | 0 | 12 |
+| 0 | 0 | 5 | 0 | 13 |
 
 
 - — Rust: code language; markup feature does not apply
@@ -1559,6 +1641,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [ ] HTML: markup-only `duplicates` run produced zero candidates
@@ -1574,7 +1657,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 4 | 1 | 0 | 12 |
+| 0 | 4 | 1 | 0 | 13 |
 
 
 - — Rust: code language; markup feature does not apply
@@ -1587,6 +1670,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [~] HTML: `<link>` edge to CSS; script source not resolved
@@ -1602,7 +1686,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 5 | 0 | 0 | 0 | 12 |
+| 5 | 0 | 0 | 0 | 13 |
 
 
 - — Rust: code language; markup feature does not apply
@@ -1615,6 +1699,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [x] HTML: `get_file_skeleton` returns its element outline
@@ -1630,7 +1715,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 5 | 0 | 12 |
+| 0 | 0 | 5 | 0 | 13 |
 
 
 - — Rust: code language; markup feature does not apply
@@ -1643,6 +1728,7 @@ Each markup feature lists all 17 languages. Code languages have no markup featur
 - — Go: code language; markup feature does not apply
 - — PHP: code language; markup feature does not apply
 - — Lua: code language; markup feature does not apply
+- — GDScript: GDScript is a code language.
 - — Bash: code language; markup feature does not apply
 - — PowerShell: code language; markup feature does not apply
 - [ ] HTML: exact-phrase query does not find HTML text content

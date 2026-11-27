@@ -16,7 +16,7 @@ LANGUAGE_FILE = CHECKLISTS / "by-language.md"
 DEFINITION_FILE = ROOT / "docs/02-crates/parsers/features.md"
 LANGUAGES = (
     "Rust", "Python", "JS/TS", "Java", "Kotlin", "C#", "C++", "Go", "PHP",
-    "Lua", "Bash", "PowerShell", "HTML", "CSS", "XML", "XAML", "Markdown",
+    "Lua", "GDScript", "Bash", "PowerShell", "HTML", "CSS", "XML", "XAML", "Markdown",
 )
 STATUS_KEYS = ("x", "~", " ", "?")
 STATUS_LINE = re.compile(r"^- \[(x|~| |\?)\] ([^:]+): (.+)$")

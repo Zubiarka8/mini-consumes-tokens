@@ -2,7 +2,7 @@
 
 ## Language and library overview
 
-All 17 language parsers are registered in `crates/mct-languages/src/lib.rs`.
+All 18 language parsers are registered in `crates/mct-languages/src/lib.rs`.
 The following is a coverage summary, not a claim that every construct is
 supported or independently verified. The detailed inventories and limitations
 remain in sections 1–6. Duplicate and dead-code analysis are outside this table.
@@ -21,6 +21,7 @@ On 2026-10-30, the combined `cargo test` run for all 17 language crates and
 | Go | Registered; symbols and imports | `go.mod` require entries | Implicit interface implementations and package fields are not indexed. |
 | PHP | Registered; symbols and relations | No Composer manifest reader | Some imports and computed includes are not resolved. |
 | Lua | Registered; symbols, relations and duplicate analysis | `*.rockspec` declarations (scope, constraints, platform tables, module maps) with installed and pinned state read from project-local trees and `luarocks.lock`, through `get_indexing_status` and `get_dependency_graph` | Module files whose name differs from their module (custom `package.path` templates) are not linked; `dofile`/`loadfile` stay unresolved; the version LuaRocks would select at run time is not predicted. See section 5. |
+| GDScript | Godot `.gd` scripts, symbols, calls, imports and literals; `.tscn`/`.tres` resource links and editor signal connections; `project.godot` autoloads | `project.godot` enabled editor plugins | Computed resource paths are outside the resolved graph. A member reached through an autoload, or through `extends "x.gd"`, of a script that declares another `class_name` stays unresolved; calls through untyped values stay ambiguous. tree-sitter-gdscript 6.1.0 rejects non-ASCII identifiers, so such a file is not indexed. [Feature checklist](checklists/by-language.md#gdscript-gdscript). |
 | Bash | Registered; functions, top-level variables and relations | No package manifest reader | Dynamic commands and some source paths are not resolved. |
 | PowerShell | Registered; functions, classes, enums, top-level variables and relations | No package manifest reader | `[Type]` uses other than `[T]::new()` are no relations; some source paths are unresolved. |
 | HTML | Registered; selected elements and relations | No language-specific package manifest | Elements without IDs and inline script/style contents are not indexed as separate symbols. |

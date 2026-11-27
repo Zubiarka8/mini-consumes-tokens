@@ -67,6 +67,7 @@ const EXPECTED_COVERAGE: &[(&str, usize, usize)] = &[
     ("cpp", 2, 7),
     ("csharp", 2, 9),
     ("css", 1, 6),
+    ("gdscript", 1, 4),
     ("go", 2, 11),
     ("html", 1, 3),
     ("java", 2, 10),
@@ -447,7 +448,7 @@ fn an_incremental_reindex_of_a_real_polyglot_tree_picks_up_one_edit_and_drops_it
     let registry = mct_mcp_server::registry::build_registry();
     let mut index = Index::open_in_memory(&root, ExcludeSet::default()).unwrap();
     let first = index.reindex(&registry, false).unwrap();
-    assert_eq!(first.files_parsed, 31);
+    assert_eq!(first.files_parsed, 32);
 
     assert_eq!(index.find_symbol("Describe").unwrap().len(), 1);
     assert!(index
@@ -471,7 +472,7 @@ fn an_incremental_reindex_of_a_real_polyglot_tree_picks_up_one_edit_and_drops_it
 
     let second = index.reindex(&registry, false).unwrap();
     assert_eq!(second.files_parsed, 1, "only the edited file re-parses");
-    assert_eq!(second.files_unchanged, 30);
+    assert_eq!(second.files_unchanged, 31);
     assert_eq!(second.files_removed, 0);
 
     assert!(

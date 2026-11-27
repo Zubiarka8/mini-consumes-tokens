@@ -9,6 +9,7 @@ members = [
     "crates/mct-cli",
     "crates/mct-languages",
     "crates/mct-lang-lua",
+    "crates/mct-lang-gdscript",
     "crates/mct-lang-java",
     "crates/mct-lang-csharp",
     "crates/mct-lang-js-ts",
@@ -62,6 +63,7 @@ mct-obsidian = { path = "crates/mct-obsidian", version = "0.3.2" }
 mct-lang-md = { path = "crates/mct-lang-md", version = "0.3.2" }
 mct-lang-kotlin = { path = "crates/mct-lang-kotlin", version = "0.3.2" }
 mct-lang-lua = { path = "crates/mct-lang-lua", version = "0.3.2" }
+mct-lang-gdscript = { path = "crates/mct-lang-gdscript", version = "0.3.2" }
 # Test-only (publish = false): path-only, so `cargo publish` strips it from
 # the dev-dependencies of every crate that uses it.
 mct-corpus = { path = "crates/mct-corpus" }

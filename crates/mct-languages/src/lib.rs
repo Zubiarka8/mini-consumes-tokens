@@ -26,6 +26,7 @@ pub fn build_registry() -> LanguageRegistry {
     registry.register(Arc::new(mct_lang_php::PhpParser));
     registry.register(Arc::new(mct_lang_md::MarkdownParser));
     registry.register(Arc::new(mct_lang_lua::LuaParser));
+    registry.register(Arc::new(mct_lang_gdscript::GdscriptParser));
     registry
 }
 
@@ -36,6 +37,7 @@ pub fn build_token_sources() -> TokenSourceRegistry {
     registry.register(Arc::new(mct_lang_rust::RustTokenSource));
     registry.register(Arc::new(mct_lang_python::PythonTokenSource));
     registry.register(Arc::new(mct_lang_lua::LuaTokenSource));
+    registry.register(Arc::new(mct_lang_gdscript::GdscriptTokenSource));
     registry.register(Arc::new(mct_lang_js_ts::JsTsTokenSource));
     registry.register(Arc::new(mct_lang_go::GoTokenSource));
     registry.register(Arc::new(mct_lang_java::JavaTokenSource));
@@ -95,6 +97,7 @@ mod tests {
             ("hpp", "cpp"),
             ("cs", "csharp"),
             ("css", "css"),
+            ("gd", "gdscript"),
             ("go", "go"),
             ("htm", "html"),
             ("java", "java"),
@@ -128,6 +131,7 @@ mod tests {
                 "bash",
                 "cpp",
                 "csharp",
+                "gdscript",
                 "go",
                 "java",
                 "javascript_typescript",

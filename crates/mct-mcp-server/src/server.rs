@@ -471,6 +471,47 @@ fn is_top_level(entry: &mct_index::SymbolListEntry, shape: &FileShape) -> bool {
     !clashes || entry.kind == "function"
 }
 
+/// The skeleton of a file whose language declares every file one class
+/// (`LanguageParser::file_is_class`): that class's members, with the class's
+/// signature as the header. `None` when the file has no such class.
+fn class_file_skeleton(
+    index: &Index,
+    path: &str,
+    entries: &[mct_index::SymbolListEntry],
+    source: &str,
+) -> Result<Option<String>, McpError> {
+    let shape = file_shape(entries);
+    let Some(class) = entries
+        .iter()
+        .find(|entry| entry.kind == "class" && is_top_level(entry, &shape))
+    else {
+        return Ok(None);
+    };
+    let signature = |entry: &mct_index::SymbolListEntry| {
+        index
+            .symbol_details(path, entry.line, &entry.name)
+            .map(|details| details.and_then(|detail| detail.signature))
+            .map_err(index_error)
+    };
+    let header = signature(class)?;
+    let members = entries
+        .iter()
+        .filter(|entry| entry.parent.as_deref() == Some(&class.name))
+        .map(|entry| {
+            Ok(format::ClassMember {
+                entry,
+                signature: signature(entry)?,
+            })
+        })
+        .collect::<Result<Vec<_>, McpError>>()?;
+    Ok(Some(format::class_file_skeleton(
+        path,
+        header.as_deref(),
+        &members,
+        source,
+    )))
+}
+
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetProjectOverviewArgs {
     /// File, directory, or crate prefix — same matching semantics as
@@ -3022,6 +3063,18 @@ impl MctServer {
         }
         let source = read_source_file(&index, path)?;
         let all = index.list_symbols(path, None, None).map_err(index_error)?;
+        let extension = path
+            .rsplit('/')
+            .next()
+            .and_then(|name| name.rsplit_once('.'));
+        if extension
+            .and_then(|(_, extension)| self.registry.for_extension(extension))
+            .is_some_and(|parser| parser.file_is_class())
+        {
+            if let Some(text) = class_file_skeleton(&index, path, &all, &source)? {
+                return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+            }
+        }
         let shape = file_shape(&all);
         let entries: Vec<_> = all
             .into_iter()

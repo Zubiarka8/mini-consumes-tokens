@@ -49,6 +49,7 @@ jobs:
           - mct-lang-rust
           - mct-lang-python
           - mct-lang-lua
+          - mct-lang-gdscript
           - mct-lang-java
           - mct-lang-csharp
           - mct-lang-js-ts

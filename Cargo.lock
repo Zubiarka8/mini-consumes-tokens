@@ -1531,6 +1531,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mct-lang-gdscript"
+version = "0.3.2"
+dependencies = [
+ "mct-core",
+ "mct-corpus",
+ "mct-index",
+ "mct-tree-sitter",
+ "tree-sitter",
+ "tree-sitter-gdscript",
+]
+
+[[package]]
 name = "mct-lang-go"
 version = "0.3.2"
 dependencies = [
@@ -1700,6 +1712,7 @@ dependencies = [
  "mct-lang-cpp",
  "mct-lang-csharp",
  "mct-lang-css",
+ "mct-lang-gdscript",
  "mct-lang-go",
  "mct-lang-html",
  "mct-lang-java",
@@ -3162,6 +3175,16 @@ name = "tree-sitter-css"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5cbc5e18f29a2c6d6435891f42569525cf95435a3e01c2f1947abcde178686f"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-gdscript"
+version = "6.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7a37fe8c0a10c0c39ecd5b2f7db53933f691488f5572409a4d3c0dfeb3f6108"
 dependencies = [
  "cc",
  "tree-sitter-language",

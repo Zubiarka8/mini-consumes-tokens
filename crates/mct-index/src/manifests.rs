@@ -16,6 +16,7 @@
 mod composer;
 mod csproj;
 mod go;
+mod godot;
 mod javascript;
 pub(crate) mod lua;
 mod python;
@@ -45,6 +46,7 @@ pub fn manifest_language(file_name: &str) -> Option<&'static str> {
         "package.json" => Some("javascript_typescript"),
         "requirements.txt" => Some("python"),
         "go.mod" => Some("go"),
+        "project.godot" => Some("gdscript"),
         name if is_rockspec(name) => Some("lua"),
         "composer.json" => Some("php"),
         name if is_csproj(name) => Some("csharp"),
@@ -77,6 +79,7 @@ pub fn parse_manifest(file_name: &str, contents: &str) -> Vec<ManifestDependency
         "package.json" => parse_package_json(contents),
         "requirements.txt" => parse_requirements_txt(contents),
         "go.mod" => parse_go_mod(contents),
+        "project.godot" => godot::plugins(contents),
         name if is_rockspec(name) => parse_rockspec(contents),
         "composer.json" => parse_composer_json(contents),
         name if is_csproj(name) => parse_csproj(contents),

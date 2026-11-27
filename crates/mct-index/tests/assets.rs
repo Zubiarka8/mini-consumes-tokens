@@ -361,8 +361,9 @@ fn an_index_from_before_assets_gains_them_on_a_normal_reindex() {
     // renamed Cargo path dependencies (ADR-046, #563), and 30 stores CMake
     // include directories (ADR-047, #563), and 31 names workspace packages
     // for bare JS/TS imports (ADR-048, #563), and 32 reads Vite `@` aliases
-    // (ADR-050, #563).
-    assert_eq!(before, 32);
+    // (ADR-050, #563), and 33 offers an alias to a path-pinned relation
+    // (ADR-051, #628).
+    assert_eq!(before, 33);
     drop(conn);
 
     let mut index = Index::open(&dir, &db, ExcludeSet::default()).unwrap();

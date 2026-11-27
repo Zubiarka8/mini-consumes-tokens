@@ -1,0 +1,20 @@
+[package]
+name = "mct-lang-gdscript"
+description = "GDScript language plugin (tree-sitter-gdscript) for mini-consumes-tokens's LanguageParser trait. Registered in the production mct-cli/mct-mcp-server registries."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["mcp", "tree-sitter", "gdscript", "code-index"]
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+mct-core.workspace = true
+mct-tree-sitter.workspace = true
+tree-sitter.workspace = true
+tree-sitter-gdscript = "6.1.0"
+
+[dev-dependencies]
+mct-corpus.workspace = true
+mct-index.workspace = true
+

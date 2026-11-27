@@ -57,7 +57,7 @@ Any editor or assistant works, and none is required. The project rules for agent
 
 Before you pick a parser or framework task, check what the index already covers. The parser checklists in `docs/02-crates/parsers/` show it per language and per feature, with `[x]` done, `[~]` partial, `[ ]` not done and `[?]` not verified. Each one lists the checks it was built from.
 
-- [By language](docs/02-crates/parsers/checklists/by-language.md): one checklist for each of the 17 languages, with a summary table of counts.
+- [By language](docs/02-crates/parsers/checklists/by-language.md): one checklist for each of the 18 languages, with a summary table of counts.
 - [By feature](docs/02-crates/parsers/checklists/by-feature.md): each feature across all languages.
 - [By library](docs/02-crates/parsers/checklists/by-library.md): framework and package support, and [by feature and library](docs/02-crates/parsers/checklists/by-feature-library.md).
 - [Symbol coverage](docs/02-crates/parsers/symbol-coverage.md), [language gaps](docs/02-crates/parsers/language-gaps.md) and the [feature definitions](docs/02-crates/parsers/features.md).

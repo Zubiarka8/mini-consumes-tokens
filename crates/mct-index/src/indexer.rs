@@ -211,6 +211,10 @@ fn reindex_inner(
         match index_file(index, registry, entry.path(), force, &mut report)? {
             Seen::Source(path) => seen_paths.push(path),
             Seen::Manifest(path) => seen_manifest_paths.push(path),
+            Seen::ManifestAndSource(path) => {
+                seen_paths.push(path.clone());
+                seen_manifest_paths.push(path);
+            }
             Seen::Unreadable(path) => unreadable.push(path),
             Seen::Nothing => {}
         }
@@ -313,6 +317,8 @@ enum Seen {
     Source(String),
     /// A manifest whose `dependencies` rows were rewritten.
     Manifest(String),
+    /// A project manifest that also declares indexable symbols.
+    ManifestAndSource(String),
     /// A path that exists but could not be read (a read failure is on record
     /// for it): every row for it, and for anything under it, is kept as is.
     Unreadable(String),
@@ -522,7 +528,27 @@ fn index_file(
                 return Ok(Seen::Unreadable(relative_path));
             }
         }
-        return Ok(Seen::Manifest(relative_path));
+        // A manifest that a language parser also claims (a project file that
+        // declares symbols) is indexed as that language's source too.
+        let extension = relative_path.rsplit('.').next().unwrap_or_default();
+        if registry.for_extension(extension).is_none() {
+            return Ok(Seen::Manifest(relative_path));
+        }
+        let file_name = file_name.to_owned();
+        return Ok(
+            match index_source(
+                index,
+                registry,
+                &canonical,
+                relative_path,
+                &file_name,
+                force,
+                report,
+            )? {
+                Seen::Source(path) => Seen::ManifestAndSource(path),
+                seen => seen,
+            },
+        );
     }
 
     if let Some(extension) = assets::asset_extension(file_name) {
@@ -538,6 +564,29 @@ fn index_file(
         );
     }
 
+    let file_name = file_name.to_owned();
+    index_source(
+        index,
+        registry,
+        &canonical,
+        relative_path,
+        &file_name,
+        force,
+        report,
+    )
+}
+
+/// The source-file half of [`index_file`]: the parser chosen by extension,
+/// the content-hash skip, then the parse and its write.
+fn index_source(
+    index: &mut Index,
+    registry: &LanguageRegistry,
+    canonical: &Path,
+    relative_path: String,
+    file_name: &str,
+    force: bool,
+    report: &mut ReindexReport,
+) -> Result<Seen> {
     // Reported as seen regardless of whether we can index this file, so a
     // stale `files`/`index_issues` row is removed once the file is deleted
     // or excluded, not just once it's re-parsed.
@@ -562,7 +611,7 @@ fn index_file(
         return Ok(Seen::Source(relative_path));
     };
 
-    let bytes = match crate::read_repository_file(&canonical) {
+    let bytes = match crate::read_repository_file(canonical) {
         Ok(b) => b,
         // Unreadable (permissions, race): not a syntax error and not an
         // unsupported language, so it is its own issue. The run carries on and
@@ -654,11 +703,16 @@ fn index_file(
         contents,
     };
 
-    let parsed = registry.parse(&source);
+    let parsed = registry.parse(&source).map(|mut parsed| {
+        if let Some(rooted) = parser.rooted_paths() {
+            resolve_rooted_paths(index.root(), &relative_path, rooted, &mut parsed);
+        }
+        parsed
+    });
     // Parsing can be expensive and the working tree is mutable. Verify the
     // exact bytes again before writing this file into the run so an edit made
     // during either a successful or failed parse cannot be published as current.
-    let current_hash = crate::read_repository_file(&canonical)
+    let current_hash = crate::read_repository_file(canonical)
         .ok()
         .and_then(|bytes| Oid::hash_object(ObjectType::Blob, &bytes).ok())
         .map(|oid| oid.to_string());
@@ -902,6 +956,10 @@ fn reindex_paths_inner(
                 )? {
                     Seen::Source(p) => seen.push(p),
                     Seen::Manifest(p) => seen_manifests.push(p),
+                    Seen::ManifestAndSource(p) => {
+                        seen.push(p.clone());
+                        seen_manifests.push(p);
+                    }
                     Seen::Unreadable(p) => unreadable.push(p),
                     Seen::Nothing => {}
                 }
@@ -909,7 +967,7 @@ fn reindex_paths_inner(
             report.files_removed +=
                 remove_under_prefix(index, &relative_path, &seen, &seen_manifests, &unreadable)?;
         } else if metadata.is_ok() {
-            let (indexed_as, manifest) = match index_noting_created(
+            let (indexed_as, source, manifest) = match index_noting_created(
                 index,
                 registry,
                 &absolute,
@@ -917,11 +975,12 @@ fn reindex_paths_inner(
                 &mut report,
                 &mut created,
             )? {
-                Seen::Source(p) => (Some(p), false),
-                Seen::Manifest(p) => (Some(p), true),
+                Seen::Source(p) => (Some(p), true, false),
+                Seen::Manifest(p) => (Some(p), false, true),
+                Seen::ManifestAndSource(p) => (Some(p), true, true),
                 // Its rows stay as they are, like any path indexed as reported.
-                Seen::Unreadable(p) => (Some(p), false),
-                Seen::Nothing => (None, false),
+                Seen::Unreadable(p) => (Some(p), true, true),
+                Seen::Nothing => (None, false, false),
             };
             // Indexed under another spelling (the old name of a case-only
             // rename, a symlink resolving elsewhere) or not at all (now
@@ -929,11 +988,8 @@ fn reindex_paths_inner(
             // spelling are stale. A no-op for a plain edit.
             if indexed_as.as_deref() != Some(relative_path.as_str()) {
                 let keep: Vec<String> = indexed_as.into_iter().collect();
-                let (files, manifests) = if manifest {
-                    (&[][..], &keep[..])
-                } else {
-                    (&keep[..], &[][..])
-                };
+                let files = if source { &keep[..] } else { &[] };
+                let manifests = if manifest { &keep[..] } else { &[] };
                 report.files_removed +=
                     remove_under_prefix(index, &relative_path, files, manifests, &[])?;
             }
@@ -999,7 +1055,7 @@ fn index_noting_created(
 ) -> Result<Seen> {
     let was_indexed = has_rows(index, as_reported)?;
     let seen = index_file(index, registry, path, false, report)?;
-    if let Seen::Source(p) | Seen::Manifest(p) = &seen {
+    if let Seen::Source(p) | Seen::Manifest(p) | Seen::ManifestAndSource(p) = &seen {
         if !was_indexed && has_rows(index, p)? {
             created.push(p.clone());
         }
@@ -1238,6 +1294,38 @@ fn under_prefix_sql(table: &str, column: &str) -> String {
         "SELECT DISTINCT {column} FROM {table}
          WHERE {column} = ?1 OR ({column} >= ?2 AND {column} < ?3)"
     )
+}
+
+/// Rewrites `rooted`'s scheme-prefixed relation paths of the file at `path`
+/// to repository-relative ones (see [`mct_core::RootedPaths`]).
+fn resolve_rooted_paths(
+    root: &Path,
+    path: &str,
+    rooted: mct_core::RootedPaths,
+    parsed: &mut mct_core::ParsedFile,
+) {
+    let Some(directory) = Path::new(path).parent() else {
+        return;
+    };
+    let project = directory
+        .ancestors()
+        .find(|dir| root.join(dir).join(rooted.marker).is_file())
+        .and_then(Path::to_str)
+        .unwrap_or_default();
+    for target in &mut parsed.relation_targets {
+        let Some(resource) = target
+            .path
+            .as_deref()
+            .and_then(|path| path.strip_prefix(rooted.scheme))
+        else {
+            continue;
+        };
+        target.path = Some(if project.is_empty() {
+            resource.to_owned()
+        } else {
+            format!("{project}/{resource}")
+        });
+    }
 }
 
 fn write_manifest_dependencies(
