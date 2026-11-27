@@ -232,3 +232,51 @@ fn status_reports_what_get_indexing_status_reports() {
     };
     assert_eq!(without_process_line(&cli), without_process_line(&mcp));
 }
+
+/// `files` and `find_files` print the same page for the same filters: both
+/// render through `mct_mcp_server::file_query::run`.
+#[test]
+fn files_and_find_files_print_the_same_page() {
+    let project = Project::new("files");
+    let root = project.0.path();
+    fs::create_dir_all(root.join("demo/audio")).unwrap();
+    fs::write(root.join("demo/audio/intro.mp3"), b"ID3").unwrap();
+    fs::write(root.join("demo/audio/Voice.WAV"), b"RIFF").unwrap();
+    fs::write(root.join("logo.svg"), "<svg/>").unwrap();
+    stdout(&[&"--root", &root, &"reindex", &"--no-obsidian"]);
+    for (flags, json) in [
+        (
+            vec!["--category", "audio", "--path", "demo/"],
+            r#"{"category":"audio","path":"demo/"}"#,
+        ),
+        (
+            vec!["--format", "SVG", "--query", "logo"],
+            r#"{"format":"SVG","query":"logo"}"#,
+        ),
+        (
+            vec!["--limit", "1", "--output-format", "text"],
+            r#"{"limit":1,"output_format":"text"}"#,
+        ),
+    ] {
+        let mut args: Vec<&dyn AsRef<std::ffi::OsStr>> = vec![&"--root", &root, &"files"];
+        args.extend(flags.iter().map(|f| f as &dyn AsRef<std::ffi::OsStr>));
+        let cli = stdout(&args);
+        let mcp = stdout(&[
+            &"--root",
+            &root,
+            &"call",
+            &"--tool",
+            &"find_files",
+            &"--args",
+            &json,
+        ]);
+        assert_eq!(cli.trim_end(), mcp.trim_end(), "{flags:?}");
+        assert!(!cli.contains("files[0]"), "{cli}");
+    }
+    let audio = stdout(&[&"--root", &root, &"files", &"--category", &"audio"]);
+    assert!(audio.contains("demo/audio/Voice.WAV,audio,wav,"), "{audio}");
+
+    let bad = command::mct(&[&"--root", &root, &"files", &"--format", &"nope"]);
+    assert!(!bad.status.success());
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("unknown format `nope`"));
+}

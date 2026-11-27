@@ -212,6 +212,21 @@
       "expect": ["PaymentGateway.cs", "PaymentProcessor.cs"]
     },
     {
+      "name": "a non-source file by name",
+      "category": "structure",
+      "tool": "find_files",
+      "args": { "query": "requirements" },
+      "expect": ["requirements.txt,document,plain-text"]
+    },
+    {
+      "name": "files of one format",
+      "category": "structure",
+      "tool": "find_files",
+      "args": { "category": "data", "format": "JSON" },
+      "expect": ["package.json"],
+      "absent": ["requirements.txt"]
+    },
+    {
       "name": "unreferenced symbols",
       "category": "maintenance",
       "tool": "find_dead_code",

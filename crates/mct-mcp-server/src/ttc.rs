@@ -229,6 +229,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "find_duplicate_code",
     "get_dependency_graph",
     "get_file_tree",
+    "find_files",
     "discover_tool_categories",
     "get_tool_schema",
     "batch",

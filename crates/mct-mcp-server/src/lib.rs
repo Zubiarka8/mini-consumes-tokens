@@ -5,6 +5,7 @@ mod dead_query;
 mod duplicate_query;
 pub mod embedder;
 pub mod exit_idle;
+pub mod file_query;
 pub mod format;
 pub mod graph_render;
 pub mod incident;

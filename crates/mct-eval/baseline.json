@@ -1,6 +1,6 @@
 {
   "suite": "omni-app",
-  "catalog_tokens": 12319,
+  "catalog_tokens": 12890,
   "cases": {
     "Bash callers across sourced files": {
       "score": 1.0,
@@ -38,6 +38,10 @@
     "TypeScript callers across files": {
       "score": 1.0,
       "tokens": 180
+    },
+    "a non-source file by name": {
+      "score": 1.0,
+      "tokens": 166
     },
     "batched lookups": {
       "score": 1.0,
@@ -98,9 +102,13 @@
       "score": 1.0,
       "tokens": 141
     },
+    "files of one format": {
+      "score": 1.0,
+      "tokens": 175
+    },
     "fuzzy definition lookup across languages": {
       "score": 1.0,
-      "tokens": 458
+      "tokens": 463
     },
     "hybrid lexical ranking": {
       "score": 1.0,
