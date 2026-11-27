@@ -4,6 +4,7 @@
 //! language's grammar.
 
 mod assets;
+pub mod catalog;
 mod context_budget;
 pub mod coordination;
 mod cycles;
