@@ -2211,6 +2211,32 @@ pub fn overview(
     header
 }
 
+/// The path catalog section of a status, shared by `get_indexing_status`
+/// and `mct-cli status`: files per category and how to list them. `None`
+/// while the catalog is empty.
+pub fn catalog_summary(status: &IndexStatus) -> Option<String> {
+    if status.catalog.is_empty() {
+        return None;
+    }
+    let total: usize = status.catalog.iter().map(|c| c.files).sum();
+    let counts: Vec<String> = status
+        .catalog
+        .iter()
+        .map(|c| format!("{} {}", c.category, c.files))
+        .collect();
+    let mut out = format!(
+        "Files by category ({total}; list with find_files or `mct-cli files --category <c>`): {}\n",
+        counts.join(", ")
+    );
+    if status.catalog_doubtful > 0 {
+        out.push_str(&format!(
+            "{} file(s) with a doubtful classification: find_files shows a note for each.\n",
+            status.catalog_doubtful
+        ));
+    }
+    Some(out)
+}
+
 /// Renders `get_indexing_status`. `verbose_dependencies` controls only the
 /// dependency section: `false` collapses it to a single summary line,
 /// `true` keeps the full per-manifest listing. That section measured 97% of
@@ -2244,6 +2270,9 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
                 lang.language, lang.file_count, lang.symbol_count
             ));
         }
+    }
+    if let Some(catalog) = catalog_summary(status) {
+        out.push_str(&catalog);
     }
     if !status.unsupported_languages.is_empty() {
         out.push_str(&format!(
@@ -3142,6 +3171,17 @@ mod index_status_tests {
             unsupported_languages: vec!["lua".to_string()],
             syntax_errors: Vec::new(),
             read_failures: Vec::new(),
+            catalog: vec![
+                mct_index::CategoryCount {
+                    category: "source".to_string(),
+                    files: 2,
+                },
+                mct_index::CategoryCount {
+                    category: "image".to_string(),
+                    files: 1,
+                },
+            ],
+            catalog_doubtful: 1,
             dependencies: vec![
                 ManifestDependencies {
                     manifest_path: "Cargo.toml".to_string(),
@@ -3172,6 +3212,14 @@ mod index_status_tests {
     #[test]
     fn the_default_summarises_dependencies_to_one_line() {
         let out = index_status(&sample_status(), false);
+        assert!(
+            out.contains("Files by category (3; list with find_files or `mct-cli files --category <c>`): source 2, image 1\n"),
+            "{out}"
+        );
+        assert!(
+            out.contains("1 file(s) with a doubtful classification"),
+            "{out}"
+        );
         assert!(
             out.contains("Dependencies: 2 manifests, 3 declared (2 unique external).\n"),
             "got: {out}"
@@ -3217,6 +3265,9 @@ mod index_status_tests {
              Last indexed at unix timestamp 1700000000.\n\
              Coverage by language:\n\
              \x20 rust: 2 files, 10 symbols\n\
+             Files by category (3; list with find_files or `mct-cli files --category <c>`): \
+             source 2, image 1\n\
+             1 file(s) with a doubtful classification: find_files shows a note for each.\n\
              Languages seen but not yet supported: lua\n"
         );
     }

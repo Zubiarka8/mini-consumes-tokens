@@ -111,6 +111,13 @@ pub struct CaseMismatch {
     pub actual: String,
 }
 
+/// Catalogued files of one category ([`crate::catalog::Category`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CategoryCount {
+    pub category: String,
+    pub files: usize,
+}
+
 /// How many [`CaseMismatch`]es a status lists.
 const CASE_MISMATCH_LIMIT: usize = 50;
 
@@ -155,6 +162,12 @@ pub struct IndexStatus {
     /// status that lists any is not fully healthy.
     pub read_failures: Vec<UnsupportedFile>,
     pub dependencies: Vec<ManifestDependencies>,
+    /// The path catalog by category, most files first (ties by name).
+    /// `other` counts files no format or parser claims. Empty until a
+    /// reindex fills the catalog.
+    pub catalog: Vec<CategoryCount>,
+    /// Catalogued files whose classification is `ambiguous`.
+    pub catalog_doubtful: usize,
 }
 
 pub fn reindex(
@@ -2874,7 +2887,28 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
 
+    let mut stmt = index.conn.prepare(
+        "SELECT category, COUNT(*) FROM path_catalog
+          GROUP BY category ORDER BY COUNT(*) DESC, category",
+    )?;
+    let catalog: Vec<CategoryCount> = stmt
+        .query_map([], |row| {
+            Ok(CategoryCount {
+                category: row.get(0)?,
+                files: usize::try_from(row.get::<_, i64>(1)?).unwrap_or_default(),
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+    let catalog_doubtful: i64 = index.conn.query_row(
+        "SELECT COUNT(*) FROM path_catalog WHERE evidence = 'ambiguous'",
+        [],
+        |row| row.get(0),
+    )?;
+
     Ok(IndexStatus {
+        catalog,
+        catalog_doubtful: usize::try_from(catalog_doubtful).unwrap_or_default(),
         languages,
         alias_sources,
         case_mismatches,

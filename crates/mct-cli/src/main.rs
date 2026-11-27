@@ -1347,6 +1347,9 @@ fn print_status(status: mct_index::IndexStatus) {
             );
         }
     }
+    if let Some(catalog) = mct_mcp_server::format::catalog_summary(&status) {
+        print!("{catalog}");
+    }
     if !status.unsupported_languages.is_empty() {
         println!(
             "Languages seen but not yet supported: {}",

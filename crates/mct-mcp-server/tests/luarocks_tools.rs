@@ -254,7 +254,8 @@ async fn a_rockspec_over_the_read_limit_is_shown_as_possibly_stale_not_as_curren
     assert!(text.contains("from an earlier read"), "got: {text}");
     assert!(text.contains("[runtime] lpeg >= 1.0"), "got: {text}");
     assert!(
-        !text.contains("other"),
+        // The edit's new dependency, not the `other` file category.
+        !text.contains("] other"),
         "the unread edit must not appear: {text}"
     );
 }
