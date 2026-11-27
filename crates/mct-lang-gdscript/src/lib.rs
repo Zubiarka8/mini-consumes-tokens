@@ -1,11 +1,16 @@
 //! Indexes Godot scripts using the GDScript Tree-sitter grammar.
 //!
 //! Every `.gd` file is a `Module` that owns one script `Class`: the name
-//! from `class_name`, or the file name without `.gd`, which only that file
-//! can resolve. Members, inner classes, enums, signals, constants, locals and
-//! parameters hang under it. Script paths (`extends "…"`, `preload`, `load`)
-//! become `Imports`, and `mct-index` roots `res://` at the nearest
-//! `project.godot`.
+//! from `class_name` (with the file name as an alias), or the file name
+//! without `.gd`. Members, inner classes, enums, signals, constants, locals
+//! and parameters hang under it. Script paths (`extends "…"`, `preload`,
+//! `load`) become `Imports`, and a script path is also a use of its class.
+//! `res://` paths stay as written; through [`LanguageParser::rooted_paths`]
+//! the index roots them at the nearest `project.godot`. That file is parsed
+//! here too: its singleton autoloads are `Class` symbols (see `project.rs`).
+//! Text scenes and resources (`.tscn`, `.tres`) import what they load and
+//! call the methods their editor signal connections name (see
+//! `resource.rs`).
 //!
 //! Known limits:
 //!
@@ -14,15 +19,16 @@
 //!   here and is not indexed.
 //! - A call through a PascalCase name the file does not bind
 //!   (`ItemCatalog.find()`) is qualified by that name: a `class_name`
-//!   global, an autoload or an engine class. `mct-index` makes an autoload
-//!   extend the class named after its script file, so an autoload whose
-//!   script declares another `class_name` does not resolve. A call through
-//!   an untyped value is a member call the index can only report as
-//!   ambiguous.
-//! - Computed resource paths, scene (`.tscn`) bindings and signal
-//!   connections made in the editor are not relations.
+//!   global, an autoload or an engine class. An autoload extends the class
+//!   its script file names, so the autoload's members are inherited by
+//!   name: through an autoload, or `extends "x.gd"`, whose script declares
+//!   another `class_name`, a member does not resolve. A call through an
+//!   untyped value is a member call the index can only report as ambiguous.
+//! - Computed resource paths are not relations.
 
+mod project;
 mod relations;
+mod resource;
 mod tokens;
 
 pub use tokens::GdscriptTokenSource;
@@ -31,12 +37,14 @@ use std::{collections::HashMap, ops::Range};
 
 use mct_core::{
     LanguageParser, LiteralCollector, Modifier, Parameter, ParameterKind, ParseError, ParsedFile,
-    SourceFile, SymbolDetail, SymbolId, SymbolKind, SymbolRecord, TypeText, MAX_TRAVERSAL_DEPTH,
+    RootedPaths, SourceFile, SymbolAlias, SymbolDetail, SymbolId, SymbolKind, SymbolRecord,
+    TypeText, MAX_TRAVERSAL_DEPTH,
 };
 use mct_tree_sitter::{find_named_child, first_error, location, module_location};
 use tree_sitter::{Node, Parser};
 
-/// The `LanguageParser` for Godot `.gd` scripts, language id `gdscript`.
+/// The `LanguageParser` for Godot `.gd` scripts and the `project.godot`
+/// settings file, language id `gdscript`.
 pub struct GdscriptParser;
 
 impl LanguageParser for GdscriptParser {
@@ -45,10 +53,26 @@ impl LanguageParser for GdscriptParser {
     }
 
     fn file_extensions(&self) -> &'static [&'static str] {
-        &["gd"]
+        &["gd", "godot", "tscn", "tres"]
+    }
+
+    fn rooted_paths(&self) -> Option<RootedPaths> {
+        Some(RootedPaths {
+            scheme: "res://",
+            marker: "project.godot",
+        })
+    }
+
+    fn file_is_class(&self) -> bool {
+        true
     }
 
     fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError> {
+        match file.relative_path.rsplit_once('.').map(|(_, ext)| ext) {
+            Some("godot") => return Ok(project::autoloads(&file.contents)),
+            Some("tscn" | "tres") => return Ok(resource::parse(file)),
+            _ => {}
+        }
         let error = |line, message: &str| ParseError::Syntax {
             path: file.relative_path.clone(),
             line,
@@ -73,6 +97,7 @@ impl LanguageParser for GdscriptParser {
             scopes: Vec::new(),
             receiver_types: Default::default(),
             preloaded_scripts: Default::default(),
+            constant_strings: Default::default(),
             http_uses: Vec::new(),
             bindings: Default::default(),
             local_ranges: Default::default(),
@@ -83,19 +108,45 @@ impl LanguageParser for GdscriptParser {
         let module = walker.symbol(module_name, SymbolKind::Module, root, None);
         let class_header = find_named_child(root, "class_name_statement");
         let class_name = class_header.and_then(|n| n.child_by_field_name("name"));
+        let file_class = script_class_name(&file.relative_path);
         let class = walker.symbol(
-            class_name.map_or_else(|| module_name.trim_end_matches(".gd"), |n| walker.text(n)),
+            class_name.map_or(file_class, |n| walker.text(n)),
             SymbolKind::Class,
             class_header.unwrap_or(root),
             Some(module),
         );
+        // A script without `class_name` has no global name: a bare name in
+        // another file never looks it up (only PascalCase names do, and a
+        // script file name is snake_case), but a path to the file does.
         walker.result.symbols[class as usize].location.end_line = module_location(root).end_line;
-        if class_name.is_none() {
-            walker.result.file_scoped.push(class);
+        if class_name.is_some() {
+            // A scene, resource, autoload or `extends "x.gd"` names the
+            // script by its file; the pinned path makes the alias exact.
+            walker.result.symbol_aliases.push(SymbolAlias {
+                symbol: class,
+                name: file_class.into(),
+            });
         }
         let base = class_header
             .and_then(|n| n.child_by_field_name("extends"))
             .or_else(|| find_named_child(root, "extends_statement"));
+        // The script's header as one line, `class_name X extends Y`: the
+        // class's signature, shown as the head of the file's skeleton.
+        let header: Vec<_> = [class_header, find_named_child(root, "extends_statement")]
+            .into_iter()
+            .flatten()
+            .map(|node| walker.text(node).trim().to_owned())
+            .collect();
+        if !header.is_empty() {
+            walker.result.symbol_details.push(
+                SymbolDetail {
+                    symbol: class,
+                    signature: Some(header.join(" ")),
+                    ..Default::default()
+                }
+                .normalized(),
+            );
+        }
         walker.children(root, class, base, 0);
         walker.finish_relations();
         walker.result.literals = walker.literals.finish();
@@ -105,6 +156,18 @@ impl LanguageParser for GdscriptParser {
 
 fn basename(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
+}
+
+/// Files a `preload`, `load` or scene can name: scripts, text scenes and
+/// text resources.
+const RESOURCE_EXTENSIONS: &[&str] = &["gd", "tscn", "tres"];
+
+/// The class of the script at `path` when it has no `class_name`: its file
+/// name without `.gd`. A script that declares a `class_name` is not reached
+/// by this name.
+fn script_class_name(path: &str) -> &str {
+    let name = basename(path);
+    name.strip_suffix(".gd").unwrap_or(name)
 }
 
 fn first_named(node: Node<'_>) -> Option<Node<'_>> {
@@ -121,6 +184,8 @@ struct Walker<'a> {
     local_ranges: HashMap<SymbolId, Range<usize>>,
     receiver_types: HashMap<SymbolId, &'a str>,
     preloaded_scripts: HashMap<SymbolId, String>,
+    /// Constants whose value is a string literal, for a URL held in one.
+    constant_strings: HashMap<SymbolId, &'a str>,
     http_uses: Vec<relations::HttpUse<'a>>,
     pending: Vec<relations::Pending<'a>>,
     literals: LiteralCollector,
@@ -162,12 +227,6 @@ impl<'a> Walker<'a> {
         }
         if let Some(owner) = owner {
             self.bindings.entry((owner, name)).or_default().push(id);
-            let parent = &self.result.symbols[owner as usize];
-            if parent.kind == SymbolKind::Enum && parent.name == "<anonymous enum>" {
-                if let Some(class) = self.scopes[owner as usize] {
-                    self.bindings.entry((class, name)).or_default().push(id);
-                }
-            }
         }
         id
     }
@@ -218,7 +277,8 @@ impl<'a> Walker<'a> {
                 .filter(|n| n.kind() == "identifier")
                 .map(|n| (self.text(n), SymbolKind::Function)),
             "signal_statement" => name.map(|n| (n, SymbolKind::Field)),
-            "enum_definition" => Some((name.unwrap_or("<anonymous enum>"), SymbolKind::Enum)),
+            // An unnamed enum's entries are constants of the enclosing class.
+            "enum_definition" => name.map(|n| (n, SymbolKind::Enum)),
             "enumerator" => node
                 .child_by_field_name("left")
                 .map(|n| (self.text(n), SymbolKind::Constant)),

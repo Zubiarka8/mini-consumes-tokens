@@ -13,6 +13,13 @@ impl TokenSource for GdscriptTokenSource {
     }
 
     fn tokenize(&self, relative_path: &str, source: &str) -> Result<TokenizedFile, ParseError> {
+        // `project.godot`, scenes and resources are settings, not code.
+        if !relative_path.ends_with(".gd") {
+            return Ok(TokenizedFile {
+                callables: Some(Vec::new()),
+                ..Default::default()
+            });
+        }
         tokenize_source_with_callables(
             &tree_sitter_gdscript::LANGUAGE.into(),
             &CLASSES,

@@ -61,10 +61,8 @@ fn scripts_are_classes_with_their_members_and_inner_classes() {
     assert_eq!(parent(CATALOG, "MAX_STACK", Constant), Some("ItemCatalog"));
     assert_eq!(parent(CATALOG, "Quality", Enum), Some("ItemCatalog"));
     assert_eq!(parent(CATALOG, "PRIZE", Constant), Some("Quality"));
-    assert_eq!(
-        parent(CATALOG, "SPRING", Constant),
-        Some("<anonymous enum>")
-    );
+    // An unnamed enum's entries are constants of the class itself.
+    assert_eq!(parent(CATALOG, "SPRING", Constant), Some("ItemCatalog"));
 }
 
 #[test]
@@ -108,7 +106,8 @@ fn lambdas_used_as_callbacks_stay_inside_their_callable() {
 #[test]
 fn script_paths_are_imports_and_path_bases_are_extends() {
     let c = corpus();
-    c.relation(FARMER, "Farmer", Extends, "actor.gd");
+    // A path base is the script's class, named after its file.
+    c.relation(FARMER, "Farmer", Extends, "actor");
     c.relation(FARMER, "Farmer", Imports, "actor.gd");
     c.relation(FARMER, "InventoryScript", Imports, "inventory.gd");
     c.relation(FARMER, "ToolUse", Imports, "tool_use.gd");

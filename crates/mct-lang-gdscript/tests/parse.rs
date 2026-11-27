@@ -65,7 +65,8 @@ fn extracts_godot_declarations_and_relations() {
         );
     }
     for (kind, name) in [
-        (RelationKind::Extends, "base.gd"),
+        (RelationKind::Extends, "base"),
+        (RelationKind::Imports, "base.gd"),
         (RelationKind::Imports, "helper.gd"),
         (RelationKind::Calls, "move"),
         (RelationKind::Calls, "callback"),

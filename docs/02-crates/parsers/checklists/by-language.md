@@ -34,7 +34,7 @@ Every feature the language does not have is named under *Not applicable*, with t
 | Go | 18 | 6 | 6 | 0 | 23 |
 | PHP | 30 | 5 | 6 | 0 | 12 |
 | Lua | 15 | 7 | 3 | 0 | 28 |
-| GDScript | 20 | 13 | 0 | 0 | 20 |
+| GDScript | 33 | 0 | 0 | 0 | 20 |
 | Bash | 11 | 4 | 3 | 0 | 35 |
 | PowerShell | 11 | 4 | 13 | 0 | 25 |
 | HTML | 3 | 1 | 3 | 0 | 0 |
@@ -817,11 +817,11 @@ Markup features (MK) do not apply to code languages.
 
 ## GDScript (gdscript)
 
-Done 20 · Partial 13 · Not done 0 · Not verified 0 · Not applicable 20
+Done 33 · Partial 0 · Not done 0 · Not verified 0 · Not applicable 20
 
 **Functions and methods**
 
-- [~] FN03 Lambda or closure assigned to a name: Named lambdas, initializers, and assignments to a simple identifier are indexed. Assignments through dynamic receivers are not resolved.
+- [x] FN03 Lambda or closure assigned to a name: `var f := func(..)`, `const F = func(..)` and `f = func(..)` give a function owned by the enclosing scope. An anonymous lambda passed as an argument stays part of its callable.
 - [x] FN04 Method: Instance and static methods are owned by the script or inner class.
 - [x] FN05 Constructor: `_init` is a method.
 - [x] FN08 Abstract / pure virtual method: Bodyless methods have declaration details marked abstract.
@@ -831,10 +831,10 @@ Done 20 · Partial 13 · Not done 0 · Not verified 0 · Not applicable 20
 
 - [x] TY01 Class: Named and implicit script classes are indexed as classes.
 - [x] TY02 Abstract class: `@abstract` script classes are indexed as classes.
-- [x] TY08 Enum: Named and anonymous enums are indexed.
-- [x] TY09 Enum members: Enum entries are constants owned by their enum.
+- [x] TY08 Enum: Named enums are indexed. An unnamed enum is not a symbol: its entries are constants of the class.
+- [x] TY09 Enum members: Enum entries are constants owned by their enum, or by the class for an unnamed enum.
 - [x] TY11 Nested / inner class: Inner classes preserve their class parent.
-- [~] TY14 Singleton / companion object: Named autoloads are indexed from project.godot and linked to their scripts. Calls through the singleton are not resolved to its members.
+- [x] TY14 Singleton / companion object: Autoloads from `project.godot` are indexed and extend their script's class, so `GameState.f()` resolves to the script's method. An autoload whose script declares another `class_name` does not reach its members.
 - [x] TY16 Module / namespace / package: A module identifies each script file.
 
 **Fields, constants and variables**
@@ -846,32 +846,32 @@ Done 20 · Partial 13 · Not done 0 · Not verified 0 · Not applicable 20
 
 **Relations**
 
-- [~] RE01 Calls: Local and typed calls, self, super and preloaded script calls have evidence. An unbound PascalCase receiver (a `class_name` global, an autoload or an engine class) is the call's qualifier; an autoload reaches its script's class through `project.godot`, unless that script declares another `class_name`. Untyped values stay ambiguous.
-- [~] RE02 Constructor call: Class.new() and preloaded script constructors are indexed. Computed constructors are unresolved.
+- [x] RE01 Calls: Local, typed, `:=`-inferred, self, super, inherited bare and preloaded-script calls carry evidence. A PascalCase receiver (a `class_name` global, an autoload or an engine class) is the call's qualifier. Untyped values stay ambiguous.
+- [x] RE02 Constructor call: `X.new()` calls `_init` of X, also through a preload constant. A computed constructor is unresolved.
 - [x] RE03 Super / base constructor call: An explicit super() in _init links to the base constructor.
-- [~] RE04 Imports: Literal script loads and path-based inheritance are tracked. Dynamic paths and scene resources are not linked.
-- [~] RE05 Class extends class: Named bases link to classes. Path-based bases link to their script file.
+- [x] RE04 Imports: Literal `preload`/`load` paths, `extends "x.gd"`, `.tscn`/`.tres` `ext_resource` lines and `project.godot` autoloads import the file. A computed path is skipped.
+- [x] RE05 Class extends class: A named base links to its class. `extends "x.gd"` links to the script's class and imports the file; members are not inherited through it when that script declares `class_name`.
 - [x] RE08 Decorator / annotation / attribute: Annotations are recorded as references.
-- [~] RE10 Cross-language HTTP link: Typed HTTPRequest receivers with literal URLs and known methods participate as clients.
+- [x] RE10 Cross-language HTTP link: `HTTPRequest.request` with a literal URL to this machine, or a constant holding one, and a known method is a use linked to the server handler.
 
 **Search and lookup**
 
 - [x] SE01 Find a definition: Definitions appear through the shared query tools.
-- [~] SE02 Callers and callees: Known calls appear in both directions. Dynamic dispatch can leave unresolved edges.
-- [~] SE03 Every use: Identifier and member uses are recorded. Runtime and scene-driven uses can be missing.
-- [~] SE04 Blast radius and context: The shared graph tools can use indexed edges. Coverage depends on call and reference resolution.
+- [x] SE02 Callers and callees: `find_callers` and `find_calls` list calls in both directions, including editor signal connections in `.tscn` scenes. An untyped receiver stays ambiguous.
+- [x] SE03 Every use: Identifier, member, signal and annotation uses are references. Scenes, resources, autoloads and preloads reference the scripts they use.
+- [x] SE04 Blast radius and context: `impact_analysis` and `build_context_pack` include callers, references and GUT tests (`test_*.gd`, `tests/`).
 - [x] SE05 Exact text in strings: Prose string literals are available for exact text search.
 
 **Code quality**
 
-- [~] QU01 Dead code: Shared heuristics apply to eligible kinds. Scene, engine and autoload usage can be invisible.
+- [x] QU01 Dead code: A class used only by a scene, a resource, an autoload or a preload is not reported. Engine callbacks such as `_ready` are methods, which dead code does not check.
 - [x] QU02 Repeated code: The shared token registry includes GDScript.
 
 **Structure**
 
-- [~] ST01 Import graph: Literal script links resolve within the Godot project. Computed loads are outside the graph.
+- [x] ST01 Import graph: Literal script, scene and resource paths resolve within the Godot project (`res://` or relative), with no false externals. A computed load is outside the graph.
 - [x] ST02 File outline: The script class members and nested class headers appear with bodies collapsed.
-- [~] ST03 Declared dependencies: project.godot reports enabled editor plugins. The engine does not declare package versions there.
+- [x] ST03 Declared dependencies: `get_indexing_status` lists the editor plugins `project.godot` enables. Godot declares no package versions.
 
 **Not applicable:**
 

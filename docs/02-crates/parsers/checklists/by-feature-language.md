@@ -82,7 +82,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 2 | 6 | 0 | 6 |
+| 5 | 1 | 6 | 0 | 6 |
 
 - [x] Rust: `let name = |..| ..` closure is a `function` owned by the enclosing function; closures not bound by a plain `let` are not indexed
 - [ ] Python: `find_symbol("assigned_lambda")` returns no symbol
@@ -94,7 +94,7 @@ Marks:
 - [ ] Go: `f := func()` has no symbol
 - [x] PHP: `$f = function` → `function`
 - [x] Lua: `local p_lam = function`
-- [~] GDScript: Named lambdas, initializers, and assignments to a simple identifier are indexed. Assignments through dynamic receivers are not resolved.
+- [x] GDScript: `var f := func(..)`, `const F = func(..)` and `f = func(..)` give a function owned by the enclosing scope. An anonymous lambda passed as an argument stays part of its callable.
 - — Bash: Bash has no lambda or closure assigned to a name
 - [~] PowerShell: top-level `$f = { … }` is a `variable`
 - — HTML: HTML is markup; it has no lambda or closure assigned to a name
@@ -522,7 +522,7 @@ Marks:
 - — Go: Go has no enum
 - [x] PHP: `enum`
 - — Lua: Lua has no enum
-- [x] GDScript: Named and anonymous enums are indexed.
+- [x] GDScript: Named enums are indexed. An unnamed enum is not a symbol: its entries are constants of the class.
 - — Bash: Bash has no enum
 - [ ] PowerShell: PowerShell enum declarations produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no enum
@@ -550,7 +550,7 @@ Marks:
 - — Go: Go has no enum members
 - [x] PHP: `case` as `field`
 - — Lua: Lua has no enum members
-- [x] GDScript: Enum entries are constants owned by their enum.
+- [x] GDScript: Enum entries are constants owned by their enum, or by the class for an unnamed enum.
 - — Bash: Bash has no enum members
 - [ ] PowerShell: PowerShell enum declarations produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no enum members
@@ -682,7 +682,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 2 | 0 | 0 | 16 |
+| 1 | 1 | 0 | 0 | 16 |
 
 
 - — Rust: Rust has no singleton / companion object
@@ -695,7 +695,7 @@ Marks:
 - — Go: Go has no singleton / companion object
 - — PHP: PHP has no singleton / companion object
 - — Lua: Lua has no singleton / companion object
-- [~] GDScript: Named autoloads are indexed from project.godot and linked to their scripts. Calls through the singleton are not resolved to its members.
+- [x] GDScript: Autoloads from `project.godot` are indexed and extend their script's class, so `GameState.f()` resolves to the script's method. An autoload whose script declares another `class_name` does not reach its members.
 - — Bash: Bash has no singleton / companion object
 - — PowerShell: PowerShell has no singleton / companion object
 - — HTML: HTML is markup; it has no singleton / companion object
@@ -968,7 +968,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 12 | 1 | 0 | 0 | 5 |
+| 13 | 0 | 0 | 0 | 5 |
 
 - [x] Rust: `find_calls(top_level)` returns the call to `nested`
 - [x] Python: `caller` → `p_top`
@@ -980,7 +980,7 @@ Marks:
 - [x] Go: `main.go` calls `lib.P_Helper`
 - [x] PHP: `p_am` → `__construct`
 - [x] Lua: `p_top` → `p_local`, `p_mod`
-- [~] GDScript: Local and typed calls, self, super and preloaded script calls have evidence. An unbound PascalCase receiver (a `class_name` global, an autoload or an engine class) is the call's qualifier; an autoload reaches its script's class through `project.godot`, unless that script declares another `class_name`. Untyped values stay ambiguous.
+- [x] GDScript: Local, typed, `:=`-inferred, self, super, inherited bare and preloaded-script calls carry evidence. A PascalCase receiver (a `class_name` global, an autoload or an engine class) is the call's qualifier. Untyped values stay ambiguous.
 - [x] Bash: `p_top` → `p_helper`
 - [x] PowerShell: `p_top` → `p_helper`
 - — HTML: HTML is markup; it has no calls
@@ -996,7 +996,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 6 | 3 | 0 | 0 | 9 |
+| 7 | 2 | 0 | 0 | 9 |
 
 
 - — Rust: `Foo::new()` is a plain call (RE01)
@@ -1009,7 +1009,7 @@ Marks:
 - [x] Go: composite literal `T{}` gives `references T`
 - [x] PHP: `new Box()` produces `calls Box` (MCT probe)
 - — Lua: Lua has no constructor call
-- [~] GDScript: Class.new() and preloaded script constructors are indexed. Computed constructors are unresolved.
+- [x] GDScript: `X.new()` calls `_init` of X, also through a preload constant. A computed constructor is unresolved.
 - — Bash: Bash has no constructor call
 - — PowerShell: PowerShell has no constructor call
 - — HTML: HTML is markup; it has no constructor call
@@ -1054,7 +1054,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 11 | 2 | 0 | 0 | 5 |
+| 12 | 1 | 0 | 0 | 5 |
 
 - [x] Rust: `use lib::p_helper` → `imports`
 - [x] Python: `from sibling import imported` → `imports`
@@ -1066,7 +1066,7 @@ Marks:
 - [x] Go: `import "lib"` → edge
 - [x] PHP: `require_once 'lib.php'` → `imports`
 - [x] Lua: `require("lib")` → edge
-- [~] GDScript: Literal script loads and path-based inheritance are tracked. Dynamic paths and scene resources are not linked.
+- [x] GDScript: Literal `preload`/`load` paths, `extends "x.gd"`, `.tscn`/`.tres` `ext_resource` lines and `project.godot` autoloads import the file. A computed path is skipped.
 - [x] Bash: `source` → edge
 - [x] PowerShell: dot-sourcing → edge
 - — HTML: HTML is markup; it has no imports
@@ -1082,7 +1082,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 2 | 1 | 0 | 8 |
+| 8 | 1 | 1 | 0 | 8 |
 
 
 - — Rust: Rust has no class extends class
@@ -1095,7 +1095,7 @@ Marks:
 - — Go: Go has no class extends class
 - [x] PHP: `P_Sub` extends `P_Base`
 - [x] Lua: `Child` extends `Base` via `setmetatable` (MCT probe)
-- [~] GDScript: Named bases link to classes. Path-based bases link to their script file.
+- [x] GDScript: A named base links to its class. `extends "x.gd"` links to the script's class and imports the file; members are not inherited through it when that script declares `class_name`.
 - — Bash: Bash has no class extends class
 - [ ] PowerShell: PowerShell classes produce no symbols (corpus test)
 - — HTML: HTML is markup; it has no class extends class
@@ -1224,7 +1224,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 14 | 0 | 0 | 4 |
+| 1 | 13 | 0 | 0 | 4 |
 
 - [~] Rust: axum and Actix Web routes are declarations; `reqwest`/`ureq` calls with an absolute URL to this machine are uses
 - [~] Python: Flask/Quart/FastAPI/Starlette route decorators; `requests`/`httpx`/`client`/`self.client` calls with a literal path; `urlopen` with an absolute URL to this machine
@@ -1236,7 +1236,7 @@ Marks:
 - [~] Go: `HandleFunc("GET /x", h)`, gin/echo/fiber/chi `r.GET`, `httptest.NewRequest`, `http.Get`/`Post`/`Head` with an absolute URL to this machine
 - [~] PHP: Symfony `#[Route]`, Laravel test `$this->getJson`, Guzzle `$client->get`; Laravel `Route::get` is in another file
 - [~] Lua: Lapis `app:get("/x", handler)`, `ngx.location.capture` and lua-resty-http `request_uri("http://localhost/x")`
-- [~] GDScript: Typed HTTPRequest receivers with literal URLs and known methods participate as clients.
+- [x] GDScript: `HTTPRequest.request` with a literal URL to this machine, or a constant holding one, and a known method is a use linked to the server handler.
 - [~] Bash: `curl` and `wget` to this machine (use only)
 - [~] PowerShell: `Invoke-RestMethod`/`Invoke-WebRequest` to this machine (use only)
 - [~] HTML: `<form action method>` is a use; `<a href>` and `<script>` calls are not read
@@ -1281,7 +1281,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 12 | 1 | 0 | 0 | 5 |
+| 13 | 0 | 0 | 0 | 5 |
 
 - [x] Rust: `audit_macro!` and an imported function called inside a macro (`println!("{}", helper(x))`) are `calls`
 - [x] Python: `find_calls`, `find_callers`
@@ -1293,7 +1293,7 @@ Marks:
 - [x] Go: `main.go` calls `P_Helper`
 - [x] PHP: `find_calls p_am`
 - [x] Lua: `find_calls`
-- [~] GDScript: Known calls appear in both directions. Dynamic dispatch can leave unresolved edges.
+- [x] GDScript: `find_callers` and `find_calls` list calls in both directions, including editor signal connections in `.tscn` scenes. An untyped receiver stays ambiguous.
 - [x] Bash: `main.sh` calls `p_helper`
 - [x] PowerShell: `find_calls p_top`
 - — HTML: HTML is markup; it has no callers and callees
@@ -1309,7 +1309,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 6 | 0 | 0 | 5 |
+| 8 | 5 | 0 | 0 | 5 |
 
 - [~] Rust: `find_references`: imported/qualified macro calls can have no use relation; same-file free functions get `references`
 - [x] Python: references to `abstractmethod`
@@ -1321,7 +1321,7 @@ Marks:
 - [~] Go: a composite literal references its type; a type named only in a declaration (`var w Widget`) gets no reference
 - [x] PHP: references to `p_helper`
 - [~] Lua: `find_references`: a nested table class (`W.Widget`) used only as a qualifier (`W.Widget.make()`) gets no reference; the call to `make` resolves
-- [~] GDScript: Identifier and member uses are recorded. Runtime and scene-driven uses can be missing.
+- [x] GDScript: Identifier, member, signal and annotation uses are references. Scenes, resources, autoloads and preloads reference the scripts they use.
 - [x] Bash: references to `p_helper`
 - [x] PowerShell: references to `p_helper`
 - — HTML: HTML is markup; it has no every use
@@ -1337,7 +1337,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 6 | 0 | 0 | 5 |
+| 8 | 5 | 0 | 0 | 5 |
 
 - [~] Rust: `impact_analysis`, `build_context_pack`: same gap as callers (macros)
 - [x] Python: `build_context_pack` lists the base class
@@ -1349,7 +1349,7 @@ Marks:
 - [~] Go: `impact_analysis`, `build_context_pack`: same gaps as references
 - [x] PHP: `build_context_pack`
 - [~] Lua: `impact_analysis`, `build_context_pack`: same gaps as references
-- [~] GDScript: The shared graph tools can use indexed edges. Coverage depends on call and reference resolution.
+- [x] GDScript: `impact_analysis` and `build_context_pack` include callers, references and GUT tests (`test_*.gd`, `tests/`).
 - [x] Bash: `build_context_pack(P_Helper)` returned its caller
 - [x] PowerShell: `build_context_pack(P_Helper)` returns its caller
 - — HTML: HTML is markup; it has no blast radius and context
@@ -1395,7 +1395,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 7 | 6 | 0 | 0 | 5 |
+| 8 | 5 | 0 | 0 | 5 |
 
 - [x] Rust: unused functions and types are reported; `Inner`, macros and associated types of trait impls are not false positives
 - [x] Python: unused function and class reported
@@ -1407,7 +1407,7 @@ Marks:
 - [~] Go: unused struct and function reported; a struct used only as a declared type is reported
 - [x] PHP: function and class reported
 - [~] Lua: free functions are candidates; table methods not exercised
-- [~] GDScript: Shared heuristics apply to eligible kinds. Scene, engine and autoload usage can be invisible.
+- [x] GDScript: A class used only by a scene, a resource, an autoload or a preload is not reported. Engine callbacks such as `_ready` are methods, which dead code does not check.
 - [x] Bash: unused function reported
 - [x] PowerShell: unused function reported
 - — HTML: HTML is markup; it has no dead code
@@ -1453,7 +1453,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 10 | 3 | 0 | 0 | 5 |
+| 11 | 2 | 0 | 0 | 5 |
 
 - [x] Rust: `src/lib.rs → src/dependency.rs`; external `Add` is listed separately
 - [x] Python: `src/audit.py → src/sibling.py`; standard and framework imports are listed as external
@@ -1465,7 +1465,7 @@ Marks:
 - [~] Go: `get_dependency_graph`: edges correct; the module import path is also listed as external
 - [~] PHP: resolved `require_once` path also listed as external
 - [x] Lua: edge `main → lib`, no external
-- [~] GDScript: Literal script links resolve within the Godot project. Computed loads are outside the graph.
+- [x] GDScript: Literal script, scene and resource paths resolve within the Godot project (`res://` or relative), with no false externals. A computed load is outside the graph.
 - [~] Bash: resolved `source` path also listed as external
 - [~] PowerShell: dot-sourced path also listed as external
 - — HTML: HTML is markup; it has no import graph
@@ -1509,7 +1509,7 @@ Marks:
 
 | Done | Partial | Not done | Not verified | Not applicable |
 | ---: | ---: | ---: | ---: | ---: |
-| 4 | 2 | 6 | 0 | 6 |
+| 5 | 1 | 6 | 0 | 6 |
 
 - [x] Rust: `get_indexing_status` reports `serde 1.0.0` from `Cargo.toml`
 - [~] Python: `requirements.txt` counted; `pyproject.toml` not
@@ -1521,7 +1521,7 @@ Marks:
 - [x] Go: `go.mod` counted
 - [x] PHP: `composer.json` `require` and `require-dev` counted
 - [ ] Lua: `.rockspec` not counted
-- [~] GDScript: project.godot reports enabled editor plugins. The engine does not declare package versions there.
+- [x] GDScript: `get_indexing_status` lists the editor plugins `project.godot` enables. Godot declares no package versions.
 - — Bash: Bash scripts have no package manifest
 - [ ] PowerShell: `.psd1` module manifest is not reported by status
 - — HTML: HTML is markup; it has no declared dependencies

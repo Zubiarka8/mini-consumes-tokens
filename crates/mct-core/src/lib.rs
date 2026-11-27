@@ -166,4 +166,30 @@ pub trait LanguageParser: Send + Sync {
     /// input must be returned as [`ParseError::Syntax`], not a panic: this
     /// method runs over arbitrary, untrusted third-party source code.
     fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError>;
+
+    /// A path scheme this language roots at a project directory, which only
+    /// the indexer can see. `None` (the default) for most languages.
+    fn rooted_paths(&self) -> Option<RootedPaths> {
+        None
+    }
+
+    /// Whether every file of this language is itself one class, whose
+    /// members are the file's declarations (a GDScript script). A file
+    /// skeleton then lists that class's members instead of the class alone.
+    /// `false` (the default) for most languages.
+    fn file_is_class(&self) -> bool {
+        false
+    }
+}
+
+/// Relation-target paths written as `{scheme}{path}` are relative to the
+/// nearest directory, from the parsed file's own up to the repository root,
+/// that contains a file named `marker`. The indexer rewrites them to
+/// repository-relative paths; with no marker, the repository root is used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RootedPaths {
+    /// The prefix that marks a rooted path, e.g. `res://`.
+    pub scheme: &'static str,
+    /// The file name that marks a root directory, e.g. `project.godot`.
+    pub marker: &'static str,
 }

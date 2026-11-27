@@ -1,0 +1,21 @@
+[gd_scene load_steps=5 format=3 uid="uid://c8dungeon"]
+
+[ext_resource type="Script" uid="uid://b1hero" path="res://entities/hero.gd" id="1_hero"]
+[ext_resource type="Script" path="res://scenes/door.gd" id="2_door"]
+[ext_resource type="Resource" path="res://resources/sword.tres" id="3_sword"]
+[ext_resource type="Script" path="res://scenes/torch.gd" id="4_torch"]
+
+[node name="Hero" type="Node2D"]
+script = ExtResource("1_hero")
+
+[node name="Door" type="Area2D" parent="."]
+script = ExtResource("2_door")
+
+[node name="Sprite" type="Sprite2D" parent="Door"]
+
+[node name="Torch" type="PointLight2D" parent="."]
+script = ExtResource("4_torch")
+
+[connection signal="opened" from="Door" to="." method="take_turn"]
+[connection signal="body_entered" from="Door" to="Door" method="_on_body_entered"]
+[connection signal="ready" from="Door/Sprite" to="Door/Sprite" method="no_script_here"]

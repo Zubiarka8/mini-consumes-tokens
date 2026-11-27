@@ -482,15 +482,6 @@ fn index_file(
     if let Some(language) = manifests::manifest_language(file_name) {
         match crate::read_repository_file(&canonical) {
             Ok(bytes) => {
-                if file_name == "project.godot" && std::str::from_utf8(&bytes).is_err() {
-                    record_read_failure(
-                        index,
-                        report,
-                        &relative_path,
-                        "project.godot is not valid UTF-8".into(),
-                    )?;
-                    return Ok(Seen::Unreadable(relative_path));
-                }
                 clear_read_failure(index, &relative_path)?;
                 if manifests::is_rockspec(file_name) {
                     // Invalid UTF-8 is recorded, not skipped: skipping would
@@ -528,10 +519,6 @@ fn index_file(
                     }
                     let deps = manifests::parse_manifest(file_name, &contents);
                     write_manifest_dependencies(index, &relative_path, language, &deps)?;
-                    if file_name == "project.godot" {
-                        index_godot_autoloads(index, &relative_path, &contents, force, report)?;
-                        return Ok(Seen::ManifestAndSource(relative_path));
-                    }
                 }
             }
             // Unreadable (permissions, race): the last-read dependencies stay,
@@ -541,7 +528,27 @@ fn index_file(
                 return Ok(Seen::Unreadable(relative_path));
             }
         }
-        return Ok(Seen::Manifest(relative_path));
+        // A manifest that a language parser also claims (a project file that
+        // declares symbols) is indexed as that language's source too.
+        let extension = relative_path.rsplit('.').next().unwrap_or_default();
+        if registry.for_extension(extension).is_none() {
+            return Ok(Seen::Manifest(relative_path));
+        }
+        let file_name = file_name.to_owned();
+        return Ok(
+            match index_source(
+                index,
+                registry,
+                &canonical,
+                relative_path,
+                &file_name,
+                force,
+                report,
+            )? {
+                Seen::Source(path) => Seen::ManifestAndSource(path),
+                seen => seen,
+            },
+        );
     }
 
     if let Some(extension) = assets::asset_extension(file_name) {
@@ -557,6 +564,29 @@ fn index_file(
         );
     }
 
+    let file_name = file_name.to_owned();
+    index_source(
+        index,
+        registry,
+        &canonical,
+        relative_path,
+        &file_name,
+        force,
+        report,
+    )
+}
+
+/// The source-file half of [`index_file`]: the parser chosen by extension,
+/// the content-hash skip, then the parse and its write.
+fn index_source(
+    index: &mut Index,
+    registry: &LanguageRegistry,
+    canonical: &Path,
+    relative_path: String,
+    file_name: &str,
+    force: bool,
+    report: &mut ReindexReport,
+) -> Result<Seen> {
     // Reported as seen regardless of whether we can index this file, so a
     // stale `files`/`index_issues` row is removed once the file is deleted
     // or excluded, not just once it's re-parsed.
@@ -581,7 +611,7 @@ fn index_file(
         return Ok(Seen::Source(relative_path));
     };
 
-    let bytes = match crate::read_repository_file(&canonical) {
+    let bytes = match crate::read_repository_file(canonical) {
         Ok(b) => b,
         // Unreadable (permissions, race): not a syntax error and not an
         // unsupported language, so it is its own issue. The run carries on and
@@ -674,15 +704,15 @@ fn index_file(
     };
 
     let parsed = registry.parse(&source).map(|mut parsed| {
-        if extension == "gd" {
-            resolve_godot_paths(index.root(), &relative_path, &mut parsed);
+        if let Some(rooted) = parser.rooted_paths() {
+            resolve_rooted_paths(index.root(), &relative_path, rooted, &mut parsed);
         }
         parsed
     });
     // Parsing can be expensive and the working tree is mutable. Verify the
     // exact bytes again before writing this file into the run so an edit made
     // during either a successful or failed parse cannot be published as current.
-    let current_hash = crate::read_repository_file(&canonical)
+    let current_hash = crate::read_repository_file(canonical)
         .ok()
         .and_then(|bytes| Oid::hash_object(ObjectType::Blob, &bytes).ok())
         .map(|oid| oid.to_string());
@@ -1266,53 +1296,27 @@ fn under_prefix_sql(table: &str, column: &str) -> String {
     )
 }
 
-fn index_godot_autoloads(
-    index: &mut Index,
+/// Rewrites `rooted`'s scheme-prefixed relation paths of the file at `path`
+/// to repository-relative ones (see [`mct_core::RootedPaths`]).
+fn resolve_rooted_paths(
+    root: &Path,
     path: &str,
-    contents: &str,
-    force: bool,
-    report: &mut ReindexReport,
-) -> Result<()> {
-    let Ok(hash) = Oid::hash_object(ObjectType::Blob, contents.as_bytes()) else {
-        return Ok(());
-    };
-    let hash = hash.to_string();
-    let unchanged = index.conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM files WHERE relative_path = ?1 AND content_hash = ?2)",
-        params![path, hash],
-        |row| row.get::<_, bool>(0),
-    )?;
-    if unchanged && !force {
-        return Ok(());
-    }
-    let directory = path.rsplit_once('/').map_or("", |(directory, _)| directory);
-    let parsed = manifests::godot::autoloads(contents, directory);
-    if parsed.symbols.is_empty() {
-        index
-            .conn
-            .execute("DELETE FROM files WHERE relative_path = ?1", params![path])?;
-    } else {
-        report.symbols_written += write_parsed_file(index, path, "gdscript", &hash, &parsed)?;
-        report.files_parsed += 1;
-    }
-    Ok(())
-}
-
-/// Godot resource paths are rooted at the nearest enclosing project.godot.
-fn resolve_godot_paths(root: &Path, path: &str, parsed: &mut mct_core::ParsedFile) {
+    rooted: mct_core::RootedPaths,
+    parsed: &mut mct_core::ParsedFile,
+) {
     let Some(directory) = Path::new(path).parent() else {
         return;
     };
     let project = directory
         .ancestors()
-        .find(|dir| root.join(dir).join("project.godot").is_file())
+        .find(|dir| root.join(dir).join(rooted.marker).is_file())
         .and_then(Path::to_str)
         .unwrap_or_default();
     for target in &mut parsed.relation_targets {
         let Some(resource) = target
             .path
             .as_deref()
-            .and_then(|path| path.strip_prefix("res://"))
+            .and_then(|path| path.strip_prefix(rooted.scheme))
         else {
             continue;
         };

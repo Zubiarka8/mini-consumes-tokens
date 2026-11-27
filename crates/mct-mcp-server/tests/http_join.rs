@@ -753,3 +753,39 @@ fn crow_routes_are_declared() {
     assert_eq!(only(&project.callers("create_order")).from_symbol, "b");
     assert_eq!(only(&project.callers("show_order")).from_symbol, "c");
 }
+
+#[test]
+fn godot_http_requests_to_this_machine_use_an_endpoint() {
+    let project = Project::new(&[
+        ("server/api.rs", AXUM),
+        (
+            "game/scores.gd",
+            concat!(
+                "extends Node\n\n",
+                "const ORDERS := \"http://localhost:3000/api/orders\"\n",
+                "var http: HTTPRequest\n\n",
+                "func listed():\n",
+                "    http.request(\"http://localhost:3000/api/orders\")\n\n",
+                "func held():\n",
+                "    var probe := HTTPRequest.new()\n",
+                "    probe.request(ORDERS, [], HTTPClient.METHOD_GET)\n\n",
+                "func other(path):\n",
+                "    http.request(ORDERS, [], HTTPClient.METHOD_POST)\n",
+                "    http.request(\"https://example.com/api/orders\")\n",
+                "    http.request(\"http://localhost:3000/\" + path)\n",
+            ),
+        ),
+    ]);
+    let mut from: Vec<_> = project
+        .callers("list_orders")
+        .iter()
+        .map(|h| {
+            assert_eq!(h.resolution, Resolution::Resolved, "{h:?}");
+            h.from_symbol.clone()
+        })
+        .collect();
+    from.sort_unstable();
+    // A literal URL and one held in a constant; a POST, another host and a
+    // computed URL match no GET route.
+    assert_eq!(from, ["held", "listed"]);
+}

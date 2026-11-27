@@ -16,7 +16,7 @@
 mod composer;
 mod csproj;
 mod go;
-pub(crate) mod godot;
+mod godot;
 mod javascript;
 pub(crate) mod lua;
 mod python;

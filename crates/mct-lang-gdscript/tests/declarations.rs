@@ -9,7 +9,7 @@ use common::{detail, has_symbol, parse, relation, symbol};
 use mct_core::{Modifier, ParameterKind, RelationKind, SymbolKind};
 
 #[test]
-fn a_script_without_class_name_is_a_file_scoped_class_named_after_its_file() {
+fn a_script_without_class_name_is_a_class_named_after_its_file() {
     let file = parse(
         "enemies/slime_ai.gd",
         "extends Node\n\nfunc tick():\n    pass\n",
@@ -18,9 +18,11 @@ fn a_script_without_class_name_is_a_file_scoped_class_named_after_its_file() {
     let class = symbol(&file, "slime_ai", SymbolKind::Class);
     assert_eq!(class.parent.as_deref(), Some("slime_ai.gd"));
     assert_eq!(module.parent, None);
-    // An implicit script class has no global name, so other files must not
-    // resolve to it by name.
-    assert!(file.file_scoped.contains(&class.id));
+    // An implicit script class has no global name, but a path to its file
+    // can reach it, so it is not file-scoped: a bare name in another file
+    // never looks up a snake_case class (see `relations.rs`).
+    assert!(!file.file_scoped.contains(&class.id));
+    assert!(file.symbol_aliases.is_empty(), "{:?}", file.symbol_aliases);
     assert_eq!(
         symbol(&file, "tick", SymbolKind::Method).parent.as_deref(),
         Some("slime_ai")
@@ -34,6 +36,14 @@ fn class_name_declares_a_global_class_spanning_the_file() {
         "class_name Player\nextends Node\n\nfunc a():\n    pass\n",
     );
     let class = symbol(&file, "Player", SymbolKind::Class);
+    // A scene or `extends "player.gd"` names it by its file.
+    assert_eq!(
+        file.symbol_aliases
+            .iter()
+            .map(|a| (a.symbol, a.name.as_str()))
+            .collect::<Vec<_>>(),
+        [(class.id, "player")]
+    );
     assert!(!file.file_scoped.contains(&class.id));
     assert_eq!(class.location.line, 1);
     assert_eq!(class.location.end_line, Some(5));
@@ -213,7 +223,7 @@ fn members_signals_and_constants_have_their_kinds() {
 }
 
 #[test]
-fn named_and_anonymous_enums_own_their_entries() {
+fn named_enums_own_their_entries_and_unnamed_ones_are_class_constants() {
     let file = parse(
         "levels.gd",
         "enum State { IDLE, RUNNING = 3 }\nenum { LOW, HIGH }\n\nfunc pick():\n    return HIGH\n",
@@ -222,12 +232,13 @@ fn named_and_anonymous_enums_own_their_entries() {
         symbol(&file, "State", SymbolKind::Enum).parent.as_deref(),
         Some("levels")
     );
-    symbol(&file, "<anonymous enum>", SymbolKind::Enum);
+    // An unnamed enum has no name to reference, so it is not a symbol.
+    assert!(!file.symbols.iter().any(|s| s.name.starts_with('<')));
     for (name, owner) in [
         ("IDLE", "State"),
         ("RUNNING", "State"),
-        ("LOW", "<anonymous enum>"),
-        ("HIGH", "<anonymous enum>"),
+        ("LOW", "levels"),
+        ("HIGH", "levels"),
     ] {
         assert_eq!(
             symbol(&file, name, SymbolKind::Constant).parent.as_deref(),
@@ -235,10 +246,10 @@ fn named_and_anonymous_enums_own_their_entries() {
             "{name}"
         );
     }
-    // An anonymous enum's entries are visible from the class by bare name.
+    // Its entries are visible from the class by bare name.
     let (_, target) = relation(&file, "pick", RelationKind::References, "HIGH");
     assert_eq!(target.kind, Some(SymbolKind::Constant));
-    assert_eq!(target.qualifier.as_deref(), Some("<anonymous enum>"));
+    assert_eq!(target.qualifier.as_deref(), Some("levels"));
     assert_eq!(target.path.as_deref(), Some("levels.gd"));
 }
 

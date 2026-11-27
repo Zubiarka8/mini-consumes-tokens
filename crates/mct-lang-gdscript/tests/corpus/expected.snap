@@ -1,4 +1,4 @@
-# language=gdscript files=9 symbols=869 relations=3629 name_matched_across_files=348
+# language=gdscript files=9 symbols=868 relations=3625 name_matched_across_files=350
 
 == orchard_farm/actors/actor.gd (304 lines)
 S 1-304 module actor.gd
@@ -114,7 +114,6 @@ R 21:2 references OrchardActor::max_stamina -> export
 R 23:2 references OrchardActor::sprite -> onready
 R 24:2 references OrchardActor::shadow -> onready
 R 73:2 references OrchardActor::wanted_direction -> abstract
-R 5:9 references actor.gd::OrchardActor -> CharacterBody2D
 R 7:32 references OrchardActor::health_changed -> int
 R 7:46 references OrchardActor::health_changed -> int
 R 23:22 references OrchardActor::sprite -> AnimatedSprite2D
@@ -653,9 +652,11 @@ S 290-290 variable drop_selected::removed
 S 295-303 method Farmer::eat
 S 295-295 variable eat::id
 S 296-296 variable eat::item
-R 4:9 extends farmer.gd::Farmer -> actor.gd (name-matched: orchard_farm/actors/actor.gd)
+R 4:9 extends farmer.gd::Farmer -> actor (name-matched: orchard_farm/world/farm_grid.gd)
 R 4:9 imports farmer.gd::Farmer -> actor.gd (name-matched: orchard_farm/actors/actor.gd)
+R 6:33 references Farmer::InventoryScript -> inventory
 R 6:33 imports Farmer::InventoryScript -> inventory.gd (name-matched: orchard_farm/items/inventory.gd)
+R 7:25 references Farmer::ToolUse -> tool_use (name-matched: orchard_farm/actors/tool_use.gd)
 R 7:25 imports Farmer::ToolUse -> tool_use.gd (name-matched: orchard_farm/actors/tool_use.gd)
 R 18:2 references Farmer::grid_path -> export
 R 32:5 calls Farmer::_init -> _init
@@ -1179,7 +1180,6 @@ S 18-18 variable for_item::item
 S 30-31 method tool_use::label
 S 30-30 variable label::kind
 R 2:9 extends tool_use.gd::tool_use -> RefCounted
-R 2:9 references tool_use.gd::tool_use -> RefCounted
 R 7:22 references tool_use::TOOL_KINDS -> Kind
 R 7:27 references tool_use::TOOL_KINDS -> WATER
 R 8:24 references tool_use::TOOL_KINDS -> Kind
@@ -1344,7 +1344,6 @@ S 299-303 method game_state::can_plant_today
 S 299-299 variable can_plant_today::seed_id
 S 300-300 variable can_plant_today::item
 R 4:9 extends game_state.gd::game_state -> Node
-R 4:9 references game_state.gd::game_state -> Node
 R 9:19 references game_state::SEASONS -> ItemCatalog (name-matched: orchard_farm/items/item_catalog.gd)
 R 9:31 references game_state::SEASONS -> SPRING (name-matched: orchard_farm/items/item_catalog.gd)
 R 9:39 references game_state::SEASONS -> ItemCatalog (name-matched: orchard_farm/items/item_catalog.gd)
@@ -1950,8 +1949,8 @@ S 309-309 variable describe::lines
 S 310-310 variable describe::slot
 S 313-313 variable describe::quality
 R 4:9 extends inventory.gd::Inventory -> RefCounted
+R 6:25 references Inventory::Catalog -> item_catalog
 R 6:25 imports Inventory::Catalog -> item_catalog.gd (name-matched: orchard_farm/items/item_catalog.gd)
-R 4:9 references inventory.gd::Inventory -> RefCounted
 R 8:28 references Inventory::slot_changed -> int
 R 9:23 references Inventory::item_added -> StringName
 R 9:43 references Inventory::item_added -> int
@@ -2533,11 +2532,10 @@ S 19-19 constant Quality::POOR
 S 19-19 constant Quality::NORMAL
 S 19-19 constant Quality::GOOD
 S 19-19 constant Quality::PRIZE
-S 22-22 enum ItemCatalog::<anonymous enum>
-S 22-22 constant <anonymous enum>::SPRING
-S 22-22 constant <anonymous enum>::SUMMER
-S 22-22 constant <anonymous enum>::AUTUMN
-S 22-22 constant <anonymous enum>::WINTER
+S 22-22 constant ItemCatalog::SPRING
+S 22-22 constant ItemCatalog::SUMMER
+S 22-22 constant ItemCatalog::AUTUMN
+S 22-22 constant ItemCatalog::WINTER
 S 24-24 constant ItemCatalog::MAX_STACK
 S 25-25 constant ItemCatalog::TOOL_STACK
 S 26-26 constant ItemCatalog::PRICE_ROUNDING
@@ -2635,7 +2633,6 @@ S 302-302 variable apply_price_update::item
 S 305-305 variable apply_price_update::price
 S 313-315 method ItemCatalog::reset
 R 13:9 extends item_catalog.gd::ItemCatalog -> RefCounted
-R 13:9 references item_catalog.gd::ItemCatalog -> RefCounted
 R 28:5 references ItemCatalog::QUALITY_MULTIPLIERS -> Quality
 R 28:13 references ItemCatalog::QUALITY_MULTIPLIERS -> POOR
 R 29:5 references ItemCatalog::QUALITY_MULTIPLIERS -> Quality
@@ -3149,7 +3146,6 @@ S 277-277 variable submit_score::body
 S 278-278 variable submit_score::error
 S 282-288 method MarketClient::stats
 R 5:9 extends market_client.gd::MarketClient -> Node
-R 5:9 references market_client.gd::MarketClient -> Node
 R 7:32 references MarketClient::prices_updated -> int
 R 8:23 references MarketClient::crate_sold -> StringName
 R 8:43 references MarketClient::crate_sold -> int
@@ -3761,10 +3757,10 @@ S 336-336 variable describe_tile::cell
 S 339-339 variable describe_tile::soil_name
 S 342-342 variable describe_tile::item
 R 4:9 extends farm_grid.gd::FarmGrid -> Node2D
+R 6:25 references FarmGrid::Weather -> weather (name-matched: orchard_farm/world/weather.gd)
 R 6:25 imports FarmGrid::Weather -> weather.gd (name-matched: orchard_farm/world/weather.gd)
 R 62:2 references FarmGrid::width -> export
 R 63:2 references FarmGrid::height -> export
-R 4:9 references farm_grid.gd::FarmGrid -> Node2D
 R 8:27 references FarmGrid::tile_changed -> Vector2i
 R 9:27 references FarmGrid::crop_ripened -> Vector2i
 R 9:43 references FarmGrid::crop_ripened -> StringName
@@ -4422,7 +4418,6 @@ S 58-59 method weather::is_drought
 S 62-74 method weather::label
 S 62-62 variable label::kind
 R 2:9 extends weather.gd::weather -> Node
-R 2:9 references weather.gd::weather -> Node
 R 6:31 references weather::forecast_changed -> Kind
 R 17:14 references weather::today -> Kind
 R 17:19 references weather::today -> SUNNY

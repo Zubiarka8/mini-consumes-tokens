@@ -650,6 +650,50 @@ pub fn file_skeleton(path: &str, entries: &[SymbolListEntry], source: &str) -> S
     out
 }
 
+/// One member of a file that is itself a class, for [`class_file_skeleton`].
+pub struct ClassMember<'a> {
+    pub entry: &'a SymbolListEntry,
+    /// The parser's one-line signature, when it recorded one.
+    pub signature: Option<String>,
+}
+
+/// Renders a file that is one class (see `LanguageParser::file_is_class`):
+/// the class's `header` (its signature), then each member's signature or
+/// declaration line. A member that is a multi-line method or class gets the
+/// language's body placeholder.
+pub fn class_file_skeleton(
+    path: &str,
+    header: Option<&str>,
+    members: &[ClassMember<'_>],
+    source: &str,
+) -> String {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut out = format!("Skeleton of `{path}` (bodies collapsed):\n\n");
+    if let Some(header) = header {
+        out.push_str(header);
+        out.push('\n');
+    }
+    for ClassMember { entry, signature } in members {
+        let line = signature
+            .as_deref()
+            .or_else(|| lines.get(entry.line.saturating_sub(1) as usize).copied())
+            .unwrap_or(&entry.name);
+        out.push_str(line);
+        if matches!(entry.kind.as_str(), "method" | "class")
+            && entry.end_line.is_some_and(|end| end > entry.line)
+        {
+            out.push('\n');
+            out.push_str(if BRACE_LANGUAGES.contains(&entry.language.as_str()) {
+                "    // ..."
+            } else {
+                non_brace_placeholder(&entry.language)
+            });
+        }
+        out.push('\n');
+    }
+    out
+}
+
 /// Renders `get_file_tree`: an indented directory/file listing, two spaces
 /// per nesting level, directories suffixed with `/`. Truncated at
 /// [`DEFAULT_BYTE_BUDGET`] like every other list-shaped tool here, cut at

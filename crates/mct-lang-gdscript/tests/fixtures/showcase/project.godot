@@ -1,0 +1,10 @@
+config_version=5
+
+[application]
+config/name="Showcase Dungeon"
+
+[autoload]
+GameState="*res://systems/game_state.gd"
+
+[editor_plugins]
+enabled=PackedStringArray("res://addons/dialogue/plugin.cfg")

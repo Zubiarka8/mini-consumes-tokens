@@ -41,9 +41,15 @@ pub(super) struct HttpUse<'a> {
     owner: SymbolId,
     receiver: &'a str,
     method: &'static str,
-    url: &'a str,
+    /// A string literal, or the name of a constant that holds one.
+    url: Url<'a>,
     site: Location,
     offset: usize,
+}
+
+enum Url<'a> {
+    Literal(&'a str),
+    Constant(&'a str),
 }
 
 pub(super) struct Pending<'a> {
@@ -61,20 +67,9 @@ impl<'a> Walker<'a> {
             "extends_statement" => {
                 if let Some(target) = first_named(node) {
                     if let Some(path) = self.script_path(target) {
-                        let name = basename(&path).to_owned();
-                        for kind in [RelationKind::Extends, RelationKind::Imports] {
-                            self.emit(
-                                owner,
-                                kind,
-                                &name,
-                                location(target),
-                                RelationTarget {
-                                    path: Some(path.clone()),
-                                    kind: Some(SymbolKind::Module),
-                                    ..Default::default()
-                                },
-                            );
-                        }
+                        // The base is the script's class; the file is imported.
+                        self.emit_script_class(owner, RelationKind::Extends, &path, target);
+                        self.emit_import(owner, &path, target);
                     } else if target.kind() == "type" {
                         let name = self.text(target);
                         let (qualifier, name) = name
@@ -144,20 +139,13 @@ impl<'a> Walker<'a> {
             if let Some((arg, path)) = node
                 .child_by_field_name("arguments")
                 .and_then(first_named)
-                .and_then(|arg| self.script_path(arg).map(|path| (arg, path)))
+                .and_then(|arg| self.resource_path(arg).map(|path| (arg, path)))
             {
-                let target = basename(&path).to_owned();
-                self.emit(
-                    owner,
-                    RelationKind::Imports,
-                    &target,
-                    location(arg),
-                    RelationTarget {
-                        path: Some(path),
-                        kind: Some(SymbolKind::Module),
-                        ..Default::default()
-                    },
-                );
+                if path.ends_with(".gd") {
+                    // A loaded script is a use of its class.
+                    self.emit_script_class(owner, RelationKind::References, &path, arg);
+                }
+                self.emit_import(owner, &path, arg);
             }
             return;
         }
@@ -235,6 +223,7 @@ impl<'a> Walker<'a> {
             || parent.kind() == "pair"
                 && parent.child_by_field_name("left") == Some(node)
                 && find_child(parent, "=").is_some()
+            || in_extends(node)
         {
             return;
         }
@@ -269,8 +258,23 @@ impl<'a> Walker<'a> {
             .filter(|n| n.kind() == "type")
         {
             self.receiver_types.insert(id, self.text(ty));
+        } else if let Some(class) = node
+            .child_by_field_name("type")
+            .filter(|n| n.kind() == "inferred_type")
+            .and_then(|_| node.child_by_field_name("value"))
+            .and_then(|value| self.constructed_class(value))
+        {
+            // `var x := Name.new()`: the type is fixed at the declaration.
+            self.receiver_types.insert(id, class);
         }
         if node.kind() == "const_statement" {
+            if let Some(text) = node
+                .child_by_field_name("value")
+                .filter(|n| n.kind() == "string")
+                .and_then(|n| unquote(self.text(n)))
+            {
+                self.constant_strings.insert(id, text);
+            }
             if let Some(value) = node
                 .child_by_field_name("value")
                 .filter(|n| n.kind() == "call")
@@ -288,17 +292,30 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// `Name` in a `Name.new(...)` expression.
+    fn constructed_class(&self, value: Node<'_>) -> Option<&'a str> {
+        if value.kind() != "attribute" || value.named_child_count() != 2 {
+            return None;
+        }
+        let class = value.named_child(0).filter(|n| n.kind() == "identifier")?;
+        let call = value
+            .named_child(1)
+            .filter(|n| n.kind() == "attribute_call")?;
+        let method = first_named(call)?;
+        (self.text(method) == "new").then(|| self.text(class))
+    }
+
     fn observe_http(&mut self, node: Node<'_>, owner: SymbolId, receiver: &'a str) {
         let Some(args) = node.child_by_field_name("arguments") else {
             return;
         };
         let mut cursor = args.walk();
         let mut args = args.named_children(&mut cursor).filter(|n| !n.is_extra());
-        let Some(url) = args
-            .next()
-            .filter(|n| n.kind() == "string")
-            .and_then(|n| unquote(self.text(n)))
-        else {
+        let Some(url) = args.next().and_then(|n| match n.kind() {
+            "string" => unquote(self.text(n)).map(Url::Literal),
+            "identifier" => Some(Url::Constant(self.text(n))),
+            _ => None,
+        }) else {
             return;
         };
         let method = match args.nth(1).map(|n| self.text(n)) {
@@ -321,7 +338,51 @@ impl<'a> Walker<'a> {
         });
     }
 
+    /// `Imports` of the file at `path`, a module.
+    fn emit_import(&mut self, owner: SymbolId, path: &str, site: Node<'_>) {
+        self.emit(
+            owner,
+            RelationKind::Imports,
+            basename(path),
+            location(site),
+            RelationTarget {
+                path: Some(path.to_owned()),
+                kind: Some(SymbolKind::Module),
+                ..Default::default()
+            },
+        );
+    }
+
+    /// A `kind` relation to the class of the script at `path`, named after
+    /// its file (see [`crate::script_class_name`]).
+    fn emit_script_class(
+        &mut self,
+        owner: SymbolId,
+        kind: RelationKind,
+        path: &str,
+        site: Node<'_>,
+    ) {
+        self.emit(
+            owner,
+            kind,
+            crate::script_class_name(path),
+            location(site),
+            RelationTarget {
+                path: Some(path.to_owned()),
+                kind: Some(SymbolKind::Class),
+                ..Default::default()
+            },
+        );
+    }
+
+    /// A local `.gd` script path, `res://`-rooted or relative to this file.
     fn script_path(&self, string: Node<'_>) -> Option<String> {
+        self.resource_path(string)
+            .filter(|path| path.ends_with(".gd"))
+    }
+
+    /// A local script, scene (`.tscn`) or text resource (`.tres`) path.
+    fn resource_path(&self, string: Node<'_>) -> Option<String> {
         if string.kind() != "string" {
             return None;
         }
@@ -336,7 +397,12 @@ impl<'a> Walker<'a> {
                 value,
             ),
         };
-        if !path.ends_with(".gd") || path.starts_with('/') || path.contains([':', '\\']) {
+        if !crate::RESOURCE_EXTENSIONS
+            .iter()
+            .any(|extension| path.ends_with(&format!(".{extension}")))
+            || path.starts_with('/')
+            || path.contains([':', '\\'])
+        {
             return None;
         }
         let mut parts: Vec<_> = base.split('/').filter(|s| !s.is_empty()).collect();
@@ -379,9 +445,15 @@ impl<'a> Walker<'a> {
     pub(super) fn finish_relations(&mut self) {
         for http in std::mem::take(&mut self.http_uses) {
             let binding = self.find_binding(http.owner, http.receiver, http.offset, false);
+            let url = match http.url {
+                Url::Literal(url) => Some(url),
+                Url::Constant(name) => self
+                    .find_binding(http.owner, name, http.offset, false)
+                    .and_then(|id| self.constant_strings.get(&id).copied()),
+            };
             if binding.and_then(|id| self.receiver_types.get(&id)) == Some(&"HTTPRequest") {
-                if let Some(point) =
-                    JoinPoint::http_uses(http.owner, http.method, http.url, http.site)
+                if let Some(point) = url
+                    .and_then(|url| JoinPoint::http_uses(http.owner, http.method, url, http.site))
                 {
                     self.result.join_points.push(point);
                 }
@@ -409,7 +481,17 @@ impl<'a> Walker<'a> {
                             target.kind = Some(SymbolKind::Method);
                         }
                     } else if let Some(ty) = binding.and_then(|id| self.receiver_types.get(&id)) {
-                        target.qualifier = Some((*ty).into());
+                        // A type named by a preload constant is that script.
+                        match self
+                            .find_binding(from, ty, offset, false)
+                            .and_then(|id| self.preloaded_scripts.get(&id))
+                        {
+                            Some(path) => {
+                                target.module = Some(basename(path).into());
+                                target.path = Some(path.clone());
+                            }
+                            None => target.qualifier = Some((*ty).into()),
+                        }
                     } else if let Some(receiver) = receiver.filter(|_| {
                         binding.is_none() && name == "new" && kind == RelationKind::Calls
                     }) {
@@ -454,16 +536,35 @@ impl<'a> Walker<'a> {
                         target.path = Some(self.file.relative_path.clone());
                     } else if kind == RelationKind::References && matches!(name, "self" | "super") {
                         continue;
-                    } else {
-                        // An unbound bare name may refer to a Godot global,
-                        // an inherited member or a class registered by name.
-                        // Only global class names should resolve across files.
+                    } else if is_type_name(name) {
+                        // A PascalCase bare name is a `class_name` global, an
+                        // autoload or an engine class.
                         target.kind = Some(SymbolKind::Class);
+                    } else if let Some(class) = self.enclosing_class(from) {
+                        // Any other unbound name is an inherited member or an
+                        // engine one. Qualified by its class, with no path,
+                        // the index finds it on the class's ancestors only.
+                        if kind == RelationKind::Calls {
+                            target.kind = Some(SymbolKind::Method);
+                        }
+                        target.qualifier = Some(self.result.symbols[class as usize].name.clone());
                     }
                 }
             }
             self.emit(from, kind, target_name, site, target);
         }
+    }
+
+    /// The nearest class enclosing `from`, itself included.
+    fn enclosing_class(&self, from: SymbolId) -> Option<SymbolId> {
+        let mut scope = Some(from);
+        while let Some(owner) = scope {
+            if self.result.symbols[owner as usize].kind == SymbolKind::Class {
+                return Some(owner);
+            }
+            scope = self.scopes[owner as usize];
+        }
+        None
     }
 
     fn find_binding(
@@ -516,9 +617,23 @@ impl<'a> Walker<'a> {
     }
 }
 
+/// Whether `node` is part of an `extends` base, already an `Extends`.
+fn in_extends(node: Node<'_>) -> bool {
+    let mut current = node.parent();
+    while let Some(parent) = current.filter(|p| matches!(p.kind(), "type" | "attribute")) {
+        current = parent.parent();
+    }
+    current.is_some_and(|p| p.kind() == "extends_statement")
+}
+
 /// Godot names classes, autoloads and engine singletons in PascalCase.
 fn is_global_name(name: &str) -> bool {
     name.starts_with(|c: char| c.is_ascii_uppercase())
+}
+
+/// A PascalCase type name, not an `UPPER_SNAKE` constant.
+fn is_type_name(name: &str) -> bool {
+    is_global_name(name) && name.contains(|c: char| c.is_ascii_lowercase())
 }
 
 fn unquote(text: &str) -> Option<&str> {

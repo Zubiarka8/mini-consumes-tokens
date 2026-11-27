@@ -471,60 +471,45 @@ fn is_top_level(entry: &mct_index::SymbolListEntry, shape: &FileShape) -> bool {
     !clashes || entry.kind == "function"
 }
 
-/// A GDScript file is itself a class. Show its members as file declarations
-/// and collapse nested classes like the other skeleton renderers do.
-fn gdscript_skeleton(
+/// The skeleton of a file whose language declares every file one class
+/// (`LanguageParser::file_is_class`): that class's members, with the class's
+/// signature as the header. `None` when the file has no such class.
+fn class_file_skeleton(
     index: &Index,
     path: &str,
     entries: &[mct_index::SymbolListEntry],
     source: &str,
-) -> Result<String, McpError> {
+) -> Result<Option<String>, McpError> {
     let shape = file_shape(entries);
-    let Some(script) = entries
+    let Some(class) = entries
         .iter()
         .find(|entry| entry.kind == "class" && is_top_level(entry, &shape))
     else {
-        return Ok(format::file_skeleton(path, &[], source));
+        return Ok(None);
     };
-    let mut out = format!("Skeleton of `{path}` (bodies collapsed):\n\n");
-    let lines: Vec<_> = source.lines().collect();
-    // Print explicit class_name and extends headers, even when annotations
-    // occupy the class symbol's first line.
-    for line in lines
-        .iter()
-        .take_while(|line| {
-            let line = line.trim();
-            line.is_empty()
-                || line.starts_with(['#', '@'])
-                || line.starts_with("class_name ")
-                || line.starts_with("extends ")
-        })
-        .filter(|line| line.starts_with("class_name ") || line.starts_with("extends "))
-    {
-        out.push_str(line);
-        out.push('\n');
-    }
-    for entry in entries
-        .iter()
-        .filter(|entry| entry.parent.as_deref() == Some(&script.name))
-    {
-        let details = index
+    let signature = |entry: &mct_index::SymbolListEntry| {
+        index
             .symbol_details(path, entry.line, &entry.name)
-            .map_err(index_error)?;
-        let header = details
-            .as_ref()
-            .and_then(|detail| detail.signature.as_deref())
-            .or_else(|| lines.get(entry.line.saturating_sub(1) as usize).copied())
-            .unwrap_or(&entry.name);
-        out.push_str(header);
-        if matches!(entry.kind.as_str(), "method" | "class")
-            && entry.end_line.is_some_and(|end| end > entry.line)
-        {
-            out.push_str("\n    # ...");
-        }
-        out.push('\n');
-    }
-    Ok(out)
+            .map(|details| details.and_then(|detail| detail.signature))
+            .map_err(index_error)
+    };
+    let header = signature(class)?;
+    let members = entries
+        .iter()
+        .filter(|entry| entry.parent.as_deref() == Some(&class.name))
+        .map(|entry| {
+            Ok(format::ClassMember {
+                entry,
+                signature: signature(entry)?,
+            })
+        })
+        .collect::<Result<Vec<_>, McpError>>()?;
+    Ok(Some(format::class_file_skeleton(
+        path,
+        header.as_deref(),
+        &members,
+        source,
+    )))
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -3073,14 +3058,17 @@ impl MctServer {
         }
         let source = read_source_file(&index, path)?;
         let all = index.list_symbols(path, None, None).map_err(index_error)?;
-        if path.ends_with(".gd")
-            && all
-                .first()
-                .is_some_and(|entry| entry.language == "gdscript")
+        let extension = path
+            .rsplit('/')
+            .next()
+            .and_then(|name| name.rsplit_once('.'));
+        if extension
+            .and_then(|(_, extension)| self.registry.for_extension(extension))
+            .is_some_and(|parser| parser.file_is_class())
         {
-            return Ok(CallToolResult::success(vec![ContentBlock::text(
-                gdscript_skeleton(&index, path, &all, &source)?,
-            )]));
+            if let Some(text) = class_file_skeleton(&index, path, &all, &source)? {
+                return Ok(CallToolResult::success(vec![ContentBlock::text(text)]));
+            }
         }
         let shape = file_shape(&all);
         let entries: Vec<_> = all
