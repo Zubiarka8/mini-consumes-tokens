@@ -71,8 +71,8 @@ Windows) with `README.md`, `LICENSE`, `THIRD_PARTY_NOTICES.md` and
 (`packaging/nfpm.yaml`, named `…-linux-<arch>.deb`/`.rpm`), and attaches all
 twelve files to a new GitHub Release at that tag.
 The binaries are built without the optional `semantic` feature. They are
-built from this repository, so they include the patched Markdown parser in
-`vendor/tree-sitter-md`.
+built from this repository, so they include the patched Markdown and PHP parsers in
+[`vendor/tree-sitter-md`](vendor/tree-sitter-md) and [`vendor/tree-sitter-php`](vendor/tree-sitter-php).
 
 Watch the run. If any platform job fails, nothing is published; fix it and
 push a new patch tag (`v0.2.1`) rather than force-moving a pushed tag.
@@ -98,12 +98,17 @@ remove the patch to get around it. Publishing only the crates that do not
 depend on `mct-lang-md` is possible but gives users nothing installable, so
 the whole crates.io channel waits.
 
-When the block is lifted:
+`mct-lang-php` uses a path dependency on the vendored `tree-sitter-php`
+grammar for PHP 8.5 final property promotion. Cargo packaging resolves that
+dependency from the registry by version. Before publishing `mct-lang-php`,
+switch to an upstream release that supports final property promotion.
 
-1. Replace the patch with the fixed upstream version, delete
+When the blocks are lifted:
+
+1. Replace the Markdown patch with the fixed upstream version, delete
    `vendor/tree-sitter-md` and the matching `[patch.crates-io]` entries in
-   every `crates/*/fuzz/Cargo.toml`, and rerun the full checks and the
-   Markdown fuzz target.
+   every `crates/*/fuzz/Cargo.toml`, and switch `mct-lang-php` to the fixed
+   upstream PHP grammar. Rerun the full checks and the Markdown fuzz target.
 2. Log in once with `cargo login` (token from https://crates.io/settings/tokens;
    this repository has no crates.io secret, so publishing stays local).
 3. `cargo publish --dry-run -p <crate>` for each crate, then publish in
