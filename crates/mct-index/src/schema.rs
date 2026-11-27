@@ -2854,6 +2854,27 @@ pub fn migrations() -> Migrations<'static> {
             shadowed_module_predicate!(),
             ";",
         )),
+        // 36: path catalog (#629, ADR-052). One row per walked, non-excluded
+        // file, keyed by the same canonical relative path as `files`, with
+        // its category, canonical format, the evidence for them and the
+        // change signals that let an unchanged file skip reclassification.
+        // Filled by the next reindex; no content hash is invalidated.
+        M::up(
+            r#"
+            CREATE TABLE path_catalog (
+                relative_path TEXT PRIMARY KEY,
+                category      TEXT NOT NULL,
+                format        TEXT NOT NULL,
+                evidence      TEXT NOT NULL,
+                note          TEXT,
+                size_bytes    INTEGER,
+                modified_ns   INTEGER NOT NULL,
+                rules         TEXT NOT NULL
+            );
+            CREATE INDEX idx_path_catalog_category ON path_catalog(category, relative_path);
+            CREATE INDEX idx_path_catalog_format ON path_catalog(format, relative_path);
+            "#,
+        ),
     ])
 }
 
@@ -2865,6 +2886,36 @@ mod tests {
     use rusqlite::Connection;
 
     use super::migrations;
+
+    #[test]
+    fn path_catalog_migration_adds_an_empty_catalog_beside_existing_files(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut conn = Connection::open_in_memory()?;
+        crate::search::register_functions(&conn)?;
+        migrations().to_version(&mut conn, 35)?;
+        conn.execute_batch(
+            "INSERT INTO files (id, relative_path, language, content_hash, last_indexed_at)
+             VALUES (1, 'src/lib.rs', 'rust', 'abc', 0);",
+        )?;
+        migrations().to_latest(&mut conn)?;
+        let (files, catalog): (i64, i64) = conn.query_row(
+            "SELECT (SELECT COUNT(*) FROM files), (SELECT COUNT(*) FROM path_catalog)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        assert_eq!((files, catalog), (1, 0));
+        let hash: String =
+            conn.query_row("SELECT content_hash FROM files WHERE id = 1", [], |row| {
+                row.get(0)
+            })?;
+        assert_eq!(hash, "abc", "the catalog must not force a reparse");
+        conn.execute(
+            "INSERT INTO path_catalog (relative_path, category, format, evidence, modified_ns, rules)
+             VALUES ('docs/a.pdf', 'document', 'pdf', 'extension', 0, 'v1')",
+            [],
+        )?;
+        Ok(())
+    }
 
     #[test]
     fn path_pinned_alias_migration_offers_an_alias_in_the_pinned_file_only(

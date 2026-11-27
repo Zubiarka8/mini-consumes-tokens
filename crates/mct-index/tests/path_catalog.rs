@@ -179,3 +179,91 @@ fn baseline_files_rows_cover_only_parsed_files_and_assets() {
         assert!(!paths.contains(&excluded.to_string()), "{excluded}");
     }
 }
+
+fn class_of(index: &Index, path: &str) -> (String, String, String) {
+    let entry = index
+        .catalog_entry(path)
+        .unwrap()
+        .unwrap_or_else(|| panic!("{path} is not catalogued"));
+    (entry.category, entry.format, entry.evidence)
+}
+
+fn class(category: &str, format: &str, evidence: &str) -> (String, String, String) {
+    (category.into(), format.into(), evidence.into())
+}
+
+#[test]
+fn a_new_index_catalogues_paths_no_parser_claims() {
+    let (_dir, index) = indexed_fixture();
+    assert_eq!(
+        class_of(&index, "docs/manual.pdf"),
+        class("document", "pdf", "extension")
+    );
+    assert_eq!(
+        class_of(&index, "demo/audio/intro.mp3"),
+        class("audio", "mp3", "extension")
+    );
+    assert_eq!(
+        class_of(&index, "other/blob.xyz"),
+        class("other", "", "unknown")
+    );
+    let pdf = index.catalog_entry("docs/manual.pdf").unwrap().unwrap();
+    assert_eq!(pdf.size_bytes, Some(9));
+}
+
+#[test]
+fn a_file_with_a_parser_keeps_its_symbols_and_gets_a_catalog_row() {
+    let (_dir, index) = indexed_fixture();
+    assert_eq!(
+        class_of(&index, "brand/logo.svg"),
+        class("vector", "svg", "extension")
+    );
+    assert_eq!(
+        class_of(&index, "data/config.json"),
+        class("data", "json", "extension")
+    );
+    assert_eq!(
+        class_of(&index, "src/lib.rs"),
+        class("source", "rust", "parser")
+    );
+    let documents: Vec<String> = index
+        .find_symbol("document")
+        .unwrap()
+        .into_iter()
+        .map(|s| s.relative_path)
+        .collect();
+    assert!(
+        documents.contains(&"brand/logo.svg".to_string()),
+        "{documents:?}"
+    );
+    assert!(
+        documents.contains(&"data/config.json".to_string()),
+        "{documents:?}"
+    );
+}
+
+#[test]
+fn reindexing_the_same_tree_keeps_one_row_per_path() {
+    let (_dir, mut index) = indexed_fixture();
+    let before = index.catalog_entry("img/photo.JPG").unwrap();
+    let report = index.reindex(&registry(), false).unwrap();
+    assert!(!report.published, "an unchanged tree must not publish");
+    index.reindex(&registry(), true).unwrap();
+    assert_eq!(index.catalog_entry("img/photo.JPG").unwrap(), before);
+}
+
+#[test]
+fn an_index_file_reopened_on_disk_serves_the_catalog() {
+    let dir = fixture();
+    let db = dir.join(".mct-index/index.sqlite3");
+    fs::create_dir_all(db.parent().unwrap()).unwrap();
+    {
+        let mut index = Index::open(&dir, &db, ExcludeSet::for_project(&dir)).unwrap();
+        index.reindex(&registry(), false).unwrap();
+    }
+    let index = Index::open(&dir, &db, ExcludeSet::for_project(&dir)).unwrap();
+    assert_eq!(
+        class_of(&index, "sheets/budget.xlsx"),
+        class("spreadsheet", "xlsx", "extension")
+    );
+}
