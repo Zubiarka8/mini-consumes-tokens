@@ -16,6 +16,7 @@ mod exclude;
 mod file_role;
 mod file_tree;
 mod incidents;
+mod index_compare;
 mod indexer;
 mod join_resolution;
 pub mod luarocks;
@@ -71,6 +72,9 @@ pub use exclude::{
 pub use file_role::{file_role, path_role, FileRole};
 pub use file_tree::FileTreeNode;
 pub use incidents::{log_incident, Incident};
+pub use index_compare::{
+    compare_indexes, IndexComparison, OutcomeChange, RowChanges, COMPARE_EXAMPLES,
+};
 pub use indexer::{
     AliasSource, CaseMismatch, DependencyInfo, IndexStatus, IndexedFile, LanguageCoverage,
     ManifestDependencies, ReindexReport, UnsupportedFile, UnsupportedKind,

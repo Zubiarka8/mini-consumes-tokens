@@ -5,6 +5,7 @@ use mct_core::{LanguageRegistry, ParseError, SourceFile};
 use mct_index::{ExcludeSet, Index};
 use mct_languages::build_registry;
 
+mod compare_index;
 mod duplicates;
 mod ignore_preset;
 mod impact;
@@ -103,6 +104,27 @@ enum Command {
         /// Print changed files, their symbols, and graph-linked tests.
         #[arg(long)]
         summary: bool,
+    },
+    /// Compare two index databases of this project, read-only.
+    ///
+    /// Files are matched by path, symbols by path, kind, parent and name,
+    /// relations by their source symbol, kind and target name — never by
+    /// SQLite row ids. Prints what was added and removed and how many
+    /// relations were decided differently (`ambiguous -> resolved`), with
+    /// examples. Neither database is migrated, reindexed or written: an
+    /// index on an older schema is refused.
+    #[command(after_help = "Example:\n  mct-cli --root . compare-index --before /tmp/old.sqlite3")]
+    CompareIndex {
+        /// The index database to compare from.
+        #[arg(long)]
+        before: PathBuf,
+        /// The index database to compare to; this project's
+        /// `.mct-index/index.sqlite3` when omitted.
+        #[arg(long)]
+        after: Option<PathBuf>,
+        /// Examples listed per section.
+        #[arg(long, default_value_t = mct_index::COMPARE_EXAMPLES)]
+        examples: usize,
     },
     /// Report the definitions a Git change touches, with callers and tests.
     ///
@@ -383,6 +405,7 @@ impl Command {
             Command::Init { .. } => "init",
             Command::Reindex { .. } => "reindex",
             Command::Impact { .. } => "impact",
+            Command::CompareIndex { .. } => "compare-index",
             Command::Obsidian => "obsidian",
             Command::Web { .. } => "web",
             Command::Call { .. } => "call",
@@ -491,6 +514,14 @@ fn run_single(root: PathBuf, command: Command) -> anyhow::Result<()> {
     if let Command::Update = command {
         return self_update();
     }
+    if let Command::CompareIndex {
+        before,
+        after,
+        examples,
+    } = &command
+    {
+        return compare_index::run(&root, before, after.as_deref(), *examples);
+    }
     // Does not create or mutate the index; it may save its report cache beside
     // the existing database, so it checks for the database before running.
     if let Command::Duplicates { options } = command {
@@ -586,6 +617,7 @@ fn run_single(root: PathBuf, command: Command) -> anyhow::Result<()> {
         | Command::Probe { .. }
         | Command::Duplicates { .. }
         | Command::Web { .. }
+        | Command::CompareIndex { .. }
         | Command::Update => {
             unreachable!("returned above")
         }
