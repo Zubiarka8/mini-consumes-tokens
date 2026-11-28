@@ -590,6 +590,34 @@ pub struct FindDeadCodeArgs {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct FindPathArgs {
+    /// Exact name of the symbol the path starts at.
+    pub from: String,
+    /// Exact name of the symbol the path ends at.
+    pub to: String,
+    /// Narrows `from`'s definitions to a file or directory/crate prefix.
+    #[serde(default)]
+    pub from_path: Option<String>,
+    /// Narrows `to`'s definitions to a file or directory/crate prefix.
+    #[serde(default)]
+    pub to_path: Option<String>,
+    /// Narrows both ends to one language id.
+    #[serde(default)]
+    pub language: Option<String>,
+    /// `calls` (default) follows calls only; `references` also follows
+    /// references (a function passed as a value, a type named).
+    #[serde(default)]
+    pub direction: Option<String>,
+    /// Most calls the path may have. Defaults to 6; clamped to
+    /// `mct_core::MAX_QUERY_DEPTH`.
+    #[serde(default)]
+    pub max_depth: Option<u32>,
+    /// Response shape: `toon` (default) or `text`.
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct GetDependencyGraphArgs {
     /// Repo-relative file or directory path (forward slashes) whose imports
     /// to follow. A directory counts as one module.
@@ -800,6 +828,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "impact_analysis",
             "diff_impact",
             "build_context_pack",
+            "find_path",
             "get_dependency_graph",
         ],
     ),
@@ -2067,6 +2096,7 @@ impl MctServer {
             "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
             "find_duplicate_code" => self.find_duplicate_code(batch_params(tool, args)?).await,
             "get_dependency_graph" => self.get_dependency_graph(batch_params(tool, args)?).await,
+            "find_path" => self.find_path(batch_params(tool, args)?).await,
             "discover_tool_categories" => self.discover_tool_categories().await,
             "get_tool_schema" => self.get_tool_schema(batch_params(tool, args)?).await,
             "batch" => Err(McpError::invalid_params(
@@ -3476,6 +3506,47 @@ impl MctServer {
         // Keep detection and the hashes used by review fingerprints in one generation.
         let _snapshot = index.read_snapshot().map_err(index_error)?;
         let text = duplicate_query::run(&index, args)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Shortest call path between two symbols; see tools.ttc")]
+    pub async fn find_path(
+        &self,
+        Parameters(args): Parameters<FindPathArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let from = validate_name(&args.from)?;
+        let to = validate_name(&args.to)?;
+        let max_hops = args
+            .max_depth
+            .unwrap_or(6)
+            .clamp(1, mct_core::MAX_QUERY_DEPTH);
+        let output_format = parse_output_format(args.format.as_deref())?;
+        let calls_only = match args.direction.as_deref().map(str::trim) {
+            None | Some("") | Some("calls") => true,
+            Some("references") => false,
+            Some(other) => {
+                return Err(McpError::invalid_params(
+                    format!("direction must be one of calls, references — got `{other}`"),
+                    None,
+                ))
+            }
+        };
+        let language = optional_arg(args.language.as_ref());
+        let from_scope = query_scope(optional_arg(args.from_path.as_ref()), language);
+        let to_scope = query_scope(optional_arg(args.to_path.as_ref()), language);
+        let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
+        let (starts, ends, search) = index
+            .find_path((from, from_scope), (to, to_scope), (max_hops, calls_only))
+            .map_err(index_error)?;
+        let text = format::find_path(
+            (from, starts),
+            (to, ends),
+            (max_hops, calls_only),
+            &search,
+            output_format == OutputFormat::Toon,
+        );
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
