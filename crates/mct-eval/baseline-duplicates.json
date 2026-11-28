@@ -1,6 +1,6 @@
 {
   "suite": "duplicate-app",
-  "catalog_tokens": 12167,
+  "catalog_tokens": 13392,
   "cases": {
     "Python duplicate group path scope": {
       "score": 1.0,

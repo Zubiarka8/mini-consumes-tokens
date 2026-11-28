@@ -1,6 +1,6 @@
 {
   "suite": "resolution-app",
-  "catalog_tokens": 12169,
+  "catalog_tokens": 13392,
   "cases": {
     "bash: a shell builtin": {
       "score": 0.0,

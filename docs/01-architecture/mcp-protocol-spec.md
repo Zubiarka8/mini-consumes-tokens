@@ -19,6 +19,7 @@
 | `diff_impact` | composite | What a Git change touches since the merge base of `base`: changed definitions with callers, tests (why, confirmed or possible) and unproven referrers; removed definitions still named; a stale file makes the answer partial (#632) |
 | `find_dead_code` | analysis | Review-aware candidates with zero indexed references; TOON or text ([ADR-023](adrs/023-mcp-dead-code-reviews.md)) |
 | `find_duplicate_code` | analysis | Review-aware whole-function duplicate candidates; compact bounded references ([ADR-022](adrs/022-mcp-duplicate-findings.md)) |
+| `find_path` | composite | Shortest call path between two symbols; confirmed only when every call resolved, else a possible path with each ambiguous call marked (#633) |
 | `get_dependency_graph` | composite | Module-level import graph: nodes by hop, resolved import edges, cycles, external imports, optional DOT/Mermaid |
 | `build_context_pack` | composite | Definition + doc + capped source, and every caller/callee/dependency/test once, in one call |
 | `get_file_skeleton` | discovery | Top-level shape of one file, bodies collapsed |

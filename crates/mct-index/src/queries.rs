@@ -1142,6 +1142,28 @@ pub(crate) fn relations_reaching_symbol(
     query_relations_page(conn, predicate, symbol_id, scope, limit, 0)
 }
 
+/// Every call made by the one symbol row `symbol_id` — and, unless
+/// `calls_only`, every reference — the forward hop of [`crate::path_search`].
+pub(crate) fn relations_from_symbol(
+    conn: &Connection,
+    symbol_id: i64,
+    calls_only: bool,
+) -> Result<Vec<RelationHit>> {
+    let predicate = if calls_only {
+        "r.from_symbol_id = ?1 AND r.kind = 'calls'"
+    } else {
+        "r.from_symbol_id = ?1 AND r.kind IN ('calls', 'references', 'renders')"
+    };
+    query_relations_page(
+        conn,
+        predicate,
+        symbol_id,
+        ResolvedScope::default(),
+        None,
+        0,
+    )
+}
+
 /// Every symbol row named `name` within `scope` — the start nodes of a walk.
 pub(crate) fn symbol_ids_named(
     conn: &Connection,

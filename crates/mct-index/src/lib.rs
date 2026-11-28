@@ -21,6 +21,7 @@ mod join_resolution;
 pub mod luarocks;
 mod manifests;
 mod parallel_parse;
+mod path_search;
 mod queries;
 mod read_limits;
 pub mod reviews;
@@ -74,6 +75,7 @@ pub use indexer::{
     AliasSource, CaseMismatch, DependencyInfo, IndexStatus, IndexedFile, LanguageCoverage,
     ManifestDependencies, ReindexReport, UnsupportedFile, UnsupportedKind,
 };
+pub use path_search::{PathSearch, PathStep, MAX_PATH_SYMBOLS};
 pub use queries::{
     CandidateRef, DeclarationDetails, DeclaredParameter, QueryScope, ReferencedSymbols,
     RelationDirection, RelationHit, RelationPage, Resolution, ResolutionEvidence, SymbolHit,
@@ -939,6 +941,27 @@ impl Index {
     /// The symbols with the given row ids ([`SymbolHit::id`],
     /// [`RelationHit::target_id`], [`RelationHit::from_symbol_id`]), in id
     /// order. Ids from before a reindex of their file are simply absent.
+    /// The shortest path from a definition of `from` to one of `to`, each
+    /// narrowed by its scope, at most `max_hops` relations long, over calls
+    /// only or calls and references (issue #633): confirmed when every
+    /// relation resolved, else possible through ambiguous ones. Also returns
+    /// how many definitions each name has.
+    pub fn find_path(
+        &self,
+        (from, from_scope): (&str, QueryScope<'_>),
+        (to, to_scope): (&str, QueryScope<'_>),
+        (max_hops, calls_only): (u32, bool),
+    ) -> Result<(usize, usize, PathSearch)> {
+        let start = queries::symbol_ids_named(&self.conn, from, self.resolve_scope(from_scope))?;
+        let end = queries::symbol_ids_named(&self.conn, to, self.resolve_scope(to_scope))?;
+        let search = if start.is_empty() || end.is_empty() {
+            PathSearch::default()
+        } else {
+            path_search::find_path(self, &start, &end, max_hops, calls_only)?
+        };
+        Ok((start.len(), end.len(), search))
+    }
+
     pub fn symbols_by_ids(&self, ids: &[i64]) -> Result<Vec<SymbolHit>> {
         queries::symbols_by_ids(&self.conn, ids)
     }

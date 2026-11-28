@@ -179,6 +179,14 @@ PRE root-relative `path`; `limit` 1..100; `max_tokens` 512..16000.
 POST reviews filtered before paging; evidence/omissions, generation/snapshot, `next_offset`; `group_id`/`member_offset` continue members.
 EFFECTS read; index, source, reviews.
 
+TOOL find_path
+WHEN does `from` reach `to` through calls? shortest call path, each hop.
+ERR not who calls what (use find_callers/find_calls); never imports.
+TAGS path, reachability, call-chain, graph
+PRE `from`, `to` exact names; `from_path`/`to_path`/`language` pick homonyms; `direction` calls|references; `max_depth` (6).
+POST confirmed path, or a possible one through ambiguous calls (marked), or none with symbols searched.
+EFFECTS read; index only.
+
 TOOL get_dependency_graph
 WHEN module import graph, `depth` hops, cycles flagged; `export` dot|mermaid.
 ERR imports only (use find_calls); cycles limited to explored depth.
