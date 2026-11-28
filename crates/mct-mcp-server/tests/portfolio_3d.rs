@@ -58,6 +58,7 @@ async fn an_asset_definition_is_packed_without_source() {
         &server
             .build_context_pack(Parameters(BuildContextPackArgs {
                 symbol: "robot.gltf".to_string(),
+                symbols: None,
                 path: None,
                 language: None,
                 depth: None,
