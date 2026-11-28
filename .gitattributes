@@ -22,3 +22,6 @@ crates/mct-lang-md/tests/fixtures/vault/** text eol=lf
 # "---\n" front matter; a CRLF checkout on Windows breaks that parse and
 # would install CRLF copies.
 crates/mct-cli/skills/**/SKILL.md text eol=lf
+
+# Path catalog fixture: exact bytes and sizes on every platform (#629).
+crates/mct-index/tests/fixtures/path-catalog/** -text
