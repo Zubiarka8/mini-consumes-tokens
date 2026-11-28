@@ -37,7 +37,7 @@ const TEST_DIRECTORY_SEGMENTS: &[&str] = &["tests", "test", "__tests__"];
 ///
 /// Stored `relative_path`s always use `/` as the separator, on every OS, so
 /// this splits on `/` only — no platform-specific path handling.
-fn path_looks_like_test(relative_path: &str) -> bool {
+pub(crate) fn path_looks_like_test(relative_path: &str) -> bool {
     let mut segments: Vec<&str> = relative_path.split('/').collect();
     // The last segment is the file name; everything before it is a directory.
     let file_name = segments.pop().unwrap_or_default();

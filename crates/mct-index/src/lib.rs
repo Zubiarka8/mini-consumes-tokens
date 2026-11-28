@@ -12,6 +12,7 @@ mod dependency_graph;
 mod duplicates;
 mod error;
 mod exclude;
+mod file_role;
 mod file_tree;
 mod incidents;
 mod indexer;
@@ -61,6 +62,7 @@ pub use exclude::{
     read_ignore_file, ExcludeSet, GITIGNORE_IMPORT_DIRECTIVE, IGNORE_FILE_NAME,
     IGNORE_FILE_TEMPLATE,
 };
+pub use file_role::{file_role, path_role, FileRole};
 pub use file_tree::FileTreeNode;
 pub use incidents::{log_incident, Incident};
 pub use indexer::{

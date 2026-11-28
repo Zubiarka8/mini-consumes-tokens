@@ -149,11 +149,27 @@ pub struct IndexStatus {
     /// Target languages seen in the repo with no plugin registered yet.
     pub unsupported_languages: Vec<String>,
     pub syntax_errors: Vec<UnsupportedFile>,
+    /// How many indexed files have each role (`production`, `test`,
+    /// `fixture`, `generated`; issue #634), most first.
+    pub file_roles: Vec<(String, usize)>,
     /// Paths that could not be read on the last attempt. Their previous rows
     /// (symbols, dependencies) are still served, so they may be stale: a
     /// status that lists any is not fully healthy.
     pub read_failures: Vec<UnsupportedFile>,
     pub dependencies: Vec<ManifestDependencies>,
+}
+
+impl IndexStatus {
+    /// `syntax_errors` split in two: failures outside a fixture, then those
+    /// in a fixture, which are usually a malformed sample kept on purpose (a
+    /// corpus's `malformed/` files, ERR-003).
+    pub fn parse_failures(&self) -> (Vec<&UnsupportedFile>, Vec<&UnsupportedFile>) {
+        let (expected, unexpected) = self
+            .syntax_errors
+            .iter()
+            .partition(|err| crate::path_role(&err.relative_path) == crate::FileRole::Fixture);
+        (unexpected, expected)
+    }
 }
 
 pub fn reindex(
@@ -723,8 +739,14 @@ fn index_source(
     match parsed {
         Ok(parsed) => {
             let language = parser.language_id();
-            let symbols_written =
-                write_parsed_file(index, &relative_path, language, &content_hash, &parsed)?;
+            let symbols_written = write_parsed_file(
+                index,
+                &relative_path,
+                language,
+                crate::file_role(&relative_path, &source.contents),
+                &content_hash,
+                &parsed,
+            )?;
             if crate::vite::is_vite_config(file_name) {
                 write_vite_alias(index, &relative_path, &source.contents)?;
             }
@@ -826,6 +848,7 @@ fn index_asset(
         index,
         &relative_path,
         assets::ASSET_LANGUAGE,
+        crate::path_role(&relative_path),
         &content_hash,
         &parsed,
     )?;
@@ -2245,6 +2268,7 @@ fn write_parsed_file(
     index: &mut Index,
     relative_path: &str,
     language: &str,
+    role: crate::FileRole,
     content_hash: &str,
     parsed: &mct_core::ParsedFile,
 ) -> Result<usize> {
@@ -2253,13 +2277,14 @@ fn write_parsed_file(
 
     let file_id: i64 = {
         tx.execute(
-            "INSERT INTO files (relative_path, language, content_hash, last_indexed_at)
-             VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO files (relative_path, language, content_hash, last_indexed_at, role)
+             VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(relative_path) DO UPDATE SET
                 language = excluded.language,
                 content_hash = excluded.content_hash,
-                last_indexed_at = excluded.last_indexed_at",
-            params![relative_path, language, content_hash, now],
+                last_indexed_at = excluded.last_indexed_at,
+                role = excluded.role",
+            params![relative_path, language, content_hash, now, role.as_str()],
         )?;
         tx.query_row(
             "SELECT id FROM files WHERE relative_path = ?1",
@@ -2787,6 +2812,14 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
         .collect::<rusqlite::Result<_>>()?;
     drop(stmt);
 
+    let mut stmt = index
+        .conn
+        .prepare("SELECT role, COUNT(*) FROM files GROUP BY role ORDER BY COUNT(*) DESC, role")?;
+    let file_roles: Vec<(String, usize)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as usize)))?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+
     Ok(IndexStatus {
         languages,
         alias_sources,
@@ -2801,6 +2834,7 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
             .max(index.last_full_verified_at),
         unsupported_languages,
         syntax_errors,
+        file_roles,
         read_failures,
         dependencies,
     })
