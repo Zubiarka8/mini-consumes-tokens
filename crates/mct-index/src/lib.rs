@@ -81,8 +81,8 @@ pub use index_compare::{
     compare_indexes, IndexComparison, OutcomeChange, RowChanges, COMPARE_EXAMPLES,
 };
 pub use indexer::{
-    AliasSource, CaseMismatch, DependencyInfo, IndexStatus, IndexedFile, LanguageCoverage,
-    ManifestDependencies, ReindexReport, UnsupportedFile, UnsupportedKind,
+    AliasSource, CaseMismatch, CategoryCount, DependencyInfo, IndexStatus, IndexedFile,
+    LanguageCoverage, ManifestDependencies, ReindexReport, UnsupportedFile, UnsupportedKind,
 };
 pub use path_search::{PathSearch, PathStep, MAX_PATH_SYMBOLS};
 pub use queries::{
