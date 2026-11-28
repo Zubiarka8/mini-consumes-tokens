@@ -2357,12 +2357,27 @@ pub fn index_status(status: &IndexStatus, verbose_dependencies: bool) -> String 
             status.unsupported_languages.join(", ")
         ));
     }
-    if !status.syntax_errors.is_empty() {
+    if !status.file_roles.is_empty() {
+        let roles: Vec<String> = status
+            .file_roles
+            .iter()
+            .map(|(role, count)| format!("{role} {count}"))
+            .collect();
+        out.push_str(&format!("Files by role: {}\n", roles.join(", ")));
+    }
+    let (unexpected, expected) = status.parse_failures();
+    if !unexpected.is_empty() {
+        out.push_str(&format!("{} file(s) failed to parse:\n", unexpected.len()));
+        for err in &unexpected {
+            out.push_str(&format!("  {}: {}\n", err.relative_path, err.detail));
+        }
+    }
+    if !expected.is_empty() {
         out.push_str(&format!(
-            "{} file(s) failed to parse:\n",
-            status.syntax_errors.len()
+            "{} fixture file(s) failed to parse, likely on purpose:\n",
+            expected.len()
         ));
-        for err in &status.syntax_errors {
+        for err in &expected {
             out.push_str(&format!("  {}: {}\n", err.relative_path, err.detail));
         }
     }
@@ -3247,6 +3262,7 @@ mod index_status_tests {
             last_full_reconciled_at: None,
             unsupported_languages: vec!["lua".to_string()],
             syntax_errors: Vec::new(),
+            file_roles: Vec::new(),
             read_failures: Vec::new(),
             dependencies: vec![
                 ManifestDependencies {

@@ -358,6 +358,7 @@ fn an_index_from_before_the_table_gains_it_and_reparses_on_a_normal_reindex() {
          DROP INDEX idx_relations_join;
          ALTER TABLE relations DROP COLUMN join_kind;
          DROP VIEW relation_candidates;
+         ALTER TABLE files DROP COLUMN role;
          DROP VIEW ts_alias_candidates;
          DROP TABLE ts_config_parents; DROP TABLE ts_paths;
          DROP TABLE ts_configs;

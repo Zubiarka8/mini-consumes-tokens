@@ -38,7 +38,8 @@ fn rewind_before_rockspec_items(database: &std::path::Path, latest: i64) {
              DROP TABLE symbol_parameters; DROP TABLE symbol_details;
              DROP TABLE join_points;
              DROP INDEX idx_relations_join; ALTER TABLE relations DROP COLUMN join_kind;
-             DROP VIEW relation_candidates; DROP VIEW ts_alias_candidates;
+             DROP VIEW relation_candidates; ALTER TABLE files DROP COLUMN role;
+             DROP VIEW ts_alias_candidates;
              DROP TABLE ts_config_parents; DROP TABLE ts_paths; DROP TABLE ts_configs; DROP TABLE cargo_packages;
              DROP TABLE web_roots; ALTER TABLE relations DROP COLUMN web_app;
              DROP TABLE package_imports; DROP TABLE package_manifests; DROP TABLE cargo_renames;
