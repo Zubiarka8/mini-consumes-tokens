@@ -74,6 +74,7 @@ impl LanguageParser for RustParser {
         collect_value_items(root, &file.contents, &mut walker.free_fns, 0);
         collect_imported_names(root, &file.contents, &mut walker.imported, 0);
         walker.scope = collect_scope(root, &file.contents);
+        walker.field_types = receivers::field_types(root, &file.contents);
         walker.visit_children(root, module_id, None, 0);
         Ok(walker.finish())
     }
@@ -138,6 +139,9 @@ struct Walker<'a> {
     /// Locals of the function being walked whose only binding states their
     /// type: `x.f()` on one is qualified by it (see `receivers`).
     receivers: HashMap<String, (String, Option<String>)>,
+    /// `(struct, field)` → the field's stated type and where it is written,
+    /// for the structs this file declares (see [`receivers::field_types`]).
+    field_types: HashMap<(String, String), (String, usize)>,
     /// Declaration details of the items recorded so far (ADR-034).
     details: Vec<mct_core::SymbolDetail>,
     join_points: Vec<mct_core::JoinPoint>,
@@ -172,6 +176,7 @@ impl<'a> Walker<'a> {
             relation_targets: Vec::new(),
             self_type: None,
             receivers: HashMap::new(),
+            field_types: HashMap::new(),
             details: Vec::new(),
             join_points: Vec::new(),
             routes: Vec::new(),
@@ -988,11 +993,25 @@ impl<'a> Walker<'a> {
     }
 
     /// The type a method call's receiver is proven to have, with the module
-    /// its import names it through: `self`'s `impl`/`trait` type, or the
-    /// stated type of a local in `receivers`.
+    /// its import names it through: `self`'s `impl`/`trait` type, the
+    /// stated type of a local in `receivers`, or the stated type of a field
+    /// of either (`self.index`, `self.a.b`) when this file declares the
+    /// struct. Inherited or trait-provided members are not followed.
     fn receiver_type(&self, receiver: Node) -> Option<Receiver> {
         match receiver.kind() {
             "self" => self.self_type.clone().map(Receiver::SelfValue),
+            "field_expression" => {
+                let owner = match self.receiver_type(receiver.child_by_field_name("value")?)? {
+                    Receiver::SelfValue(ty) | Receiver::Local(ty, _) => ty,
+                };
+                let field = text(receiver.child_by_field_name("field")?, self.source);
+                let (ty, at) = self.field_types.get(&(owner, field.to_string()))?;
+                if self.generics.contains(ty) || self.std_name(ty, *at) {
+                    return None;
+                }
+                let (ty, module) = self.type_evidence(ty.clone())?;
+                Some(Receiver::Local(ty, module))
+            }
             "identifier" => match text(receiver, self.source) {
                 "self" => self.self_type.clone().map(Receiver::SelfValue),
                 name => self
