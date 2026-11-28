@@ -9,6 +9,7 @@ use rusqlite::{params, OptionalExtension};
 use walkdir::WalkDir;
 
 use crate::assets::{self, AssetError};
+use crate::catalog;
 use crate::incidents;
 use crate::manifests;
 use crate::symbol_changes;
@@ -474,6 +475,20 @@ fn index_file(
         return Ok(Seen::Nothing);
     }
 
+    // Every admitted file enters the path catalog (#629), parsed or not.
+    // A stat failure leaves its last row alone: the path is still seen.
+    if let Ok(metadata) = std::fs::metadata(&canonical) {
+        let rules = catalog_rules(index, registry);
+        catalog::store::record(
+            &index.conn,
+            &canonical,
+            &relative_path,
+            &metadata,
+            catalog::store::parser_for(registry, &relative_path),
+            &rules,
+        )?;
+    }
+
     // Manifest files (Cargo.toml, package.json, ...) are matched by
     // file name, not extension, and never go through a `LanguageParser`
     // — they aren't source code to symbol-index, just a declared
@@ -612,6 +627,21 @@ fn index_file(
         report,
         queue,
     )
+}
+
+/// [`catalog::store::rules_fingerprint`] of `registry`, computed once per
+/// registry rather than once per file.
+fn catalog_rules(index: &Index, registry: &LanguageRegistry) -> String {
+    let key = std::ptr::from_ref(registry) as usize;
+    let mut cached = index.catalog_rules.borrow_mut();
+    match &*cached {
+        Some((cached_key, rules)) if *cached_key == key => rules.clone(),
+        _ => {
+            let rules = catalog::store::rules_fingerprint(registry);
+            *cached = Some((key, rules.clone()));
+            rules
+        }
+    }
 }
 
 /// The source-file half of [`index_file`]: the parser chosen by extension,
