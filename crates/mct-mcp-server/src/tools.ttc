@@ -203,6 +203,14 @@ PRE none; `path` scopes it.
 POST a depth-limited directory tree.
 EFFECTS read; project directory listing.
 
+TOOL find_files
+WHEN any file (PDF, image, audio, font, sheet) by path, name, category, format.
+ERR metadata only, no contents.
+TAGS files, media, documents, format, catalog
+PRE none; query/path/category/format filter (AND); limit 1..200, offset pages.
+POST matching paths in path order with category, format, bytes, a note when doubtful, next_offset; TOON or text.
+EFFECTS read; index only.
+
 TOOL discover_tool_categories
 WHEN first call in a session — names+one-line purpose per tool, grouped, no schemas.
 ERR no input schemas here — call get_tool_schema per tool name before invoking it.

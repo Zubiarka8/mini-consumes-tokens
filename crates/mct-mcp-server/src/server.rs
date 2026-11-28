@@ -806,6 +806,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "get_file_skeleton",
             "get_project_overview",
             "get_file_tree",
+            "find_files",
         ],
     ),
     (
@@ -2093,6 +2094,7 @@ impl MctServer {
             "get_file_skeleton" => self.get_file_skeleton(batch_params(tool, args)?).await,
             "get_project_overview" => self.get_project_overview(batch_params(tool, args)?).await,
             "get_file_tree" => self.get_file_tree(batch_params(tool, args)?).await,
+            "find_files" => self.find_files(batch_params(tool, args)?).await,
             "find_dead_code" => self.find_dead_code(batch_params(tool, args)?).await,
             "find_duplicate_code" => self.find_duplicate_code(batch_params(tool, args)?).await,
             "get_dependency_graph" => self.get_dependency_graph(batch_params(tool, args)?).await,
@@ -3477,6 +3479,18 @@ impl MctServer {
         })
         .await
         .map_err(|err| McpError::internal_error(format!("file tree task failed: {err}"), None))??;
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "Find files by path, name, category or format; see tools.ttc")]
+    pub async fn find_files(
+        &self,
+        Parameters(args): Parameters<crate::file_query::FindFilesArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
+        let text = crate::file_query::run(&index, &args)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
