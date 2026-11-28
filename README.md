@@ -63,6 +63,7 @@ To try a tool without an agent, run `mct-cli --root . call --tool get_indexing_s
 
 - Your agent spends fewer tokens. On our test fixtures, a context pack used about 85% fewer tokens than chaining the lookups by hand, and `batch` used 37 to 42% fewer than separate calls. Results depend on the task and the repository. The measured cases, including the ones where it costs more, are in [`benchmarks/`](benchmarks/).
 - It gets short answers instead of files: a symbol, its references, callers and callees, or a ready-made context pack for the code you are about to change.
+- It finds the other files too. `find_files` lists PDFs, images, audio, fonts, spreadsheets, archives and any other file by name, folder, category or format, with no walk of the tree and no file read. See [`benchmarks/path-catalog.md`](benchmarks/path-catalog.md).
 - One server works with any assistant or editor that supports MCP. It also runs as a plain command line tool.
 - One index covers many languages, and projects that mix several of them are fine. What is supported for each language and library is in the [checklists](docs/02-crates/parsers/checklists/by-language.md).
 - Your code stays on your machine. The index is one SQLite file in `.mct-index/`, with no cloud service and no telemetry. Delete it any time and it is rebuilt from your source.
@@ -81,7 +82,7 @@ No. The index is built and read locally. The optional `semantic` build downloads
 
 ### Can I use it without an AI agent?
 
-Yes. `mct-cli` handles status checks, dead-code and duplicate reports, and the dashboard on its own.
+Yes. `mct-cli` handles status checks, file search (`mct-cli files`), dead-code and duplicate reports, and the dashboard on its own.
 
 ### What if I delete the index?
 
