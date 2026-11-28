@@ -151,7 +151,7 @@ The library features are:
 
 These do not depend on the language, so they are not in the checklists:
 
-- `get_file_tree`, `get_project_overview`, `get_indexing_status`;
+- `get_file_tree`, `get_project_overview`, `get_indexing_status`, `find_files` (the path catalog, ADR-052);
 - `batch`, `discover_tool_categories`, `get_tool_schema`, `select_tools`;
 - the semantic half of `hybrid_search` and `semantic_search`, which needs the `semantic` build feature.
 
