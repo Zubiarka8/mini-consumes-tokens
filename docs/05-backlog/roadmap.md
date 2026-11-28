@@ -58,7 +58,7 @@ Ordered in [ADR-025](../01-architecture/adrs/025-prioritized-improvement-candida
 - [ ] **26. Export the full index** to JSON or SQLite for external tools and dashboards.
 - [ ] **27. Documentation coverage:** public functions and types without a doc comment. Depends on 21 and on storing doc comments.
 - [ ] **28. Exact name resolution** through SCIP ingestion or an LSP. Largest precision gap; changes the core symbol model. Design record first.
-- [ ] **29. Faster indexing of large repositories** through parallel parsing. A cold 9,288-file copy took 57 to 136 seconds (ERR-022).
+- [x] **29. Faster indexing of large repositories** through parallel parsing. A cold 9,288-file copy took 57 to 136 seconds (ERR-022). Done (#635): a full reindex parses on up to 8 worker threads (`MCT_INDEX_WORKERS` to change it) while one thread walks and writes SQLite in walk order, so the rows and ids match a sequential run; the write path reuses prepared statements. On this repository (1,594 files, 10 cores) a cold `init` went from 7.48 s to 3.67 s (median of 5), peak memory from 73.7 MB to 89.8 MB, a one-file reindex from 0.23 s to 0.17 s.
 - [ ] **30. Semantic search in the prebuilt release binaries.** Today the `semantic` feature is built only from source.
 - [ ] **31. Wider distribution:** publish to crates.io (blocked by the vendored `tree-sitter-md` patch) and add package-manager formulas. One-command installers already exist.
 - [ ] **32. Public, reproducible benchmark** against other tools on a public repository. Publish the losing cases too.

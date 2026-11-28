@@ -209,32 +209,51 @@ fn reindex_inner(
     // Cloned out of `index` so the `filter_entry` closure below doesn't hold a
     // borrow of it across the loop body, which needs `&mut Index` to write.
     let exclude = index.exclude.clone();
-
-    for entry in WalkDir::new(&root)
-        .into_iter()
-        .filter_entry(|entry| walk_entry_allowed(&root, entry, &exclude))
-    {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(err) => {
-                unreadable.push(record_walk_failure(index, &err, &mut report)?);
+    let workers = index
+        .parse_workers
+        .unwrap_or_else(crate::parallel_parse::workers);
+    let parse_root = root.clone();
+    let parse = |job| parse_job(&parse_root, registry, job);
+    crate::parallel_parse::pipeline(workers, parse, |pipeline| -> Result<()> {
+        let mut queue = Vec::new();
+        for entry in WalkDir::new(&root)
+            .into_iter()
+            .filter_entry(|entry| walk_entry_allowed(&root, entry, &exclude))
+        {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(err) => {
+                    unreadable.push(record_walk_failure(index, &err, &mut report)?);
+                    continue;
+                }
+            };
+            if entry.file_type().is_dir() {
                 continue;
             }
-        };
-        if entry.file_type().is_dir() {
-            continue;
-        }
-        match index_file(index, registry, entry.path(), force, &mut report)? {
-            Seen::Source(path) => seen_paths.push(path),
-            Seen::Manifest(path) => seen_manifest_paths.push(path),
-            Seen::ManifestAndSource(path) => {
-                seen_paths.push(path.clone());
-                seen_manifest_paths.push(path);
+            let seen = index_file(
+                index,
+                registry,
+                entry.path(),
+                force,
+                &mut report,
+                Some(&mut queue),
+            )?;
+            for job in queue.drain(..) {
+                pipeline.push(job, &mut |parsed| write_job(index, &mut report, parsed))?;
             }
-            Seen::Unreadable(path) => unreadable.push(path),
-            Seen::Nothing => {}
+            match seen {
+                Seen::Source(path) => seen_paths.push(path),
+                Seen::Manifest(path) => seen_manifest_paths.push(path),
+                Seen::ManifestAndSource(path) => {
+                    seen_paths.push(path.clone());
+                    seen_manifest_paths.push(path);
+                }
+                Seen::Unreadable(path) => unreadable.push(path),
+                Seen::Nothing => {}
+            }
         }
-    }
+        pipeline.finish(&mut |parsed| write_job(index, &mut report, parsed))
+    })?;
 
     report.files_removed = remove_missing_files(index, &seen_paths, &unreadable)?;
     remove_missing_manifests(index, &seen_manifest_paths, &unreadable)?;
@@ -417,6 +436,7 @@ fn index_file(
     path: &Path,
     force: bool,
     report: &mut ReindexReport,
+    queue: Option<&mut Vec<ParseJob>>,
 ) -> Result<Seen> {
     let root = index.root.clone();
 
@@ -560,6 +580,7 @@ fn index_file(
                 &file_name,
                 force,
                 report,
+                queue,
             )? {
                 Seen::Source(path) => Seen::ManifestAndSource(path),
                 seen => seen,
@@ -589,11 +610,14 @@ fn index_file(
         &file_name,
         force,
         report,
+        queue,
     )
 }
 
 /// The source-file half of [`index_file`]: the parser chosen by extension,
-/// the content-hash skip, then the parse and its write.
+/// the content-hash skip, then the parse and its write. With a `queue`, the
+/// parse is queued for the walk's parse pipeline instead of run here.
+#[allow(clippy::too_many_arguments)]
 fn index_source(
     index: &mut Index,
     registry: &LanguageRegistry,
@@ -602,12 +626,13 @@ fn index_source(
     file_name: &str,
     force: bool,
     report: &mut ReindexReport,
+    queue: Option<&mut Vec<ParseJob>>,
 ) -> Result<Seen> {
     // Reported as seen regardless of whether we can index this file, so a
     // stale `files`/`index_issues` row is removed once the file is deleted
     // or excluded, not just once it's re-parsed.
     let extension = relative_path.rsplit('.').next().unwrap_or_default();
-    let Some(parser) = registry.for_extension(extension) else {
+    if registry.for_extension(extension).is_none() {
         if let Some((_, language)) = KNOWN_PENDING_LANGUAGES
             .iter()
             .find(|(ext, _)| *ext == extension)
@@ -625,7 +650,7 @@ fn index_source(
             });
         }
         return Ok(Seen::Source(relative_path));
-    };
+    }
 
     let bytes = match crate::read_repository_file(canonical) {
         Ok(b) => b,
@@ -714,31 +739,91 @@ fn index_source(
         }
     };
 
-    let source = SourceFile {
-        relative_path: relative_path.clone(),
-        contents,
+    let job = ParseJob {
+        canonical: canonical.to_path_buf(),
+        file_name: file_name.to_string(),
+        content_hash,
+        source: SourceFile {
+            relative_path: relative_path.clone(),
+            contents,
+        },
     };
+    match queue {
+        Some(queue) => queue.push(job),
+        None => {
+            let parsed = parse_job(index.root(), registry, job);
+            write_job(index, report, parsed)?;
+        }
+    }
+    Ok(Seen::Source(relative_path))
+}
 
-    let parsed = registry.parse(&source).map(|mut parsed| {
-        if let Some(rooted) = parser.rooted_paths() {
-            resolve_rooted_paths(index.root(), &relative_path, rooted, &mut parsed);
+/// One source file read, hashed and waiting for its parse.
+pub(crate) struct ParseJob {
+    canonical: PathBuf,
+    file_name: String,
+    content_hash: String,
+    source: SourceFile,
+}
+
+/// A [`ParseJob`] after its parse, ready for [`write_job`].
+pub(crate) struct ParsedJob {
+    job: ParseJob,
+    language: &'static str,
+    parsed: std::result::Result<mct_core::ParsedFile, ParseError>,
+    /// The file's hash read again after the parse.
+    current_hash: Option<String>,
+}
+
+/// Parses `job`: the part of indexing a file that touches no database, so
+/// it runs on any thread.
+pub(crate) fn parse_job(root: &Path, registry: &LanguageRegistry, job: ParseJob) -> ParsedJob {
+    let relative_path = &job.source.relative_path;
+    let extension = relative_path.rsplit('.').next().unwrap_or_default();
+    let parser = registry.for_extension(extension);
+    let parsed = registry.parse(&job.source).map(|mut parsed| {
+        if let Some(rooted) = parser.and_then(|p| p.rooted_paths()) {
+            resolve_rooted_paths(root, relative_path, rooted, &mut parsed);
         }
         parsed
     });
     // Parsing can be expensive and the working tree is mutable. Verify the
     // exact bytes again before writing this file into the run so an edit made
     // during either a successful or failed parse cannot be published as current.
-    let current_hash = crate::read_repository_file(canonical)
+    let current_hash = crate::read_repository_file(&job.canonical)
         .ok()
         .and_then(|bytes| Oid::hash_object(ObjectType::Blob, &bytes).ok())
         .map(|oid| oid.to_string());
+    ParsedJob {
+        language: parser.map_or("", |p| p.language_id()),
+        job,
+        parsed,
+        current_hash,
+    }
+}
+
+/// Writes one parsed file into the open run, or records why it could not
+/// be parsed.
+fn write_job(index: &mut Index, report: &mut ReindexReport, parsed: ParsedJob) -> Result<()> {
+    let ParsedJob {
+        job,
+        language,
+        parsed,
+        current_hash,
+    } = parsed;
+    let ParseJob {
+        file_name,
+        content_hash,
+        source,
+        ..
+    } = job;
+    let relative_path = source.relative_path.clone();
     if current_hash.as_deref() != Some(content_hash.as_str()) {
         return Err(crate::IndexError::SourceChangedDuringIndex(relative_path));
     }
 
     match parsed {
         Ok(parsed) => {
-            let language = parser.language_id();
             let symbols_written = write_parsed_file(
                 index,
                 &relative_path,
@@ -747,7 +832,7 @@ fn index_source(
                 &content_hash,
                 &parsed,
             )?;
-            if crate::vite::is_vite_config(file_name) {
+            if crate::vite::is_vite_config(&file_name) {
                 write_vite_alias(index, &relative_path, &source.contents)?;
             }
             report.files_parsed += 1;
@@ -777,7 +862,7 @@ fn index_source(
             // extension above; unreachable in practice.
         }
     }
-    Ok(Seen::Source(relative_path))
+    Ok(())
 }
 
 /// Indexes one asset file (ADR-003 D1): a `files` row with language
@@ -1077,7 +1162,7 @@ fn index_noting_created(
     created: &mut Vec<String>,
 ) -> Result<Seen> {
     let was_indexed = has_rows(index, as_reported)?;
-    let seen = index_file(index, registry, path, false, report)?;
+    let seen = index_file(index, registry, path, false, report, None)?;
     if let Seen::Source(p) | Seen::Manifest(p) | Seen::ManifestAndSource(p) = &seen {
         if !was_indexed && has_rows(index, p)? {
             created.push(p.clone());
@@ -2276,7 +2361,7 @@ fn write_parsed_file(
     let tx = &index.conn;
 
     let file_id: i64 = {
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO files (relative_path, language, content_hash, last_indexed_at, role)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(relative_path) DO UPDATE SET
@@ -2284,8 +2369,14 @@ fn write_parsed_file(
                 content_hash = excluded.content_hash,
                 last_indexed_at = excluded.last_indexed_at,
                 role = excluded.role",
-            params![relative_path, language, content_hash, now, role.as_str()],
-        )?;
+        )?
+        .execute(params![
+            relative_path,
+            language,
+            content_hash,
+            now,
+            role.as_str()
+        ])?;
         tx.query_row(
             "SELECT id FROM files WHERE relative_path = ?1",
             params![relative_path],
@@ -2295,24 +2386,25 @@ fn write_parsed_file(
 
     // Literals first: deleting symbols first would null each literal's
     // `symbol_id` one row at a time, only for the rows to be deleted anyway.
-    tx.execute("DELETE FROM literals WHERE file_id = ?1", params![file_id])?;
-    tx.execute("DELETE FROM symbols WHERE file_id = ?1", params![file_id])?;
+    tx.prepare_cached("DELETE FROM literals WHERE file_id = ?1")?
+        .execute(params![file_id])?;
+    tx.prepare_cached("DELETE FROM symbols WHERE file_id = ?1")?
+        .execute(params![file_id])?;
     // Also clear stale index_issues entries for this path (e.g. it used to
     // fail to parse and now succeeds).
-    tx.execute(
-        "DELETE FROM index_issues WHERE relative_path = ?1",
-        params![relative_path],
-    )?;
+    tx.prepare_cached("DELETE FROM index_issues WHERE relative_path = ?1")?
+        .execute(params![relative_path])?;
 
     // Local symbol id -> database row id, to resolve relations below.
     let mut id_map: HashMap<u32, i64> = HashMap::with_capacity(parsed.symbols.len());
     let file_scoped: std::collections::HashSet<u32> = parsed.file_scoped.iter().copied().collect();
     for symbol in &parsed.symbols {
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO symbols (file_id, name, kind, parent, line, column, byte_len, end_line, level,
                                   file_scoped)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            params![
+        )?
+        .execute(params![
                 file_id,
                 symbol.name,
                 symbol_kind_str(symbol.kind),
@@ -2335,10 +2427,10 @@ fn write_parsed_file(
         if alias.name.is_empty() {
             continue;
         }
-        tx.execute(
+        tx.prepare_cached(
             "INSERT OR IGNORE INTO symbol_aliases (symbol_id, alias) VALUES (?1, ?2)",
-            params![symbol_id, alias.name],
-        )?;
+        )?
+        .execute(params![symbol_id, alias.name])?;
     }
 
     for hint in &parsed.entry_points {
@@ -2349,21 +2441,21 @@ fn write_parsed_file(
             continue;
         }
         let requires = hint.requires.as_ref();
-        tx.execute(
+        tx.prepare_cached(
             "INSERT OR IGNORE INTO symbol_entry_points
                  (symbol_id, framework, rule, evidence,
                   requires_manifest, requires_package, requires_min_major)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                symbol_id,
-                hint.framework,
-                hint.rule,
-                hint.evidence,
-                requires.map(|r| r.manifest_path.as_str()),
-                requires.map(|r| r.package.as_str()),
-                requires.map(|r| r.min_major),
-            ],
-        )?;
+        )?
+        .execute(params![
+            symbol_id,
+            hint.framework,
+            hint.rule,
+            hint.evidence,
+            requires.map(|r| r.manifest_path.as_str()),
+            requires.map(|r| r.package.as_str()),
+            requires.map(|r| r.min_major),
+        ])?;
     }
 
     for point in &parsed.join_points {
@@ -2378,20 +2470,20 @@ fn write_parsed_file(
             mct_core::JoinRole::Declares => "declares",
             mct_core::JoinRole::Uses => "uses",
         };
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO join_points (symbol_id, kind, value, role, line, column, byte_len)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT DO NOTHING",
-            params![
-                symbol_id,
-                kind,
-                point.value,
-                role,
-                point.location.line,
-                point.location.column,
-                point.location.byte_len,
-            ],
-        )?;
+        )?
+        .execute(params![
+            symbol_id,
+            kind,
+            point.value,
+            role,
+            point.location.line,
+            point.location.column,
+            point.location.byte_len,
+        ])?;
     }
 
     write_symbol_details(tx, &id_map, &parsed.symbol_details)?;
@@ -2406,13 +2498,14 @@ fn write_parsed_file(
             continue; // parser bug guard: relation referencing an unknown local symbol id
         };
         let target = targets.get(&i);
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO relations (from_symbol_id, kind, to_name, line, column, byte_len,
                                     qualifier, target_path, target_language, external, targets_parsed,
                                     target_kind, target_module, module, member, not_field,
                                     top_level, web_app, include_spec, package)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
-            params![
+        )?
+        .execute(params![
                 from_row_id,
                 relation_kind_str(relation.kind),
                 relation.to_name,
@@ -2441,10 +2534,10 @@ fn write_parsed_file(
     for literal in parsed.literals.iter().take(mct_core::MAX_LITERALS_PER_FILE) {
         let symbol_id = enclosing_symbol(&parsed.symbols, literal.line)
             .and_then(|local| id_map.get(&local).copied());
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO literals (file_id, symbol_id, line, text) VALUES (?1, ?2, ?3, ?4)",
-            params![file_id, symbol_id, literal.line, literal.text],
-        )?;
+        )?
+        .execute(params![file_id, symbol_id, literal.line, literal.text])?;
     }
 
     let count = parsed.symbols.len();

@@ -19,6 +19,7 @@ mod indexer;
 mod join_resolution;
 pub mod luarocks;
 mod manifests;
+mod parallel_parse;
 mod queries;
 mod read_limits;
 pub mod reviews;
@@ -195,6 +196,9 @@ pub struct Index {
     /// Process-local completion time of the last full walk without an
     /// unreadable path that published nothing.
     last_full_verified_at: Option<i64>,
+    /// Parse threads a full reindex uses; `None` reads
+    /// `MCT_INDEX_WORKERS`, else the machine's parallelism up to 8.
+    parse_workers: Option<usize>,
 }
 
 impl Index {
@@ -228,6 +232,7 @@ impl Index {
             pending_warnings: Vec::new(),
             pending_incidents: std::cell::RefCell::new(Vec::new()),
             post_reindex_done: false,
+            parse_workers: None,
             last_verified_at: None,
             last_full_verified_at: None,
         })
@@ -264,6 +269,7 @@ impl Index {
             pending_warnings: Vec::new(),
             pending_incidents: std::cell::RefCell::new(Vec::new()),
             post_reindex_done: false,
+            parse_workers: None,
             last_verified_at: None,
             last_full_verified_at: None,
         })
@@ -291,6 +297,7 @@ impl Index {
             pending_warnings: Vec::new(),
             pending_incidents: std::cell::RefCell::new(Vec::new()),
             post_reindex_done: false,
+            parse_workers: None,
             last_verified_at: None,
             last_full_verified_at: None,
         })
@@ -695,6 +702,12 @@ impl Index {
     /// prefixes — ordered by path then line. One query however many paths;
     /// `mct-mcp-server`'s query cache uses it to check a cached result's
     /// symbols still exist as they were.
+    /// Sets how many threads a full reindex parses on (1 parses on the
+    /// writing thread); the rows written are the same for any count.
+    pub fn set_parse_workers(&mut self, workers: usize) {
+        self.parse_workers = Some(workers.clamp(1, 64));
+    }
+
     pub fn symbols_in_files(&self, paths: &[&str]) -> Result<Vec<SymbolHit>> {
         queries::symbols_in_files(&self.conn, paths)
     }
