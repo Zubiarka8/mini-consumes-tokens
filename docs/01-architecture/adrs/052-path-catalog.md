@@ -40,4 +40,6 @@ Migration 36 adds `path_catalog(relative_path PRIMARY KEY, category, format, evi
 
 ## Verification
 - `crates/mct-index/src/catalog/{formats,classify}.rs` unit tests: alias normalization, compound suffixes, each conflict resolver, the bounded signature read.
-- `crates/mct-index/tests/path_catalog.rs` over `tests/fixtures/path-catalog/`.
+- `crates/mct-index/tests/path_catalog.rs` over `tests/fixtures/path-catalog/`: one expected row per fixture file, add/rename/delete, an interrupted run, exclusions, symlinks, a sparse 8 GiB file, and an index at schema 35 filled by a plain reindex.
+- `crates/mct-mcp-server/tests/find_files.rs` and `crates/mct-cli/tests/cli_mcp_parity.rs`: `find_files` and `mct-cli files` print the same page; invalid filters and an empty index give a clear message.
+- Cost and token savings: [`benchmarks/path-catalog.md`](../../../benchmarks/path-catalog.md). Formats and how to add one: [`docs/02-crates/path-catalog-formats.md`](../../02-crates/path-catalog-formats.md).
