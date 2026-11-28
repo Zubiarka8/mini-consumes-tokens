@@ -89,6 +89,10 @@ pub enum RelationKind {
     /// supertype the source names (`impl Trait for T`, `@Override`); the
     /// relation is qualified by that supertype, never by the name alone.
     Overrides,
+    /// A component rendered as an element: a JSX/TSX tag (`<Button />`,
+    /// `<UI.Card>`) or an Astro template tag. A reference that says how the
+    /// component is used, so "what renders X" is one query.
+    Renders,
 }
 
 /// A relation from a symbol defined in this file to another symbol, which may

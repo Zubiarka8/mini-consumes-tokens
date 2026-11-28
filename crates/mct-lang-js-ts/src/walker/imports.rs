@@ -209,7 +209,7 @@ pub(super) fn require_argument(call_node: Node, source: &str) -> Option<String> 
 /// `.ts`-family and `.jsx` are literal; `.js`/`.mjs`/`.cjs` may be a
 /// TypeScript source written with its emitted extension, so they are treated
 /// like an extensionless spec.
-const EXACT_EXTENSIONS: [&str; 5] = [".tsx", ".mts", ".cts", ".ts", ".jsx"];
+const EXACT_EXTENSIONS: [&str; 6] = [".tsx", ".mts", ".cts", ".ts", ".jsx", ".astro"];
 const EMITTED_EXTENSIONS: [&str; 3] = [".mjs", ".cjs", ".js"];
 
 /// The relation name and evidence for a module specifier written in

@@ -2967,6 +2967,7 @@ fn relation_kind_str(kind: mct_core::RelationKind) -> &'static str {
         Implements => "implements",
         References => "references",
         Overrides => "overrides",
+        Renders => "renders",
     }
 }
 

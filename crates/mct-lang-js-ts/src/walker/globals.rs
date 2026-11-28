@@ -409,7 +409,7 @@ pub(super) fn module_name(specifier: &str) -> Option<String> {
     let mut last = segments.next()?;
     let stem = |s: &str| {
         const EXTENSIONS: &[&str] = &[
-            ".d.ts", ".tsx", ".ts", ".mts", ".cts", ".jsx", ".js", ".mjs", ".cjs",
+            ".d.ts", ".tsx", ".ts", ".mts", ".cts", ".jsx", ".js", ".mjs", ".cjs", ".astro",
         ];
         EXTENSIONS
             .iter()

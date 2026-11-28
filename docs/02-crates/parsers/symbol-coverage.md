@@ -219,7 +219,7 @@ snapshots and metadata. They were recounted for this review.
 |---|---|---|--:|
 | Rust / [`mct-lang-rust`](../../../crates/mct-lang-rust) | tree-sitter-rust 0.24.2 | `rust`; .rs | 1141 |
 | Python / [`mct-lang-python`](../../../crates/mct-lang-python) | tree-sitter-python 0.25.0 | `python`; .py, .pyi | 701 |
-| JS/TS / [`mct-lang-js-ts`](../../../crates/mct-lang-js-ts) | tree-sitter-javascript 0.25.0, tree-sitter-typescript 0.23.2 | `javascript_typescript`; .js, .jsx, .mjs, .cjs, .ts, .mts, .cts, .tsx | 1064 |
+| JS/TS / [`mct-lang-js-ts`](../../../crates/mct-lang-js-ts) | tree-sitter-javascript 0.25.0, tree-sitter-typescript 0.23.2 | `javascript_typescript`; .js, .jsx, .mjs, .cjs, .ts, .mts, .cts, .tsx, .astro | 1064 |
 | Java / [`mct-lang-java`](../../../crates/mct-lang-java) | tree-sitter-java 0.23.5 | `java`; .java | 401 |
 | Kotlin / [`mct-lang-kotlin`](../../../crates/mct-lang-kotlin) | tree-sitter-kotlin-ng 1.1.0 | `kotlin`; .kt, .kts | 539 |
 | C# / [`mct-lang-csharp`](../../../crates/mct-lang-csharp) | tree-sitter-c-sharp 0.23.5 | `csharp`; .cs | 591 |

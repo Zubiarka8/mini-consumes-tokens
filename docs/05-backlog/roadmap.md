@@ -20,8 +20,8 @@ P0 must land first.
   - D3/D4: `mct_core::resolve_reference_path`; `mct_tree_sitter::mask`.
   - D5: optional `get_indexing_status.dependency`; `kind` descriptions list the new kinds; no source lines for `asset` definitions in `build_context_pack`.
   - D6/D7: `portfolio-3d-app` fixture base + second `mct-eval` suite. No schema migration and no `reindex --force`.
-- [ ] **`.astro` files:** split frontmatter from template; link components, data and styles.
-- [ ] **JSX/TSX elements as symbols:** index used components, props, events and component-to-component relations (today only the surrounding code is analyzed).
+- [~] **`.astro` files:** split frontmatter from template; link components, data and styles. Done (#636): the frontmatter is TypeScript at the file's own lines, each component tag in the template is a `renders` relation from the file's module, and an imported `.astro` component resolves to that file. Left: template expressions as code, data, styles and `<script>` bodies.
+- [~] **JSX/TSX elements as symbols:** index used components, props, events and component-to-component relations (today only the surrounding code is analyzed). Component-to-component relations done (#636): a component tag is a `renders` relation, so `find_references` tells a render from another use. Left: props and events.
 - [ ] **Code → 3D asset relations:** link `useGLTF`, `useTexture`, `<Model src>` and similar references to `.glb`, textures, images and HDR environments.
 - [ ] **`.glb`/`.gltf` inspection:** summarize scenes, nodes, meshes, materials and animations to see what each experience uses.
 - [ ] **Web project config:** index `package.json` dependencies and Astro, Vite, TypeScript and Tailwind config files.
@@ -63,7 +63,7 @@ Ordered in [ADR-025](../01-architecture/adrs/025-prioritized-improvement-candida
 - [ ] **31. Wider distribution:** publish to crates.io (blocked by the vendored `tree-sitter-md` patch) and add package-manager formulas. One-command installers already exist.
 - [ ] **32. Public, reproducible benchmark** against other tools on a public repository. Publish the losing cases too.
 - [ ] **33. Relations across roots and monorepos** for `--roots`. Each root is independent today.
-- [ ] **34. JSX and TSX components as symbols:** used components, props and events (issue #51).
+- [~] **34. JSX and TSX components as symbols:** used components, props and events (issue #51). Used components are `renders` relations (#636); props and events are not indexed.
 - [ ] **35. `mct-cli clean`:** show the size of `.mct-index/` and reclaim it. Dry run by default; `--yes` runs `VACUUM` and truncates the WAL; `--obsidian` also deletes the vault; `--all` deletes `.mct-index/` (rebuilt on next use). Never deletes `review-decisions.toon` or `finding-numbers.tsv` unless `--include-reviews` is passed. Takes the maintainer lock first and stops if a server or `web` holds it. Never touches anything outside `.mct-index/`. Expose the same function as an MCP tool `clean_index` (adds a tool; issue first) and as a "Storage" panel with a "Compact index" button in `mct-cli web`. Expected gain is tens of MB per project: the index is bounded by project size, not by usage.
 - [ ] **36. `scripts/unix/clean-merged-worktrees.sh`:** run `cargo clean` in every worktree whose branch is already merged into `main`, skipping worktrees with running processes. Development-only; the gigabytes on a contributor machine come from per-worktree `target/` folders (10–22 GB each), not from mct.
 

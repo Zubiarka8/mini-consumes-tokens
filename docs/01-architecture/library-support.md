@@ -89,7 +89,7 @@ Each directory currently holds one `mod.rs`: a module doc stating its scope, the
 
 These tests read the corpus fixtures under `tests/corpus/project/`, but they are unit tests of the library target, not part of the `corpus` test binary. `corpus-report.sh`/`corpus-report.ps1` therefore run both `--test corpus` and `--lib libraries`; a new library module needs no script change.
 
-The React tests cover JSX/TSX component references, ownership, member names, intrinsic exclusions, component logic and hook calls. Django and Flask tests cover application classes, decorators, imports and calls. Bootstrap and Tailwind tests cover application CSS selectors and imports, including assertions documenting unsupported constructs. These are parser tests against source examples, not tests running the frameworks.
+The React tests cover JSX/TSX component `renders` relations, ownership, member names, intrinsic exclusions, component logic and hook calls. Django and Flask tests cover application classes, decorators, imports and calls. Bootstrap and Tailwind tests cover application CSS selectors and imports, including assertions documenting unsupported constructs. These are parser tests against source examples, not tests running the frameworks.
 
 Keep the shared grammar and AST traversal outside library directories. Add production code to a library directory only when a concrete framework pattern needs specialized extraction; connect that code explicitly to the parser and test it. Do not create empty adapters or duplicate language behavior to populate a directory. Keep multi-file fixtures, corpus snapshots and index integration in `tests/`; moving those fixtures can change import relationships and expected locations.
 
