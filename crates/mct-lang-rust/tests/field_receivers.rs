@@ -68,3 +68,36 @@ fn a_typed_field_picks_its_type_s_method_and_an_inherited_default() {
         ["read_snapshot resolved 3", "evict resolved 10"]
     );
 }
+
+/// A test file may import its own package by name, so `use tempfile::TempDir`
+/// there does not prove `TempDir` is another crate's: a field of that type
+/// proves nothing, and `self.directory.path()` must not reach the
+/// repository's own `TempDir`.
+#[test]
+fn a_field_typed_by_another_crate_in_a_test_file_proves_nothing() {
+    let root = std::env::temp_dir().join(format!("mct-field-imported-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::create_dir_all(root.join("tests")).unwrap();
+    std::fs::write(
+        root.join("src/lib.rs"),
+        "pub struct TempDir;\nimpl TempDir {\n    pub fn path(&self) {}\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("tests/project.rs"),
+        "use tempfile::TempDir;\n\
+         struct Project {\n    directory: TempDir,\n}\n\
+         impl Project {\n    fn handle(&self) {\n        self.directory.path();\n    }\n}\n",
+    )
+    .unwrap();
+    let index = mct_corpus::open_indexed(
+        &root,
+        Arc::new(RustParser),
+        2,
+        "src/lib.rs, tests/project.rs",
+    );
+    let calls = calls_of_handle(&index);
+    assert_eq!(calls.len(), 1, "{calls:?}");
+    assert!(!calls[0].contains(" resolved "), "{calls:?}");
+}

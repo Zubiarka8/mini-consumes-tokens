@@ -1006,7 +1006,10 @@ impl<'a> Walker<'a> {
                 };
                 let field = text(receiver.child_by_field_name("field")?, self.source);
                 let (ty, at) = self.field_types.get(&(owner, field.to_string()))?;
-                if self.generics.contains(ty) || self.std_name(ty, *at) {
+                if self.generics.contains(ty)
+                    || self.std_name(ty, *at)
+                    || self.unprovable_crate_import(ty)
+                {
                     return None;
                 }
                 let (ty, module) = self.type_evidence(ty.clone())?;
@@ -1030,6 +1033,19 @@ impl<'a> Walker<'a> {
     /// none). A type this file both declares
     /// and imports, imports from two crates, or imports under an alias (its
     /// methods' parent has the real name) proves nothing.
+    /// Whether `ty` is imported from a crate root this file cannot name as
+    /// module evidence: in a test, example, bench or binary, `use x::T` may
+    /// be this package's own library or another crate (`tempfile::TempDir`),
+    /// so a field of that type proves no type of the repository.
+    fn unprovable_crate_import(&self, ty: &str) -> bool {
+        may_import_own_package(self.path)
+            && self
+                .scope
+                .import_crates
+                .get(ty)
+                .is_some_and(|roots| roots.iter().flatten().any(|root| !self.local_root(root)))
+    }
+
     fn type_evidence(&self, ty: String) -> Option<(String, Option<String>)> {
         if self.scope.aliases.contains(&ty) {
             return None;
@@ -1294,6 +1310,15 @@ impl<'a> Walker<'a> {
         Some((original.clone()?, self.import_crate(root.as_deref())))
     }
 
+    /// Whether a `use` path's first segment names something of this file
+    /// (a module it declares, or a name another import brings in) rather
+    /// than a crate.
+    fn local_root(&self, root: &str) -> bool {
+        self.scope.declared.contains(root)
+            || self.scope.other_imports.contains_key(root)
+            || self.scope.std_imports.contains_key(root)
+    }
+
     /// The crate a `use` path starting at `root` proves its item lives
     /// under. The crate name, unlike a module of the path, still holds when
     /// the item is re-exported (`use app::server::Args` for an `Args` of
@@ -1309,10 +1334,7 @@ impl<'a> Walker<'a> {
     ///   the root, or of one in a directory named otherwise).
     fn import_crate(&self, root: Option<&str>) -> Option<String> {
         let root = root?;
-        let local_root = self.scope.declared.contains(root)
-            || self.scope.other_imports.contains_key(root)
-            || self.scope.std_imports.contains_key(root);
-        if local_root || may_import_own_package(self.path) {
+        if self.local_root(root) || may_import_own_package(self.path) {
             return None;
         }
         Some(root.to_string())
