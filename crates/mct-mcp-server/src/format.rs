@@ -2842,6 +2842,120 @@ pub fn diff_impact(
     out
 }
 
+/// Renders `find_path`'s result: the path's calls in order, each with the
+/// definition it steps to, and whether every call is proven.
+pub fn find_path(
+    (from, starts): (&str, usize),
+    (to, ends): (&str, usize),
+    (max_hops, calls_only): (u32, bool),
+    search: &mct_index::PathSearch,
+    toon: bool,
+) -> String {
+    let noun = if calls_only { "call path" } else { "path" };
+    let missing: Vec<String> = [(from, starts), (to, ends)]
+        .iter()
+        .filter(|(_, n)| *n == 0)
+        .map(|(name, _)| format!("`{name}`"))
+        .collect();
+    if !missing.is_empty() {
+        return format!(
+            "No symbol named {} — try search_symbols for a partial name.\n",
+            missing.join(" or ")
+        );
+    }
+    if !search.found {
+        let cut = if search.truncated {
+            format!(
+                ", stopped at the {} symbol cap",
+                mct_index::MAX_PATH_SYMBOLS
+            )
+        } else {
+            String::new()
+        };
+        return format!(
+            "No {noun} from `{from}` to `{to}` within {max_hops} hop(s), confirmed or \
+             possible ({} symbol(s) searched{cut}).\n",
+            search.searched
+        );
+    }
+    if search.steps.is_empty() {
+        return format!("`{from}` and `{to}` are the same symbol.\n");
+    }
+    let uncertain = search
+        .steps
+        .iter()
+        .filter(|s| s.hit.resolution != mct_index::Resolution::Resolved)
+        .count();
+    let mut out = if search.confirmed {
+        format!(
+            "Confirmed {noun} from `{from}` to `{to}`: {} hop(s).\n",
+            search.steps.len()
+        )
+    } else {
+        format!(
+            "No confirmed {noun} from `{from}` to `{to}` within {max_hops} hop(s). Possible \
+             path: {} hop(s), {uncertain} through an ambiguous call — check those before relying \
+             on it.\n",
+            search.steps.len()
+        )
+    };
+    if toon {
+        let rows: Vec<Vec<String>> = search
+            .steps
+            .iter()
+            .map(|step| {
+                vec![
+                    step.hit.depth.to_string(),
+                    step.hit.from_symbol.clone(),
+                    step.hit.relative_path.clone(),
+                    step.hit.line.to_string(),
+                    step.target.name.clone(),
+                    format!("{}:{}", step.target.relative_path, step.target.line),
+                    step.hit.resolution.as_str().to_string(),
+                    step.hit.candidate_count.to_string(),
+                ]
+            })
+            .collect();
+        out.push_str(&crate::toon::encode_table(
+            "path",
+            &[
+                "hop",
+                "from",
+                "path",
+                "line",
+                "to",
+                "target",
+                "resolution",
+                "candidates",
+            ],
+            &rows,
+        ));
+    } else {
+        for step in &search.steps {
+            let note = if step.hit.resolution == mct_index::Resolution::Resolved {
+                String::new()
+            } else {
+                format!(
+                    " (ambiguous among {}, one possible target)",
+                    step.hit.candidate_count
+                )
+            };
+            out.push_str(&format!(
+                "  {}. {} ({}:{}) {} {} at {}:{}{note}\n",
+                step.hit.depth,
+                step.hit.from_symbol,
+                step.hit.relative_path,
+                step.hit.line,
+                step.hit.kind,
+                step.target.name,
+                step.target.relative_path,
+                step.target.line,
+            ));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod file_skeleton_tests {
     use super::*;

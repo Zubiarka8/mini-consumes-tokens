@@ -222,6 +222,7 @@ pub const KNOWN_TOOL_NAMES: &[&str] = &[
     "impact_analysis",
     "diff_impact",
     "build_context_pack",
+    "find_path",
     "reindex",
     "get_indexing_status",
     "get_file_skeleton",
