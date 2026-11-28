@@ -9,6 +9,7 @@ pub mod coordination;
 mod cycles;
 mod dead_code;
 mod dependency_graph;
+mod diff_impact;
 mod duplicates;
 mod error;
 mod exclude;
@@ -43,6 +44,9 @@ pub use dead_code::{
     EntryPointNote, DEAD_CODE_ENTRY_POINT_NAMES, DEAD_CODE_KIND_ALLOWLIST,
 };
 pub use dependency_graph::{DependencyEdge, DependencyGraph};
+pub use diff_impact::{
+    AffectedDefinition, ChangedFile, DiffImpact, GitDiff, RemovedDefinition, TEST_DEPTH,
+};
 pub use duplicates::{
     find_duplicate_groups, AlignedDifference, BlockBudgetKind, BlockOccurrence, CallShape,
     ContextAspect, ContextComparison, ContextEvidence, ContextStatus, DifferenceKind,
@@ -706,6 +710,24 @@ impl Index {
     /// writing thread); the rows written are the same for any count.
     pub fn set_parse_workers(&mut self, workers: usize) {
         self.parse_workers = Some(workers.clamp(1, 64));
+    }
+
+    /// What the change from the merge base of `base` and `head` (the
+    /// working tree when `None`) to `head` touches (issue #632): changed
+    /// definitions with their callers, tests and unproven referrers,
+    /// removed definitions still named, and changed files the index does
+    /// not hold as the head has them. Excluded paths are left out.
+    pub fn diff_impact(
+        &self,
+        registry: &mct_core::LanguageRegistry,
+        base: &str,
+        head: Option<&str>,
+    ) -> Result<(GitDiff, DiffImpact)> {
+        let mut diff = diff_impact::git_diff(&self.root, base, head)?;
+        diff.files
+            .retain(|file| !self.exclude.is_excluded(&file.path));
+        let report = diff_impact::diff_impact(self, registry, &diff)?;
+        Ok((diff, report))
     }
 
     pub fn symbols_in_files(&self, paths: &[&str]) -> Result<Vec<SymbolHit>> {
