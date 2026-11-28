@@ -1282,6 +1282,8 @@ pub struct UncertainRelated {
     pub candidates: Vec<mct_index::SymbolHit>,
     /// How many definitions the uncertain relation could denote.
     pub candidate_count: usize,
+    /// Why none is picked: `Receiver` or `Candidates`.
+    pub evidence: mct_index::ResolutionEvidence,
 }
 
 /// Everything `build_context_pack` renders, deduplicated.
@@ -1323,6 +1325,8 @@ struct RelatedDraft {
     /// One relation behind this draft, for an ambiguous callee's candidates.
     relation_id: i64,
     candidate_count: usize,
+    /// Why the first uncertain sighting stayed unpicked.
+    evidence: mct_index::ResolutionEvidence,
 }
 
 /// Collects related symbols in first-seen order, merging repeat sightings of
@@ -1403,6 +1407,7 @@ impl RelatedSet {
                     certain,
                     relation_id: hit.relation_id,
                     candidate_count: hit.candidate_count,
+                    evidence: hit.evidence,
                 });
             }
         }
@@ -2921,6 +2926,7 @@ impl MctServer {
                     definition,
                     candidates,
                     candidate_count: draft.candidate_count,
+                    evidence: draft.evidence,
                 });
                 continue;
             }
