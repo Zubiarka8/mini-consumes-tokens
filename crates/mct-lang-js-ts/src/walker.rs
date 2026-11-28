@@ -382,6 +382,17 @@ impl<'a> Walker<'a> {
         mct_tree_sitter::push_relation(&mut self.relations, from, kind, to_name, loc);
     }
 
+    /// A component rendered as an element by `owner`: `Renders`, marked
+    /// top-level when the tag is a bare name (`Button`, not `UI.Button`).
+    pub(super) fn push_render(&mut self, owner: SymbolId, component: String, loc: Location) {
+        let relation = self.relations.len();
+        let bare = !component.contains('.');
+        self.push_relation(owner, RelationKind::Renders, component, loc);
+        if bare {
+            self.mark_top_level(relation);
+        }
+    }
+
     /// Marks relation `relation` as naming its target with no receiver
     /// (`top_level`, issue #395), when it was recorded: a deduplicated push
     /// leaves `relation` past the end and marks nothing. Targets are pushed
@@ -1013,16 +1024,7 @@ impl<'a> Walker<'a> {
                     if is_component {
                         // Retain qualification: UI.Button must not resolve
                         // to an unrelated local Button by discarding UI.
-                        let relation = self.relations.len();
-                        self.push_relation(
-                            owner,
-                            RelationKind::References,
-                            component.to_string(),
-                            location(name),
-                        );
-                        if name.kind() == "identifier" {
-                            self.mark_top_level(relation);
-                        }
+                        self.push_render(owner, component.to_string(), location(name));
                     }
                 }
                 // Attribute expressions still contain ordinary calls and

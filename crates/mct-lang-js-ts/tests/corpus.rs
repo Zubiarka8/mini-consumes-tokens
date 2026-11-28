@@ -247,7 +247,7 @@ fn index_answers_cross_file_queries() {
     let component_refs = index.find_references("StockBadge").unwrap();
     assert!(component_refs
         .iter()
-        .any(|r| r.relative_path == "src/ui/OrderTable.tsx" && r.kind == "references"));
+        .any(|r| r.relative_path == "src/ui/OrderTable.tsx" && r.kind == "renders"));
 }
 
 /// Issue #272: a component named in JSX. The file's module and the function declared in it share
@@ -255,5 +255,5 @@ fn index_answers_cross_file_queries() {
 /// `ambiguous among 2` although there is one target.
 #[test]
 fn a_component_reference_resolves_to_the_function_not_to_its_file_module() {
-    mct_corpus::assert_reference_resolves_uniquely(&corpus().index(), "OrderTable", "references");
+    mct_corpus::assert_reference_resolves_uniquely(&corpus().index(), "OrderTable", "renders");
 }
