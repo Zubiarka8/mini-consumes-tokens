@@ -1,4 +1,4 @@
-//! React-style JSX/TSX logic and component-reference coverage.
+//! React-style JSX/TSX logic and component-render coverage.
 
 use mct_core::{RelationKind, SymbolKind};
 
@@ -23,9 +23,10 @@ fn tsx_component_logic_is_indexed_without_structuring_jsx() {
         .iter()
         .any(|s| s.name == "Widget" && s.kind == SymbolKind::Function));
 
-    // No JSX-specific SymbolKind/RelationKind exists (or is expected) — only
-    // the logic embedded in the component (the hook call from the render
-    // body, and the one inside the onClick handler) should show up as Calls.
+    // Intrinsic elements are neither symbols nor relations (`Renders` is for
+    // components only); the logic embedded in the component (the hook call
+    // from the render body, and the one inside the onClick handler) shows up
+    // as Calls.
     let use_count_calls = parsed
         .relations
         .iter()
@@ -38,7 +39,7 @@ fn tsx_component_logic_is_indexed_without_structuring_jsx() {
 }
 
 #[test]
-fn jsx_component_uses_are_references_with_precise_ownership() {
+fn jsx_component_uses_are_renders_with_precise_ownership() {
     for path in ["App.jsx", "App.tsx"] {
         let parsed = parse(
             path,
@@ -50,17 +51,13 @@ class Screen { render() { return <Child />; } }
 const Root = <Child />;
 "#,
         );
-        let references: Vec<_> = parsed
+        let renders: Vec<_> = parsed
             .relations
             .iter()
-            .filter(|r| r.kind == RelationKind::References && r.to_name == "Child")
+            .filter(|r| r.kind == RelationKind::Renders && r.to_name == "Child")
             .collect();
-        assert_eq!(
-            references.len(),
-            4,
-            "opening/self-closing tags only: {path}"
-        );
-        let owners: Vec<_> = references
+        assert_eq!(renders.len(), 4, "opening/self-closing tags only: {path}");
+        let owners: Vec<_> = renders
             .iter()
             .map(|r| {
                 parsed
@@ -73,7 +70,11 @@ const Root = <Child />;
             })
             .collect();
         assert_eq!(owners, ["App", "App", "render", "App"], "{path}");
-        assert_eq!(references[0].location.line, 3);
+        assert_eq!(renders[0].location.line, 3);
+        assert!(!parsed
+            .relations
+            .iter()
+            .any(|r| r.kind == RelationKind::References && r.to_name == "Child"));
         assert!(parsed
             .relations
             .iter()
@@ -95,14 +96,11 @@ fn jsx_member_names_stay_qualified_and_intrinsics_are_excluded() {
         "View.tsx",
         r#"const View = () => <><UI.Button /><ui.Panel></ui.Panel><_Internal /><$Button /><my-widget /><svg:path /></>;"#,
     );
-    let references: Vec<_> = parsed
+    let renders: Vec<_> = parsed
         .relations
         .iter()
-        .filter(|r| r.kind == RelationKind::References)
+        .filter(|r| r.kind == RelationKind::Renders)
         .map(|r| r.to_name.as_str())
         .collect();
-    assert_eq!(
-        references,
-        ["UI.Button", "ui.Panel", "_Internal", "$Button"]
-    );
+    assert_eq!(renders, ["UI.Button", "ui.Panel", "_Internal", "$Button"]);
 }

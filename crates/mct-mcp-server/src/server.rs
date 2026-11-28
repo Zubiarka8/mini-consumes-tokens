@@ -2948,7 +2948,8 @@ impl MctServer {
                 related.add_referrer(&role("caller"), hit);
             }
             // Backlinks by resolved identity — links and embeds reaching a
-            // note/section (`module`/`element`), so a same-named note
+            // note/section (`module`/`element`), and renders of an Astro
+            // component (its file's module), so a same-named note
             // elsewhere never shares them. Other kinds keep their
             // callers-only pack.
             let linkable: Vec<i64> = definitions
@@ -2962,7 +2963,7 @@ impl MctServer {
                     .map_err(index_error)?;
                 for hit in backlinks
                     .iter()
-                    .filter(|hit| matches!(hit.kind.as_str(), "references" | "imports"))
+                    .filter(|hit| matches!(hit.kind.as_str(), "references" | "imports" | "renders"))
                 {
                     related.add_referrer(&role(&hit.kind), hit);
                 }

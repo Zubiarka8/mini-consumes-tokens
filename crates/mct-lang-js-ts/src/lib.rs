@@ -20,11 +20,15 @@
 //! suggest a distinction the rest of the index (symbol/relation lookup by
 //! name, language-agnostic) doesn't actually make.
 //!
-//! JSX/TSX component opening/self-closing tags produce ordinary `References`
-//! relations from their enclosing function/method/module. Intrinsic DOM tags
-//! are excluded; member names retain qualification (`UI.Button`). Embedded
-//! hook/event-handler calls remain `Calls`. There is no dedicated render
-//! relation, JSX element/attribute symbol, or framework-specific resolution.
+//! JSX/TSX component opening/self-closing tags produce `Renders` relations
+//! from their enclosing function/method/module. Intrinsic DOM tags are
+//! excluded; member names retain qualification (`UI.Button`). Embedded
+//! hook/event-handler calls remain `Calls`. There is no JSX element or
+//! attribute symbol.
+//!
+//! An Astro component (`.astro`, see [`astro`]) is its frontmatter, parsed
+//! as TypeScript at its own lines, plus `Renders` relations from the file's
+//! module symbol for each component tag in its template.
 //!
 //! Other known limits: a TS `namespace` is a `Module` symbol whose
 //! functions stay top-level (no parent). An object literal is not a type, so its methods are `Function`s.
@@ -38,6 +42,7 @@ use mct_core::{LanguageParser, ParseError, ParsedFile, SourceFile, SymbolKind};
 use mct_tree_sitter::{first_error, module_location};
 use tree_sitter::Parser;
 
+mod astro;
 mod literals;
 mod nextjs;
 mod tokens;
@@ -54,7 +59,7 @@ mod libraries;
 /// TSX for `.tsx`, JavaScript (with JSX) otherwise.
 pub(crate) fn grammar_for(relative_path: &str) -> tree_sitter::Language {
     match relative_path.rsplit('.').next().unwrap_or_default() {
-        "ts" | "mts" | "cts" => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        "ts" | "mts" | "cts" | "astro" => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         "tsx" => tree_sitter_typescript::LANGUAGE_TSX.into(),
         _ => tree_sitter_javascript::LANGUAGE.into(),
     }
@@ -68,11 +73,23 @@ impl LanguageParser for JsTsParser {
     }
 
     fn file_extensions(&self) -> &'static [&'static str] {
-        &["js", "jsx", "mjs", "cjs", "ts", "mts", "cts", "tsx"]
+        &[
+            "js", "jsx", "mjs", "cjs", "ts", "mts", "cts", "tsx", "astro",
+        ]
     }
 
     fn parse(&self, file: &SourceFile) -> Result<ParsedFile, ParseError> {
         let language = grammar_for(&file.relative_path);
+        // An Astro file's frontmatter is TypeScript; everything else is
+        // blanked so lines and columns stay the file's own.
+        let astro = file.relative_path.ends_with(".astro");
+        let masked;
+        let contents = if astro {
+            masked = astro::frontmatter_only(&file.contents);
+            masked.as_str()
+        } else {
+            file.contents.as_str()
+        };
 
         let mut parser = Parser::new();
         #[allow(clippy::expect_used)]
@@ -86,7 +103,7 @@ impl LanguageParser for JsTsParser {
             .expect("tree-sitter-javascript/typescript grammars are statically valid");
 
         let tree = parser
-            .parse(&file.contents, None)
+            .parse(contents, None)
             .ok_or_else(|| ParseError::Syntax {
                 path: file.relative_path.clone(),
                 line: 1,
@@ -104,22 +121,33 @@ impl LanguageParser for JsTsParser {
         }
 
         let module_name = module_name_for(&file.relative_path);
-        let mut walker = Walker::new(&file.contents, &file.relative_path);
+        let mut walker = Walker::new(contents, &file.relative_path);
         walker.scan_globals(root);
-        let module_id =
-            walker.push_symbol(module_name, SymbolKind::Module, module_location(root), None);
+        let module_location = if astro {
+            astro::file_location(&file.contents)
+        } else {
+            module_location(root)
+        };
+        let module_id = walker.push_symbol(module_name, SymbolKind::Module, module_location, None);
         walker.visit_children(root, module_id, None, 0);
+        if astro {
+            for (component, loc) in astro::template_components(&file.contents) {
+                walker.push_render(module_id, component, loc);
+            }
+        }
         let mut parsed = walker.finish();
         let nextjs = nextjs::hints(&file.relative_path, root, &file.contents, &parsed.symbols);
         parsed.entry_points.extend(nextjs);
-        parsed.literals = literals::collect(root, &file.contents);
+        parsed.literals = literals::collect(root, contents);
         Ok(parsed)
     }
 }
 
 fn module_name_for(relative_path: &str) -> String {
     let file_name = relative_path.rsplit('/').next().unwrap_or(relative_path);
-    for ext in [".tsx", ".mts", ".cts", ".ts", ".jsx", ".mjs", ".cjs", ".js"] {
+    for ext in [
+        ".tsx", ".mts", ".cts", ".ts", ".jsx", ".mjs", ".cjs", ".js", ".astro",
+    ] {
         if let Some(stripped) = file_name.strip_suffix(ext) {
             return stripped.to_string();
         }

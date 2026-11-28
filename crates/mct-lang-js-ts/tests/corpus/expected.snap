@@ -1232,7 +1232,7 @@ R 192:3 calls OrderDetail -> useEffect
 R 193:5 calls OrderDetail -> setHistory
 R 194:25 calls OrderDetail -> events (name-matched: src/api/client.ts)
 R 194:52 calls OrderDetail -> setHistory
-R 201:25 references OrderDetail -> StatusPill
+R 201:25 renders OrderDetail -> StatusPill
 R 204:22 calls OrderDetail -> map
 R 206:63 calls OrderDetail -> format (name-matched: src/money.ts)
 R 210:48 calls OrderDetail -> format (name-matched: src/money.ts)
@@ -1262,7 +1262,7 @@ R 238:5 calls OrderTable::cancelSelected -> dispatch
 R 239:11 calls OrderTable::cancelSelected -> reload
 R 242:28 references OrderTable::showSlip -> Order (name-matched: src/order.ts)
 R 244:37 calls OrderTable::showSlip -> packingSlip (name-matched: src/order.ts)
-R 253:8 references OrderTable -> Toolbar
+R 253:8 renders OrderTable -> Toolbar
 R 255:54 calls OrderTable -> join
 R 255:24 calls OrderTable -> map
 R 261:32 calls OrderTable -> dispatch
@@ -1272,16 +1272,16 @@ R 268:20 calls OrderTable -> map
 R 271:41 calls OrderTable -> has
 R 272:31 calls OrderTable -> dispatch
 R 273:36 calls OrderTable -> showSlip
-R 277:18 references OrderTable -> StatusPill
+R 277:18 renders OrderTable -> StatusPill
 R 279:48 calls OrderTable -> format (name-matched: src/money.ts)
 R 281:30 calls OrderTable -> map
-R 282:20 references OrderTable -> StockBadge
+R 282:20 renders OrderTable -> StockBadge
 R 291:65 calls OrderTable -> format (name-matched: src/money.ts)
 R 293:34 calls OrderTable -> dispatch
 R 303:22 calls createOrderTable -> WarehouseClient (name-matched: src/api/client.ts)
 R 304:21 calls createOrderTable -> StockCache (name-matched: src/inventory.ts)
 R 304:32 calls createOrderTable -> httpStockSource (name-matched: src/inventory.ts)
-R 305:17 references createOrderTable -> OrderTable
+R 305:17 renders createOrderTable -> OrderTable
 R 308:10 references OrderTable -> describe (name-matched: src/order.ts)
 R 308:20 references OrderTable -> describeCount (name-matched: src/inventory.ts)
 R 308:35 references OrderTable -> pickingRoute (name-matched: src/inventory.ts)
@@ -1429,9 +1429,9 @@ R 265:11 calls Board -> levels (name-matched: src/inventory.ts)
 R 267:9 calls Board -> setStock
 R 275:3 calls Board -> useEffect
 R 277:7 calls Board -> onFinish
-R 286:8 references Board -> ProgressBar
-R 287:8 references Board -> TaskCard
-R 288:8 references Board -> Feedback
+R 286:8 renders Board -> ProgressBar
+R 287:8 renders Board -> TaskCard
+R 288:8 renders Board -> Feedback
 R 289:55 calls Board -> skip
 R 298:32 calls openSession -> forZone
 R 303:36 calls openSession -> orders (name-matched: src/api/client.ts)
@@ -1463,9 +1463,9 @@ R 329:36 calls PickBoard::finish -> invalidate (name-matched: src/inventory.ts)
 R 330:13 calls PickBoard::finish -> close
 R 331:5 calls PickBoard::finish -> setSession
 R 331:22 calls PickBoard::finish -> openSession
-R 335:6 references PickBoard -> ScanErrorBoundary
+R 335:6 renders PickBoard -> ScanErrorBoundary
 R 335:52 calls PickBoard -> error (name-matched: src/ui/OrderTable.tsx)
-R 336:19 references PickBoard -> Board
+R 336:19 renders PickBoard -> Board
 R 175:42 references start -> onKeyDown
 R 178:45 references stop -> onKeyDown
 R 194:44 references useIdleLogout -> reset
