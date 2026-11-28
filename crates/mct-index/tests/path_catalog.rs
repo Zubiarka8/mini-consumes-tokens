@@ -698,3 +698,222 @@ fn the_status_counts_catalogued_files_by_category() {
     sorted.sort_by(|a, b| b.cmp(a));
     assert_eq!(files, sorted);
 }
+
+/// Every file of the fixture with the category and format it must get:
+/// one or more per family, uppercase and compound suffixes, names
+/// without an extension and the doubtful readings.
+const EXPECTED: &[(&str, &str, &str)] = &[
+    // Walked like any file; a leading dot is not an extension.
+    (".mctignore", "other", ""),
+    ("LICENSE", "document", "plain-text"),
+    ("README", "document", "plain-text"),
+    ("archives/backup.7z", "archive", "7z"),
+    ("archives/bundle.TGZ", "archive", "tar.gz"),
+    ("archives/bundle.tar.gz", "archive", "tar.gz"),
+    ("archives/disk.iso", "archive", "iso"),
+    ("archives/dist.tar.zst", "archive", "tar.zst"),
+    ("archives/source.zip", "archive", "zip"),
+    ("bin/app.wasm", "binary", "webassembly"),
+    ("bin/tool.exe", "binary", "windows-executable"),
+    ("bin/libfoo.so.1.2", "binary", "shared-library"),
+    ("bin/native.dll", "binary", "windows-library"),
+    ("bin/plugin.jar", "binary", "java-archive"),
+    ("bin/setup.msi", "binary", "windows-installer"),
+    ("books/comic.cbz", "ebook", "comic-zip"),
+    ("books/novel.epub", "ebook", "epub"),
+    ("brand/Logo-Dark.SVG", "vector", "svg"),
+    ("brand/flow.drawio", "vector", "drawio"),
+    ("brand/logo.eps", "vector", "eps"),
+    ("brand/logo.svg", "vector", "svg"),
+    ("brand/logo.svgz", "vector", "svgz"),
+    ("cad/part.step", "model3d", "step"),
+    ("cad/plan.dwg", "model3d", "dwg"),
+    ("data/analysis.ipynb", "data", "jupyter-notebook"),
+    ("data/config.json", "data", "json"),
+    ("data/events.jsonl", "data", "json-lines"),
+    ("data/feed.xml", "data", "xml"),
+    ("data/settings.yaml", "data", "yaml"),
+    ("data/table.parquet", "data", "parquet"),
+    ("db/analytics.duckdb", "database", "duckdb"),
+    ("db/app.sqlite", "database", "sqlite"),
+    ("db/legacy.db", "database", "sqlite"),
+    ("db/other.db", "database", "db"),
+    ("db/schema.sql", "database", "sql"),
+    ("demo/audio/clip.opus", "audio", "opus"),
+    ("demo/audio/intro.mp3", "audio", "mp3"),
+    ("demo/audio/song.flac", "audio", "flac"),
+    ("demo/audio/theme.mid", "audio", "midi"),
+    ("demo/audio/voice.WAV", "audio", "wav"),
+    ("demo/subs/clip.srt", "subtitle", "srt"),
+    ("demo/subs/clip.vtt", "subtitle", "webvtt"),
+    ("demo/video/broadcast.ts", "video", "mpeg-ts"),
+    ("demo/video/clip.mp4", "video", "mp4"),
+    ("demo/video/clip.webm", "video", "webm"),
+    ("design/mock.psd", "design", "photoshop"),
+    ("design/ui.fig", "design", "figma"),
+    ("design/ui.sketch", "design", "sketch"),
+    ("docs/Spec Ünïcode.docx", "document", "docx"),
+    ("docs/graph.dot", "vector", "graphviz"),
+    ("docs/legacy.doc", "document", "doc"),
+    ("docs/letter.dot", "document", "dot"),
+    ("docs/manual.pdf", "document", "pdf"),
+    ("docs/notes.rtf", "document", "rtf"),
+    ("docs/report.odt", "document", "odt"),
+    ("fonts/Inter.otf", "font", "opentype"),
+    ("fonts/Inter.ttf", "font", "truetype"),
+    ("fonts/Inter.woff2", "font", "woff2"),
+    ("fonts/family.ttc", "font", "ttc"),
+    ("fonts/notes.ttc", "other", ""),
+    ("geo/area.geojson", "geospatial", "geojson"),
+    ("geo/elevation.tif", "geospatial", "geotiff"),
+    ("geo/places.kml", "geospatial", "kml"),
+    ("geo/track.gpx", "geospatial", "gpx"),
+    ("img/anim.gif", "image", "gif"),
+    ("img/hero.avif", "image", "avif"),
+    ("img/hero.webp", "image", "webp"),
+    ("img/icon.ico", "image", "ico"),
+    ("img/map.tif", "image", "tiff"),
+    ("img/phone.HEIC", "image", "heif"),
+    ("img/photo.JPG", "image", "jpeg"),
+    ("img/photo2.jpeg", "image", "jpeg"),
+    ("img/pic.png", "image", "png"),
+    ("img/pointer.cur", "image", "cur"),
+    ("img/raw/IMG_0001.CR2", "image", "canon-raw"),
+    ("img/raw/shot.dng", "image", "dng"),
+    ("img/scan.jfif", "image", "jpeg"),
+    ("img/sky.exr", "image", "openexr"),
+    ("img/studio.hdr", "image", "radiance-hdr"),
+    ("img/texture.dds", "image", "dds"),
+    ("mail/meeting.ics", "email", "icalendar"),
+    ("mail/message.eml", "email", "eml"),
+    ("models/build.obj", "binary", "coff-object"),
+    ("models/chair.obj", "model3d", "wavefront-obj"),
+    ("models/house.blend", "model3d", "blender"),
+    ("models/part.stl", "model3d", "stl"),
+    ("models/robot.glb", "model3d", "glb"),
+    ("models/scene.usdz", "model3d", "usd"),
+    ("nested/deeper/still/logo.png", "image", "png"),
+    ("other/Makefile.bak", "other", ""),
+    ("other/blob.xyz", "other", ""),
+    ("sheets/budget.xlsx", "spreadsheet", "xlsx"),
+    ("sheets/data.csv", "spreadsheet", "csv"),
+    ("sheets/data.tsv", "spreadsheet", "tsv"),
+    ("sheets/macro.xlsm", "spreadsheet", "xlsm"),
+    ("sheets/old.XLS", "spreadsheet", "xls"),
+    ("slides/deck.pptx", "presentation", "pptx"),
+    ("slides/talk.odp", "presentation", "odp"),
+    ("src/app.ts", "source", "typescript"),
+    ("src/lib.rs", "source", "rust"),
+];
+
+#[test]
+fn every_family_is_classified() {
+    let (_dir, index) = indexed_fixture();
+    let page = index
+        .find_files(&FileQueryInput {
+            limit: Some(200),
+            ..Default::default()
+        })
+        .unwrap();
+    let mut actual: Vec<(&str, &str, &str)> = page
+        .entries
+        .iter()
+        .map(|e| {
+            (
+                e.relative_path.as_str(),
+                e.category.as_str(),
+                e.format.as_str(),
+            )
+        })
+        .collect();
+    actual.sort_unstable();
+    let mut expected = EXPECTED.to_vec();
+    expected.sort_unstable();
+    assert_eq!(actual, expected);
+}
+
+// Unix only: `set_len` makes a sparse file there; NTFS may allocate it.
+#[cfg(unix)]
+#[test]
+fn a_huge_file_is_catalogued_from_its_metadata_and_a_bounded_prefix() {
+    let (dir, mut index) = indexed_fixture();
+    // Sparse: 8 GiB on paper, a few blocks on disk. The `.mp4` is never
+    // opened; the `.tif` is read for at most SIGNATURE_BYTES.
+    let size: u64 = 8 << 30;
+    for name in ["demo/video/huge.mp4", "demo/video/huge.tif"] {
+        let file = fs::File::create(dir.join(name)).unwrap();
+        file.set_len(size).unwrap();
+    }
+    let started = std::time::Instant::now();
+    index.reindex(&registry(), false).unwrap();
+    assert!(started.elapsed() < std::time::Duration::from_secs(20));
+    let entry = index.catalog_entry("demo/video/huge.mp4").unwrap().unwrap();
+    assert_eq!(
+        (entry.category.as_str(), entry.size_bytes),
+        ("video", Some(size))
+    );
+    let tif = index.catalog_entry("demo/video/huge.tif").unwrap().unwrap();
+    assert_eq!(
+        (tif.category.as_str(), tif.format.as_str()),
+        ("image", "tiff")
+    );
+    assert!(tif.note.is_some(), "no TIFF header: {tif:?}");
+}
+
+#[test]
+fn a_name_without_an_extension_is_findable_and_explained() {
+    let (dir, mut index) = indexed_fixture();
+    fs::write(dir.join("other/Dockerfile.unknownthing"), "FROM x").unwrap();
+    fs::write(dir.join("other/BLOB"), [0u8, 1, 2]).unwrap();
+    index.reindex(&registry(), false).unwrap();
+    let blob = index.catalog_entry("other/BLOB").unwrap().unwrap();
+    assert_eq!(
+        (blob.category.as_str(), blob.evidence.as_str()),
+        ("other", "unknown")
+    );
+    assert_eq!(blob.note.as_deref(), Some("no extension"));
+    let page = index
+        .find_files(&FileQueryInput {
+            query: Some("blob"),
+            ..Default::default()
+        })
+        .unwrap();
+    let paths: Vec<&str> = page
+        .entries
+        .iter()
+        .map(|e| e.relative_path.as_str())
+        .collect();
+    assert_eq!(paths, ["other/BLOB", "other/blob.xyz"]);
+}
+
+#[test]
+fn an_index_from_before_the_catalog_fills_it_on_a_normal_reindex() {
+    let dir = fixture();
+    let db = dir.join(".mct-index/index.sqlite3");
+    fs::create_dir_all(db.parent().unwrap()).unwrap();
+    {
+        let mut index = Index::open(&dir, &db, ExcludeSet::for_project(&dir)).unwrap();
+        index.reindex(&registry(), false).unwrap();
+    }
+    // Rewind to schema 35, as a binary from before migration 36 left it.
+    let conn = rusqlite::Connection::open(&db).unwrap();
+    conn.execute_batch("DROP TABLE path_catalog;").unwrap();
+    conn.pragma_update(None, "user_version", 35).unwrap();
+    drop(conn);
+
+    let mut index = Index::open(&dir, &db, ExcludeSet::for_project(&dir)).unwrap();
+    assert!(
+        !catalogued(&index, "docs/manual.pdf"),
+        "the migration adds an empty table"
+    );
+    let report = index.reindex(&registry(), false).unwrap();
+    assert_eq!(report.files_parsed, 0, "no content hash was invalidated");
+    assert_eq!(
+        class_of(&index, "docs/manual.pdf"),
+        class("document", "pdf", "extension")
+    );
+    assert_eq!(
+        class_of(&index, "src/lib.rs"),
+        class("source", "rust", "parser")
+    );
+}
