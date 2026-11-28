@@ -2347,6 +2347,7 @@ fn write_parsed_file(
         };
         let kind = match point.kind {
             mct_core::JoinKind::HttpEndpoint => "http",
+            mct_core::JoinKind::Test => crate::dead_code::TEST_JOIN_KIND,
         };
         let role = match point.role {
             mct_core::JoinRole::Declares => "declares",

@@ -1048,3 +1048,48 @@ fn a_bare_builtin_attribute_is_not_a_reference() {
     }
     assert!(names.contains(&"my_attr"), "{names:?}");
 }
+
+#[test]
+fn a_test_attribute_declares_its_function_a_test() {
+    let parsed = parse(
+        r#"
+        fn plain() {}
+        fn attest() {}
+        #[cfg(test)]
+        mod tests {
+            #[test]
+            fn sync_case() {}
+            #[tokio::test]
+            async fn async_case() {}
+            #[bench]
+            fn bench_case() {}
+            #[inline]
+            fn helper() {}
+        }
+    "#,
+    );
+    let tests: Vec<(String, String)> = parsed
+        .join_points
+        .iter()
+        .filter(|point| point.kind == mct_core::JoinKind::Test)
+        .map(|point| {
+            let symbol = parsed
+                .symbols
+                .iter()
+                .find(|s| s.id == point.symbol)
+                .unwrap();
+            (symbol.name.clone(), point.value.clone())
+        })
+        .collect();
+    assert_eq!(
+        tests,
+        [
+            ("sync_case".to_string(), "#[test]".to_string()),
+            ("async_case".to_string(), "#[tokio::test]".to_string()),
+        ]
+    );
+    assert!(parsed
+        .join_points
+        .iter()
+        .all(|point| point.role == mct_core::JoinRole::Declares));
+}

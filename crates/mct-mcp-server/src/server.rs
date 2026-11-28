@@ -2812,12 +2812,22 @@ impl MctServer {
                 related.add_referrer(&hit.kind, hit);
             }
         }
-        // Same test heuristic as impact_analysis, over every relation
+        // Same test evidence as impact_analysis, over every relation
         // reaching the symbol — a test importing it counts, not just one
-        // calling it.
+        // calling it. The role names the reason: `test:#[test]`,
+        // `test:path` or `test:name`.
+        let referrers: Vec<i64> = references
+            .iter()
+            .chain(callers.iter())
+            .map(|hit| hit.from_symbol_id)
+            .collect();
+        let declared_tests = index.declared_tests(&referrers).map_err(index_error)?;
         for hit in references.iter().chain(callers.iter()) {
-            if mct_index::looks_like_test_name(&hit.from_symbol, &hit.relative_path) {
-                related.add_referrer("test", hit);
+            let declared = declared_tests.get(&hit.from_symbol_id).map(String::as_str);
+            if let Some(test) =
+                mct_index::test_evidence(declared, &hit.from_symbol, &hit.relative_path)
+            {
+                related.add_referrer(&format!("test:{}", test.label()), hit);
             }
         }
 
@@ -2937,7 +2947,10 @@ impl MctServer {
             // file-level `use`/`import` of the packed symbol: the file is
             // worth naming, its whole-file "definition" isn't worth a row.
             if definition.kind == "module"
-                && draft.roles.iter().all(|r| r == "caller" || r == "test")
+                && draft
+                    .roles
+                    .iter()
+                    .all(|r| r == "caller" || r.starts_with("test:"))
             {
                 file_level.insert(definition.relative_path);
                 continue;

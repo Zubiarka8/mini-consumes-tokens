@@ -250,7 +250,9 @@ fn role_counts(pack: &ContextPack) -> String {
     let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
     for rel in &pack.related {
         for role in &rel.roles {
-            *counts.entry(role.as_str()).or_default() += 1;
+            // `test:#[test]` and `test:path` count as one `test` role.
+            let role = role.split(':').next().unwrap_or(role);
+            *counts.entry(role).or_default() += 1;
         }
     }
     if !pack.uncertain.is_empty() {

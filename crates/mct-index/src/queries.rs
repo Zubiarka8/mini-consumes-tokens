@@ -153,6 +153,32 @@ pub struct RelationHit {
     /// *which* definition a hit reaches without a lookup per hit; the full
     /// set is [`relation_candidates`].
     pub candidates: Vec<CandidateRef>,
+    /// Why `from_symbol` is a test, set only by the affected-test queries.
+    pub test: Option<TestEvidence>,
+}
+
+/// Why a symbol counts as a test (issue #630): the syntax that declares it,
+/// or, without one, the path or name convention it matches.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TestEvidence {
+    /// A parser recorded a test declaration: the attribute or annotation as
+    /// written, such as `#[test]` or `#[tokio::test]`.
+    Declared(String),
+    /// The file's path follows a test convention (`tests/`, `*_test.go`).
+    Path,
+    /// The symbol's own name does (`test`, `test_*`).
+    Name,
+}
+
+impl TestEvidence {
+    /// The reason in one token: the declaring syntax, `path` or `name`.
+    pub fn label(&self) -> &str {
+        match self {
+            Self::Declared(syntax) => syntax,
+            Self::Path => "path",
+            Self::Name => "name",
+        }
+    }
 }
 
 /// How many candidates a [`RelationHit`] carries.
@@ -1015,6 +1041,7 @@ fn query_relation_rows(
                 target_id,
                 candidate_count: count.max(0) as usize,
                 candidates: Vec::new(),
+                test: None,
             })
         })?
         .collect::<rusqlite::Result<Vec<RelationHit>>>()?;
@@ -1138,6 +1165,22 @@ pub fn symbols_by_ids(conn: &Connection, ids: &[i64]) -> Result<Vec<SymbolHit>> 
     )?;
     let rows = stmt
         .query_map([ids], symbol_hit)?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// The declaring syntax of every test among `ids` (`join_points` of kind
+/// `test`), by symbol id; the first by value when a symbol has several.
+pub fn declared_tests(conn: &Connection, ids: &[i64]) -> Result<HashMap<i64, String>> {
+    let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".to_string());
+    let mut stmt = conn.prepare_cached(
+        "SELECT symbol_id, MIN(value) FROM join_points
+         WHERE kind = 'test' AND role = 'declares'
+           AND symbol_id IN (SELECT value FROM json_each(?1))
+         GROUP BY symbol_id",
+    )?;
+    let rows = stmt
+        .query_map([ids], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
 }

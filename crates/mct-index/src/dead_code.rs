@@ -66,6 +66,9 @@ fn file_name_looks_like_test(file_name: &str) -> bool {
         || lower.contains(".spec.")
 }
 
+/// `join_points.kind` of a declared test (`mct_core::JoinKind::Test`).
+pub(crate) const TEST_JOIN_KIND: &str = "test";
+
 /// Tightened naming convention, kept only as a secondary signal to
 /// [`path_looks_like_test`]. The old `starts_with("test")` form also matched
 /// `testimonial`, `tester` and `testament`; an exact `test` or a `test_`
@@ -89,6 +92,22 @@ fn name_looks_like_test(name: &str) -> bool {
 /// coverage should be warned.
 pub fn looks_like_test_name(name: &str, relative_path: &str) -> bool {
     path_looks_like_test(relative_path) || name_looks_like_test(name)
+}
+
+/// Why a symbol is a test: its `declared` syntax (a test join point) first,
+/// then the path convention, then the name convention; `None` when nothing
+/// says it is one.
+pub fn test_evidence(
+    declared: Option<&str>,
+    name: &str,
+    relative_path: &str,
+) -> Option<crate::TestEvidence> {
+    match declared {
+        Some(syntax) => Some(crate::TestEvidence::Declared(syntax.to_string())),
+        None if path_looks_like_test(relative_path) => Some(crate::TestEvidence::Path),
+        None if name_looks_like_test(name) => Some(crate::TestEvidence::Name),
+        None => None,
+    }
 }
 
 /// Dead-code candidates under `path` (a single file or directory/crate
@@ -255,6 +274,9 @@ pub fn scan_dead_code(
          ORDER BY symbol_id, kind, value",
     )?;
     let mut declarations = HashMap::<i64, Vec<String>>::new();
+    // A declared test is never a candidate, but it is no framework entry
+    // point either: listing every test would bury the declarations.
+    let mut tests = std::collections::HashSet::new();
     for row in stmt.query_map([], |row| {
         Ok((
             row.get::<_, i64>(0)?,
@@ -263,6 +285,10 @@ pub fn scan_dead_code(
         ))
     })? {
         let (id, kind, value) = row?;
+        if kind == TEST_JOIN_KIND {
+            tests.insert(id);
+            continue;
+        }
         declarations
             .entry(id)
             .or_default()
@@ -274,7 +300,7 @@ pub fn scan_dead_code(
     for (position, (id, symbol)) in ids.into_iter().zip(&symbols).enumerate() {
         if let Some(reasons) = declarations.remove(&id) {
             declared_entry_points.extend(reasons.into_iter().map(|reason| (position, reason)));
-        } else if is_candidate(symbol, &referenced) {
+        } else if !tests.contains(&id) && is_candidate(symbol, &referenced) {
             candidates.push(position);
         }
     }
@@ -290,6 +316,26 @@ pub fn scan_dead_code(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_evidence_prefers_the_declaration_then_the_path_then_the_name() {
+        use crate::TestEvidence::{Declared, Name, Path};
+        assert_eq!(
+            test_evidence(Some("#[test]"), "renders", "tests/render.rs"),
+            Some(Declared("#[test]".into()))
+        );
+        assert_eq!(
+            test_evidence(None, "renders", "tests/render.rs"),
+            Some(Path)
+        );
+        assert_eq!(
+            test_evidence(None, "test_render", "src/render.rs"),
+            Some(Name)
+        );
+        // A name that merely contains `test` is no convention.
+        assert_eq!(test_evidence(None, "attest_render", "src/render.rs"), None);
+        assert_eq!(test_evidence(None, "latest", "src/latest.rs"), None);
+    }
 
     #[test]
     fn a_declared_major_is_the_first_number_of_the_constraint() {

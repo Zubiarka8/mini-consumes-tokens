@@ -1056,6 +1056,36 @@ fn relation_hit_row(hit: &RelationHit) -> Vec<String> {
     ]
 }
 
+/// Why an affected test is one: the syntax declaring it (`#[test]`), or
+/// `path`/`name` for the convention it matches.
+fn test_label(hit: &RelationHit) -> &str {
+    hit.test.as_ref().map_or("", mct_index::TestEvidence::label)
+}
+
+/// `likely` when the test's relation to the symbol resolved, `possible` when
+/// it only might reach it (ambiguous or unresolved).
+fn affected(hit: &RelationHit) -> &'static str {
+    if hit.resolution == Resolution::Resolved {
+        "likely"
+    } else {
+        "possible"
+    }
+}
+
+/// The text form of an affected test's reason, and how sure the edge is.
+fn test_note(hit: &RelationHit) -> String {
+    let reason = match &hit.test {
+        Some(mct_index::TestEvidence::Declared(syntax)) => syntax.clone(),
+        Some(mct_index::TestEvidence::Path) => "test path".to_string(),
+        Some(mct_index::TestEvidence::Name) => "test name".to_string(),
+        None => "test".to_string(),
+    };
+    match affected(hit) {
+        "likely" => format!("({reason})"),
+        _ => format!("({reason}, possible){}", resolution_tag(hit)),
+    }
+}
+
 pub fn impact_analysis(
     symbol: &str,
     callers: &[RelationHit],
@@ -1118,12 +1148,13 @@ fn impact_analysis_impl(
         let mut body = BudgetedList::new(section_budget);
         for hit in shown {
             body.push(&format!(
-                "  {}:{}:{} [{}] {}{}\n",
+                "  {}:{}:{} [{}] {} {}{}\n",
                 hit.relative_path,
                 hit.line,
                 hit.column,
                 hit.language,
                 hit.from_symbol,
+                test_note(hit),
                 depth_tag(hit.depth)
             ));
         }
@@ -1256,14 +1287,26 @@ fn impact_analysis_toon_impl(
 
     if !affected_tests.is_empty() || pages.is_some_and(|p| p[2].total != Some(0)) {
         let shown = paginate(affected_tests, offset, limit);
-        let rows: Vec<Vec<String>> = shown.iter().map(|hit| relation_hit_row(hit)).collect();
+        let rows: Vec<Vec<String>> = shown
+            .iter()
+            .map(|hit| {
+                let mut row = relation_hit_row(hit);
+                row.extend([test_label(hit).to_string(), affected(hit).to_string()]);
+                row
+            })
+            .collect();
+        let test_headers: Vec<&str> = headers
+            .iter()
+            .copied()
+            .chain(["test", "affected"])
+            .collect();
         out.push_str(&format!(
             "\nLikely affected tests{}:\n{}",
             pages.map_or_else(
                 || truncation_note(affected_tests.len(), offset, shown.len()),
                 |p| page_note(p[2])
             ),
-            encode_table("tests", &headers, &rows)
+            encode_table("tests", &test_headers, &rows)
         ));
     }
 

@@ -18,6 +18,9 @@ pub struct JoinPoint {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinKind {
     HttpEndpoint,
+    /// A test a harness runs: the value is the declaring syntax, such as
+    /// `#[test]` or `@Test`. Declared only, never used.
+    Test,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +30,18 @@ pub enum JoinRole {
 }
 
 impl JoinPoint {
+    /// A test that `value` (the attribute or annotation, as written)
+    /// declares for `symbol`.
+    pub fn test_declares(symbol: SymbolId, value: String, location: Location) -> Self {
+        Self {
+            symbol,
+            kind: JoinKind::Test,
+            value,
+            role: JoinRole::Declares,
+            location,
+        }
+    }
+
     /// An HTTP endpoint a route declares for `symbol`, or `None` when the
     /// method or path is not a literal the normalization accepts.
     pub fn http_declares(
