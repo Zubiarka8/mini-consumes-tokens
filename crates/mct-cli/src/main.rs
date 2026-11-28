@@ -1296,9 +1296,27 @@ fn print_status(status: mct_index::IndexStatus) {
             status.unsupported_languages.join(", ")
         );
     }
-    if !status.syntax_errors.is_empty() {
-        println!("{} file(s) failed to parse:", status.syntax_errors.len());
-        for err in &status.syntax_errors {
+    if !status.file_roles.is_empty() {
+        let roles: Vec<String> = status
+            .file_roles
+            .iter()
+            .map(|(role, count)| format!("{role} {count}"))
+            .collect();
+        println!("Files by role: {}", roles.join(", "));
+    }
+    let (unexpected, expected) = status.parse_failures();
+    if !unexpected.is_empty() {
+        println!("{} file(s) failed to parse:", unexpected.len());
+        for err in &unexpected {
+            println!("  {}: {}", err.relative_path, err.detail);
+        }
+    }
+    if !expected.is_empty() {
+        println!(
+            "{} fixture file(s) failed to parse, likely on purpose:",
+            expected.len()
+        );
+        for err in &expected {
             println!("  {}: {}", err.relative_path, err.detail);
         }
     }
