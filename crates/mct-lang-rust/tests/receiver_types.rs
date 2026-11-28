@@ -261,3 +261,59 @@ fn a_typed_receiver_reaches_its_own_type_only() {
         ["src/ledger.rs:23 Resolved 1", "src/ledger.rs:29 Resolved 1",]
     );
 }
+
+const SERVER: &str = r#"use crate::index::Index;
+use crate::cache::Cache;
+
+pub struct Server<B> {
+    index: Index,
+    shared: std::sync::Arc<Index>,
+    cache: &'static Cache,
+    name: String,
+    backend: B,
+    inner: Inner,
+}
+
+pub struct Inner {
+    cache: Cache,
+}
+
+impl<B> Server<B> {
+    pub fn snapshot(&self) {
+        self.index.read_snapshot();
+        self.shared.read_snapshot();
+        self.cache.evict();
+        self.name.find("x");
+        self.backend.flush();
+        self.inner.cache.evict();
+        self.missing.read_snapshot();
+    }
+}
+
+pub fn warm(server: &Server<u8>) {
+    server.index.read_snapshot();
+}
+"#;
+
+#[test]
+fn a_typed_field_of_a_proven_receiver_qualifies_the_call() {
+    assert_eq!(
+        method_calls(&parsed("src/server.rs", SERVER), SERVER),
+        [
+            // `self.index: Index`, imported from `crate::index`.
+            "read_snapshot q=Index",
+            // `Arc<Index>` is a standard type that may deref elsewhere.
+            "read_snapshot",
+            "evict q=Cache",
+            // `String` is standard; `B` is the struct's type parameter.
+            "find",
+            "flush",
+            // Two hops: `self.inner: Inner`, then `Inner.cache: Cache`.
+            "evict q=Cache",
+            // No such field declared.
+            "read_snapshot",
+            // A typed parameter's field.
+            "read_snapshot q=Index",
+        ]
+    );
+}

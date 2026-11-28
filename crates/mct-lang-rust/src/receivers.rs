@@ -7,6 +7,10 @@
 //! closure parameter, a `match` arm) leaves it unproven, and so does a type
 //! the caller rules out (a type parameter, a standard library type, which
 //! may deref to another type's methods).
+//!
+//! A field reached from a proven receiver (`self.index`, `ledger.store`)
+//! counts too, when this file declares the struct with that field typed
+//! `T`, `&T` or `T<..>` ([`field_types`]).
 
 use std::collections::HashMap;
 
@@ -124,4 +128,92 @@ fn count_identifiers(node: Node, source: &str, counts: &mut HashMap<String, usiz
     for child in node.children(&mut cursor) {
         count_identifiers(child, source, counts, depth + 1);
     }
+}
+
+/// The stated type of each named field of the structs this file declares:
+/// `(struct, field)` → the field type's base name and the byte offset it is
+/// written at. A struct name declared twice in the file (in two modules)
+/// gives nothing, and so does a field typed by one of its struct's own type
+/// parameters.
+pub(crate) fn field_types(root: Node, source: &str) -> HashMap<(String, String), (String, usize)> {
+    let mut structs = Vec::new();
+    collect_structs(root, &mut structs, 0);
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for item in &structs {
+        if let Some(name) = item.child_by_field_name("name") {
+            *counts.entry(text(name, source)).or_default() += 1;
+        }
+    }
+    let mut fields = HashMap::new();
+    for item in structs {
+        let Some(name) = item.child_by_field_name("name").map(|n| text(n, source)) else {
+            continue;
+        };
+        if counts.get(name) != Some(&1) {
+            continue;
+        }
+        let generics = type_parameters(item, source);
+        let Some(body) = item
+            .child_by_field_name("body")
+            .filter(|b| b.kind() == "field_declaration_list")
+        else {
+            continue;
+        };
+        let mut cursor = body.walk();
+        for field in body.named_children(&mut cursor) {
+            if field.kind() != "field_declaration" {
+                continue;
+            }
+            let (Some(field_name), Some(ty)) = (
+                field.child_by_field_name("name"),
+                field.child_by_field_name("type"),
+            ) else {
+                continue;
+            };
+            if let Some(base) = type_name(ty, source, Some(name)) {
+                if !generics.contains(&base) {
+                    fields.insert(
+                        (name.to_string(), text(field_name, source).to_string()),
+                        (base, ty.start_byte()),
+                    );
+                }
+            }
+        }
+    }
+    fields
+}
+
+/// Every `struct` item under `node`, inline modules included, function
+/// bodies not (a struct declared in a function is local to it).
+fn collect_structs<'t>(node: Node<'t>, out: &mut Vec<Node<'t>>, depth: u32) {
+    if depth >= MAX_TRAVERSAL_DEPTH {
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        match child.kind() {
+            "struct_item" => out.push(child),
+            "mod_item" | "declaration_list" => collect_structs(child, out, depth + 1),
+            _ => {}
+        }
+    }
+}
+
+/// The names of an item's type parameters (`T` in `struct S<T>`).
+fn type_parameters(item: Node, source: &str) -> Vec<String> {
+    let Some(params) = item.child_by_field_name("type_parameters") else {
+        return Vec::new();
+    };
+    let mut cursor = params.walk();
+    params
+        .named_children(&mut cursor)
+        .filter_map(|param| match param.kind() {
+            "type_identifier" => Some(text(param, source).to_string()),
+            _ => param
+                .child_by_field_name("name")
+                .or_else(|| param.named_child(0))
+                .filter(|n| n.kind() == "type_identifier")
+                .map(|n| text(n, source).to_string()),
+        })
+        .collect()
 }
