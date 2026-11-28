@@ -981,6 +981,44 @@ pub(crate) fn direct_relation_page(
     })
 }
 
+/// A relation's resolution and its evidence from the `relation_candidates`
+/// columns: `external`, the candidate `count`, a `member` access (receiver
+/// unproven), a `declared` candidate and a `shared_use` of one endpoint.
+pub(crate) fn classify(
+    external: bool,
+    count: i64,
+    member: bool,
+    declared: bool,
+    shared_use: bool,
+) -> (Resolution, ResolutionEvidence) {
+    match (external, count) {
+        (true, _) => (Resolution::External, ResolutionEvidence::Syntax),
+        (false, 0) => (Resolution::Unresolved, ResolutionEvidence::None),
+        // One use, several declarers of the same endpoint: none is picked.
+        (false, _) if shared_use => (Resolution::Ambiguous, ResolutionEvidence::Candidates),
+        (false, 1) if !member => (
+            Resolution::Resolved,
+            if declared {
+                ResolutionEvidence::Declared
+            } else {
+                ResolutionEvidence::Name
+            },
+        ),
+        (false, _) if member => (Resolution::Ambiguous, ResolutionEvidence::Receiver),
+        (false, _) => (Resolution::Ambiguous, ResolutionEvidence::Candidates),
+    }
+}
+
+/// [`classify`]'s resolution alone.
+pub(crate) fn resolution_of(
+    external: bool,
+    count: i64,
+    member: bool,
+    shared_use: bool,
+) -> Resolution {
+    classify(external, count, member, false, shared_use).0
+}
+
 fn query_relation_rows(
     conn: &Connection,
     mut sql: String,
@@ -1006,25 +1044,8 @@ fn query_relation_rows(
             let member: bool = row.get(12)?;
             let declared: bool = row.get(13)?;
             let shared_use: bool = row.get(14)?;
-            let (resolution, target_id, evidence) = match (external, count) {
-                (true, _) => (Resolution::External, None, ResolutionEvidence::Syntax),
-                (false, 0) => (Resolution::Unresolved, None, ResolutionEvidence::None),
-                // One use, several declarers of the same endpoint: none is picked.
-                (false, _) if shared_use => {
-                    (Resolution::Ambiguous, None, ResolutionEvidence::Candidates)
-                }
-                (false, 1) if !member => (
-                    Resolution::Resolved,
-                    only,
-                    if declared {
-                        ResolutionEvidence::Declared
-                    } else {
-                        ResolutionEvidence::Name
-                    },
-                ),
-                (false, _) if member => (Resolution::Ambiguous, None, ResolutionEvidence::Receiver),
-                (false, _) => (Resolution::Ambiguous, None, ResolutionEvidence::Candidates),
-            };
+            let (resolution, evidence) = classify(external, count, member, declared, shared_use);
+            let target_id = only.filter(|_| resolution == Resolution::Resolved);
             Ok(RelationHit {
                 kind: row.get(0)?,
                 from_symbol: row.get(1)?,
