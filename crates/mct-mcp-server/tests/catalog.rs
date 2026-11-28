@@ -100,13 +100,15 @@ async fn the_full_catalogs_serialized_footprint_is_well_under_the_pre_ttc_size()
     // `search_symbols_like` / `hybrid_search_like` rename kept the old names
     // as two short deprecated aliases and `find_references` gained its `sort`
     // note (~4662 bytes together), which moved the guard from 4300 to 4800; drop the aliases' bytes
-    // again when they are removed. It is a regression guard with headroom,
+    // again when they are removed. `diff_impact` (issue #632) took it to
+    // ~4930, past the guard, which moved from 4800 to 5200 to leave room
+    // for `find_path` (issue #633). It is a regression guard with headroom,
     // not a precise assertion — bump it
     // (with a note here) rather than loosen it silently if a future tool
     // needs the room.
     assert!(
-        description_bytes < 4_800,
-        "tool catalog description bytes grew to {description_bytes}, expected well under 4800 \
+        description_bytes < 5_200,
+        "tool catalog description bytes grew to {description_bytes}, expected well under 5200 \
          (TTC's whole point is a compact catalog)"
     );
 }

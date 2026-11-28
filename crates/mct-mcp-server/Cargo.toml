@@ -39,6 +39,8 @@ default = []
 semantic = ["dep:fastembed"]
 
 [dev-dependencies]
+# `tests/diff_impact.rs` builds the Git history it diffs (issue #632).
+git2 = { version = "0.21.0", default-features = false }
 # `tests/tools_list.rs` runs a real rmcp client against the server over an
 # in-memory duplex, to check what `tools/list` actually sends (issue #70).
 rmcp = { version = "3.7.0", features = ["client"] }

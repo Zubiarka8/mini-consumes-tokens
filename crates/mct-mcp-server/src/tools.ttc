@@ -115,6 +115,14 @@ PRE `symbol` non-blank.
 POST callers, references and likely tests, each section capped. TOON by default; `format`:`text` for plain text.
 EFFECTS read; index only.
 
+TOOL diff_impact
+WHEN what a branch or uncommitted change touches: definitions, callers, tests.
+ERR one symbol: impact_analysis.
+TAGS diff, git, review
+PRE `base` commit/branch/tag (merge base used); `head` omitted = working tree.
+POST changed definitions with callers, tests (why, confirmed|possible), unproven referrers; removed ones still named; stale files = partial.
+EFFECTS read; index and Git repository only.
+
 TOOL build_context_pack
 WHEN before working on a symbol: def+doc+source, callers/callees/deps/tests once each.
 ERR not blast radius (use impact_analysis); ambiguous name -> path/language.

@@ -1735,6 +1735,7 @@ dependencies = [
  "anyhow",
  "clap",
  "fastembed",
+ "git2",
  "hmac-sha256",
  "mct-core",
  "mct-index",
