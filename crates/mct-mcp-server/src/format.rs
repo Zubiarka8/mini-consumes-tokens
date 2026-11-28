@@ -2635,6 +2635,213 @@ fn write_alias_sources(out: &mut String, sources: &[mct_index::AliasSource]) {
     }
 }
 
+/// Renders `diff_impact`'s report: each changed definition with its
+/// callers, the tests reaching it (and why each is a test) and what may
+/// reach it unproven; then removed definitions still named, stale files and
+/// files no definition covers.
+pub fn diff_impact(
+    diff: &mct_index::GitDiff,
+    report: &mct_index::DiffImpact,
+    toon: bool,
+) -> String {
+    let head = diff.head.as_deref().unwrap_or("working tree");
+    let mut out = format!(
+        "Diff impact {}..{head}: {} file(s) changed, {} definition(s) changed, {} removed.\n",
+        diff.base,
+        diff.files.len(),
+        report.affected.len(),
+        report.removed.len()
+    );
+    if diff.files.is_empty() {
+        out.push_str("No file changed since the merge base.\n");
+        return out;
+    }
+    if !report.stale.is_empty() {
+        out.push_str(&format!(
+            "Partial: {} file(s) indexed from other bytes than the head's, so their lines may \
+             not match — reindex, then ask again: {}\n",
+            report.stale.len(),
+            report.stale.join(", ")
+        ));
+    }
+    if !report.unmapped.is_empty() {
+        out.push_str(&format!(
+            "No indexed definition covers the change in: {}\n",
+            report.unmapped.join(", ")
+        ));
+    }
+    let ranges = |changes: &[(u32, u32)]| {
+        changes
+            .iter()
+            .map(|&(a, b)| {
+                if a == b {
+                    a.to_string()
+                } else {
+                    format!("{a}-{b}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(";")
+    };
+    let certainty = |hit: &mct_index::RelationHit| {
+        if hit.resolution == mct_index::Resolution::Resolved {
+            "confirmed"
+        } else {
+            "possible"
+        }
+    };
+    if toon {
+        let rows: Vec<Vec<String>> = report
+            .affected
+            .iter()
+            .map(|a| {
+                vec![
+                    a.symbol.name.clone(),
+                    a.symbol.kind.clone(),
+                    format!("{}:{}", a.symbol.relative_path, a.symbol.line),
+                    ranges(&a.changes),
+                    a.callers.len().to_string(),
+                    a.tests.len().to_string(),
+                    a.uncertain.len().to_string(),
+                ]
+            })
+            .collect();
+        out.push_str(&crate::toon::encode_table(
+            "changed",
+            &[
+                "definition",
+                "kind",
+                "at",
+                "lines",
+                "callers",
+                "tests",
+                "uncertain",
+            ],
+            &rows,
+        ));
+        let mut callers = Vec::new();
+        let mut tests = Vec::new();
+        let mut uncertain = Vec::new();
+        for a in &report.affected {
+            for hit in &a.callers {
+                callers.push(vec![
+                    a.symbol.name.clone(),
+                    hit.from_symbol.clone(),
+                    format!("{}:{}", hit.relative_path, hit.line),
+                    hit.kind.clone(),
+                ]);
+            }
+            for (hit, why) in &a.tests {
+                tests.push(vec![
+                    a.symbol.name.clone(),
+                    hit.from_symbol.clone(),
+                    format!("{}:{}", hit.relative_path, hit.line),
+                    why.label().to_string(),
+                    certainty(hit).to_string(),
+                ]);
+            }
+            for hit in &a.uncertain {
+                uncertain.push(vec![
+                    a.symbol.name.clone(),
+                    hit.from_symbol.clone(),
+                    format!("{}:{}", hit.relative_path, hit.line),
+                    hit.candidate_count.to_string(),
+                ]);
+            }
+        }
+        for (name, headers, rows) in [
+            (
+                "callers",
+                &["definition", "caller", "at", "kind"][..],
+                callers,
+            ),
+            (
+                "tests",
+                &["definition", "test", "at", "why", "path"][..],
+                tests,
+            ),
+            (
+                "uncertain",
+                &["definition", "from", "at", "candidates"][..],
+                uncertain,
+            ),
+        ] {
+            if !rows.is_empty() {
+                out.push_str(&crate::toon::encode_table(name, headers, &rows));
+            }
+        }
+        let removed: Vec<Vec<String>> = report
+            .removed
+            .iter()
+            .map(|r| {
+                vec![
+                    r.name.clone(),
+                    r.kind.clone(),
+                    format!("{}:{}", r.path, r.line),
+                    r.still_named.len().to_string(),
+                ]
+            })
+            .collect();
+        if !removed.is_empty() {
+            out.push_str(&crate::toon::encode_table(
+                "removed",
+                &["definition", "kind", "base_at", "still_named"],
+                &removed,
+            ));
+        }
+        return out;
+    }
+    for a in &report.affected {
+        out.push_str(&format!(
+            "{} {} ({}:{}), lines {}\n",
+            a.symbol.kind,
+            a.symbol.name,
+            a.symbol.relative_path,
+            a.symbol.line,
+            ranges(&a.changes)
+        ));
+        for hit in &a.callers {
+            out.push_str(&format!(
+                "  caller {} ({}:{})\n",
+                hit.from_symbol, hit.relative_path, hit.line
+            ));
+        }
+        for (hit, why) in &a.tests {
+            out.push_str(&format!(
+                "  test {} ({}:{}) — {}, {}\n",
+                hit.from_symbol,
+                hit.relative_path,
+                hit.line,
+                why.label(),
+                certainty(hit)
+            ));
+        }
+        for hit in &a.uncertain {
+            out.push_str(&format!(
+                "  maybe {} ({}:{}) — ambiguous among {}\n",
+                hit.from_symbol, hit.relative_path, hit.line, hit.candidate_count
+            ));
+        }
+    }
+    for r in &report.removed {
+        out.push_str(&format!(
+            "removed {} {} ({} at base line {}), still named by {} relation(s)\n",
+            r.kind,
+            r.name,
+            r.path,
+            r.line,
+            r.still_named.len()
+        ));
+        for hit in &r.still_named {
+            out.push_str(&format!(
+                "  {} ({}:{})\n",
+                hit.from_symbol, hit.relative_path, hit.line
+            ));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod file_skeleton_tests {
     use super::*;

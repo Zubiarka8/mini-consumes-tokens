@@ -146,6 +146,10 @@ fn impact_command_compares_commit_trees_and_names_affected_tests() {
 #[test]
 fn impact_command_scopes_git_paths_to_a_nested_project_root() {
     let project = Project::new();
+    project.write(
+        "nested/Cargo.toml",
+        "[package]\nname = \"nested_fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
     project.write("nested/src/lib.rs", "pub fn nested_call() {}\n");
     project.write(
         "nested/tests/nested_call.rs",
@@ -171,5 +175,13 @@ fn impact_command_scopes_git_paths_to_a_nested_project_root() {
     assert!(output.status.success(), "{}", stderr(&output));
     let report = stdout(&output);
     assert!(report.contains("src/lib.rs"), "{report}");
+    assert!(
+        report.contains("function nested_call (src/lib.rs:1), lines 1\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("function helper (src/lib.rs:2), lines 2\n"),
+        "{report}"
+    );
     assert!(report.contains("test_nested_call"), "{report}");
 }

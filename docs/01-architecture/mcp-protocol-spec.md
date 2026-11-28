@@ -16,6 +16,7 @@
 | `find_calls` | atomic | What a function calls |
 | `find_callers` | atomic | What calls a function |
 | `impact_analysis` | composite | Full blast radius in one call; each affected test says why it is one (`#[test]`, `path`, `name`) and whether it is `likely` or only `possible` (ADR-038, #630) |
+| `diff_impact` | composite | What a Git change touches since the merge base of `base`: changed definitions with callers, tests (why, confirmed or possible) and unproven referrers; removed definitions still named; a stale file makes the answer partial (#632) |
 | `find_dead_code` | analysis | Review-aware candidates with zero indexed references; TOON or text ([ADR-023](adrs/023-mcp-dead-code-reviews.md)) |
 | `find_duplicate_code` | analysis | Review-aware whole-function duplicate candidates; compact bounded references ([ADR-022](adrs/022-mcp-duplicate-findings.md)) |
 | `get_dependency_graph` | composite | Module-level import graph: nodes by hop, resolved import edges, cycles, external imports, optional DOT/Mermaid |

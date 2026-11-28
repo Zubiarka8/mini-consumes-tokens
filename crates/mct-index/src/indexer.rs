@@ -2933,7 +2933,7 @@ pub fn status(index: &Index) -> Result<IndexStatus> {
     })
 }
 
-fn symbol_kind_str(kind: mct_core::SymbolKind) -> &'static str {
+pub(crate) fn symbol_kind_str(kind: mct_core::SymbolKind) -> &'static str {
     use mct_core::SymbolKind::*;
     match kind {
         Function => "function",

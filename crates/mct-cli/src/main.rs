@@ -104,15 +104,23 @@ enum Command {
         #[arg(long)]
         summary: bool,
     },
-    /// Report symbols and candidate tests affected by a Git commit range.
-    #[command(after_help = "Example:\n  mct-cli --root . impact --base origin/main --head HEAD")]
+    /// Report the definitions a Git change touches, with callers and tests.
+    ///
+    /// The change runs from the merge base of `--base` and the head to the
+    /// head, so `--base main` reports this branch's own changes. Without
+    /// `--head` the head is the working tree, uncommitted changes included.
+    /// The index is refreshed first; a head commit whose files differ from
+    /// the working tree is reported partial.
+    #[command(
+        after_help = "Examples:\n  mct-cli --root . impact --base main\n  mct-cli --root . impact --base origin/main --head HEAD"
+    )]
     Impact {
-        /// Base commit or reference.
+        /// Base commit, branch or tag.
         #[arg(long)]
         base: String,
-        /// Head commit or reference.
-        #[arg(long, default_value = "HEAD")]
-        head: String,
+        /// Head commit, branch or tag; the working tree when omitted.
+        #[arg(long)]
+        head: Option<String>,
     },
     /// Regenerate the Obsidian vault from the existing index.
     ///
@@ -552,7 +560,9 @@ fn run_single(root: PathBuf, command: Command) -> anyhow::Result<()> {
                 print_vault_location(index.root());
             }
         }
-        Command::Impact { base, head } => impact::run(&root, &mut index, &registry, &base, &head)?,
+        Command::Impact { base, head } => {
+            impact::run(&mut index, &registry, &base, head.as_deref())?
+        }
         Command::Obsidian => obsidian_vault(&index)?,
         Command::Status => print_status(index.status()?),
         Command::DeadCode {

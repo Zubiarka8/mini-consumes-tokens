@@ -366,6 +366,21 @@ pub struct FindCallersArgs {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct DiffImpactArgs {
+    /// Commit, branch or tag the change is measured from: the diff starts
+    /// at its merge base with the head, so `main` reports a branch's own
+    /// changes only.
+    pub base: String,
+    /// Head commit, branch or tag. Omitted, the working tree, uncommitted
+    /// changes included.
+    #[serde(default)]
+    pub head: Option<String>,
+    /// Response shape: `toon` (default) or `text`.
+    #[serde(default)]
+    pub format: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ImpactAnalysisArgs {
     /// Exact name of the symbol you're considering changing or removing.
     pub symbol: String,
@@ -783,6 +798,7 @@ const TOOL_CATEGORIES: &[(&str, &[&str])] = &[
             "find_calls",
             "find_references",
             "impact_analysis",
+            "diff_impact",
             "build_context_pack",
             "get_dependency_graph",
         ],
@@ -2042,6 +2058,7 @@ impl MctServer {
             "find_calls" => self.find_calls(batch_params(tool, args)?).await,
             "find_callers" => self.find_callers(batch_params(tool, args)?).await,
             "impact_analysis" => self.impact_analysis(batch_params(tool, args)?).await,
+            "diff_impact" => self.diff_impact(batch_params(tool, args)?).await,
             "build_context_pack" => self.build_context_pack(batch_params(tool, args)?).await,
             "get_indexing_status" => self.get_indexing_status(batch_params(tool, args)?).await,
             "get_file_skeleton" => self.get_file_skeleton(batch_params(tool, args)?).await,
@@ -2765,6 +2782,40 @@ impl MctServer {
             .map_err(index_error)?;
         let text =
             format::relation_page_hits(function, label, &hits, output_format == OutputFormat::Toon);
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
+    }
+
+    // Fallback only — see tools.ttc / MctServer::new.
+    #[tool(description = "What a Git diff changes, with callers and tests; see tools.ttc")]
+    pub async fn diff_impact(
+        &self,
+        Parameters(args): Parameters<DiffImpactArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let base = args.base.trim();
+        if base.is_empty() || base.len() > 256 || base.starts_with('-') {
+            return Err(McpError::invalid_params(
+                "base must be a commit, branch or tag name",
+                None,
+            ));
+        }
+        let head = optional_arg(args.head.as_ref());
+        let output_format = parse_output_format(args.format.as_deref())?;
+        let index = self.index.lock().await;
+        let _snapshot = index.read_snapshot().map_err(index_error)?;
+        let (diff, report) =
+            index
+                .diff_impact(&self.registry, base, head)
+                .map_err(|err| match err {
+                    mct_index::IndexError::Git(git) => McpError::invalid_params(
+                        format!(
+                            "{} — is `base`/`head` a commit of this repository?",
+                            git.message()
+                        ),
+                        None,
+                    ),
+                    other => index_error(other),
+                })?;
+        let text = format::diff_impact(&diff, &report, output_format == OutputFormat::Toon);
         Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 
